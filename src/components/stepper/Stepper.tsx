@@ -1,6 +1,5 @@
 import React from "react";
 import clsx from "clsx";
-import { useAppSelector } from "../../redux_toolkit/hooks";
 
 type Step = {
   label: string;
@@ -19,7 +18,6 @@ const Stepper: React.FC<StepperProps> = ({
   onStepClick,
 }) => {
 
-    const {isSidebarOpen} = useAppSelector((state:any)=>state.navUIState)
   if (!steps || steps.length === 0) return <>No stepper found</>;
 
   return (
@@ -59,9 +57,9 @@ const Stepper: React.FC<StepperProps> = ({
                     "bg-yellow-200 text-gray-600": isCompleted,
                     "bg-gray-300 border-2 text-gray-600 border-yellow-500":
                       isCurrent && isCompleted,
-                    "bg-gray-300 border-2 text-white border-yellow-500":
+                    "bg-purple-50 border-2  border-yellow-500 text-gray-500":
                       isCurrent && !isCompleted,
-                    "bg-gray-300 text-white border-2 border-gray-500 cursor-not-allowed":
+                    "bg-gray-200 text-gray-400 border-2 border-gray-500 cursor-not-allowed":
                       isFuture,
                   }
                 )}
