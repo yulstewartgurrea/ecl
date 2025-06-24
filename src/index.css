@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/* animations.css */
+@keyframes rotateIn {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(180deg);
+  }
+}
+
+@keyframes rotateOut {
+  0% {
+    transform: rotate(180deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes slideOut {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+
+@keyframes slideIn {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+.rotate-in {
+  animation: rotateIn 0.2s forwards;
+}
+
+.rotate-out {
+  animation: rotateOut 0.2s forwards;
+}
+
+.slide-out {
+  animation: slideOut 1s forwards;
+}
+
+.slide-in {
+  animation: slideIn 0.3s forwards;
+}
+
+
+
+/* For modern browsers */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Hide scrollbar for Chrome, Safari, and Edge */
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none; /* Hide scrollbar for IE and Edge */
+  scrollbar-width: none; /* Hide scrollbar for Firefox */
+}
+
+
+input[type="range"].custom-slider {
+  background: transparent;
+}
+
+input[type="range"].custom-slider::-webkit-slider-thumb {
+  appearance: none;
+  height: 24px;
+  width: 2px;
+  background-color: #000;
+  cursor: pointer;
+  margin-top: -11px; /* Align vertically with track */
+  border-radius: 0;
+}
+
+input[type="range"].custom-slider::-moz-range-thumb {
+  height: 24px;
+  width: 2px;
+  background-color: #000;
+  cursor: pointer;
+  border: none;
+  border-radius: 0;
+}
