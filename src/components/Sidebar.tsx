@@ -687,7 +687,7 @@ const Sidebar = () => {
             <button
               type="button"
               onClick={handleLogout}
-              className="flex h-[48px] w-full items-center justify-center gap-2 text-gray-600 text-sm font-medium px-2 hover:bg-purple-300"
+              className="flex h-[48px] w-full items-center justify-center gap-2 text-gray-600 text-sm font-medium px-2 hover:bg-yellow-500"
             >
               <PowerIcon className="w-5" />
               <span className="font-semibold whitespace-nowrap">LOGOUT</span>
