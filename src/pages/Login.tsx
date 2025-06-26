@@ -86,7 +86,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white ">
+    <div className="min-h-screen flex items-center justify-center bg-login-gradient ">
       <div className="bg-white shadow-2xl rounded-3xl w-full max-w-md px-10 py-8">
         <div className="flex flex-col items-center">
           <img src="/SGVLogoLight.png" alt="Logo" className="h-20 mb-6" />
@@ -118,7 +118,7 @@ const Login = () => {
 
           <button
             onClick={handleLogin}
-            className="w-full bg-[#ffbe0b] hover:bg-yellow-500 text-white font-bold py-2 rounded-md transition duration-200"
+            className="w-full bg-[#cc6ff1]/90 cursor-pointer text-white font-bold py-2 rounded-md transition duration-200"
           >
             Log In
           </button>

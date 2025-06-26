@@ -89,3 +89,73 @@ input[type="range"].custom-slider::-moz-range-thumb {
   border: none;
   border-radius: 0;
 }
+
+/* css */
+
+/* .bg-login-gradient {
+  background: linear-gradient(
+    135deg,
+    #f9efb4 0%,
+    #f9efb4 15%,
+    #f5cfbf 25%,
+    #f0a5c8 45%,
+    #e87ed5 65%,
+    #cc6ff1 80%,
+    #bf66ff 100%
+  );
+} */
+
+
+
+
+.bg-login-gradient {
+  background: linear-gradient(
+    135deg,
+    #f9efb4 0%,
+    #f9efb4 16%,
+    #f5cfbf 35%,
+    #f0a5c8 50%,
+    #e87ed5 65%,
+    #cc6ff1 80%,
+    #bf66ff 100%
+  );
+}
+
+
+/* .btn-login-gradient {
+  background: linear-gradient(
+    90deg,
+    #f9efb4 0%,
+    #f5cfbf 20%,
+    #f0a5c8 45%,
+    #e87ed5 65%,
+    #cc6ff1 80%,
+    #bf66ff 100%
+  );
+  color: white;
+  font-weight: bold;
+  transition: background 0.3s ease;
+}
+.btn-login-gradient:hover {
+  filter: brightness(1.1);
+} */
+
+/* .btn-login-gradient {
+  background: linear-gradient(
+    90deg,
+    #f9efb4 0%,
+    #f5cfbf 8%,
+    #f0a5c8 20%,
+    #e87ed5 45%,
+    #cc6ff1 70%,
+    #bf66ff 100%
+  );
+  color: white;
+  font-weight: bold;
+  transition: filter 0.3s ease;
+}
+.btn-login-gradient:hover {
+  filter: brightness(1.1);
+} */
+
+

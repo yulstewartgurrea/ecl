@@ -22,7 +22,7 @@ const StepNavigation = ({
   onBack,
   onContinue,
   onFinish,
-  backLabel = "Back",
+  backLabel = "Previous",
   continueLabel = "Continue",
   hideBackButton = false,
 }: StepNavigationProps) => {
@@ -37,7 +37,7 @@ const StepNavigation = ({
         <button
           onClick={onBack}
           className={clsx(
-            "disabled:bg-[#b4b4b4]/40 bg-[#b4b4b4] cursor-pointer shadow-md font-bold px-4 py-1 rounded-lg  items-center justify-center disabled:cursor-not-allowed",
+            "disabled:bg-[#b4b4b4]/40 bg-[#b4b4b4] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg  items-center justify-center disabled:cursor-not-allowed",
             {
               hidden: hideBackButton,
               "inline-flex": !hideBackButton,
@@ -53,7 +53,7 @@ const StepNavigation = ({
           {currentStep < totalSteps - 1 ? (
             <button
               onClick={onContinue}
-              className="bg-[#fce404] max-w-60 text-nowrap cursor-pointer shadow-md font-bold px-4 py-1 rounded-lg inline-flex items-center justify-center"
+              className="bg-[#fce404] max-w-60 text-nowrap cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
             >
               {continueLabel}
               <ChevronRightIcon className="w-5 h-5 font-bold mt-0.5" />
@@ -61,7 +61,7 @@ const StepNavigation = ({
           ) : (
             <button
               onClick={onFinish}
-              className="bg-[#fce404] cursor-pointer shadow-md font-bold px-4 py-1 rounded-lg inline-flex items-center justify-center"
+              className="bg-[#fce404] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
             >
               {continueLabel}
               <ChevronRightIcon className="w-5 h-5 font-bold mt-0.5" />

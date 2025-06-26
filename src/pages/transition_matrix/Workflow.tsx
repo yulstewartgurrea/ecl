@@ -183,8 +183,8 @@ const PdTransitionMatrixWorkflow = () => {
 
   return (
     <div>
-      <div className="flex flex-row items-center justify-between gap-1 bg-[#f8f8f8] px-4 py-2">
-        <div>
+      <div className="flex flex-row items-start justify-between gap-1 bg-[#f8f8f8] px-4 py-2 sticky top-0 z-20">
+        <div className="mt-1">
           <button
             onClick={() => {
               dispatch(resetStateNavUIState());
@@ -217,7 +217,7 @@ const PdTransitionMatrixWorkflow = () => {
               <div className="w-full inline-flex items-end justify-end gap-4">
                   <button
                     onClick={handleContinue}
-                    className="bg-[#fce404] cursor-pointer shadow-md font-bold px-4 py-1 rounded-lg inline-flex items-center justify-center"
+                    className="bg-[#fce404] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
                   >
                     Validate Data
                     <ChevronRightIcon className="w-5 h-5 font-bold mt-0.5" />

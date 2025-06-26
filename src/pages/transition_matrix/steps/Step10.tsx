@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowDownTrayIcon, DocumentPlusIcon } from "@heroicons/react/16/solid";
+import { ArrowDownTrayIcon, DocumentPlusIcon } from "@heroicons/react/24/outline";
 
 //components
 import TableTemplate1 from "../../../components/TableTemplate1";
@@ -53,9 +53,26 @@ const Step10 = () => {
   };
   const { xValues, yValues } = prepareChartDataForLineGraph(dummyData);
   return (
-    <div className="bg-white p-4 rounded-lg w-full flex flex-col">
-      <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
-      <div className="w-full flex items-center justify-center font-semibold text-2xl mb-12">
+    <div className="bg-white rounded-lg w-full flex flex-col">
+      <div className="flex justify-end items-center gap-4 mt-6 pl-4">
+        <button
+          // onClick={onSaveProgress}
+          className="bg-[#fce404] cursor-pointer border border-gray-300 max-w-60 text-nowrap font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1"
+        >
+          <DocumentPlusIcon className="w-5 h-5 font-normal" />
+          Save Progress
+        </button>
+
+        <button
+          // onClick={onDownload}
+          className="bg-white cursor-pointer border border-gray-300 font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1"
+        >
+          <ArrowDownTrayIcon className="w-5 h-5 font-normal" />
+          Download
+        </button>
+      </div>      
+      <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 px-4 py-2" />
+      <div className="w-full flex items-center justify-center font-semibold text-2xl mb-6 px-4 py-2">
         THROUGH THE CYCLE PD
       </div>
       <div className="w-full grid grid-cols-5 gap-6">
@@ -89,23 +106,7 @@ const Step10 = () => {
           </div>
         </div>
       </div>
-      <div className="flex justify-center items-center gap-4 mt-4">
-        <button
-          // onClick={onSaveProgress}
-          className="bg-[#fce404] cursor-pointer border border-gray-500 max-w-60 text-nowrap shadow-md font-bold px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1"
-        >
-          <DocumentPlusIcon className="w-5 h-5 font-bold" />
-          Save Progress
-        </button>
 
-        <button
-          // onClick={onDownload}
-          className="bg-white cursor-pointer border border-gray-500 shadow-md font-bold px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1"
-        >
-          <ArrowDownTrayIcon className="w-5 h-5 font-bold" />
-          Download
-        </button>
-      </div>
     </div>
   );
 };

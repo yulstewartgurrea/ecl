@@ -21,7 +21,7 @@ const Stepper: React.FC<StepperProps> = ({
   if (!steps || steps.length === 0) return <>No stepper found</>;
 
   return (
-    <div className="mt-2 relative w-full flex flex-row items-center py-2 flex-wrap gap-2 justify-between md:flex-nowrap">
+    <div className="mt-2 relative w-full flex flex-row items-center py-1 flex-wrap gap-2 justify-between md:flex-nowrap">
       {steps.map((step, index) => {
         const isCurrent = index === activeStep;
         const isCompleted = step.completed;
@@ -34,7 +34,7 @@ const Stepper: React.FC<StepperProps> = ({
             {index !== 0 && (
               <div
                 className={clsx(
-                  "absolute top-5 -left-1/2 w-full h-1 z-0",
+                  "absolute top-4 -left-1/2 w-full h-1 z-0",
                   steps[index - 1].completed && (step.completed || activeStep === index)
                     ? "bg-yellow-600"
                     : "bg-gray-200"
@@ -52,7 +52,7 @@ const Stepper: React.FC<StepperProps> = ({
             >
               <div
                 className={clsx(
-                  "w-10 h-10 rounded-2xl flex items-center justify-center font-bold transition-all",
+                  "w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-all",
                   {
                     "bg-yellow-200 text-gray-600": isCompleted,
                     "bg-gray-300 border-2 text-gray-600 border-yellow-500":
