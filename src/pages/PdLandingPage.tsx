@@ -1,29 +1,34 @@
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+
+//redux toolkit
+import { useAppDispatch } from "../redux_toolkit/hooks";
+import { setActiveSubTab } from "../redux_toolkit/features/general/navUIState";
 
 const PdLandingPage = () => {
   const navigate = useNavigate();
-
+  const dispatch = useAppDispatch();
   const options = [
     {
-      title: 'Transition Matrix',
-      description: 'Analyze transition probabilities between credit ratings.',
+      title: "Transition Matrix Approach",
+      description: "Analyze transition probabilities between credit ratings.",
     },
     {
-      title: 'Approach 2',
-      description: 'Description for Approach 2.',
+      title: "Approach 2",
+      description: "Description for Approach 2.",
     },
     {
-      title: 'Approach 3',
-      description: 'Description for Approach 3.',
+      title: "Approach 3",
+      description: "Description for Approach 3.",
     },
   ];
 
   const handleOnCardClick = (title: string) => {
-    if (title === 'Transition Matrix') {
-      navigate('/transition_matrix');
+    if (title === "Transition Matrix Approach") {
+      dispatch(setActiveSubTab(title));
+      navigate("/transition_matrix");
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-6">
@@ -42,8 +47,12 @@ const PdLandingPage = () => {
               onClick={() => handleOnCardClick(option.title)}
             >
               <div className="h-full bg-white rounded-2xl shadow-lg p-6 flex flex-col justify-between">
-                <h3 className="text-lg font-semibold text-gray-700">{option.title}</h3>
-                <p className="text-gray-600 leading-relaxed flex-grow">{option.description}</p>
+                <h3 className="text-lg font-semibold text-gray-700">
+                  {option.title}
+                </h3>
+                <p className="text-gray-600 leading-relaxed flex-grow">
+                  {option.description}
+                </p>
               </div>
             </motion.div>
           ))}

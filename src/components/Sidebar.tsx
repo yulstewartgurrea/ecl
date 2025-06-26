@@ -530,7 +530,13 @@ const Sidebar = () => {
     dispatch(resetStateNavUIState());
   };
 
-  const handleTabClick = (tabName: string, hasSubTabs: boolean) => {
+  const handleTabClick = () => {//tabName: string
+    // dispatch(setActiveTab(activeTab === tabName ? "" : tabName));
+    navigate('/pd_landing')
+  };
+
+  const handleTabDownArrowClick = (e:any, tabName: string, hasSubTabs: boolean) => {
+    e.stopPropagation()
     dispatch(setActiveTab(activeTab === tabName ? "" : tabName));
 
     if (hasSubTabs) {
@@ -544,7 +550,7 @@ const Sidebar = () => {
         return newSet;
       });
     }
-  };
+  };  
 
   const handleSubTabClick = (tabName: string, subTabName: string) => {
     dispatch(setActiveTab(tabName));
@@ -613,7 +619,7 @@ const Sidebar = () => {
                 <div key={option.tabName} className="flex flex-col w-full">
                   <div
                     onClick={() =>
-                      handleTabClick(option.tabName, option.subTabs.length > 0)
+                      handleTabClick()//option.tabName
                     }
                     className="flex items-center justify-between px-1 py-2 rounded-md cursor-pointer hover:bg-purple-100 transition-all duration-200 gap-1"
                   >
@@ -623,7 +629,7 @@ const Sidebar = () => {
                         "text-gray-600": !active,
                       })}
                     >
-                      <option.icon className="w-5 h-5" />
+                      <option.icon className="w-5 h-5"/>
                       <span className="whitespace-nowrap font-medium">
                         {option.tabName}
                       </span>
@@ -639,6 +645,7 @@ const Sidebar = () => {
                             "text-gray-600": !active,
                           }
                         )}
+                        onClick={(e) => handleTabDownArrowClick(e, option.tabName, option.subTabs.length > 0)}
                       />
                     )}
                   </div>

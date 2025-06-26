@@ -7,12 +7,17 @@ import {
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
+//redux toolkit
+import { useAppDispatch, useAppSelector } from '../redux_toolkit/hooks';
+import { setActiveTab } from '../redux_toolkit/features/general/navUIState';
+
 const EclLandingPage = () => {
   const navigate = useNavigate();
-  
+  const dispatch = useAppDispatch();
+  const {activeTab} = useAppSelector((state)=>state.navUIState)
   const menuItems = [
     {
-      title: 'Probability of Default',
+      title: 'Probability of Default (PD)',
       icon: PercentBadgeIcon,
     description: 'Evaluate the likelihood of a borrower defaulting on their obligations by analyzing historical data and creditworthiness indicators.'
     },
@@ -22,19 +27,20 @@ const EclLandingPage = () => {
     description: 'Establish key assumptions regarding market conditions, growth rates, and operational factors to inform financial projections.'
     },
     {
-      title: 'Loss Given Default',
+      title: 'Loss Given Default (LGD)',
       icon: ArrowTrendingDownIcon,
     description: 'Assess potential losses in the event of default by analyzing historical loss data and developing recovery strategies.'
     }, 
     {
-      title: 'Exposure at Default',
+      title: 'Exposure at Default (EAD)',
       icon: ChartPieIcon,
     description: 'Calculate the total value at risk in the event of a default, helping to understand the financial impact on the organization.'
     },     
   ];
 
   const handleOnCardClick = (title: string) => {
-    if (title === 'Probability of Default') {
+    if (title === 'Probability of Default (PD)') {
+        dispatch(setActiveTab(activeTab === title ? "" : title)); 
       navigate('/pd_landing');
     }
   }
