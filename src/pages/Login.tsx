@@ -65,6 +65,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { invoke } from '@tauri-apps/api/core';
 
 // redux toolkit
 import { useAppDispatch } from '../redux_toolkit/hooks';
@@ -74,23 +75,46 @@ import { resetStateNavUIState } from '../redux_toolkit/features/general/navUISta
 const Login = () => {
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);  
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
-  const handleLogin = () => {
-    if (username.trim()) {
-      dispatch(login({ username: username, token: "123456789" }));
+const handleLogin = async () => {
+  try {
+    const response = await invoke<{
+      success: boolean;
+      role: string | null;
+      message: string;
+    }>('login', {
+      payload: { 
+        username: username,
+        password: password 
+      }
+    });
+    console.log('response: ', response)
+    if (response.success) {
+      dispatch(login({ 
+        username: username, 
+        token: "secret",
+        role: response.role || "user"
+      }));
       dispatch(resetStateNavUIState());
       navigate('/');
+    } else {
+      setError(response.message);
     }
-  };
+  } catch (err) {
+    setError('An error occurred during login');
+    console.error(err);
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-login-gradient ">
       <div className="bg-white shadow-2xl rounded-3xl w-full max-w-md px-10 py-8">
         <div className="flex flex-col items-center">
           <img src="/SGVLogoLight.png" alt="Logo" className="h-20 mb-6" />
-          <h2 className="text-2xl font-bold text-[#ffbe0b] mb-8">Welcome Back</h2>
+          <h2 className="text-2xl font-bold text-gray-600 mb-8">ECL Automation</h2>
         </div>
 
         <div className="space-y-6">
@@ -122,6 +146,7 @@ const Login = () => {
           >
             Log In
           </button>
+          {error && <p className="text-red-500 mb-4 text-center">{error}</p>}          
         </div>
       </div>
     </div>

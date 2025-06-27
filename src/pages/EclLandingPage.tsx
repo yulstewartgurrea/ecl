@@ -76,7 +76,7 @@ const EclLandingPage = () => {
               >
                 <div className="h-full bg-white rounded-2xl shadow-lg p-6 flex flex-col justify-between">
                   <div className="flex items-center space-x-3 mb-4">
-                    <Icon className="h-6 w-6 text-[#bf66ff]" />
+                    <Icon className="h-6 w-6 text-[#ffbe0b]" />
                     <h3 className="text-lg font-semibold text-gray-700">{item.title}</h3>
                   </div>
                   <p className="text-gray-600 leading-relaxed flex-grow">{item.description}</p>

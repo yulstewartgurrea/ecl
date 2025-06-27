@@ -8,11 +8,17 @@ import {
 } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { useDropzone } from "react-dropzone";
+import { invoke } from "@tauri-apps/api/core";
 
 interface FileItem {
   name: string;
   is_folder: boolean;
   is_sync?: boolean;
+}
+
+interface ExcelData {
+  headers: string[];
+  rows: string[][];
 }
 
 const FileExplorer = () => {
@@ -39,17 +45,64 @@ const FileExplorer = () => {
     setSelectedFiles({ [path]: { fileName } });
   };
 
-  const onDrop = (acceptedFiles: File[]) => {
+  // const onDrop = (acceptedFiles: File[]) => {
+  //   const newFiles = acceptedFiles.map((file) => ({
+  //     name: file.name,
+  //     is_folder: false,
+  //     is_sync: true,
+  //   }));
+  //  console.log("acceptedFiles:", acceptedFiles);
+  //   setImportedFiles((prev) => ({
+  //     ...prev,
+  //     [currentPath]: [...(prev[currentPath] || []), ...newFiles],
+  //   }));
+  // };
+
+const onDrop = async (acceptedFiles: File[]) => {
+  try {
+    for (const file of acceptedFiles) {
+      if (file.name.match(/\.(xlsx|xls)$/i)) {
+        try {
+          // 1. Read file contents
+          const arrayBuffer = await file.arrayBuffer();
+          
+          // 2. Convert to Uint8Array and then to regular array
+          const fileBytes = Array.from(new Uint8Array(arrayBuffer));
+          
+          // 3. Save to temp location
+          const tempPath = await invoke<string>('save_temp_file', {
+            fileName: file.name,  // Must match Rust parameter name
+            contents: fileBytes    // Send as regular array
+          });
+
+          // 4. Read Excel data
+          const excelData = await invoke<ExcelData>('read_excel_file', {
+            filePath: tempPath    // Must match Rust parameter name
+          });
+          
+          console.log('Excel data:', excelData);
+          
+        } catch (e) {
+          console.error(`Error processing ${file.name}:`, e);
+        }
+      }
+    }
+    
     const newFiles = acceptedFiles.map((file) => ({
       name: file.name,
       is_folder: false,
       is_sync: true,
     }));
+    
     setImportedFiles((prev) => ({
       ...prev,
       [currentPath]: [...(prev[currentPath] || []), ...newFiles],
     }));
-  };
+
+  } catch (error) {
+    console.error('File processing error:', error);
+  }
+};
 
   const { getRootProps, getInputProps, open, isDragActive } = useDropzone({
     onDrop,

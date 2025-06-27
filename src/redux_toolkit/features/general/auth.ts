@@ -5,23 +5,26 @@ interface AuthState {
   isLoggedIn: boolean
   token: string | null
   username: string
+  role: string
 }
 
 const initialState: AuthState = {
   isLoggedIn: false,
   token: null,
-  username: ""
+  username: "",
+  role: ""
 }
 
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    login: (state, action: PayloadAction<{ username: string, token: string }>) => {
-      const { username, token } = action.payload;
+    login: (state, action: PayloadAction<{ username: string, token: string, role: string  }>) => {
+      const { username, token ,role} = action.payload;
       state.isLoggedIn = true;
       state.token = token;
       state.username =username;
+      state.role =role;
     },
     logout: (state) => {
       state.isLoggedIn = false

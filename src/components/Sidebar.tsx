@@ -621,11 +621,13 @@ const Sidebar = () => {
                     onClick={() =>
                       handleTabClick()//option.tabName
                     }
-                    className="flex items-center justify-between px-1 py-2 rounded-md cursor-pointer hover:bg-purple-100 transition-all duration-200 gap-1"
+                    className={clsx("flex items-center justify-between px-1 py-2 rounded-md cursor-pointer hover:bg-[#f8f8f8] transition-all duration-200 gap-1",{
+                      " bg-[#f8f8f8]": active,
+                    })}
                   >
                     <div
                       className={clsx("flex items-center gap-2", {
-                        "text-[#ffbe0b]": active,
+                        "text-gray-600 bg-[#f8f8f8]": active,
                         "text-gray-600": !active,
                       })}
                     >
@@ -638,11 +640,11 @@ const Sidebar = () => {
                     {option.subTabs.length > 0 && (
                       <ChevronDownIcon
                         className={clsx(
-                          "w-4 h-4 transition-transform duration-200",
+                          "w-4 h-4 transition-transform duration-200 text-gray-600",
                           {
                             "rotate-180": isExpanded,
-                            "text-purple-700": active,
-                            "text-gray-600": !active,
+                            // "text-gray-600": active,
+                            // "text-gray-600": !active,
                           }
                         )}
                         onClick={(e) => handleTabDownArrowClick(e, option.tabName, option.subTabs.length > 0)}
@@ -651,7 +653,7 @@ const Sidebar = () => {
                   </div>
 
                   {isExpanded && option.subTabs.length > 0 && (
-                    <div className="ml-6 mt-1 flex flex-col space-y-1 border-l-2 border-purple-400 pl-3">
+                    <div className="ml-6 mt-1 flex flex-col space-y-1 border-l-2 border-[#ccc] pl-3">
                       {option.subTabs.map((subTab: any) => {
                         const isActiveSub = activeSubTab === subTab.subTabName;
                         return (
@@ -663,16 +665,16 @@ const Sidebar = () => {
                             className={clsx(
                               "py-1 px-2 rounded-md cursor-pointer text-sm flex items-center gap-2 group transition-all duration-300",
                               {
-                                "bg-[#ffbe0b] text-white": isActiveSub,
-                                "text-gray-600 hover:bg-purple-100": !isActiveSub,
+                                "bg-[#f8f8f8] text-gray-600": isActiveSub,
+                                "text-gray-600 hover:bg-[#f8f8f8]": !isActiveSub,
                               }
                             )}
                           >
                             {/* Bullet */}
                             <div
-                              className={clsx("w-2 h-2 rounded-full", {
-                                "bg-white border border-purple-700": !isActiveSub,
-                                "bg-white": isActiveSub,
+                              className={clsx("w-2 h-2 rounded-full bg-white border border-[#ffbe0b]", {
+                                // "bg-white border border-[#ffbe0b]": !isActiveSub,
+                                // " border border-[#ffbe0b]": isActiveSub,
                               })}
                             />
                             <span className="whitespace-nowrap">
