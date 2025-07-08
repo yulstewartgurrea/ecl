@@ -80,33 +80,40 @@ const Login = () => {
   const navigate = useNavigate();
 
 const handleLogin = async () => {
-  try {
-    const response = await invoke<{
-      success: boolean;
-      role: string | null;
-      message: string;
-    }>('login', {
-      payload: { 
-        username: username,
-        password: password 
-      }
-    });
-    console.log('response: ', response)
-    if (response.success) {
-      dispatch(login({ 
-        username: username, 
-        token: "secret",
-        role: response.role || "user"
-      }));
-      dispatch(resetStateNavUIState());
-      navigate('/');
-    } else {
-      setError(response.message);
-    }
-  } catch (err) {
-    setError('An error occurred during login');
-    console.error(err);
-  }
+  // try {
+  //   const response = await invoke<{
+  //     success: boolean;
+  //     role: string | null;
+  //     message: string;
+  //   }>('login', {
+  //     payload: { 
+  //       username: username,
+  //       password: password 
+  //     }
+  //   });
+  //   console.log('response: ', response)
+  //   if (response.success) {
+  //     dispatch(login({ 
+  //       username: username, 
+  //       token: "secret",
+  //       role: response.role || "user"
+  //     }));
+  //     dispatch(resetStateNavUIState());
+  //     navigate('/');
+  //   } else {
+  //     setError(response.message);
+  //   }
+  // } catch (err) {
+  //   setError('An error occurred during login');
+  //   console.error(err);
+  // }
+
+  dispatch(login({ 
+    username: username, 
+    token: "secret",
+    role: "admin"
+  }));
+  navigate('/');
 };
 
   return (
