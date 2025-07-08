@@ -65,17 +65,17 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
+// import { invoke } from '@tauri-apps/api/core';
 
 // redux toolkit
 import { useAppDispatch } from '../redux_toolkit/hooks';
 import { login } from '../redux_toolkit/features/general/auth';
-import { resetStateNavUIState } from '../redux_toolkit/features/general/navUIState';
+// import { resetStateNavUIState } from '../redux_toolkit/features/general/navUIState';
 
 const Login = () => {
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);  
+  // const [error, setError] = useState<string | null>(null);  
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
@@ -153,7 +153,7 @@ const handleLogin = async () => {
           >
             Log In
           </button>
-          {error && <p className="text-red-500 mb-4 text-center">{error}</p>}          
+          {/* {error && <p className="text-red-500 mb-4 text-center">{error}</p>}  */}       
         </div>
       </div>
     </div>
