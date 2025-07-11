@@ -128,7 +128,7 @@ const TransitionMatrixCountTable: React.FC<TransitionMatrixCountTableProps> = ({
                     }
                   )}
                 >
-                  {typeof row[key] === "number"
+                  {typeof row[key] === "number" && !key.includes("Bucket") 
                     ? formatValueGeneral(row[key], format, decimalPlaces)
                     : row[key]}
                 </td>

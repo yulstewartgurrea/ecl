@@ -333,16 +333,11 @@ const generateDefaultRateDummyData = (n: number): Array<{ [key: string]: any }> 
   return data;
 };
 
-const generateTransitionMatrixDummyData = (): Array<{ [key: string]: any }> => {
+const generateTransitionMatrixDummyData = (year: number = 2020, month: number = 0): Array<{ [key: string]: any }> => {
   const data: Array<{ [key: string]: any }> = [];
 
-  const startDate = new Date("2020-01-01");
-  const baseMonth = startDate.getMonth();
-  const baseYear = startDate.getFullYear();
-
-  // Calculate the first and second key names
-  const firstDate = new Date(baseYear, baseMonth + 1, 0); // Last day of Jan
-  const secondDate = new Date(baseYear, baseMonth + 2, 0); // Last day of Feb
+  const firstDate = new Date(year, month + 1, 0); // last day of current month
+  const secondDate = new Date(year, month + 2, 0); // last day of next month
 
   const firstKey = `${String(firstDate.getMonth() + 1).padStart(2, "0")}/${firstDate.getDate()}/${firstDate.getFullYear()}`;
   const secondKey = `${String(secondDate.getMonth() + 1).padStart(2, "0")}/${secondDate.getDate()}/${secondDate.getFullYear()}_Bucket`;
@@ -358,9 +353,10 @@ const generateTransitionMatrixDummyData = (): Array<{ [key: string]: any }> => {
 
   for (let i = 0; i < 5; i++) {
     const row: { [key: string]: any } = {};
+    const totalBase = Math.floor(Math.random() * 200) + 800;
 
-    row[firstKey] = firstKey;              // Column 1: fixed date
-    row[secondKey] = i;                    // Column 2: Bucket value 0 to 4
+    row[firstKey] = totalBase; 
+    row[secondKey] = i;
 
     let totalAccounted = 0;
 
@@ -372,6 +368,49 @@ const generateTransitionMatrixDummyData = (): Array<{ [key: string]: any }> => {
     }
 
     row["Total Accounted Evaluated"] = totalAccounted;
+    data.push(row);
+  }
+
+  return data;
+};
+
+const generateTransitionMatrixPercentageDummyData = (
+  year: number = 2020,
+  month: number = 0
+): Array<{ [key: string]: any }> => {
+  const data: Array<{ [key: string]: any }> = [];
+
+  const firstDate = new Date(year, month + 1, 0); // Last day of current month
+  const secondDate = new Date(year, month + 2, 0); // Last day of next month
+
+  const firstKey = `${String(firstDate.getMonth() + 1).padStart(2, "0")}/${firstDate.getDate()}/${firstDate.getFullYear()}`;
+  const secondKey = `${String(secondDate.getMonth() + 1).padStart(2, "0")}/${secondDate.getDate()}/${secondDate.getFullYear()}_Bucket`;
+
+  const buckets = [
+    "0 DPD_0",
+    "1-30 DPD_1",
+    "31-60 DPD_2",
+    "61-90 DPD_3",
+    "91+ DPD_4",
+    "Indeterminate_NA",
+  ];
+
+  for (let i = 0; i < 5; i++) {
+    const row: { [key: string]: any } = {};
+
+    row[firstKey] = "";
+    row[secondKey] = i;
+
+  
+    const randomValues = buckets.map(() => Math.random());
+    const total = randomValues.reduce((sum, val) => sum + val, 0);
+
+    buckets.forEach((bucket, idx) => {
+      const percentage = randomValues[idx] / total;
+      row[bucket] = Number(percentage.toFixed(4));
+    });
+
+    row["Total Accounted Evaluated"] = "100%";
 
     data.push(row);
   }
@@ -424,5 +463,6 @@ export {
   generatePivotedDummyData,
   generateDefaultRateDummyData,
   generateTransitionMatrixDummyData,
+  generateTransitionMatrixPercentageDummyData,
   generateODRDummyData
 };

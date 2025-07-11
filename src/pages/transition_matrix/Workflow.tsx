@@ -148,12 +148,12 @@ const PdTransitionMatrixWorkflow = () => {
     stepDescription =
       "Summarizes monthly Days Past Due (DPD) for each account in a pivot table format.";
     continueLabel = "Map";
-  } else if (currentStep === 5) {
+  } else if (currentStep === 4) {
     stepDescriptionTitle = "Bucketing";
     stepDescription =
       "Transforms the DPD of each account into predefined buckets (e.g., 0-30 days, 31-60 days, etc.) for ease of implementation once conducting transition matrices.";
     continueLabel = "Flag Accounts";
-  } else if (currentStep === 4) {
+  } else if (currentStep === 5) {
     stepDescriptionTitle = "Everbad";
     stepDescription = "Flag accounts as permanently bad once a default occurs.";
     continueLabel = "Calculate Default Rate";

@@ -146,7 +146,7 @@ use std::{
 use rusqlite::Connection;
 use tauri::{Manager, Window, Wry, WindowEvent};
 
-const PROD: bool = true;
+const PROD: bool = false;
 
 struct FastApiProcess(Mutex<Option<std::process::Child>>);
 
@@ -193,7 +193,6 @@ fn init_db(db_path: &PathBuf) -> Result<(), Box<dyn Error>> {
 
 fn get_server_dir() -> PathBuf {
     if PROD {
-        // ✅ Correct folder: _up_
         let exe_dir = std::env::current_exe()
             .unwrap()
             .parent()
