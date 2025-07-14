@@ -1,210 +1,120 @@
-// use std::{
-//     error::Error,
-//     path::PathBuf,
-//     process::{Command, Stdio},
-//     sync::Mutex,
-// };
-
-// use rusqlite::Connection;
-// use tauri::{Manager, Window, Wry, WindowEvent};
-
-// struct FastApiProcess(Mutex<Option<std::process::Child>>);
-
-// fn init_db(db_path: &PathBuf) -> Result<(), Box<dyn Error>> {
-//     if !db_path.exists() {
-//         let conn = Connection::open(db_path)?;
-//         conn.execute_batch(
-//             r#"
-//             CREATE TABLE IF NOT EXISTS users (
-//                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-//                 username TEXT NOT NULL UNIQUE,
-//                 email TEXT NOT NULL UNIQUE,
-//                 hashed_password TEXT NOT NULL,
-//                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-//             );
-//             CREATE TABLE IF NOT EXISTS workflows (
-//                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-//                 entity TEXT NOT NULL,
-//                 workflow_name TEXT NOT NULL,
-//                 baseline_year INTEGER NOT NULL,
-//                 json_data TEXT NOT NULL,
-//                 reporting_period TEXT NOT NULL,
-//                 workflow_type TEXT DEFAULT 'default',
-//                 user_id INTEGER NOT NULL,
-//                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-//                 FOREIGN KEY (user_id) REFERENCES users (id)
-//             );
-//             CREATE TABLE IF NOT EXISTS documents (
-//                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-//                 filename TEXT NOT NULL,
-//                 document_key TEXT NOT NULL,
-//                 document_type TEXT NOT NULL,
-//                 file_data BLOB,
-//                 user_id INTEGER NOT NULL,
-//                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-//                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-//                 FOREIGN KEY (user_id) REFERENCES users (id)
-//             );
-//             "#
-//         )?;
-//     }
-//     Ok(())
-// }
-
-// fn start_fastapi(server_dir: &PathBuf) -> Result<std::process::Child, Box<dyn Error>> {
-//     // Create log files
-//     let stdout = std::fs::File::create(server_dir.join("fastapi_stdout.log"))?;
-//     let stderr = std::fs::File::create(server_dir.join("fastapi_stderr.log"))?;
-
-//     // Windows-specific command
-//     let python_exe = server_dir.join("venv\\Scripts\\python.exe");
-//     let python_path = python_exe.to_str().ok_or("Invalid Python path")?;
-
-//     println!("Starting FastAPI using Python at: {}", python_path);
-
-//     let child = if cfg!(windows) {
-//         Command::new(python_path)
-//             .args(["-m", "uvicorn", "main:app", "--port", "8000"])
-//             .current_dir(server_dir)
-//             .stdout(stdout)
-//             .stderr(stderr)
-//             .spawn()
-//             .map_err(|e| {
-//                 println!("Failed to start FastAPI: {}", e);
-//                 e
-//             })?
-//     } else {
-//         Command::new("sh")
-//             .arg("-c")
-//             .arg(&format!("source {}/venv/bin/activate && python -m uvicorn main:app --port 8000",
-//                  server_dir.display()))
-//             .current_dir(server_dir)
-//             .stdout(stdout)
-//             .stderr(stderr)
-//             .spawn()?
-//     };
-
-//     println!("FastAPI process started with PID: {:?}", child.id());
-//     std::thread::sleep(std::time::Duration::from_secs(3));
-
-//     Ok(child)
-// }
-
-// fn main() -> Result<(), Box<dyn Error>> {
-//     tauri::Builder::default()
-//         .setup(|app| {
-//             // Get the directory containing src-tauri
-//             let project_root = std::env::current_dir()?  // src-tauri/src
-//                 .parent()    // src-tauri
-//                 .map(|p| p.to_path_buf())
-//                 .unwrap_or_else(|| PathBuf::from("."));
-
-//             // Server is at root/server (same level as src-tauri)
-//             let server_dir = project_root.join("server");
-//             let db_path = server_dir.join("db.sqlite");
-
-//             // VERIFY PATHS BEFORE CREATION
-//             println!("Current directory: {:?}", std::env::current_dir()?);
-//             println!("Project root (src-tauri parent): {:?}", project_root);
-//             println!("Server directory: {:?}", server_dir);
-//             println!("Database will be created at: {:?}", db_path);
-
-//             // Only create if doesn't exist
-//             if !server_dir.exists() {
-//                 std::fs::create_dir(&server_dir)?;
-//             }
-
-//             init_db(&db_path)?;
-
-//             let fastapi_process = start_fastapi(&server_dir)?;
-//             app.manage(FastApiProcess(Mutex::new(Some(fastapi_process))));
-
-//             Ok(())
-//         })
-//         .on_window_event(|window: &Window<Wry>, event: &WindowEvent| {
-//             if let WindowEvent::Destroyed = event {
-//                 if let Some(state) = window.try_state::<FastApiProcess>() {
-//                     if let Some(mut process) = state.0.lock().unwrap().take() {
-//                         let _ = process.kill();
-//                     }
-//                 }
-//             }
-//         })
-//         .run(tauri::generate_context!())?;
-
-//     Ok(())
-// }
-
-use std::{
-    error::Error,
-    path::PathBuf,
-    process::{Command, Stdio},
-    sync::Mutex,
-    fs,
-};
-
+mod api;
+use std::{ error::Error, path::PathBuf, process::{ Command, Stdio }, sync::Mutex, fs };
+use api::auth::login;
 use rusqlite::Connection;
-use tauri::{Manager, Window, Wry, WindowEvent};
+use tauri::{ Manager, Window, Wry, WindowEvent };
+
+//ADDED
+use sqlx::{ Pool, Sqlite, sqlite::SqlitePoolOptions };
 
 const PROD: bool = false;
 
 struct FastApiProcess(Mutex<Option<std::process::Child>>);
 
-fn init_db(db_path: &PathBuf) -> Result<(), Box<dyn Error>> {
-    if !db_path.exists() {
-        let conn = Connection::open(db_path)?;
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL UNIQUE,
-                email TEXT NOT NULL UNIQUE,
-                hashed_password TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS workflows (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                entity TEXT NOT NULL,
-                workflow_name TEXT NOT NULL,
-                baseline_year INTEGER NOT NULL,
-                json_data TEXT NOT NULL,
-                reporting_period TEXT NOT NULL,
-                workflow_type TEXT DEFAULT 'default',
-                user_id INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (id)
-            );
-            CREATE TABLE IF NOT EXISTS documents (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT NOT NULL,
-                document_key TEXT NOT NULL,
-                document_type TEXT NOT NULL,
-                file_data BLOB,
-                user_id INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (id)
-            );
-            "#,
-        )?;
+fn init_db(db_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let is_new = !db_path.exists();
+    let conn = rusqlite::Connection::open(db_path)?;
+
+    // Ensure tables exist
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            email TEXT,
+            hashed_password TEXT NOT NULL,
+            role TEXT DEFAULT 'user',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS workflows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entity TEXT NOT NULL,
+            workflow_name TEXT NOT NULL,
+            baseline_year INTEGER NOT NULL,
+            json_data TEXT NOT NULL,
+            reporting_period TEXT NOT NULL,
+            workflow_type TEXT DEFAULT 'default',
+            user_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        );
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT NOT NULL,
+            document_key TEXT NOT NULL,
+            document_type TEXT NOT NULL,
+            file_data BLOB,
+            user_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        );
+        "#
+    )?;
+
+    // Check if 'users' table exists and is empty
+    let user_table_exists: bool = conn
+        .query_row("SELECT name FROM sqlite_master WHERE type='table' AND name='users'", [], |_|
+            Ok(true)
+        )
+        .unwrap_or(false);
+
+    if user_table_exists {
+        let user_count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
+        if user_count == 0 {
+            println!("🔑 Seeding default users...");
+
+            use argon2::{ Argon2, PasswordHasher };
+            use password_hash::SaltString;
+
+            let users = vec![
+                ("admin", "sgvadmin0987", "admin"),
+                ("user1", "sgvuser0987", "user"),
+                ("user2", "sgvuser0987", "user")
+            ];
+
+            let argon2 = Argon2::default();
+
+            for (username, password, role) in users {
+                let exists: bool = conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM users WHERE username = ?)",
+                    [username],
+                    |row| row.get(0)
+                )?;
+
+                if !exists {
+                    let salt = SaltString::generate(&mut rand::thread_rng());
+                    let hash = argon2
+                        .hash_password(password.as_bytes(), &salt)
+                        .map_err(|e| e.to_string())?
+                        .to_string();
+
+                    conn.execute(
+                        "INSERT INTO users (username, hashed_password, role) VALUES (?, ?, ?)",
+                        (username, hash, role)
+                    )?;
+
+                    println!("✅ Inserted user '{}'", username);
+                } else {
+                    println!("ℹ️  User '{}' already exists, skipping.", username);
+                }
+            }
+
+            println!("✅ Default users inserted.");
+        } else {
+            println!("ℹ️  Users table already has data, skipping seed.");
+        }
     }
+
     Ok(())
 }
 
 fn get_server_dir() -> PathBuf {
     if PROD {
-        let exe_dir = std::env::current_exe()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .to_path_buf();
+        let exe_dir = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
         exe_dir.join("_up_").join("server")
     } else {
-        std::env::current_dir()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("server")
+        std::env::current_dir().unwrap().parent().unwrap().join("server")
     }
 }
 
@@ -239,7 +149,7 @@ fn setup_environment(server_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
         if !requirements_path.exists() {
             fs::write(
                 &requirements_path,
-                "fastapi==0.95.2\nuvicorn==0.22.0\npython-multipart==0.0.6\nsqlalchemy==2.0.15\npydantic==1.10.7",
+                "fastapi==0.95.2\nuvicorn==0.22.0\npython-multipart==0.0.6\nsqlalchemy==2.0.15\npydantic==1.10.7"
             )?;
         }
 
@@ -268,11 +178,9 @@ fn setup_environment(server_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
         };
 
         if !venv_path.exists() {
-            return Err(format!(
-                "❌ Production venv python executable not found at: {:?}",
-                venv_path
-            )
-            .into());
+            return Err(
+                format!("❌ Production venv python executable not found at: {:?}", venv_path).into()
+            );
         }
 
         let requirements_path = server_dir.join("requirements.txt");
@@ -314,10 +222,12 @@ fn start_fastapi(server_dir: &PathBuf) -> Result<std::process::Child, Box<dyn Er
     } else {
         Command::new("sh")
             .arg("-c")
-            .arg(format!(
-                "source {}/venv/bin/activate && python -m uvicorn main:app --port 8000",
-                server_dir.display()
-            ))
+            .arg(
+                format!(
+                    "source {}/venv/bin/activate && python -m uvicorn main:app --port 8000",
+                    server_dir.display()
+                )
+            )
             .current_dir(server_dir)
             .stdout(stdout)
             .stderr(stderr)
@@ -329,23 +239,36 @@ fn start_fastapi(server_dir: &PathBuf) -> Result<std::process::Child, Box<dyn Er
     Ok(child)
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let server_dir = get_server_dir();
+    let db_path = server_dir.join("db.sqlite");
+
+    println!("🔧 Server directory: {:?}", server_dir);
+    println!("🗃️  Database path: {:?}", db_path);
+
+    // Run async environment setup before tauri builder
+    setup_environment(&server_dir)?;
+    init_db(&db_path)?;
+
+    let db_url = format!("sqlite://{}", db_path.display());
+    let db: Pool<Sqlite> = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect(&db_url)
+        .await?;
+
+    // start fastapi process (sync)
+    let fastapi_process = start_fastapi(&server_dir)?;
+
     tauri::Builder::default()
-        .setup(|app| {
-            let server_dir = get_server_dir();
-            let db_path = server_dir.join("db.sqlite");
-
-            println!("🔧 Server directory: {:?}", server_dir);
-            println!("🗃️  Database path: {:?}", db_path);
-
-            setup_environment(&server_dir)?;
-            init_db(&db_path)?;
-            let fastapi_process = start_fastapi(&server_dir)?;
-            app.manage(FastApiProcess(Mutex::new(Some(fastapi_process))));
-
+        .invoke_handler(tauri::generate_handler![login])
+        .manage(db)
+        .manage(FastApiProcess(Mutex::new(Some(fastapi_process))))
+        .setup(|_app| {
+            // synchronous setup only
             Ok(())
         })
-        .on_window_event(|window: &Window<Wry>, event: &WindowEvent| {
+        .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {
                 if let Some(state) = window.try_state::<FastApiProcess>() {
                     if let Some(mut process) = state.0.lock().unwrap().take() {
@@ -358,5 +281,3 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
-
-

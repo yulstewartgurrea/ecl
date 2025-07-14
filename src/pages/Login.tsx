@@ -65,12 +65,12 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-// import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 
 // redux toolkit
 import { useAppDispatch } from '../redux_toolkit/hooks';
 import { login } from '../redux_toolkit/features/general/auth';
-// import { resetStateNavUIState } from '../redux_toolkit/features/general/navUIState';
+import { resetStateNavUIState } from '../redux_toolkit/features/general/navUIState';
 
 const Login = () => {
   const [username, setUsername] = useState<string>('');
@@ -80,40 +80,40 @@ const Login = () => {
   const navigate = useNavigate();
 
 const handleLogin = async () => {
-  // try {
-  //   const response = await invoke<{
-  //     success: boolean;
-  //     role: string | null;
-  //     message: string;
-  //   }>('login', {
-  //     payload: { 
-  //       username: username,
-  //       password: password 
-  //     }
-  //   });
-  //   console.log('response: ', response)
-  //   if (response.success) {
-  //     dispatch(login({ 
-  //       username: username, 
-  //       token: "secret",
-  //       role: response.role || "user"
-  //     }));
-  //     dispatch(resetStateNavUIState());
-  //     navigate('/');
-  //   } else {
-  //     setError(response.message);
-  //   }
-  // } catch (err) {
-  //   setError('An error occurred during login');
-  //   console.error(err);
-  // }
+  try {
+    const response = await invoke<{
+      success: boolean;
+      role: string | null;
+      message: string;
+    }>('login', {
+      payload: { 
+        username: username,
+        password: password 
+      }
+    });
+    console.log('response: ', response)
+    if (response.success) {
+      dispatch(login({ 
+        username: username, 
+        token: "secret",
+        role: response.role || "user"
+      }));
+      dispatch(resetStateNavUIState());
+      navigate('/');
+    } else {
+      // setError(response.message);
+    }
+  } catch (err) {
+    // setError('An error occurred during login');
+    console.log(err);
+  }
 
-  dispatch(login({ 
-    username: username, 
-    token: "secret",
-    role: "admin"
-  }));
-  navigate('/');
+  // dispatch(login({ 
+  //   username: username, 
+  //   token: "secret",
+  //   role: "admin"
+  // }));
+  // navigate('/');
 };
 
   return (
