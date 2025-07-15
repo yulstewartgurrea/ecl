@@ -578,7 +578,7 @@ const Sidebar = () => {
         className={clsx(
           "transition-all duration-200 flex flex-col relative overflow-hidden",
           {
-            "w-[18%] shadow-lg bg-white": isSidebarOpen,
+            "w-[20%] shadow-lg bg-white": isSidebarOpen,
             "w-8 md:w-10 items-center bg-gray-50": !isSidebarOpen,
           }
         )}
@@ -632,7 +632,7 @@ const Sidebar = () => {
                       })}
                     >
                       <option.icon className="w-5 h-5"/>
-                      <span className="whitespace-nowrap font-medium">
+                      <span className="whitespace-nowrap font-medium text-sm">
                         {option.tabName}
                       </span>
                     </div>

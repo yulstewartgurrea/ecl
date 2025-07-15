@@ -72,7 +72,7 @@ const Step9 = () => {
         </div>
         <div className="w-full flex flex-col px-4 col-span-1">
           <h3 className="font-semibold mb-4">Matrix Multiplication</h3>
-          {Array.from({ length: 10 }, (__, i) => (
+          {Array.from({ length: 12 }, (__, i) => (
             <div key={`matrix-multiplication-${i}`} className="mb-6">
               <div className="flex flex-row w-full justify-between gap-2">
                 <span className="text-nowrap">Month {i + 1}</span>
