@@ -18,7 +18,6 @@ const Step3 = () => {
         zoomLevel={zoom}
         setZoomLevel={setZoom}
       />
-      ;
     </div>
   );
 };
