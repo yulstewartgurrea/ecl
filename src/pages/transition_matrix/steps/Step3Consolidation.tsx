@@ -18,7 +18,7 @@ const Step3Consolidation = () => {
   return (
     <div className="bg-white p-4 rounded-lg mt-12">
         <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2"/>
-      <TableTemplate1 data={filteredDummyData} zoomLevel={zoom} setZoomLevel={setZoom} />;
+      <TableTemplate1 data={filteredDummyData} zoomLevel={zoom} setZoomLevel={setZoom} />
     </div>
   );
 };

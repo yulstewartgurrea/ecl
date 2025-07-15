@@ -68,7 +68,6 @@ const Step9 = () => {
             zoomLevel={zoom}
             setZoomLevel={setZoom}
           />
-          ;
         </div>
         <div className="w-full flex flex-col px-4 col-span-1">
           <h3 className="font-semibold mb-4">Matrix Multiplication</h3>

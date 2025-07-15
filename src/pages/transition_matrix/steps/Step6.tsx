@@ -13,7 +13,7 @@ const Step6 = () => {
   return (
     <div className="bg-white p-4 rounded-lg mt-12">
       <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />      
-      <TableTemplate1 data={dummyData} format="decimal" decimalPlaces={0} zoomLevel={zoom} setZoomLevel={setZoom}/>;
+      <TableTemplate1 data={dummyData} format="decimal" decimalPlaces={0} zoomLevel={zoom} setZoomLevel={setZoom}/>
     </div>
   );
 };

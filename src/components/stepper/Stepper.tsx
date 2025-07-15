@@ -52,25 +52,24 @@ const Stepper: React.FC<StepperProps> = ({
             >
               <div
                 className={clsx(
-                  "w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-all",
+                  "w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-all duration-200 ease-in-out transform",
                   {
-                    "bg-yellow-200 text-gray-600": isCompleted,
-                    "bg-gray-300 border-2 text-gray-600 border-yellow-500":
-                      isCurrent && isCompleted,
-                    "bg-purple-50 border-2  border-yellow-500 text-gray-500":
-                      isCurrent && !isCompleted,
-                    "bg-gray-200 text-gray-400 border-2 border-gray-500 cursor-not-allowed":
-                      isFuture,
+                    "scale-110": isCurrent,
+                    "bg-yellow-200 text-gray-600": isCompleted && !isCurrent,
+                    "bg-gray-300 border-2 text-gray-600 border-yellow-500": isCurrent && isCompleted,
+                    "bg-purple-50 border-2 border-yellow-500 text-gray-500": isCurrent && !isCompleted,
+                    "bg-gray-200 text-gray-400 border-2 border-gray-500 cursor-not-allowed": isFuture,
                   }
                 )}
               >
                 {index + 1}
               </div>
 
-              <div className={clsx("text-xs  mt-2 leading-tight min-h-[2.5rem] max-w-[5rem] text-center whitespace-normal break-words")}>
+              <div className={clsx("text-xs mt-2 leading-tight min-h-[2.5rem] max-w-[5rem] text-center whitespace-normal break-words")}>
                 {step.label}
               </div>
             </div>
+
           </div>
         );
       })}
