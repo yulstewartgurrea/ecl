@@ -74,15 +74,26 @@ const config: Config = {
       //     '50%': { transform: 'translateY(-15%)' },
       //   },
       // },
-      Animation: {
-        'spin-slow': 'spin 3s linear infinite',
+
+      // Animation: {
+      //   'spin-slow': 'spin 3s linear infinite',
+      // },
+      // KeyframeEffect: {
+      //   bounce : {
+      //     '0%, 100%': { transform: 'translateY(0)' },
+      //     '50%': { transform: 'translateY(-15%)'  }    
+      //   }
+      // }
+      
+      keyframes: {
+        'spin-slow': {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
+        },
       },
-      KeyframeEffect: {
-        bounce : {
-          '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-15%)'  }    
-        }
-      }
+      animation: {
+        'spin-slow': 'spin-slow 3s linear infinite',
+      },      
     },
   },
   plugins: [],
