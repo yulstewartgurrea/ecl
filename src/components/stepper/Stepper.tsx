@@ -138,7 +138,7 @@ const Stepper: React.FC<StepperProps> = ({
                   {
                     "scale-110": isCurrent,
                     "bg-yellow-200 text-gray-600": isCompleted && !isCurrent,
-                    "bg-gray-300 text-gray-600 border-yellow-500": isCurrent && isCompleted,
+                    "bg-yellow-200 text-gray-600 border-yellow-500": isCurrent && isCompleted,
                     "bg-purple-50 text-gray-500": isCurrent && !isCompleted,
                     "bg-gray-200 text-gray-400 border-2 border-gray-500 cursor-not-allowed": isFuture,
                     // Add these new classes for the animated border
