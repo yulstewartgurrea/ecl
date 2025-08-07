@@ -4,21 +4,18 @@ import {
   ArrowRightIcon,
   FolderIcon,
   ArrowUpTrayIcon,
-  CloudArrowDownIcon
+  CloudArrowDownIcon,
 } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { useDropzone } from "react-dropzone";
 import { invoke } from "@tauri-apps/api/core";
-
+import { useSelector } from "react-redux";
+import type { RootState } from "../../redux_toolkit/store"; // Adjust path as needed
+import { useAppSelector } from "../../redux_toolkit/hooks";
 interface FileItem {
   name: string;
   is_folder: boolean;
   is_sync?: boolean;
-}
-
-interface ExcelData {
-  headers: string[];
-  rows: string[][];
 }
 
 const FileExplorer = () => {
@@ -31,6 +28,12 @@ const FileExplorer = () => {
   const [importedFiles, setImportedFiles] = useState<{
     [key: string]: FileItem[];
   }>({});
+  const authToken = useAppSelector((state) => state.auth.token);
+  const {
+    selectedPdTransitionMatrixEntity: entity,
+    selectedPdTransitionMatrixReportingPeriod: period,
+    pdTransitionMatrixWfName: workflowName,
+  } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
 
   // Simulate loading; initial folder is empty
   useEffect(() => {
@@ -45,64 +48,83 @@ const FileExplorer = () => {
     setSelectedFiles({ [path]: { fileName } });
   };
 
-  // const onDrop = (acceptedFiles: File[]) => {
-  //   const newFiles = acceptedFiles.map((file) => ({
-  //     name: file.name,
-  //     is_folder: false,
-  //     is_sync: true,
-  //   }));
-  //  console.log("acceptedFiles:", acceptedFiles);
-  //   setImportedFiles((prev) => ({
-  //     ...prev,
-  //     [currentPath]: [...(prev[currentPath] || []), ...newFiles],
-  //   }));
-  // };
-
-const onDrop = async (acceptedFiles: File[]) => {
-  try {
-    for (const file of acceptedFiles) {
-      if (file.name.match(/\.(xlsx|xls)$/i)) {
-        try {
-          // 1. Read file contents
-          const arrayBuffer = await file.arrayBuffer();
-          
-          // 2. Convert to Uint8Array and then to regular array
-          const fileBytes = Array.from(new Uint8Array(arrayBuffer));
-          
-          // 3. Save to temp location
-          const tempPath = await invoke<string>('save_temp_file', {
-            fileName: file.name,  // Must match Rust parameter name
-            contents: fileBytes    // Send as regular array
-          });
-
-          // 4. Read Excel data
-          const excelData = await invoke<ExcelData>('read_excel_file', {
-            filePath: tempPath    // Must match Rust parameter name
-          });
-          
-          console.log('Excel data:', excelData);
-          
-        } catch (e) {
-          console.error(`Error processing ${file.name}:`, e);
-        }
-      }
-    }
-    
-    const newFiles = acceptedFiles.map((file) => ({
-      name: file.name,
-      is_folder: false,
-      is_sync: true,
-    }));
-    
-    setImportedFiles((prev) => ({
-      ...prev,
-      [currentPath]: [...(prev[currentPath] || []), ...newFiles],
-    }));
-
-  } catch (error) {
-    console.error('File processing error:', error);
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Strip off the prefix "data:<mime-type>;base64," to get pure base64
+        const base64 = result.split(",")[1];
+        resolve(base64);
+      };
+      reader.onerror = (error) => reject(error);
+      reader.readAsDataURL(file);
+    });
   }
-};
+
+  const onDrop = async (acceptedFiles: File[]) => {
+    if (!entity || !period || !workflowName) {
+      console.error("Missing workflow data from Redux state");
+      return;
+    }
+
+    const workflow_path = `/${entity}/${period}/${workflowName}`;
+
+    try {
+      const filesPayload = acceptedFiles.map((file) => ({
+        filename: file.name,
+        workflow_path: workflow_path,
+      }));
+
+      const response = await fetch("http://127.0.0.1:8000/documents/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(filesPayload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error uploading documents:", errorText);
+        return;
+      }
+
+      const data = await response.json();
+      console.log("Upload successful:", data);
+      const docUpload = await Promise.all(
+        acceptedFiles.map(async (file) => {
+          const base64 = await fileToBase64(file);
+          return {
+            filename: file.name,
+            contents_base64: base64,
+          };
+        })
+      );
+      const result = await invoke<string>("upload_files", {
+        entity,
+        period,
+        workflowName,
+        files: docUpload,
+      });
+
+      console.log("Upload result:", result);
+
+      const newFiles = acceptedFiles.map((file) => ({
+        name: file.name,
+        is_folder: false,
+        is_sync: true,
+      }));
+
+      setImportedFiles((prev) => ({
+        ...prev,
+        [currentPath]: [...(prev[currentPath] || []), ...newFiles],
+      }));
+    } catch (error) {
+      console.error("Upload failed:", error);
+    }
+  };
 
   const { getRootProps, getInputProps, open, isDragActive } = useDropzone({
     onDrop,
@@ -114,26 +136,13 @@ const onDrop = async (acceptedFiles: File[]) => {
     <div className="space-y-4 w-full bg-gray-50 px-4 pt-4 pb-8 rounded-lg border border-gray-200">
       <div className="flex justify-between mb-2">
         <div className="flex items-center space-x-2">
-          <button
-            onClick={() => {
-              /* no-back for now */
-            }}
-            disabled
-          >
+          <button onClick={() => {}} disabled>
             <ArrowLeftIcon className="w-5 h-5 text-gray-300" />
           </button>
-          <button
-            onClick={() => {
-              /* no-forward for now */
-            }}
-            disabled
-          >
+          <button onClick={() => {}} disabled>
             <ArrowRightIcon className="w-5 h-5 text-gray-300" />
           </button>
         </div>
-        {/* <div className="px-4 py-2 h-10 bg-white rounded-md border border-gray-300 flex items-center">
-          <span>{currentPath}</span>
-        </div> */}
       </div>
 
       <div className="grid grid-cols-6 gap-4">
@@ -169,10 +178,40 @@ const onDrop = async (acceptedFiles: File[]) => {
                   )}
                   onClick={() => handleFileSelect(currentPath, file.name)}
                 >
-                  {/* Excel File Icon (replace with SVG or an icon if needed) */}
-                  <div className="w-12 h-12  rounded-md flex items-center justify-center mb-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="60" height="60" viewBox="0 0 48 48">
-                      <defs><linearGradient id="G7C1BuhajJQaEWHVlNUzHa_BEMhRoRy403e_gr1" x1="6" x2="27" y1="24" y2="24" data-name="ÐÐµÐ·ÑÐ¼ÑÐ½Ð½ÑÐ¹ Ð³ÑÐ°Ð´Ð¸ÐµÐ½Ñ 10" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#21ad64"></stop><stop offset="1" stop-color="#088242"></stop></linearGradient></defs><path fill="#31c447" d="m41,10h-16v28h16c.55,0,1-.45,1-1V11c0-.55-.45-1-1-1Z"></path><path fill="#fff" d="m32,15h7v3h-7v-3Zm0,10h7v3h-7v-3Zm0,5h7v3h-7v-3Zm0-10h7v3h-7v-3Zm-7-5h5v3h-5v-3Zm0,10h5v3h-5v-3Zm0,5h5v3h-5v-3Zm0-10h5v3h-5v-3Z"></path><path fill="url(#G7C1BuhajJQaEWHVlNUzHa_BEMhRoRy403e_gr1)" d="m27,42l-21-4V10l21-4v36Z"></path><path fill="#fff" d="m19.13,31l-2.41-4.56c-.09-.17-.19-.48-.28-.94h-.04c-.05.22-.15.54-.32.98l-2.42,4.52h-3.76l4.46-7-4.08-7h3.84l2,4.2c.16.33.3.73.42,1.18h.04c.08-.27.22-.68.44-1.22l2.23-4.16h3.51l-4.2,6.94,4.32,7.06h-3.74Z"></path>
+                  {/* Excel File Icon */}
+                  <div className="w-12 h-12 rounded-md flex items-center justify-center mb-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="60"
+                      height="60"
+                      viewBox="0 0 48 48"
+                    >
+                      <defs>
+                        <linearGradient
+                          id="grad1"
+                          x1="6"
+                          x2="27"
+                          y1="24"
+                          y2="24"
+                          gradientUnits="userSpaceOnUse"
+                        >
+                          <stop offset="0" stopColor="#21ad64"></stop>
+                          <stop offset="1" stopColor="#088242"></stop>
+                        </linearGradient>
+                      </defs>
+                      <path
+                        fill="#31c447"
+                        d="m41,10h-16v28h16c.55,0,1-.45,1-1V11c0-.55-.45-1-1-1Z"
+                      />
+                      <path
+                        fill="#fff"
+                        d="m32,15h7v3h-7v-3Zm0,10h7v3h-7v-3Zm0,5h7v3h-7v-3Zm0-10h7v3h-7v-3Zm-7-5h5v3h-5v-3Zm0,10h5v3h-5v-3Zm0,5h5v3h-5v-3Zm0-10h5v3h-5v-3Z"
+                      />
+                      <path fill="url(#grad1)" d="m27,42l-21-4V10l21-4v36Z" />
+                      <path
+                        fill="#fff"
+                        d="m19.13,31l-2.41-4.56c-.09-.17-.19-.48-.28-.94h-.04c-.05.22-.15.54-.32.98l-2.42,4.52h-3.76l4.46-7-4.08-7h3.84l2,4.2c.16.33.3.73.42,1.18h.04c.08-.27.22-.68.44-1.22l2.23-4.16h3.51l-4.2,6.94,4.32,7.06h-3.74Z"
+                      />
                     </svg>
                   </div>
                   <span className="text-xs text-center break-all">
@@ -183,19 +222,17 @@ const onDrop = async (acceptedFiles: File[]) => {
             </div>
           ) : (
             <div className="text-center text-gray-600">
-              {isDragActive
-                ? "Drop files here to upload"
-                : (
-                  <div className="flex flex-col items-center justify-center pb-12">
-                    <CloudArrowDownIcon className="h-24 w-24"/>
-                        "No files found. Drag files here or use the button below."
-                  </div>
-
-                  )}
+              {isDragActive ? (
+                "Drop files here to upload"
+              ) : (
+                <div className="flex flex-col items-center justify-center pb-12">
+                  <CloudArrowDownIcon className="h-24 w-24" />
+                  No files found. Drag files here or use the button below.
+                </div>
+              )}
             </div>
           )}
 
-          {/* Manual file select button */}
           <button
             type="button"
             onClick={open}

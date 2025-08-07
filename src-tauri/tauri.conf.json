@@ -49,13 +49,10 @@
         "silent": true,
         "type": "downloadBootstrapper"
       },
-      "wix":  {
-          "language": "en-US"
-        }
+      "wix": {
+        "language": "en-US"
+      }
     },
-    "resources":[
-      "../server"
-    ]
+    "resources": ["../server"]
   }
-
 }

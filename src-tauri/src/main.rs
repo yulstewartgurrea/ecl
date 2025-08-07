@@ -9,6 +9,11 @@ use sqlx::{ Pool, Sqlite, sqlite::SqlitePoolOptions };
 
 const PROD: bool = false;
 
+//FolderAPI
+
+use api::folderapi::{create_folder_tree, upload_files};
+
+
 struct FastApiProcess(Mutex<Option<std::process::Child>>);
 
 fn init_db(db_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
@@ -41,13 +46,21 @@ fn init_db(db_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             filename TEXT NOT NULL,
-            document_key TEXT NOT NULL,
-            document_type TEXT NOT NULL,
-            file_data BLOB,
+            workflow_path TEXT NOT NULL,
             user_id INTEGER NOT NULL,
+            json_data TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id)
+        );
+        CREATE TABLE IF NOT EXISTS json (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            workflow_path TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            json_data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         "#
     )?;
@@ -65,7 +78,8 @@ fn init_db(db_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
             println!("🔑 Seeding default users...");
 
             use argon2::{ Argon2, PasswordHasher };
-            use password_hash::SaltString;
+            use argon2::password_hash::SaltString;
+
 
             let users = vec![
                 ("admin", "sgvadmin0987", "admin"),
@@ -261,7 +275,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fastapi_process = start_fastapi(&server_dir)?;
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![login])
+        .invoke_handler(tauri::generate_handler![login, create_folder_tree, upload_files])
         .manage(db)
         .manage(FastApiProcess(Mutex::new(Some(fastapi_process))))
         .setup(|_app| {

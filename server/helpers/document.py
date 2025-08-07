@@ -8,9 +8,7 @@ def get_documents(db: Session, user_id: int, skip: int = 0, limit: int = 100):
 def create_document(db: Session, document: DocumentCreate, user_id: int):
     db_document = Document(
         filename=document.filename,
-        document_key=document.document_key,
-        document_type=document.document_type,
-        file_data=document.file_data,
+        workflow_path=document.workflow_path,
         user_id=user_id
     )
     db.add(db_document)

@@ -1,75 +1,166 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // components
 import ZoomSlider from "../../../components/ZoomSlider";
 import TransitionMatrixPercentageCountTable from "../../../components/transition_matrix_components/TransitionMatrixPercentageCountTable";
-
-// helpers
-import { generateTransitionMatrixDummyData, generateTransitionMatrixPercentageDummyData } from "../../../utils/CommonHelper";
 import TableTemplate2 from "../../../components/TableTemplate2";
+import {
+  generateTransitionMatrixDummyData,
+  generateTransitionMatrixPercentageDummyData,
+} from "../../../utils/CommonHelper";
+// redux
+import { useSelector } from "react-redux";
+import type { RootState } from "../../../redux_toolkit/store";
+import { useAppSelector } from "../../../redux_toolkit/hooks";
 
-const dummyData: any[] = [
-  {
-  "Usual  Bucket": "0",
-    "0": 0.9635,
-    "1": 0.00251,
-    "2": 0.0094,
-    "3": 0.0001,
-    "4": 0.0018,
-    Total: 0.0,
-  },
-  {
-    "Usual  Bucket": "1",
-    "0": 0.0603,
-    "1": 0.0041,
-    "2": 0.4326,
-    "3": 0.1993,
-    "4": 0.0,
-    Total: 0.0,
-  },
-  {
-    "Usual  Bucket": "2",
-    "0": 0.0711,
-    "1": 0.0,
-    "2": 0.0357,
-    "3": 0.5771,
-    "4": 0.0304,
-    Total: 0.0,
-  },
-  {
-    "Usual  Bucket": "3",
-    "0": 0.0425,
-    "1": 0.017,
-    "2": 0.0,
-    "3": 0.0238,
-    "4": 0.756,
-    Total: 0.0,
-  },
-  {
-    "Usual  Bucket": "4",
-    "0": 0.0018,
-    "1": 0.001,
-    "2": 0.008,
-    "3": 0.0002,
-    "4": 0.989,
-    Total: 0.0,
-  },
-];
+type MigrationMatrixEntry = {
+  From_Date: string;
+  To_Date: string;
+  From_Bucket: string;
+  [key: string]: string | number;
+};
+
+type MigrationMatrixPercentageEntry = {
+  [key: string]: string | number | null;
+};
+
+interface Props {
+  migrationMatrix: MigrationMatrixEntry[];
+  migrationMatrixPercentage: MigrationMatrixPercentageEntry[];
+}
 
 const Step8 = () => {
   const [zoom, setZoom] = useState(0.9);
 
-  const year = 2020;
+  const [migrationMatrix, setMigrationMatrixData] = useState<any[]>([]);
+  const [migrationMatrixPercentage, setMigrationMatrixPercentageData] =
+    useState<any[]>([]);
+  const [migrationMatrixAverage, setMigrationMatrixAverageData] = useState<
+    any[]
+  >([]);
 
-  const matrixDataByMonth = Array.from({ length: 12 }, (_, monthIndex) => {
-    return generateTransitionMatrixDummyData(year, monthIndex);
-  }); 
+  const authToken = useAppSelector((state) => state.auth.token);
+  const {
+    selectedPdTransitionMatrixEntity: entity,
+    selectedPdTransitionMatrixReportingPeriod: period,
+    pdTransitionMatrixWfName: workflowName,
+  } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
 
-  const matrixDataByMonthPercentage = Array.from({ length: 12 }, (_, monthIndex) => {
-    return generateTransitionMatrixPercentageDummyData(year, monthIndex);
-  });
+  const directoryPath = `/${entity}/${period}/${workflowName}`;
 
-  console.log('matrixDataByMonth: ', matrixDataByMonth)
+  useEffect(() => {
+    const fetchWithAuth = async (url: string) => {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+      if (!response.ok) throw new Error(`GET ${url} failed`);
+      return response.json();
+    };
+
+    const postData = async (url: string, data: any) => {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error(`POST ${url} failed`);
+      return response.json();
+    };
+
+    // Helper: Convert "YYYY-MM-DD" → "MM/DD/YYYY"
+    const formatDateKey = (dateStr: string) => {
+      const parts = dateStr.split("-");
+      if (parts.length !== 3) return dateStr;
+      return `${parts[1]}/${parts[2]}/${parts[0]}`;
+    };
+
+    // Helper: transform object keys for each row item
+    const transformKeys = (obj: Record<string, any>) => {
+      const newObj: Record<string, any> = {};
+      Object.entries(obj).forEach(([key, value]) => {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+          // e.g. "2021-01-31"
+          newObj[formatDateKey(key)] = value;
+        } else if (/^\d{4}-\d{2}-\d{2}_Bucket$/.test(key)) {
+          // e.g. "2021-02-28_Bucket"
+          const datePart = key.split("_")[0];
+          newObj[formatDateKey(datePart) + "_Bucket"] = value;
+        } else {
+          newObj[key] = value;
+        }
+      });
+      return newObj;
+    };
+
+    const fetchData = async () => {
+      try {
+        const consolidatedRows = await fetchWithAuth(
+          `http://localhost:8000/documents/consolidated-rows?workflow_path=${directoryPath}`
+        );
+
+        const payload = {
+          workflow_path: directoryPath,
+          row: consolidatedRows,
+        };
+
+        // Step 1: Bucket DPD Everbad
+        const resultEverbad = await postData(
+          "http://localhost:8000/documents/bucket-dpd-everbad",
+          payload
+        );
+
+        // Step 2: Migration Matrix (Count)
+        const migrationMatrixData = await postData(
+          "http://localhost:8000/documents/migration-matrix",
+          {
+            workflow_path: directoryPath,
+            row: resultEverbad,
+          }
+        );
+
+        setMigrationMatrixData(migrationMatrixData);
+
+        // Step 3: Migration Matrix (Percentage)
+        const migrationMatrixPercentage = await postData(
+          "http://localhost:8000/documents/migration-matrix-percentage",
+          {
+            workflow_path: directoryPath,
+            row: resultEverbad,
+          }
+        );
+
+        setMigrationMatrixPercentageData(migrationMatrixPercentage);
+
+        const flattenedRows = migrationMatrixPercentage.flat();
+
+        const payload1 = {
+          workflow_path: directoryPath,
+          row: flattenedRows,
+        };
+
+        console.log("payload1:", payload1);
+
+        // Step 4: Migration Matrix (Average)
+        const migrationMatrixAverage = await postData(
+          "http://localhost:8000/documents/migration-matrix-average-final",
+          payload1
+        );
+
+        setMigrationMatrixAverageData(migrationMatrixAverage);
+      } catch (error) {
+        console.error("Error fetching matrix data:", error);
+      }
+    };
+
+    fetchData();
+  }, [authToken, directoryPath]);
+
   return (
     <div className="flex flex-col w-full mt-6">
       <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-1" />
@@ -87,7 +178,7 @@ const Step8 = () => {
               </div>
               <div className="w-full flex flex-col space-y-4">
                 {typeIndex === 0 ? (
-                  matrixDataByMonth.map((data, monthIndex) => (
+                  migrationMatrix.map((data, monthIndex) => (
                     <TransitionMatrixPercentageCountTable
                       key={`${typeIndex}-${monthIndex}`}
                       data={data}
@@ -97,8 +188,8 @@ const Step8 = () => {
                       setZoomLevel={setZoom}
                     />
                   ))
-                ) :typeIndex === 1 ? (
-                  matrixDataByMonthPercentage.map((data, monthIndex) => (
+                ) : typeIndex === 1 ? (
+                  migrationMatrixPercentage.map((data, monthIndex) => (
                     <TransitionMatrixPercentageCountTable
                       key={`${typeIndex}-${monthIndex}`}
                       data={data}
@@ -108,10 +199,18 @@ const Step8 = () => {
                       setZoomLevel={setZoom}
                     />
                   ))
-                ): (
+                ) : (
                   <TableTemplate2
-                    data={dummyData}
-                    headersParams={["Usual  Bucket", "0", "1", "2", "3", "4", "Total"]}
+                    data={migrationMatrixAverage}
+                    headersParams={[
+                      "Bucket",
+                      "0 DPD_0",
+                      "1-30 DPD_1",
+                      "31-60 DPD_2",
+                      "61-90 DPD_3",
+                      "91+ DPD_4",
+                      "Total",
+                    ]}
                     format="percentage"
                     decimalPlaces={2}
                     zoomLevel={zoom}

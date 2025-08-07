@@ -1,10 +1,9 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
-
+from typing import Optional, Union
 # User Schemas
 class UserBase(BaseModel):
     username: str
-    email: EmailStr
+    email: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
@@ -20,8 +19,8 @@ class UserResponse(UserBase):
 class WorkflowBase(BaseModel):
     entity: str
     workflow_name: str
-    baseline_year: int
-    json_data: str
+    baseline_year: Optional[Union[int, str]] = None  # Accept int or str
+    json_data: Optional[str] = "default"
     reporting_period: str
     workflow_type: Optional[str] = "default"
 
@@ -38,13 +37,27 @@ class WorkflowResponse(WorkflowBase):
 # Document Schemas
 class DocumentBase(BaseModel):
     filename: str
-    document_key: str
-    document_type: str
-
+    json_data: Optional[str] = None
+    workflow_path: str
 class DocumentCreate(DocumentBase):
-    file_data: str
+    pass
 
 class DocumentResponse(DocumentBase):
+    id: int
+    user_id: int
+
+    class Config:
+        from_attributes = True
+
+class JsonBase(BaseModel):
+    name: str
+    workflow_path: str
+    json_data: str
+
+class JsonCreate(JsonBase):
+    pass
+
+class JsonResponse(JsonBase):
     id: int
     user_id: int
 

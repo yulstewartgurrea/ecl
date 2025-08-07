@@ -18,9 +18,12 @@ import {
   setPdTransitionMatrixWfName,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 
+import { invoke } from "@tauri-apps/api/core";
+
 const TransitionMatrixLanding = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const authToken = useAppSelector((state) => state.auth.token);
 
   const { isSidebarOpen } = useAppSelector((state: any) => state.navUIState);
   const {
@@ -29,11 +32,71 @@ const TransitionMatrixLanding = () => {
     pdTransitionMatrixWfName,
   } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
 
-  const handleStartCalculation = () => {
-    if (pdTransitionMatrixWfName.trim()) {
-      navigate(`/transition_matrix/workflow`, {
-        state: { pdTransitionMatrixWfName },
-      });
+  const handleStartCalculation = async () => {
+    if (
+      pdTransitionMatrixWfName.trim() &&
+      selectedPdTransitionMatrixEntity &&
+      selectedPdTransitionMatrixReportingPeriod
+    ) {
+      try {
+        const payload = {
+          entity: selectedPdTransitionMatrixEntity,
+          workflow_name: pdTransitionMatrixWfName,
+          reporting_period: selectedPdTransitionMatrixReportingPeriod,
+          baseline_year: "2023",
+        };
+
+        const workflowResponse = await fetch(
+          "http://127.0.0.1:8000/workflows/",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify(payload), // <-- FIXED HERE
+          }
+        );
+
+        console.log("Workflow creation response:", workflowResponse);
+
+        if (!workflowResponse.ok) {
+          const errorData = await workflowResponse.json();
+          console.error("Error data:", errorData); // helpful for debugging
+          throw new Error(errorData.detail || "Failed to create workflow");
+        }
+
+        const workflowData = await workflowResponse.json();
+        console.log("Workflow created:", workflowData);
+
+        const folderTreeResponse = await invoke("create_folder_tree", {
+          entity: selectedPdTransitionMatrixEntity,
+          period: selectedPdTransitionMatrixReportingPeriod,
+          workflowName: pdTransitionMatrixWfName,
+        });
+        dispatch(
+          setPdTransitionMatrixSelectedEntity({
+            entity: selectedPdTransitionMatrixEntity,
+          })
+        );
+        dispatch(
+          setPdTransitionMatrixSelectedReportingPeriod({
+            period: selectedPdTransitionMatrixReportingPeriod,
+          })
+        );
+        dispatch(
+          setPdTransitionMatrixWfName({
+            workflow_name: pdTransitionMatrixWfName,
+          })
+        );
+        console.log("Folder tree creation response:", folderTreeResponse);
+
+        navigate(`/transition_matrix/workflow`, {
+          state: { pdTransitionMatrixWfName },
+        });
+      } catch (error) {
+        console.error("Failed to start calculation:", error);
+      }
     }
   };
 

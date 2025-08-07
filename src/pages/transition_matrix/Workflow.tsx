@@ -21,7 +21,6 @@ import Step9 from "./steps/Step9";
 import Step10 from "./steps/Step10";
 import Step11 from "./steps/Step11";
 
-
 //redux toolkit
 import { useAppDispatch } from "../../redux_toolkit/hooks";
 import { resetStateNavUIState } from "../../redux_toolkit/features/general/navUIState";
@@ -29,7 +28,7 @@ import { resetPdTransitionMatrixWfHelperData } from "../../redux_toolkit/feature
 
 const stepLabels = [
   "Input Files",
-  "Data Validation",  
+  "Data Validation",
   "Data Consolidation",
   "Pivoting",
   "Bucketing",
@@ -71,7 +70,8 @@ const PdTransitionMatrixWorkflow = () => {
 
   const handleContinue = () => {
     if (!stepsCompletionStatus) return;
-
+    console.log("consolidationSubStep: ", consolidationSubStep);
+    console.log("currentStep: ", currentStep);
     if (currentStep === 2 && consolidationSubStep === 0) {
       setConsolidationSubStep(1);
       return;
@@ -101,9 +101,9 @@ const PdTransitionMatrixWorkflow = () => {
       case 0:
         return <Step1 />;
       case 1:
-        return  <Step2 />;
+        return <Step2 />;
       case 2:
-        return consolidationSubStep === 0 ? <Step3 /> : <Step3Consolidation />;        
+        return consolidationSubStep === 0 ? <Step3 /> : <Step3Consolidation />;
       case 3:
         return <Step4 />;
       case 4:
@@ -119,7 +119,7 @@ const PdTransitionMatrixWorkflow = () => {
       case 9:
         return <Step10 />;
       case 10:
-        return <Step11 />;        
+        return <Step11 />;
       default:
         return null;
     }
@@ -130,9 +130,9 @@ const PdTransitionMatrixWorkflow = () => {
   let continueLabel = "Continue";
   if (currentStep === 1) {
     stepDescriptionTitle = "";
-    stepDescription =""
+    stepDescription = "";
     continueLabel = "Proceed";
-  } 
+  }
   if (currentStep === 2 && consolidationSubStep === 0) {
     stepDescriptionTitle = "Input data";
     stepDescription =
@@ -214,14 +214,14 @@ const PdTransitionMatrixWorkflow = () => {
       <div className="w-full flex flex-row p-2">
         <div className="w-full min-h-[750px] bg-white p-4 shadow-md rounded">
           {currentStep === 0 ? (
-              <div className="w-full inline-flex items-end justify-end gap-4">
-                  <button
-                    onClick={handleContinue}
-                    className="bg-[#fce404] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
-                  >
-                    Validate Data
-                    <ChevronRightIcon className="w-5 h-5 font-bold mt-0.5" />
-                  </button>
+            <div className="w-full inline-flex items-end justify-end gap-4">
+              <button
+                onClick={handleContinue}
+                className="bg-[#fce404] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
+              >
+                Validate Data
+                <ChevronRightIcon className="w-5 h-5 font-bold mt-0.5" />
+              </button>
             </div>
           ) : (
             <StepNavigation

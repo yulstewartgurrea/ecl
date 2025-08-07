@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -7,9 +8,23 @@ from api.routers import users, workflows, documents, auth
 from core.dependencies import get_password_hash 
 
 app = FastAPI()
-
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Create tables
 Base.metadata.create_all(bind=engine)
+
+@app.get("/test-cors")
+async def test_cors():
+    return {"message": "CORS is working"}
 
 @app.on_event("startup")
 async def initialize_database():
@@ -62,7 +77,8 @@ async def initialize_database():
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "timestamp": datetime.utcnow()}
+    print("Health check endpoint called")
+    return {"status": "ok", "timestamp a": datetime.utcnow()}
 
 app.include_router(auth.router)
 app.include_router(users.router)

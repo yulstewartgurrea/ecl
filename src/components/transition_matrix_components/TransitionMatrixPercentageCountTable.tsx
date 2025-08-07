@@ -49,7 +49,6 @@ const TransitionMatrixCountTable: React.FC<TransitionMatrixCountTableProps> = ({
     if (key === totalKey) return key;
     return key.split("_")[0];
   });
-
   const headersRow2 = orderedKeys.map((key) => {
     if (!key.includes("_") || key === totalKey) return "";
     return key.split("_")[1];
@@ -128,7 +127,7 @@ const TransitionMatrixCountTable: React.FC<TransitionMatrixCountTableProps> = ({
                     }
                   )}
                 >
-                  {typeof row[key] === "number" && !key.includes("Bucket") 
+                  {typeof row[key] === "number" && !key.includes("Bucket")
                     ? formatValueGeneral(row[key], format, decimalPlaces)
                     : row[key]}
                 </td>

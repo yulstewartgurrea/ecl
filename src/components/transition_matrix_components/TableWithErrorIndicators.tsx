@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { formatValueGeneral } from "../../utils/CommonHelper";
 
@@ -17,42 +17,6 @@ interface TableWithErrorIndicatorsProps {
   additionalCss?: any;
 }
 
-const mockColumnStats: Record<string, Record<string, ColumnStats>> = {
-  "20240430_Input_Data": {
-    report_date: { complete: 950, error: 25, missing: 25 },
-    load_segment: { complete: 1000, error: 0, missing: 0 },
-    cis_number: { complete: 970, error: 0, missing: 30 },
-    pn_number: { complete: 980, error: 15, missing: 5 },
-    loan_amount: { complete: 910, error: 50, missing: 40 },
-    outstanding_balance: { complete: 930, error: 35, missing: 35 },
-    amortization: { complete: 860, error: 90, missing: 50 },
-    booking_date: { complete: 1000, error: 0, missing: 0 },
-    maturity_date: { complete: 870, error: 80, missing: 50 },
-  },
-  "20240531_Input_Data": {
-    report_date: { complete: 800, error: 120, missing: 80 },
-    load_segment: { complete: 980, error: 10, missing: 10 },
-    cis_number: { complete: 910, error: 60, missing: 30 },
-    pn_number: { complete: 850, error: 100, missing: 50 },
-    loan_amount: { complete: 900, error: 60, missing: 40 },
-    outstanding_balance: { complete: 940, error: 30, missing: 30 },
-    amortization: { complete: 890, error: 50, missing: 60 },
-    booking_date: { complete: 970, error: 20, missing: 10 },
-    maturity_date: { complete: 860, error: 80, missing: 60 },
-  },
-  "20240630_Input_Data":  {
-    report_date: { complete: 800, error: 120, missing: 80 },
-    load_segment: { complete: 980, error: 10, missing: 10 },
-    cis_number: { complete: 910, error: 60, missing: 30 },
-    pn_number: { complete: 850, error: 100, missing: 50 },
-    loan_amount: { complete: 900, error: 60, missing: 40 },
-    outstanding_balance: { complete: 940, error: 30, missing: 30 },
-    amortization: { complete: 890, error: 50, missing: 60 },
-    booking_date: { complete: 970, error: 20, missing: 10 },
-    maturity_date: { complete: 860, error: 80, missing: 60 },
-  },
-};
-
 const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   data,
   inputFile,
@@ -64,7 +28,42 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
   const headers =
     headersParams ?? (data.length > 0 ? Object.keys(data[0]) : []);
-  const stats = mockColumnStats[inputFile] || {};
+  const stats = useMemo(() => {
+    const result: Record<
+      string,
+      { complete: number; error: number; missing: number }
+    > = {};
+
+    if (!data || data.length === 0) return result;
+
+    const headers = Object.keys(data[0]);
+
+    headers.forEach((key) => {
+      let complete = 0;
+      let missing = 0;
+      let error = 0;
+
+      for (const row of data) {
+        const value = row[key];
+
+        if (value === null || value === undefined || value === "") {
+          missing++;
+        } else if (
+          value === "ERROR" ||
+          value === "NaN" ||
+          value === "INVALID"
+        ) {
+          error++;
+        } else {
+          complete++;
+        }
+      }
+
+      result[key] = { complete, error, missing };
+    });
+
+    return result;
+  }, [data]);
 
   const getTotal = (stat: ColumnStats) =>
     stat.complete + stat.error + stat.missing;
@@ -87,7 +86,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
 
     window.addEventListener("wheel", handleWheel, { passive: false });
     return () => window.removeEventListener("wheel", handleWheel);
-  }, []);  
+  }, []);
 
   return (
     <div
@@ -154,7 +153,6 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
                       </div>
 
                       <div className="flex text-center text-[11px] border-t border-gray-200 pt-2">
-                   
                         <div className="flex-1 pr-3 border-r border-gray-300">
                           <div className="text-green-600 font-semibold">
                             {stats[header].complete} (
@@ -182,7 +180,6 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
                             Error
                           </div>
                         </div>
-
 
                         <div className="flex-1 pl-3">
                           <div className="text-gray-700 font-semibold">

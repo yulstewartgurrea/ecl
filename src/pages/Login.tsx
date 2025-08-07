@@ -38,7 +38,7 @@
 //                 onChange={e => setUsername(e.target.value)}
 //               />
 //             </div>
-//             <div className='w-full px-12 mb-2'> 
+//             <div className='w-full px-12 mb-2'>
 //               <div className='font-semibold mb-1'>PASSWORD</div>
 //               <input
 //                 type="password"
@@ -46,14 +46,14 @@
 //                 placeholder="Password"
 //                 value={password}
 //                 onChange={e => setPassword(e.target.value)}
-//               />   
+//               />
 //             </div>
 //             <div className='min-h-full bg-[#ececec] mb-6 rounded-b-4xl'>
 //               <button onClick={handleLogin} className="w-20 shadow-lg rounded-lg h-8 bg-[#ffe404] py-1 px-2 font-bold hover:bg-yellow-300 cursor-pointer">
 //                 LOG IN
 //               </button>
 //             </div>
-//           </div>          
+//           </div>
 //         </div>
 //       </div>
 //     </div>
@@ -62,88 +62,101 @@
 
 // export default Login;
 
-
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { invoke } from "@tauri-apps/api/core";
 
 // redux toolkit
-import { useAppDispatch } from '../redux_toolkit/hooks';
-import { login } from '../redux_toolkit/features/general/auth';
-import { resetStateNavUIState } from '../redux_toolkit/features/general/navUIState';
+import { useAppDispatch } from "../redux_toolkit/hooks";
+import { login } from "../redux_toolkit/features/general/auth";
+import { resetStateNavUIState } from "../redux_toolkit/features/general/navUIState";
 
 const Login = () => {
-  const [username, setUsername] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  // const [error, setError] = useState<string | null>(null);  
+  const [username, setUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  // const [error, setError] = useState<string | null>(null);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
-const handleLogin = async () => {
-  try {
-    const response = await invoke<{
-      success: boolean;
-      role: string | null;
-      message: string;
-    }>('login', {
-      payload: { 
-        username: username,
-        password: password 
-      }
-    });
-    console.log('response: ', response)
-    if (response.success) {
-      dispatch(login({ 
-        username: username, 
-        token: "secret",
-        role: response.role || "user"
-      }));
-      dispatch(resetStateNavUIState());
-      navigate('/');
-    } else {
-      // setError(response.message);
-    }
-  } catch (err) {
-    // setError('An error occurred during login');
-    console.log(err);
-  }
+  const handleLogin = async () => {
+    try {
+      const response = await invoke<{
+        success: boolean;
+        role: string | null;
+        message: string;
+      }>("login", {
+        payload: {
+          username: username,
+          password: password,
+        },
+      });
+      console.log("login response: ", response);
 
-  // dispatch(login({ 
-  //   username: username, 
-  //   token: "secret",
-  //   role: "admin"
-  // }));
-  // navigate('/');
-};
+      if (response.success) {
+        // After login success, call /users/me to get user info + token
+        const meResponse = await fetch(
+          "http://127.0.0.1:8000/users/me?username=" +
+            encodeURIComponent(username)
+        );
+        if (!meResponse.ok) {
+          throw new Error("Failed to fetch user info");
+        }
+        const meData = await meResponse.json();
+        console.log("me response:", meData);
+
+        dispatch(
+          login({
+            username: username,
+            token: meData.access_token,
+            role: response.role || "user",
+          })
+        );
+
+        dispatch(resetStateNavUIState());
+        navigate("/");
+      } else {
+        // setError(response.message);
+      }
+    } catch (err) {
+      // setError('An error occurred during login');
+      console.log(err);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-login-gradient ">
       <div className="bg-white shadow-2xl rounded-3xl w-full max-w-md px-10 py-8">
         <div className="flex flex-col items-center">
           <img src="/SGVLogoLight.png" alt="Logo" className="h-20 mb-6" />
-          <h2 className="text-2xl font-bold text-gray-600 mb-8">ECL Automation</h2>
+          <h2 className="text-2xl font-bold text-gray-600 mb-8">
+            ECL Automation
+          </h2>
         </div>
 
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Username
+            </label>
             <input
               type="text"
               className="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
               placeholder="Enter your username"
               value={username}
-              onChange={e => setUsername(e.target.value)}
+              onChange={(e) => setUsername(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Password
+            </label>
             <input
               type="password"
               className="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
               placeholder="Enter your password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
 
@@ -153,7 +166,7 @@ const handleLogin = async () => {
           >
             Log In
           </button>
-          {/* {error && <p className="text-red-500 mb-4 text-center">{error}</p>}  */}       
+          {/* {error && <p className="text-red-500 mb-4 text-center">{error}</p>}  */}
         </div>
       </div>
     </div>

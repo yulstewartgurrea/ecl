@@ -9,24 +9,22 @@ import TabbedInterface from "../../../components/transition_matrix_components/Ta
 
 const Step2 = () => {
   const { isSidebarOpen } = useSelector((state: any) => state.navUIState);
-  const [folders] = useState<string[]>([
-   "20240430_Input_Data",    
-    "20240531_Input_Data",    
-    "20240630_Input_Data",
-    "20240731_Input_Data",
-    "20240830_Input_Data",
-    "20240931_Input_Data",
-    "20241030_Input_Data",
-    "20241131_Input_Data",
-    "20241230_Input_Data",
-  ]);
   return (
+    // <div
+    //   className={clsx(
+    //     "grid grid-cols-1 mt-4 min-h-[80%] max-h-[80%] space-y-12 lg:space-y-0 lg:gap-6",
+    //     {
+    //       "lg:grid-cols-10": isSidebarOpen,
+    //       "lg:grid-cols-4": !isSidebarOpen,
+    //     }
+    //   )}
+    // >
     <div
       className={clsx(
-        "grid grid-cols-1 mt-4 min-h-[80%] max-h-[80%] space-y-12 lg:space-y-0 lg:gap-6",
+        "w-full flex flex-col mt-4 min-h-[80%] max-h-[80%] space-y-12 lg:space-y-0 shadow-sm",
         {
-          "lg:grid-cols-10": isSidebarOpen,
-          "lg:grid-cols-4": !isSidebarOpen,
+          "col-span-7": isSidebarOpen,
+          "col-span-3": !isSidebarOpen,
         }
       )}
     >
@@ -42,7 +40,7 @@ const Step2 = () => {
         <TabbedInterface />
       </div>
 
-      <div
+      {/* <div
         className={clsx(
           "bg-gray-50 px-2 py-2 rounded-lg shadow-md border border-gray-300",
           {
@@ -89,7 +87,7 @@ const Step2 = () => {
 
 
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };
