@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   ArrowDownTrayIcon,
   DocumentPlusIcon,
@@ -11,6 +11,9 @@ import ZoomSlider from "../../../components/ZoomSlider";
 //helpers
 import LineGraph from "../../../components/visuals/LineGraph";
 
+// Custom hook to read and transform localStorage data
+import { useMonth12Bucket4 } from "../../../hooks/useMonth12Bucket4";
+
 type DpdRow = {
   "Aging bucket": string;
   "TTC PD": number;
@@ -18,59 +21,7 @@ type DpdRow = {
 
 const Step10 = () => {
   const [zoom, setZoom] = useState(0.9);
-  const [ttcData, setTtcData] = useState<DpdRow[]>([]);
-
-  useEffect(() => {
-    const raw = localStorage.getItem("month12_bucket4");
-    if (!raw) {
-      console.warn("month12_bucket4 not found in localStorage");
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(raw);
-      let dpd4Arr: number[];
-
-      if (
-        Array.isArray(parsed) &&
-        parsed.length === 5 &&
-        parsed.every((n) => typeof n === "number")
-      ) {
-        // new style: [0.1749, 0.3525, …]
-        dpd4Arr = parsed;
-      } else if (typeof parsed === "object" && parsed !== null) {
-        // old style: { "0 DPD_0": 0.1749, … }
-        const keys = [
-          "0 DPD_0",
-          "1-30 DPD_1",
-          "31-60 DPD_2",
-          "61-90 DPD_3",
-          "91+ DPD_4",
-        ];
-        dpd4Arr = keys.map((k) => Number(parsed[k] ?? 0));
-      } else {
-        throw new Error("Unexpected month12_bucket4 shape");
-      }
-
-      // Now map those five numbers into your DpdRow[]
-      const labels = [
-        "0 DPD",
-        "1 - 30 DPD",
-        "31 - 60 DPD",
-        "61 - 90 DPD",
-        "91+ DPD",
-      ];
-      const transformed: DpdRow[] = dpd4Arr.map((val, idx) => ({
-        "Aging bucket": labels[idx],
-        // convert to % and round
-        "TTC PD": val,
-      }));
-
-      setTtcData(transformed);
-    } catch (e) {
-      console.warn("month12_bucket4 parse failed:", e);
-    }
-  }, []);
+  const ttcData: DpdRow[] = useMonth12Bucket4();
 
   // prepare for line graph
   const prepareChartDataForLineGraph = (data: DpdRow[]) => {
@@ -79,7 +30,6 @@ const Step10 = () => {
       {
         label: "TTC PD",
         data: data.map((item) => item["TTC PD"]),
-        // colors here are defaults you already had
         borderColor: "rgba(255, 204, 0, 1)",
         backgroundColor: "rgba(255, 204, 0, 0.5)",
         fill: false,
@@ -88,6 +38,7 @@ const Step10 = () => {
     ];
     return { xValues, yValues };
   };
+
   const { xValues, yValues } = prepareChartDataForLineGraph(ttcData);
 
   return (

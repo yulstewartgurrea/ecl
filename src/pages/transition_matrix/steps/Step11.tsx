@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   ArrowDownTrayIcon,
   DocumentPlusIcon,
@@ -9,6 +9,8 @@ import {
 import TableTemplate1 from "../../../components/TableTemplate1";
 import ZoomSlider from "../../../components/ZoomSlider";
 import LineGraph from "../../../components/visuals/LineGraph";
+
+import { fetchOdrFromLocalStorage } from "../../../services/documents";
 
 const YEARS = [2021, 2022, 2023, 2024, 2025];
 const MONTHS = [
@@ -26,52 +28,38 @@ const MONTHS = [
   "December",
 ];
 
-type OdrCacheEntry = {
-  "Observation point": string; // e.g. "2021-01-31"
-  ODR: string; // e.g. "2.78%"
-};
-
 type OdrRow = {
-  Time: string; // "MM/DD/YYYY"
-  ODR: number; // 0.0278 (decimal)
+  Time: string; // MM/DD/YYYY
+  ODR: number; // decimal value, e.g. 0.0278
 };
 
 const Step11 = () => {
   const [zoom, setZoom] = useState(0.9);
   const [odrData, setOdrData] = useState<OdrRow[]>([]);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedYears, setSelectedYears] = useState<number[]>([2021]);
+  const [startMonth, setStartMonth] = useState("January");
+  const [endMonth, setEndMonth] = useState("December");
 
-  // ① Load saved ODRs from localStorage on mount
+  // Load saved ODR data from localStorage once on mount
   useEffect(() => {
-    const raw = localStorage.getItem("odr_by_point");
-    if (!raw) return;
+    const cache = fetchOdrFromLocalStorage();
+    if (!cache) return;
 
-    let cache: OdrCacheEntry[] = [];
-    try {
-      cache = JSON.parse(raw);
-    } catch {
-      console.warn("Invalid odr_by_point in storage");
-      return;
-    }
-
-    // Convert each cache entry to { Time: "MM/DD/YYYY", ODR: decimal }
     const transformed: OdrRow[] = cache.map((e) => {
-      // parse "YYYY-MM-DD" into a JS Date
       const [year, month, day] = e["Observation point"].split("-").map(Number);
-      const jsDate = new Date(year, month - 1, day);
+      const date = new Date(year, month - 1, day);
 
-      // format back to "MM/DD/YYYY"
-      const mm = String(jsDate.getMonth() + 1).padStart(2, "0");
-      const dd = String(jsDate.getDate()).padStart(2, "0");
-      const yy = String(jsDate.getFullYear());
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      const yyyy = String(date.getFullYear());
 
-      // strip "%" and convert to decimal
       const odrPct = parseFloat(e.ODR.replace("%", ""));
       const odrDec = odrPct / 100;
 
-      return { Time: `${mm}/${dd}/${yy}`, ODR: odrDec };
+      return { Time: `${mm}/${dd}/${yyyy}`, ODR: odrDec };
     });
 
-    // sort ascending by date
     transformed.sort(
       (a, b) => new Date(a.Time).getTime() - new Date(b.Time).getTime()
     );
@@ -79,65 +67,74 @@ const Step11 = () => {
     setOdrData(transformed);
   }, []);
 
-  // filter UI state
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [selectedYears, setSelectedYears] = useState<number[]>([2021]);
-  const [startMonth, setStartMonth] = useState("January");
-  const [endMonth, setEndMonth] = useState("December");
+  // Toggle selection of a year in filter
+  const toggleYear = useCallback((year: number) => {
+    setSelectedYears((prev) => {
+      const isSelected = prev.includes(year);
+      let updated = isSelected
+        ? prev.filter((y) => y !== year)
+        : [...prev, year];
+      if (updated.length === 0) updated = [Math.min(...YEARS)];
+      return updated;
+    });
+  }, []);
 
-  const toggleYear = (y: number) => {
-    const isSelected = selectedYears.includes(y);
-    let newYears = isSelected
-      ? selectedYears.filter((v) => v !== y)
-      : [...selectedYears, y];
-    if (newYears.length === 0) newYears = [Math.min(...YEARS)];
-    setSelectedYears(newYears);
-  };
-  const handleToggleAllYears = () => {
-    const all = YEARS.every((y) => selectedYears.includes(y));
-    setSelectedYears(all ? [Math.min(...YEARS)] : [...YEARS]);
-  };
+  // Toggle all years selection
+  const handleToggleAllYears = useCallback(() => {
+    setSelectedYears((prev) => {
+      const allSelected = YEARS.every((y) => prev.includes(y));
+      return allSelected ? [Math.min(...YEARS)] : [...YEARS];
+    });
+  }, []);
+
   const isAllSelected = YEARS.every((y) => selectedYears.includes(y));
 
-  // ② Apply filters to your real ODR data
+  // Filter ODR data based on selected years and months
   const filteredData = useMemo(() => {
     if (!odrData.length) return [];
 
-    const si = MONTHS.indexOf(startMonth);
-    const ei = MONTHS.indexOf(endMonth);
+    const startIdx = MONTHS.indexOf(startMonth);
+    const endIdx = MONTHS.indexOf(endMonth);
 
     return odrData.filter(({ Time }) => {
-      const [mo, da, yr] = Time.split("/").map(Number);
-      const mIdx = mo - 1;
-      return selectedYears.includes(yr) && mIdx >= si && mIdx <= ei;
+      const [mo, , yr] = Time.split("/").map(Number);
+      const monthIndex = mo - 1;
+      return (
+        selectedYears.includes(yr) &&
+        monthIndex >= startIdx &&
+        monthIndex <= endIdx
+      );
     });
   }, [odrData, selectedYears, startMonth, endMonth]);
 
-  // ③ Prepare graph params
-  const graphParams = {
-    xValues: filteredData.map((d) => d.Time),
-    yValues: [
-      {
-        label: "ODR",
-        data: filteredData.map((d) => d.ODR),
-        borderColor: "rgba(255,205,86,1)",
-        backgroundColor: "rgba(255,205,86,0.2)",
-        fill: false,
-        tension: 0.1,
-      },
-    ],
-    dataLabel: "ODR",
-    xAxisLabel: "Month",
-    yAxisLabel: "ODR (%)",
-    format: "percent" as const,
-    yAxisLabelFormat: "percent" as const,
-    decimalPlaces: 2,
-    showGrid: true,
-    showYLabels: true,
-    showPointLabels: false,
-    title: "Historical Default Rate",
-    chartAreaBackgroundColor: "#f9fafb",
-  };
+  // Line graph parameters
+  const graphParams = useMemo(
+    () => ({
+      xValues: filteredData.map((d) => d.Time),
+      yValues: [
+        {
+          label: "ODR",
+          data: filteredData.map((d) => d.ODR),
+          borderColor: "rgba(255,205,86,1)",
+          backgroundColor: "rgba(255,205,86,0.2)",
+          fill: false,
+          tension: 0.1,
+        },
+      ],
+      dataLabel: "ODR",
+      xAxisLabel: "Month",
+      yAxisLabel: "ODR (%)",
+      format: "percent" as const,
+      yAxisLabelFormat: "percent" as const,
+      decimalPlaces: 2,
+      showGrid: true,
+      showYLabels: true,
+      showPointLabels: false,
+      title: "Historical Default Rate",
+      chartAreaBackgroundColor: "#f9fafb",
+    }),
+    [filteredData]
+  );
 
   return (
     <div className="bg-white rounded-lg flex flex-col items-center w-full">
@@ -180,17 +177,22 @@ const Step11 = () => {
             >
               <FunnelIcon className="w-4 h-4" /> Filter
             </button>
+
             {filterOpen && (
               <div className="absolute top-7 left-0 mt-2 w-[360px] bg-white border border-gray-300 rounded shadow-lg z-10 p-4 space-y-2">
                 {/* Year Selector */}
                 <div className="flex justify-between items-center">
                   <p className="font-medium">Year</p>
-                  <button onClick={() => setFilterOpen(false)}>
+                  <button
+                    onClick={() => setFilterOpen(false)}
+                    aria-label="Close Filter"
+                  >
                     <XMarkIcon className="w-5 h-5 hover:bg-red-100 rounded" />
                   </button>
                 </div>
+
                 <div className="grid grid-cols-4 gap-2">
-                  <label className="inline-flex items-center gap-2 text-xs">
+                  <label className="inline-flex items-center gap-2 text-xs cursor-pointer">
                     <input
                       type="checkbox"
                       checked={isAllSelected}
@@ -199,50 +201,59 @@ const Step11 = () => {
                     />
                     {isAllSelected ? "Unselect All" : "Select All"}
                   </label>
-                  {YEARS.map((y) => (
+
+                  {YEARS.map((year) => (
                     <label
-                      key={y}
-                      className="inline-flex items-center gap-2 text-xs"
+                      key={year}
+                      className="inline-flex items-center gap-2 text-xs cursor-pointer"
                     >
                       <input
                         type="checkbox"
-                        checked={selectedYears.includes(y)}
-                        onChange={() => toggleYear(y)}
+                        checked={selectedYears.includes(year)}
+                        onChange={() => toggleYear(year)}
                         className="accent-gray-300"
                       />
-                      {y}
+                      {year}
                     </label>
                   ))}
                 </div>
-                {/* Month Range */}
+
+                {/* Month Range Selectors */}
                 <div className="border-t pt-2">
                   <p className="font-medium text-xs mb-1">Start Month</p>
                   <div className="grid grid-cols-4 gap-2 text-xs">
-                    {MONTHS.map((m) => (
-                      <label key={m} className="inline-flex items-center gap-2">
+                    {MONTHS.map((month) => (
+                      <label
+                        key={month}
+                        className="inline-flex items-center gap-2 cursor-pointer"
+                      >
                         <input
                           type="checkbox"
-                          checked={startMonth === m}
-                          onChange={() => setStartMonth(m)}
+                          checked={startMonth === month}
+                          onChange={() => setStartMonth(month)}
                           className="accent-gray-300"
                         />
-                        {m}
+                        {month}
                       </label>
                     ))}
                   </div>
                 </div>
+
                 <div className="border-t pt-2">
                   <p className="font-medium text-xs mb-1">End Month</p>
                   <div className="grid grid-cols-4 gap-2 text-xs">
-                    {MONTHS.map((m) => (
-                      <label key={m} className="inline-flex items-center gap-2">
+                    {MONTHS.map((month) => (
+                      <label
+                        key={month}
+                        className="inline-flex items-center gap-2 cursor-pointer"
+                      >
                         <input
                           type="checkbox"
-                          checked={endMonth === m}
-                          onChange={() => setEndMonth(m)}
+                          checked={endMonth === month}
+                          onChange={() => setEndMonth(month)}
                           className="accent-gray-300"
                         />
-                        {m}
+                        {month}
                       </label>
                     ))}
                   </div>

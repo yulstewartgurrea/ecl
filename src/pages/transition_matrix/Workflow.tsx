@@ -70,8 +70,6 @@ const PdTransitionMatrixWorkflow = () => {
 
   const handleContinue = () => {
     if (!stepsCompletionStatus) return;
-    console.log("consolidationSubStep: ", consolidationSubStep);
-    console.log("currentStep: ", currentStep);
     if (currentStep === 2 && consolidationSubStep === 0) {
       setConsolidationSubStep(1);
       return;

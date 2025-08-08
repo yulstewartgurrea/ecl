@@ -1,124 +1,35 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import clsx from "clsx";
-import TableWithErrorIndicators from "./TableWithErrorIndicators";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
-type Metrics = {
-  valid: number;
-  error: number;
-  missing: number;
-};
+import { useTabbedInterfaceData } from "../../hooks/useTabbedInterfaceData"; // adjust path
+import clsx from "clsx";
+import TableWithErrorIndicators from "./TableWithErrorIndicators";
+import Loader from "../Loader";
 
 const TabbedInterface = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
   const {
     selectedPdTransitionMatrixEntity: entity,
     selectedPdTransitionMatrixReportingPeriod: period,
     pdTransitionMatrixWfName: workflowName,
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
+
   const directoryPath = `/${entity}/${period}/${workflowName}`;
-  const [metricsMap, setMetricsMap] = useState<Record<string, Metrics>>({});
-  const [inputFiles, setInputFiles] = useState<string[]>([]);
-  const [fileDataMap, setFileDataMap] = useState<Record<string, any[]>>({});
-  const [activeTab, setActiveTab] = useState(0);
-  const [filter, setFilter] = useState<"All" | "Valid" | "Error" | "Missing">(
-    "All"
-  );
 
-  const [visibleCount, setVisibleCount] = useState(inputFiles.length);
-  const TAB_WIDTH = 140;
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch(
-          `http://localhost:8000/documents/read-excel?workflow_path=${directoryPath}`
-        );
-        if (!response.ok) throw new Error("Network response was not ok");
-
-        const data = await response.json();
-
-        const metrics: Record<string, Metrics> = {};
-        const fileNames: string[] = [];
-        const fileData: Record<string, any[]> = {};
-
-        data.forEach((fileEntry: any) => {
-          const baseName = fileEntry.filename.replace(/\.[^/.]+$/, "");
-          const key = baseName.replace(/\s+/g, "_");
-
-          metrics[key] = {
-            valid: fileEntry.valid,
-            missing: fileEntry.missing,
-            error: fileEntry.error,
-          };
-
-          fileNames.push(key);
-          fileData[key] = fileEntry.rows;
-        });
-
-        setMetricsMap(metrics);
-        setInputFiles(fileNames);
-        setFileDataMap(fileData);
-      } catch (error) {
-        console.error("Fetch error:", error);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    const calculateVisibleTabs = () => {
-      if (containerRef.current) {
-        const containerWidth = containerRef.current.offsetWidth;
-        const maxTabs = Math.floor((containerWidth - 40) / TAB_WIDTH);
-        setVisibleCount(maxTabs);
-      }
-    };
-    calculateVisibleTabs();
-    window.addEventListener("resize", calculateVisibleTabs);
-    return () => window.removeEventListener("resize", calculateVisibleTabs);
-  }, []);
-
-  const visibleTabs = inputFiles.slice(0, visibleCount);
-  const overflowTabs = inputFiles.slice(visibleTabs.length);
-  const activeFile = inputFiles[activeTab];
-  const activeData = fileDataMap[activeFile] || [];
-
-  const filteredData = useMemo(() => {
-    if (filter === "All") return activeData;
-    return activeData.filter(
-      (row) => row.status?.toLowerCase() === filter.toLowerCase()
-    );
-  }, [activeData, filter]);
-
-  const currentMetrics = useMemo(() => {
-    const total = filteredData.length;
-    const countByStatus = (status: string) =>
-      filteredData.filter((row) => row.status?.toLowerCase() === status).length;
-
-    return {
-      valid: total ? Math.round((countByStatus("valid") / total) * 100) : 0,
-      error: total ? Math.round((countByStatus("error") / total) * 100) : 0,
-      missing: total ? Math.round((countByStatus("missing") / total) * 100) : 0,
-    };
-  }, [filteredData]);
-
-  const columnCount =
-    filteredData.length > 0 ? Object.keys(filteredData[0]).length : 0;
-  const rowCount = filteredData.length;
-
-  const dataTypes = useMemo(() => {
-    const types = new Set<string>();
-    filteredData.forEach((row) => {
-      Object.values(row).forEach((value) => {
-        if (value !== null && value !== undefined) {
-          types.add(typeof value);
-        }
-      });
-    });
-    return types;
-  }, [filteredData]);
+  const {
+    containerRef,
+    inputFiles,
+    activeTab,
+    setActiveTab,
+    filter,
+    setFilter,
+    visibleTabs,
+    overflowTabs,
+    filteredData,
+    currentMetrics,
+    columnCount,
+    rowCount,
+    dataTypes,
+    isLoading,
+  } = useTabbedInterfaceData(directoryPath);
 
   return (
     <>
@@ -163,75 +74,86 @@ const TabbedInterface = () => {
         )}
       </div>
 
-      <div className="w-full min-h-screen bg-[#f3f0ea] border border-gray-300 rounded-b-md border-t-0 px-6 py-4">
-        <div className="mb-4 mt-2">
-          <div className="flex gap-2 my-4 flex-wrap">
-            {[
-              { label: "All", color: "bg-gray-200", icon: "📄" },
-              { label: "Valid", color: "bg-gray-200", icon: "✅" },
-              { label: "Error", color: "bg-gray-200", icon: "⚠️" },
-              { label: "Missing", color: "bg-gray-200", icon: "❓" },
-            ].map(({ label, color, icon }) => (
-              <button
-                key={label}
-                onClick={() => setFilter(label as any)}
-                className={clsx(
-                  "px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1",
-                  filter === label
-                    ? "bg-[#ad8a49] text-white"
-                    : `${color} text-gray-800`
-                )}
-              >
-                <span>{icon}</span>
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="w-full flex flex-row items-center gap-4">
-            <div className="h-10 w-7/12 bg-gray-200 overflow-hidden flex">
-              <div
-                className="bg-green-500 h-full"
-                style={{ width: `${currentMetrics.valid}%` }}
-              />
-              <div
-                className="bg-orange-400 h-full"
-                style={{ width: `${currentMetrics.error}%` }}
-              />
-              <div
-                className="bg-gray-700 h-full"
-                style={{ width: `${currentMetrics.missing}%` }}
-              />
-            </div>
-            <div className="flex flex-grow gap-2 justify-between">
-              <span>{columnCount} Columns</span>
-              <span>{rowCount} Rows</span>
-              <span>{dataTypes.size} Data Types</span>
-            </div>
-          </div>
+      <>
+        <div className="w-full min-h-screen bg-[#f3f0ea] border border-gray-300 rounded-b-md border-t-0 px-6 py-4 ">
+          {/* Filter buttons */}
+          {isLoading ? (
+            <Loader />
+          ) : (
+            <div className="mb-4 mt-2">
+              <div className="flex gap-2 my-4 flex-wrap">
+                {[
+                  { label: "All", color: "bg-gray-200", icon: "📄" },
+                  { label: "Valid", color: "bg-gray-200", icon: "✅" },
+                  { label: "Error", color: "bg-gray-200", icon: "⚠️" },
+                  { label: "Missing", color: "bg-gray-200", icon: "❓" },
+                ].map(({ label, color, icon }) => (
+                  <button
+                    key={label}
+                    onClick={() => setFilter(label as any)}
+                    className={clsx(
+                      "px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1",
+                      filter === label
+                        ? "bg-[#ad8a49] text-white"
+                        : `${color} text-gray-800`
+                    )}
+                  >
+                    <span>{icon}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-          <div className="flex gap-6 mt-2 text-sm items-center">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-green-500 rounded-sm" />
-              <span>{currentMetrics.valid}% Valid</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-orange-400 rounded-sm" />
-              <span>{currentMetrics.error}% Error</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-gray-700 rounded-sm" />
-              <span>{currentMetrics.missing}% Missing</span>
-            </div>
-          </div>
+              {/* Metrics bar */}
+              <div className="w-full flex flex-row items-center gap-4">
+                <div className="h-10 w-7/12 bg-gray-200 overflow-hidden flex rounded">
+                  <div
+                    className="bg-green-500 h-full"
+                    style={{ width: `${currentMetrics.valid}%` }}
+                  />
+                  <div
+                    className="bg-orange-400 h-full"
+                    style={{ width: `${currentMetrics.error}%` }}
+                  />
+                  <div
+                    className="bg-gray-700 h-full"
+                    style={{ width: `${currentMetrics.missing}%` }}
+                  />
+                </div>
+                <div className="flex flex-grow gap-2 justify-between text-sm">
+                  <span>{columnCount} Columns</span>
+                  <span>{rowCount} Rows</span>
+                  <span>{dataTypes.size} Data Types</span>
+                </div>
+              </div>
 
-          <div className="mt-6">
-            <TableWithErrorIndicators
-              data={filteredData}
-              inputFile={inputFiles[activeTab]}
-            />
-          </div>
+              {/* Metrics labels */}
+              <div className="flex gap-6 mt-2 text-sm items-center">
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-green-500 rounded-sm" />
+                  <span>{currentMetrics.valid}% Valid</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-orange-400 rounded-sm" />
+                  <span>{currentMetrics.error}% Error</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-gray-700 rounded-sm" />
+                  <span>{currentMetrics.missing}% Missing</span>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="mt-6">
+                <TableWithErrorIndicators
+                  data={filteredData}
+                  inputFile={inputFiles[activeTab]}
+                />
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      </>
     </>
   );
 };
