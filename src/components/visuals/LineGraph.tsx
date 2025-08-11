@@ -258,7 +258,6 @@
 //   );
 // }
 
-
 "use client";
 import { useEffect, useRef } from "react";
 import clsx from "clsx";
@@ -531,7 +530,9 @@ export default function LineGraph({
   ]);
 
   return (
-    <div className={clsx("w-full h-full", [additional_css?.outer_div])}>
+    <div
+      className={clsx("w-full h-full bg-white", [additional_css?.outer_div])}
+    >
       <canvas ref={chartRef} className="w-full h-full" />
     </div>
   );

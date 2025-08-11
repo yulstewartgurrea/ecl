@@ -10,6 +10,9 @@ import DpdTable from "../../../components/DpdTable";
 
 // your custom hook
 import { useProcessedRowsStep6 } from "../../../hooks/useProcessedRowsStep6";
+import Loader from "../../../components/Loader";
+import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { downloadValidRowsExcel } from "../../../services/documents";
 
 const Step6 = () => {
   const [zoom, setZoom] = useState(0.9);
@@ -28,21 +31,49 @@ const Step6 = () => {
     authToken || null
   );
 
-  if (isLoading) return <p>Loading...</p>;
-  if (error) return <p>Error loading data</p>;
-
+  const handleDownload = async () => {
+    if (!data) return;
+    await downloadValidRowsExcel(data, "everbad");
+  };
   return (
     <>
-      <DpdTable />
-      <div className="bg-white p-4 rounded-lg mt-7">
-        <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
-        <TableTemplate1
-          data={data}
-          format="decimal"
-          decimalPlaces={0}
-          zoomLevel={zoom}
-          setZoomLevel={setZoom}
-        />
+      <div className="w-full min-h-screen bg-[#f3f0ea] border border-gray-300 rounded-b-md border-t-0 px-6 py-4 relative">
+        {/* Loader overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#f3f0ea]/50 z-10">
+            <Loader />
+          </div>
+        )}
+        <div className="flex justify-end items-center gap-4 mt-6 pl-4">
+          <button
+            onClick={handleDownload}
+            className="bg-white cursor-pointer border border-gray-300 font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1"
+          >
+            <ArrowDownTrayIcon className="w-5 h-5 font-normal" />
+            Download
+          </button>
+        </div>
+        {error && <p>Failed to fetch data</p>}
+
+        {!isLoading && !error && (
+          <>
+            <DpdTable />
+            <div className="bg-white p-4 rounded-lg mt-7">
+              <ZoomSlider
+                zoom={zoom}
+                setZoom={setZoom}
+                className="w-1/6 mb-2"
+              />
+              <TableTemplate1
+                data={data}
+                format="decimal"
+                decimalPlaces={0}
+                zoomLevel={zoom}
+                setZoomLevel={setZoom}
+              />
+            </div>
+          </>
+        )}
       </div>
     </>
   );

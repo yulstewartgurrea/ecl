@@ -17,10 +17,10 @@ from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 from pathlib import Path
 from datetime import datetime
-
+from io import BytesIO
 from typing import List, Dict, Any
 from models.models import Document, Json
-
+from starlette.responses import StreamingResponse
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -873,8 +873,6 @@ def migration_matrix(
 
     return output
 
-
-
 def get_bucket(dpd):
     if pd.isna(dpd) or dpd == "NA":
         return "NA"
@@ -1126,7 +1124,6 @@ def get_migration_matrix_average(workflow_path: str = Query(..., description="Su
             content={"detail": f"No migration matrix average found for workflow_path: {workflow_path}"}
         )
 
-
 @router.post("/migration-matrix-12months")
 def calculate_12_month_transition_matrix(
     payload: Dict[str, Any] = Body(...),
@@ -1193,6 +1190,163 @@ def calculate_12_month_transition_matrix(
     return result_list
 
 
+def flatten_nested_list(data):
+    """Flatten nested list of lists into a single list."""
+    if not isinstance(data, list):
+        return [data]
+    flattened = []
+    for item in data:
+        if isinstance(item, list):
+            flattened.extend(flatten_nested_list(item))
+        else:
+            flattened.append(item)
+    return flattened
+
+def flatten_dict(d):
+    # Your existing flatten dict function here
+    # If you don't have one, just return d as is
+    return d
+
+@router.post("/download-excel")
+def download_excel(payload: dict = Body(...)):
+    data = payload.get("data", None)
+    if data is None:
+        return {"error": "Missing 'data' in payload."}
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        if isinstance(data, list):
+            # flatten nested lists to one list of dicts
+            flattened_data = flatten_nested_list(data)
+            flattened_data = [flatten_dict(item) for item in flattened_data]
+            df = pd.DataFrame(flattened_data)
+            df.to_excel(writer, index=False, sheet_name="Sheet1")
+
+        elif isinstance(data, dict):
+            for sheet_name, sheet_data in data.items():
+                if isinstance(sheet_data, list):
+                    flattened_data = flatten_nested_list(sheet_data)
+                    flattened_data = [flatten_dict(item) for item in flattened_data]
+                    df = pd.DataFrame(flattened_data)
+                    safe_sheet_name = sheet_name[:31]
+                    df.to_excel(writer, index=False, sheet_name=safe_sheet_name)
+                else:
+                    # If sheet_data is a dict (like your matrixByMonth maybe)
+                    if isinstance(sheet_data, dict):
+                        # flatten dict of lists into concatenated list of dicts
+                        all_items = []
+                        for key, val in sheet_data.items():
+                            if isinstance(val, list):
+                                all_items.extend(flatten_nested_list(val))
+                            else:
+                                all_items.append(val)
+                        all_items = [flatten_dict(item) for item in all_items]
+                        df = pd.DataFrame(all_items)
+                        safe_sheet_name = sheet_name[:31]
+                        df.to_excel(writer, index=False, sheet_name=safe_sheet_name)
+                    else:
+                        return {
+                            "error": f"Expected list or dict for sheet '{sheet_name}', got {type(sheet_data).__name__}"
+                        }
+        else:
+            return {"error": "Invalid data format. Expected list or dict under 'data' key."}
+
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=valid_rows.xlsx"},
+    )
+
+
+def reorder_columns(df, cols_order):
+    # Reorder columns in df, adding missing cols as empty if needed
+    for col in cols_order:
+        if col not in df.columns:
+            df[col] = ""
+    return df[cols_order]
+
+@router.post("/download-excel-v2")
+def download_excel(payload: dict = Body(...)):
+    data = payload.get("data")
+    if data is None:
+        return {"error": "Missing 'data' in payload."}
+
+    output = BytesIO()
+
+    avg_cols = ["Bucket", "0 DPD_0", "1-30 DPD_1", "31-60 DPD_2", "61-90 DPD_3", "91+ DPD_4", "Total"]
+    data_static_cols = [
+        "0 DPD_0",
+        "1-30 DPD_1",
+        "31-60 DPD_2",
+        "61-90 DPD_3",
+        "91+ DPD_4",
+        "Indeterminate_NA",
+        "Total Accounted Evaluated",
+    ]
+    perc_static_cols = [
+        "0 DPD_0",
+        "1-30 DPD_1",
+        "31-60 DPD_2",
+        "61-90 DPD_3",
+        "91+ DPD_4",
+        "Indeterminate_NA",
+        "Total Accounted Evaluated",
+    ]
+
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        # 1) migrationMatrixAverage - single sheet
+        avg_data = data.get("migrationMatrixAverage", [])
+        if avg_data:
+            df_avg = pd.DataFrame(avg_data)
+            df_avg = reorder_columns(df_avg, avg_cols)
+            df_avg.to_excel(writer, index=False, sheet_name="migrationMatrixAverage")
+
+        # 2) migrationMatrixData - multiple sheets, one per inner list
+        migration_data = data.get("migrationMatrixData", [])
+        for i, inner_list in enumerate(migration_data):
+            flattened_data = flatten_nested_list(inner_list)
+            if flattened_data:
+                df_data = pd.DataFrame(flattened_data)
+
+                date_cols = [col for col in df_data.columns if ("/" in col or "-" in col) and (col.endswith("_Bucket") or True)]
+                known_cols = set(data_static_cols)
+                date_cols = [c for c in date_cols if c not in known_cols]
+
+                data_cols_order = ["0 DPD_0"] + sorted(date_cols) + data_static_cols[1:]
+                df_data = reorder_columns(df_data, data_cols_order)
+
+                # Limit sheet name length (max 31 chars in Excel)
+                sheet_name = f"migrationMatrixData_{i+1}"
+                if len(sheet_name) > 31:
+                    sheet_name = sheet_name[:31]
+                df_data.to_excel(writer, index=False, sheet_name=sheet_name)
+
+        # 3) migrationMatrixPercentage - multiple sheets, one per inner list
+        migration_perc = data.get("migrationMatrixPercentage", [])
+        for i, inner_list in enumerate(migration_perc):
+            flattened_perc = flatten_nested_list(inner_list)
+            if flattened_perc:
+                df_perc = pd.DataFrame(flattened_perc)
+
+                date_cols_perc = [col for col in df_perc.columns if ("/" in col or "-" in col) and (col.endswith("_Bucket") or True)]
+                known_perc_cols = set(perc_static_cols)
+                date_cols_perc = [c for c in date_cols_perc if c not in known_perc_cols]
+
+                perc_cols_order = perc_static_cols[:-2] + sorted(date_cols_perc) + perc_static_cols[-2:]
+                df_perc = reorder_columns(df_perc, perc_cols_order)
+
+                sheet_name = f"migrationMatrixPercentage_{i+1}"
+                if len(sheet_name) > 31:
+                    sheet_name = sheet_name[:31]
+                df_perc.to_excel(writer, index=False, sheet_name=sheet_name)
+
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=migration_matrix.xlsx"},
+    )
 
 
 

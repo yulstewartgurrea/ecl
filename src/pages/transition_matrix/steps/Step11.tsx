@@ -137,137 +137,139 @@ const Step11 = () => {
   );
 
   return (
-    <div className="bg-white rounded-lg flex flex-col items-center w-full">
-      <div className="w-full flex justify-end items-center gap-4 mt-6 pl-4">
-        <button className="bg-[#fce404] cursor-pointer border border-gray-300 px-4 py-1 rounded-lg inline-flex items-center gap-1">
-          <DocumentPlusIcon className="w-5 h-5" />
-          Save Progress
-        </button>
-        <button className="bg-white cursor-pointer border border-gray-300 px-4 py-1 rounded-lg inline-flex items-center gap-1">
-          <ArrowDownTrayIcon className="w-5 h-5" />
-          Download
-        </button>
-      </div>
-
-      <div className="w-full flex items-start p-4">
-        <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6" />
-      </div>
-
-      <div className="grid grid-cols-3 w-full gap-12 p-4">
-        {/* Table */}
-        <div className="col-span-1 overflow-auto max-h-[560px] border border-gray-300 rounded hide-scrollbar">
-          <TableTemplate1
-            data={filteredData}
-            additionalCss={{
-              outerDiv: "overflow-auto max-h-[600px] min-w-full",
-            }}
-            format="percentage"
-            decimalPlaces={2}
-            zoomLevel={zoom}
-            setZoomLevel={setZoom}
-          />
+    <>
+      <div className="bg-[#f3f0ea] border border-gray-300 rounded-lg flex flex-col items-center w-full">
+        <div className="w-full flex justify-end items-center gap-4 mt-6 pl-4">
+          <button className="bg-[#fce404] cursor-pointer border border-gray-300 px-4 py-1 rounded-lg inline-flex items-center gap-1">
+            <DocumentPlusIcon className="w-5 h-5" />
+            Save Progress
+          </button>
+          <button className="bg-white cursor-pointer border border-gray-300 px-4 py-1 rounded-lg inline-flex items-center gap-1">
+            <ArrowDownTrayIcon className="w-5 h-5" />
+            Download
+          </button>
         </div>
 
-        {/* Filters & Graph */}
-        <div className="col-span-2 flex flex-col items-start">
-          <div className="relative flex items-start w-full">
-            <button
-              onClick={() => setFilterOpen((o) => !o)}
-              className="w-24 flex items-center justify-center gap-1 bg-[#fce404] px-3 py-1 rounded-lg"
-            >
-              <FunnelIcon className="w-4 h-4" /> Filter
-            </button>
+        <div className="w-full flex items-start p-4">
+          <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6" />
+        </div>
 
-            {filterOpen && (
-              <div className="absolute top-7 left-0 mt-2 w-[360px] bg-white border border-gray-300 rounded shadow-lg z-10 p-4 space-y-2">
-                {/* Year Selector */}
-                <div className="flex justify-between items-center">
-                  <p className="font-medium">Year</p>
-                  <button
-                    onClick={() => setFilterOpen(false)}
-                    aria-label="Close Filter"
-                  >
-                    <XMarkIcon className="w-5 h-5 hover:bg-red-100 rounded" />
-                  </button>
-                </div>
+        <div className="grid grid-cols-3 w-full gap-12 p-4">
+          {/* Table */}
+          <div className="col-span-1 overflow-auto max-h-[560px] border border-gray-300 rounded hide-scrollbar">
+            <TableTemplate1
+              data={filteredData}
+              additionalCss={{
+                outerDiv: "overflow-auto max-h-[600px] min-w-full",
+              }}
+              format="percentage"
+              decimalPlaces={2}
+              zoomLevel={zoom}
+              setZoomLevel={setZoom}
+            />
+          </div>
 
-                <div className="grid grid-cols-4 gap-2">
-                  <label className="inline-flex items-center gap-2 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isAllSelected}
-                      onChange={handleToggleAllYears}
-                      className="accent-gray-300"
-                    />
-                    {isAllSelected ? "Unselect All" : "Select All"}
-                  </label>
+          {/* Filters & Graph */}
+          <div className="col-span-2 flex flex-col items-start">
+            <div className="relative flex items-start w-full">
+              <button
+                onClick={() => setFilterOpen((o) => !o)}
+                className="w-24 flex items-center justify-center gap-1 bg-[#fce404] px-3 py-1 rounded-lg"
+              >
+                <FunnelIcon className="w-4 h-4" /> Filter
+              </button>
 
-                  {YEARS.map((year) => (
-                    <label
-                      key={year}
-                      className="inline-flex items-center gap-2 text-xs cursor-pointer"
+              {filterOpen && (
+                <div className="absolute top-7 left-0 mt-2 w-[360px] bg-white border border-gray-300 rounded shadow-lg z-10 p-4 space-y-2">
+                  {/* Year Selector */}
+                  <div className="flex justify-between items-center">
+                    <p className="font-medium">Year</p>
+                    <button
+                      onClick={() => setFilterOpen(false)}
+                      aria-label="Close Filter"
                     >
+                      <XMarkIcon className="w-5 h-5 hover:bg-red-100 rounded" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    <label className="inline-flex items-center gap-2 text-xs cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={selectedYears.includes(year)}
-                        onChange={() => toggleYear(year)}
+                        checked={isAllSelected}
+                        onChange={handleToggleAllYears}
                         className="accent-gray-300"
                       />
-                      {year}
+                      {isAllSelected ? "Unselect All" : "Select All"}
                     </label>
-                  ))}
-                </div>
 
-                {/* Month Range Selectors */}
-                <div className="border-t pt-2">
-                  <p className="font-medium text-xs mb-1">Start Month</p>
-                  <div className="grid grid-cols-4 gap-2 text-xs">
-                    {MONTHS.map((month) => (
+                    {YEARS.map((year) => (
                       <label
-                        key={month}
-                        className="inline-flex items-center gap-2 cursor-pointer"
+                        key={year}
+                        className="inline-flex items-center gap-2 text-xs cursor-pointer"
                       >
                         <input
                           type="checkbox"
-                          checked={startMonth === month}
-                          onChange={() => setStartMonth(month)}
+                          checked={selectedYears.includes(year)}
+                          onChange={() => toggleYear(year)}
                           className="accent-gray-300"
                         />
-                        {month}
+                        {year}
                       </label>
                     ))}
                   </div>
-                </div>
 
-                <div className="border-t pt-2">
-                  <p className="font-medium text-xs mb-1">End Month</p>
-                  <div className="grid grid-cols-4 gap-2 text-xs">
-                    {MONTHS.map((month) => (
-                      <label
-                        key={month}
-                        className="inline-flex items-center gap-2 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={endMonth === month}
-                          onChange={() => setEndMonth(month)}
-                          className="accent-gray-300"
-                        />
-                        {month}
-                      </label>
-                    ))}
+                  {/* Month Range Selectors */}
+                  <div className="border-t pt-2">
+                    <p className="font-medium text-xs mb-1">Start Month</p>
+                    <div className="grid grid-cols-4 gap-2 text-xs">
+                      {MONTHS.map((month) => (
+                        <label
+                          key={month}
+                          className="inline-flex items-center gap-2 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={startMonth === month}
+                            onChange={() => setStartMonth(month)}
+                            className="accent-gray-300"
+                          />
+                          {month}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-2">
+                    <p className="font-medium text-xs mb-1">End Month</p>
+                    <div className="grid grid-cols-4 gap-2 text-xs">
+                      {MONTHS.map((month) => (
+                        <label
+                          key={month}
+                          className="inline-flex items-center gap-2 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={endMonth === month}
+                            onChange={() => setEndMonth(month)}
+                            className="accent-gray-300"
+                          />
+                          {month}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          <div className="w-11/12 min-h-[500px] border border-gray-300 rounded mt-4">
-            <LineGraph {...graphParams} />
+            <div className="w-11/12 min-h-[500px] bg-white border border-gray-300 rounded mt-4">
+              <LineGraph {...graphParams} />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

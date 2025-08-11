@@ -349,3 +349,73 @@ export const fetchOdrFromLocalStorage = (): OdrCacheEntry[] | null => {
     return null;
   }
 };
+
+// services/downloadService.ts
+
+export const downloadValidRowsExcel = async (data: any, filename: any) => {
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:8000/documents/download-excel",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ data }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to download Excel");
+    }
+
+    const blob = await response.blob();
+
+    // Create a temporary download link
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filename}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Error downloading file:", err);
+    throw err;
+  }
+};
+
+export const downloadValidRowsExcelv2 = async (data: any, filename: any) => {
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:8000/documents/download-excel-v2",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ data }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to download Excel");
+    }
+
+    const blob = await response.blob();
+
+    // Create a temporary download link
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filename}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Error downloading file:", err);
+    throw err;
+  }
+};

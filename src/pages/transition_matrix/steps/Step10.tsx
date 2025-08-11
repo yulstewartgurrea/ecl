@@ -42,56 +42,58 @@ const Step10 = () => {
   const { xValues, yValues } = prepareChartDataForLineGraph(ttcData);
 
   return (
-    <div className="bg-white rounded-lg w-full flex flex-col">
-      <div className="flex justify-end items-center gap-4 mt-6 pl-4">
-        <button className="bg-[#fce404] cursor-pointer border border-gray-300 max-w-60 text-nowrap font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1">
-          <DocumentPlusIcon className="w-5 h-5 font-normal" />
-          Save Progress
-        </button>
-        <button className="bg-white cursor-pointer border border-gray-300 font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1">
-          <ArrowDownTrayIcon className="w-5 h-5 font-normal" />
-          Download
-        </button>
-      </div>
+    <>
+      <div className="bg-[#f3f0ea] border border-gray-300 rounded-lg w-full flex flex-col">
+        <div className="flex justify-end items-center gap-4 mt-6 pl-4">
+          <button className="bg-[#fce404] cursor-pointer border border-gray-300 max-w-60 text-nowrap font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1">
+            <DocumentPlusIcon className="w-5 h-5 font-normal" />
+            Save Progress
+          </button>
+          <button className="bg-white cursor-pointer border border-gray-300 font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1">
+            <ArrowDownTrayIcon className="w-5 h-5 font-normal" />
+            Download
+          </button>
+        </div>
 
-      <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 px-4 py-2" />
+        <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 px-4 py-2" />
 
-      <div className="w-full flex items-center justify-center font-semibold text-2xl mb-6 px-4 py-2">
-        THROUGH THE CYCLE PD
-      </div>
+        <div className="w-full flex items-center justify-center font-semibold text-2xl mb-6 px-4 py-2">
+          THROUGH THE CYCLE PD
+        </div>
 
-      <div className="w-full grid grid-cols-5 gap-6">
-        <div className="col-span-2 flex items-center justify-end">
-          <div className="w-2/3">
-            <TableTemplate1
-              data={ttcData}
-              format="percentage"
-              decimalPlaces={2}
-              additionalCss={{ firstColColor: "bg-gray-100" }}
-              zoomLevel={zoom}
-              setZoomLevel={setZoom}
-            />
+        <div className="w-full grid grid-cols-5 gap-6">
+          <div className="col-span-2 flex items-center justify-end">
+            <div className="w-2/3">
+              <TableTemplate1
+                data={ttcData}
+                format="percentage"
+                decimalPlaces={2}
+                additionalCss={{ firstColColor: "bg-gray-100" }}
+                zoomLevel={zoom}
+                setZoomLevel={setZoom}
+              />
+            </div>
+          </div>
+          <div className="col-span-3 w-full h-full">
+            <div className="w-5/6 h-[450px] p-2 border border-gray-300 bg-white">
+              <LineGraph
+                xValues={xValues}
+                yValues={yValues}
+                dataLabel="TTC PD"
+                xAxisLabel="Aging Bucket"
+                yAxisLabel="TTC PD"
+                title="TTC PD by Aging Bucket"
+                showYLabels
+                yAxisLabelFormat="percent"
+                format="percent"
+                showPointLabels
+                chartAreaBackgroundColor="#f9fafb"
+              />
+            </div>
           </div>
         </div>
-        <div className="col-span-3 w-full h-full">
-          <div className="w-5/6 h-[450px] p-2 border border-gray-300">
-            <LineGraph
-              xValues={xValues}
-              yValues={yValues}
-              dataLabel="TTC PD"
-              xAxisLabel="Aging Bucket"
-              yAxisLabel="TTC PD"
-              title="TTC PD by Aging Bucket"
-              showYLabels
-              yAxisLabelFormat="percent"
-              format="percent"
-              showPointLabels
-              chartAreaBackgroundColor="#f9fafb"
-            />
-          </div>
-        </div>
       </div>
-    </div>
+    </>
   );
 };
 

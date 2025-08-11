@@ -75,83 +75,86 @@ const TabbedInterface = () => {
       </div>
 
       <>
-        <div className="w-full min-h-screen bg-[#f3f0ea] border border-gray-300 rounded-b-md border-t-0 px-6 py-4 ">
-          {/* Filter buttons */}
-          {isLoading ? (
-            <Loader />
-          ) : (
-            <div className="mb-4 mt-2">
-              <div className="flex gap-2 my-4 flex-wrap">
-                {[
-                  { label: "All", color: "bg-gray-200", icon: "📄" },
-                  { label: "Valid", color: "bg-gray-200", icon: "✅" },
-                  { label: "Error", color: "bg-gray-200", icon: "⚠️" },
-                  { label: "Missing", color: "bg-gray-200", icon: "❓" },
-                ].map(({ label, color, icon }) => (
-                  <button
-                    key={label}
-                    onClick={() => setFilter(label as any)}
-                    className={clsx(
-                      "px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1",
-                      filter === label
-                        ? "bg-[#ad8a49] text-white"
-                        : `${color} text-gray-800`
-                    )}
-                  >
-                    <span>{icon}</span>
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Metrics bar */}
-              <div className="w-full flex flex-row items-center gap-4">
-                <div className="h-10 w-7/12 bg-gray-200 overflow-hidden flex rounded">
-                  <div
-                    className="bg-green-500 h-full"
-                    style={{ width: `${currentMetrics.valid}%` }}
-                  />
-                  <div
-                    className="bg-orange-400 h-full"
-                    style={{ width: `${currentMetrics.error}%` }}
-                  />
-                  <div
-                    className="bg-gray-700 h-full"
-                    style={{ width: `${currentMetrics.missing}%` }}
-                  />
-                </div>
-                <div className="flex flex-grow gap-2 justify-between text-sm">
-                  <span>{columnCount} Columns</span>
-                  <span>{rowCount} Rows</span>
-                  <span>{dataTypes.size} Data Types</span>
-                </div>
-              </div>
-
-              {/* Metrics labels */}
-              <div className="flex gap-6 mt-2 text-sm items-center">
-                <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-green-500 rounded-sm" />
-                  <span>{currentMetrics.valid}% Valid</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-orange-400 rounded-sm" />
-                  <span>{currentMetrics.error}% Error</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-gray-700 rounded-sm" />
-                  <span>{currentMetrics.missing}% Missing</span>
-                </div>
-              </div>
-
-              {/* Table */}
-              <div className="mt-6">
-                <TableWithErrorIndicators
-                  data={filteredData}
-                  inputFile={inputFiles[activeTab]}
-                />
-              </div>
+        <div className="w-full min-h-screen bg-[#f3f0ea] border border-gray-300 rounded-b-md border-t-0 px-6 py-4 relative">
+          {/* Loader overlay */}
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#f3f0ea]/50 z-10">
+              <Loader />
             </div>
           )}
+
+          {/* Filter buttons */}
+          <div className="mb-4 mt-2">
+            <div className="flex gap-2 my-4 flex-wrap">
+              {[
+                { label: "All", color: "bg-gray-200", icon: "📄" },
+                { label: "Valid", color: "bg-gray-200", icon: "✅" },
+                { label: "Error", color: "bg-gray-200", icon: "⚠️" },
+                { label: "Missing", color: "bg-gray-200", icon: "❓" },
+              ].map(({ label, color, icon }) => (
+                <button
+                  key={label}
+                  onClick={() => setFilter(label as any)}
+                  className={clsx(
+                    "px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1",
+                    filter === label
+                      ? "bg-[#ad8a49] text-white"
+                      : `${color} text-gray-800`
+                  )}
+                >
+                  <span>{icon}</span>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Metrics bar */}
+            <div className="w-full flex flex-row items-center gap-4">
+              <div className="h-10 w-7/12 bg-gray-200 overflow-hidden flex rounded">
+                <div
+                  className="bg-green-500 h-full"
+                  style={{ width: `${currentMetrics.valid}%` }}
+                />
+                <div
+                  className="bg-orange-400 h-full"
+                  style={{ width: `${currentMetrics.error}%` }}
+                />
+                <div
+                  className="bg-gray-700 h-full"
+                  style={{ width: `${currentMetrics.missing}%` }}
+                />
+              </div>
+              <div className="flex flex-grow gap-2 justify-between text-sm">
+                <span>{columnCount} Columns</span>
+                <span>{rowCount} Rows</span>
+                <span>{dataTypes.size} Data Types</span>
+              </div>
+            </div>
+
+            {/* Metrics labels */}
+            <div className="flex gap-6 mt-2 text-sm items-center">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-green-500 rounded-sm" />
+                <span>{currentMetrics.valid}% Valid</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-orange-400 rounded-sm" />
+                <span>{currentMetrics.error}% Error</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-gray-700 rounded-sm" />
+                <span>{currentMetrics.missing}% Missing</span>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="mt-6">
+              <TableWithErrorIndicators
+                data={filteredData}
+                inputFile={inputFiles[activeTab]}
+              />
+            </div>
+          </div>
         </div>
       </>
     </>
