@@ -10,8 +10,9 @@ import clsx from "clsx";
 import { useDropzone } from "react-dropzone";
 import { invoke } from "@tauri-apps/api/core";
 import { useSelector } from "react-redux";
-import type { RootState } from "../../redux_toolkit/store"; // Adjust path as needed
+import type { RootState } from "../../redux_toolkit/store";
 import { useAppSelector } from "../../redux_toolkit/hooks";
+
 interface FileItem {
   name: string;
   is_folder: boolean;
@@ -28,6 +29,7 @@ const FileExplorer = () => {
   const [importedFiles, setImportedFiles] = useState<{
     [key: string]: FileItem[];
   }>({});
+
   const authToken = useAppSelector((state) => state.auth.token);
   const {
     selectedPdTransitionMatrixEntity: entity,
@@ -35,14 +37,56 @@ const FileExplorer = () => {
     pdTransitionMatrixWfName: workflowName,
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
 
-  // Simulate loading; initial folder is empty
+  // Fetch existing Excel files for workflow
   useEffect(() => {
-    setLoading(true);
-    setTimeout(() => {
-      setContents(importedFiles[currentPath] || []);
-      setLoading(false);
-    }, 300);
-  }, [currentPath, importedFiles]);
+    async function fetchExistingFiles() {
+      if (!entity || !period || !workflowName) {
+        setContents([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const url = new URL("http://127.0.0.1:8000/documents/workflows/files");
+        url.searchParams.append("entity", entity);
+        url.searchParams.append("reporting_period", period);
+        url.searchParams.append("workflow_name", workflowName);
+
+        const response = await fetch(url.toString(), {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          console.error(
+            "Failed to fetch existing files",
+            await response.text()
+          );
+          setContents([]);
+          setLoading(false);
+          return;
+        }
+
+        const files: string[] = await response.json();
+
+        const fileItems: FileItem[] = files.map((filename) => ({
+          name: filename,
+          is_folder: false,
+          is_sync: true,
+        }));
+
+        setContents(fileItems);
+      } catch (error) {
+        console.error("Error fetching files:", error);
+        setContents([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchExistingFiles();
+  }, [entity, period, workflowName, authToken]);
 
   const handleFileSelect = (path: string, fileName: string) => {
     setSelectedFiles({ [path]: { fileName } });
@@ -53,7 +97,6 @@ const FileExplorer = () => {
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
-        // Strip off the prefix "data:<mime-type>;base64," to get pure base64
         const base64 = result.split(",")[1];
         resolve(base64);
       };
@@ -71,6 +114,7 @@ const FileExplorer = () => {
     const workflow_path = `/${entity}/${period}/${workflowName}`;
 
     try {
+      // Prepare payload for backend document creation API
       const filesPayload = acceptedFiles.map((file) => ({
         filename: file.name,
         workflow_path: workflow_path,
@@ -93,6 +137,8 @@ const FileExplorer = () => {
 
       const data = await response.json();
       console.log("Upload successful:", data);
+
+      // Convert files to base64 for Tauri upload
       const docUpload = await Promise.all(
         acceptedFiles.map(async (file) => {
           const base64 = await fileToBase64(file);
@@ -102,6 +148,7 @@ const FileExplorer = () => {
           };
         })
       );
+
       const result = await invoke<string>("upload_files", {
         entity,
         period,
@@ -111,6 +158,7 @@ const FileExplorer = () => {
 
       console.log("Upload result:", result);
 
+      // Update local UI state with new files
       const newFiles = acceptedFiles.map((file) => ({
         name: file.name,
         is_folder: false,
@@ -121,6 +169,9 @@ const FileExplorer = () => {
         ...prev,
         [currentPath]: [...(prev[currentPath] || []), ...newFiles],
       }));
+
+      // Also update contents to include new files immediately
+      setContents((prev) => [...prev, ...newFiles]);
     } catch (error) {
       console.error("Upload failed:", error);
     }
@@ -129,7 +180,7 @@ const FileExplorer = () => {
   const { getRootProps, getInputProps, open, isDragActive } = useDropzone({
     onDrop,
     multiple: true,
-    noClick: true, // disable click on dropzone to preserve manual button
+    noClick: true,
   });
 
   return (
@@ -164,7 +215,9 @@ const FileExplorer = () => {
           )}
         >
           <input {...getInputProps()} />
-          {contents.length > 0 ? (
+          {loading ? (
+            <div className="text-center text-gray-600">Loading files...</div>
+          ) : contents.length > 0 ? (
             <div className="grid grid-cols-4 sm:grid-cols-6 gap-4 w-full">
               {contents.map((file) => (
                 <div
@@ -180,6 +233,7 @@ const FileExplorer = () => {
                 >
                   {/* Excel File Icon */}
                   <div className="w-12 h-12 rounded-md flex items-center justify-center mb-2">
+                    {/* Excel icon SVG omitted for brevity */}
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="60"

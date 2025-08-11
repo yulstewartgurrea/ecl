@@ -1,7 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import { ChevronLeftIcon, CheckCircleIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
+import React, { useState, useEffect } from "react";
+import {
+  ChevronLeftIcon,
+  CheckCircleIcon,
+  CloudArrowUpIcon,
+} from "@heroicons/react/24/outline";
+import { invoke } from "@tauri-apps/api/core";
 
 interface FileInfo {
   name: string;
@@ -9,53 +14,95 @@ interface FileInfo {
   is_sync?: boolean;
 }
 
-const WorkflowFolderList: React.FC = () => {
+interface WorkflowFolderListProps {
+  onWorkflowSelect?: (
+    entity: string,
+    reportingPeriod: string,
+    workflowName: string
+  ) => void;
+}
 
+const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
+  onWorkflowSelect,
+}) => {
   const [currentPath, setCurrentPath] = useState("");
   const [contents, setContents] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [contextMenu, setContextMenu] = useState<{ folderOrFileName: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    folderOrFileName: string;
+  } | null>(null);
 
-  const isSpecialPath = (path: string) => {
-    const parts = path.split("/");
-    return (
-      parts.length >= 3 &&
-      /^\d{4}$/.test(parts[0]) &&
-      parts[1] === "CAPITAL_MANAGEMENT" &&
-      parts[2] === "FORECASTING"
-    );
+  const fetchContents = async (path: string) => {
+    setLoading(true);
+    try {
+      const res = await invoke<{ items: FileInfo[] }>("get_folder_contents", {
+        relativePath: path || "",
+      });
+      setContents(res.items);
+    } catch (err) {
+      console.error("Error fetching contents:", err);
+      setContents([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleFolderClick = (folderName: string) => {
+  useEffect(() => {
+    fetchContents(currentPath);
+  }, [currentPath]);
+
+  const handleFolderClick = async (folderName: string) => {
     const newPath = currentPath ? `${currentPath}/${folderName}` : folderName;
-    setCurrentPath(newPath);
-    // Here you can fetch folder contents if you want
+
+    try {
+      setLoading(true);
+      const res = await invoke<{ items: FileInfo[] }>("get_folder_contents", {
+        relativePath: newPath,
+      });
+
+      const hasSubfolders = res.items.some((item) => item.is_folder);
+
+      if (!hasSubfolders) {
+        // This is last folder (WorkflowName)
+        // Extract Entity, ReportingPeriod, WorkflowName from path parts
+        const parts = newPath.split("/");
+        if (parts.length === 3) {
+          const [entity, reportingPeriod, workflowName] = parts;
+          if (onWorkflowSelect) {
+            onWorkflowSelect(entity, reportingPeriod, workflowName);
+          }
+        } else {
+          // fallback if path not exactly 3 parts
+          if (onWorkflowSelect) {
+            onWorkflowSelect("", "", newPath);
+          }
+        }
+      } else {
+        // not last folder — drill down
+        setCurrentPath(newPath);
+      }
+      setContents(res.items);
+    } catch (error) {
+      console.error("Error checking folder contents:", error);
+      setContents([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleBack = () => {
     if (!currentPath) return;
     const newPath = currentPath.split("/").slice(0, -1).join("/");
     setCurrentPath(newPath);
-    // Here you can fetch folder contents if you want
   };
 
-  const handleContextMenu = (event: React.MouseEvent, folderOrFileName: string) => {
+  const handleContextMenu = (
+    event: React.MouseEvent,
+    folderOrFileName: string
+  ) => {
     event.preventDefault();
     setContextMenu({ folderOrFileName });
   };
-
-  const dummyData = useMemo(() => {
-    return Array.from({ length: 10 }, (_, i) => ({
-      name: `Item ${i + 1}`,
-      is_folder: true,
-      is_sync: i % 2 === 0, // just some dummy sync status
-    }));
-  }, []);
-
-  useEffect(() => {
-    setContents(dummyData);
-    setLoading(false);
-  }, [dummyData]);
 
   return (
     <div className="z-10 min-h-screen max-h-screen pb-4 mb-4">
@@ -89,53 +136,46 @@ const WorkflowFolderList: React.FC = () => {
                 <div
                   key={index}
                   onClick={() => item.is_folder && handleFolderClick(item.name)}
-                  onContextMenu={(event) => {
-                    if (isSpecialPath(currentPath)) handleContextMenu(event, item.name);
-                  }}
+                  onContextMenu={(event) => handleContextMenu(event, item.name)}
                   className={`relative flex flex-col items-center p-2 cursor-pointer ${
                     contextMenu && contextMenu.folderOrFileName === item.name
                       ? ""
                       : "hover:bg-gray-100"
                   }`}
                 >
-                  <span className="text-3xl">{item.is_folder ? "📁" : "📄"}</span>
+                  <span className="text-3xl">
+                    {item.is_folder ? "📁" : "📄"}
+                  </span>
                   <span
                     className="mt-2 text-xs text-center w-full break-words"
                     title={item.name}
                   >
                     {item.name}
                   </span>
-                  {isSpecialPath(currentPath) && (
-                    <span className="absolute top-0 right-0 mt-1 mr-1">
-                      {item.is_sync ? (
-                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <CloudArrowUpIcon className="h-5 w-5 text-blue-500" />
-                      )}
-                    </span>
-                  )}
-                  {contextMenu && contextMenu.folderOrFileName === item.name && (
-                    <div className="absolute transform translate-y-14 z-10">
-                      <div className="relative">
-                        <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-l-transparent border-b-8 border-b-gray-200 border-r-8 border-r-transparent"></div>
-                        <ul className="bg-white border border-gray-200 rounded shadow-md z-20 mt-2 bottom-6 -right-2">
-                          <li className="px-4 py-2 cursor-pointer hover:bg-blue-50 text-xs">
-                            {/* Just dummy items for context menu */}
-                            Option 1
-                          </li>
-                          <li className="px-4 py-2 cursor-pointer hover:bg-blue-50 text-xs border-t">
-                            Option 2
-                          </li>
-                        </ul>
+                  {contextMenu &&
+                    contextMenu.folderOrFileName === item.name && (
+                      <div className="absolute transform translate-y-14 z-10">
+                        <div className="relative">
+                          <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-l-transparent border-b-8 border-b-gray-200 border-r-8 border-r-transparent"></div>
+                          <ul className="bg-white border border-gray-200 rounded shadow-md z-20 mt-2 bottom-6 -right-2">
+                            <li className="px-4 py-2 cursor-pointer hover:bg-blue-50 text-xs">
+                              Option 1
+                            </li>
+                            <li className="px-4 py-2 cursor-pointer hover:bg-blue-50 text-xs border-t">
+                              Option 2
+                            </li>
+                          </ul>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               ))}
             </div>
           </div>
         ) : (
-          <div className="text-center text-gray-500">No files or folders found.</div>
+          <div className="text-center text-gray-500">
+            No files or folders found.
+          </div>
         )}
       </div>
     </div>

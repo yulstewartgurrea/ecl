@@ -1,24 +1,27 @@
 mod api;
-use std::{ error::Error, path::PathBuf, process::{ Command, Stdio }, sync::Mutex, fs };
-use api::auth::login;
-use rusqlite::Connection;
-use tauri::{ Manager, Window, Wry, WindowEvent };
 
-//ADDED
-use sqlx::{ Pool, Sqlite, sqlite::SqlitePoolOptions };
+use std::{
+    error::Error,
+    fs,
+    path::PathBuf,
+    process::{Command, Stdio},
+    sync::Mutex,
+};
+
+use api::auth::login;
+use api::folderapi::{create_folder_tree, upload_files, list_folder_contents, get_folder_contents};
+
+
+use rusqlite::Connection;
+use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
+use tauri::{Manager, WindowEvent};
 
 const PROD: bool = false;
-
-//FolderAPI
-
-use api::folderapi::{create_folder_tree, upload_files};
-
 
 struct FastApiProcess(Mutex<Option<std::process::Child>>);
 
 fn init_db(db_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    let is_new = !db_path.exists();
-    let conn = rusqlite::Connection::open(db_path)?;
+    let conn = Connection::open(db_path)?;
 
     // Ensure tables exist
     conn.execute_batch(
@@ -65,68 +68,18 @@ fn init_db(db_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         "#
     )?;
 
-    // Check if 'users' table exists and is empty
-    let user_table_exists: bool = conn
-        .query_row("SELECT name FROM sqlite_master WHERE type='table' AND name='users'", [], |_|
-            Ok(true)
-        )
-        .unwrap_or(false);
-
-    if user_table_exists {
-        let user_count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
-        if user_count == 0 {
-            println!("🔑 Seeding default users...");
-
-            use argon2::{ Argon2, PasswordHasher };
-            use argon2::password_hash::SaltString;
-
-
-            let users = vec![
-                ("admin", "sgvadmin0987", "admin"),
-                ("user1", "sgvuser0987", "user"),
-                ("user2", "sgvuser0987", "user")
-            ];
-
-            let argon2 = Argon2::default();
-
-            for (username, password, role) in users {
-                let exists: bool = conn.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM users WHERE username = ?)",
-                    [username],
-                    |row| row.get(0)
-                )?;
-
-                if !exists {
-                    let salt = SaltString::generate(&mut rand::thread_rng());
-                    let hash = argon2
-                        .hash_password(password.as_bytes(), &salt)
-                        .map_err(|e| e.to_string())?
-                        .to_string();
-
-                    conn.execute(
-                        "INSERT INTO users (username, hashed_password, role) VALUES (?, ?, ?)",
-                        (username, hash, role)
-                    )?;
-
-                    println!("✅ Inserted user '{}'", username);
-                } else {
-                    println!("ℹ️  User '{}' already exists, skipping.", username);
-                }
-            }
-
-            println!("✅ Default users inserted.");
-        } else {
-            println!("ℹ️  Users table already has data, skipping seed.");
-        }
-    }
-
     Ok(())
 }
 
 fn get_server_dir() -> PathBuf {
     if PROD {
-        let exe_dir = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
-        exe_dir.join("_up_").join("server")
+        std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf()
+            .join("_up_")
+            .join("server")
     } else {
         std::env::current_dir().unwrap().parent().unwrap().join("server")
     }
@@ -134,7 +87,6 @@ fn get_server_dir() -> PathBuf {
 
 fn setup_environment(server_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
     if !PROD {
-        // Dev only
         if !server_dir.exists() {
             fs::create_dir_all(server_dir)?;
         }
@@ -153,7 +105,6 @@ fn setup_environment(server_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
                     .current_dir(server_dir)
                     .status()?
             };
-
             if !status.success() {
                 return Err("Failed to create virtual environment".into());
             }
@@ -183,39 +134,6 @@ fn setup_environment(server_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
         if !pip_install.success() {
             return Err("Failed to install Python dependencies".into());
         }
-    } else {
-        // PROD: Only install deps if requirements.txt exists
-        let venv_path = if cfg!(windows) {
-            server_dir.join("venv").join("Scripts").join("python.exe")
-        } else {
-            server_dir.join("venv").join("bin").join("python")
-        };
-
-        if !venv_path.exists() {
-            return Err(
-                format!("❌ Production venv python executable not found at: {:?}", venv_path).into()
-            );
-        }
-
-        let requirements_path = server_dir.join("requirements.txt");
-        if requirements_path.exists() {
-            println!("Installing Python dependencies in PROD...");
-            let pip_install = if cfg!(windows) {
-                Command::new(server_dir.join("venv").join("Scripts").join("pip.exe"))
-                    .args(["install", "-r", "requirements.txt"])
-                    .current_dir(server_dir)
-                    .status()?
-            } else {
-                Command::new(server_dir.join("venv").join("bin").join("pip"))
-                    .args(["install", "-r", "requirements.txt"])
-                    .current_dir(server_dir)
-                    .status()?
-            };
-
-            if !pip_install.success() {
-                return Err("❌ Failed to install Python dependencies in production".into());
-            }
-        }
     }
 
     Ok(())
@@ -236,12 +154,10 @@ fn start_fastapi(server_dir: &PathBuf) -> Result<std::process::Child, Box<dyn Er
     } else {
         Command::new("sh")
             .arg("-c")
-            .arg(
-                format!(
-                    "source {}/venv/bin/activate && python -m uvicorn main:app --port 8000",
-                    server_dir.display()
-                )
-            )
+            .arg(format!(
+                "source {}/venv/bin/activate && python -m uvicorn main:app --port 8000",
+                server_dir.display()
+            ))
             .current_dir(server_dir)
             .stdout(stdout)
             .stderr(stderr)
@@ -261,7 +177,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔧 Server directory: {:?}", server_dir);
     println!("🗃️  Database path: {:?}", db_path);
 
-    // Run async environment setup before tauri builder
     setup_environment(&server_dir)?;
     init_db(&db_path)?;
 
@@ -271,17 +186,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&db_url)
         .await?;
 
-    // start fastapi process (sync)
     let fastapi_process = start_fastapi(&server_dir)?;
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![login, create_folder_tree, upload_files])
+        .invoke_handler(tauri::generate_handler![
+            login,
+            create_folder_tree,
+            upload_files,
+            list_folder_contents, get_folder_contents
+        ])
+
         .manage(db)
         .manage(FastApiProcess(Mutex::new(Some(fastapi_process))))
-        .setup(|_app| {
-            // synchronous setup only
-            Ok(())
-        })
+        .setup(|_app| Ok(()))
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {
                 if let Some(state) = window.try_state::<FastApiProcess>() {

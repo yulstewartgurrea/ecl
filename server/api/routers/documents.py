@@ -49,6 +49,51 @@ def insert_documents(
         created_documents.append(created)
     return created_documents
 
+
+@router.get("/workflows/check")
+def check_workflow_exists(
+    entity: str = Query(..., description="Entity name, e.g., BanKo"),
+    reporting_period: str = Query(..., description="Reporting period, e.g., Annually"),
+    workflow_name: str = Query(..., description="Workflow name, e.g., asdsdf"),
+    db: Session = Depends(get_db),
+   current_user: User = Depends(get_current_user),
+):
+    # Build the workflow_path string
+    workflow_path = f"/{entity}/{reporting_period}/{workflow_name}"
+
+    # Query the document table for that path and user_id (optional: filter by current user)
+    doc = db.query(Document).filter(
+        Document.workflow_path == workflow_path,
+        Document.user_id == current_user.id
+    ).first()
+
+    exists = doc is not None
+
+    return {"exists": exists}
+
+@router.get("/workflows/files", response_model=List[str])
+def list_excel_files(
+    entity: str = Query(..., description="Entity name, e.g., BanKo"),
+    reporting_period: str = Query(..., description="Reporting period, e.g., Annually"),
+    workflow_name: str = Query(..., description="Workflow name, e.g., asdsdf"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workflow_path = f"/{entity}/{reporting_period}/{workflow_name}"
+
+    docs = db.query(Document).filter(
+        Document.workflow_path == workflow_path,
+        Document.user_id == current_user.id
+    ).all()
+
+    # Filter only Excel files by extension
+    excel_files = [
+        doc.filename for doc in docs
+        if doc.filename.lower().endswith((".xlsx", ".xls"))
+    ]
+
+    return excel_files
+
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_document(
     document_id: int,
