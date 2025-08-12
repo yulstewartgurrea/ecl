@@ -12,7 +12,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
 import { useAppSelector } from "../../redux_toolkit/hooks";
-
+import ApiStatusIndicator from "../ApiStatusIndicators";
 interface FileItem {
   name: string;
   is_folder: boolean;
@@ -29,7 +29,10 @@ const FileExplorer = () => {
   const [importedFiles, setImportedFiles] = useState<{
     [key: string]: FileItem[];
   }>({});
-
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [statusMessage, setStatusMessage] = useState("");
   const authToken = useAppSelector((state) => state.auth.token);
   const {
     selectedPdTransitionMatrixEntity: entity,
@@ -39,6 +42,8 @@ const FileExplorer = () => {
 
   // Fetch existing Excel files for workflow
   useEffect(() => {
+    setStatus("loading");
+    setStatusMessage("Loading files...");
     async function fetchExistingFiles() {
       if (!entity || !period || !workflowName) {
         setContents([]);
@@ -59,12 +64,9 @@ const FileExplorer = () => {
         });
 
         if (!response.ok) {
-          console.error(
-            "Failed to fetch existing files",
-            await response.text()
-          );
-          setContents([]);
-          setLoading(false);
+          // Reflect error with specific message
+          setStatus("error");
+          setStatusMessage(`Error ${response.status}: ${response.statusText}`);
           return;
         }
 
@@ -77,8 +79,12 @@ const FileExplorer = () => {
         }));
 
         setContents(fileItems);
+        setStatus("success");
+        setStatusMessage("Files loaded successfully");
       } catch (error) {
         console.error("Error fetching files:", error);
+        setStatus("error");
+        setStatusMessage("Failed to load files");
         setContents([]);
       } finally {
         setLoading(false);
@@ -130,8 +136,9 @@ const FileExplorer = () => {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error uploading documents:", errorText);
+        // Reflect error with specific message
+        setStatus("error");
+        setStatusMessage(`Error ${response.status}: ${response.statusText}`);
         return;
       }
 
@@ -296,6 +303,11 @@ const FileExplorer = () => {
             Select a file
           </button>
         </div>
+        <ApiStatusIndicator
+          status={status}
+          message={statusMessage}
+          onHide={() => setStatus("idle")}
+        />
       </div>
     </div>
   );

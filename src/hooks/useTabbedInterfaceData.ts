@@ -25,6 +25,7 @@ type UseTabbedInterfaceDataReturn = {
   rowCount: number;
   dataTypes: Set<string>;
   isLoading: boolean;
+  error: Error | null;
 };
 
 export function useTabbedInterfaceData(
@@ -42,7 +43,7 @@ export function useTabbedInterfaceData(
   const [visibleCount, setVisibleCount] = useState(0);
   const TAB_WIDTH = 140;
   const [isLoading, setIsLoading] = useState(true);
-
+  const [error, setError] = useState<Error | null>(null);
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -77,6 +78,7 @@ export function useTabbedInterfaceData(
         setFileDataMap(fileData);
       } catch (error) {
         console.error("Fetch error:", error);
+        setError(error instanceof Error ? error : new Error("Unknown error"));
       } finally {
         setIsLoading(false);
       }
@@ -156,5 +158,6 @@ export function useTabbedInterfaceData(
     rowCount,
     dataTypes,
     isLoading,
+    error,
   };
 }
