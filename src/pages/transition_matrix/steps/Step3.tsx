@@ -15,9 +15,9 @@ import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 
 const Step3 = () => {
   const [zoom, setZoom] = useState(0.9);
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(
-    "idle"
-  );
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
   const [statusMessage, setStatusMessage] = useState("");
 
   const {
@@ -91,6 +91,7 @@ const Step3 = () => {
         <>
           <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
           <TableTemplate1 data={data} zoomLevel={zoom} setZoomLevel={setZoom} />
+          sss
         </>
       )}
     </div>

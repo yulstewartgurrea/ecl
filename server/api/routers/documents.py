@@ -18,9 +18,12 @@ from fastapi.responses import JSONResponse
 from pathlib import Path
 from datetime import datetime
 from io import BytesIO
-from typing import List, Dict, Any
-from models.models import Document, Json
+from typing import List, Dict, Any, Tuple, DefaultDict
+from decimal import Decimal, InvalidOperation
+from models.models import Document, JsonData
+from sqlalchemy import func, and_, desc
 from starlette.responses import StreamingResponse
+
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -73,26 +76,47 @@ def check_workflow_exists(
 
 @router.get("/workflows/files", response_model=List[str])
 def list_excel_files(
-    entity: str = Query(..., description="Entity name, e.g., BanKo"),
-    reporting_period: str = Query(..., description="Reporting period, e.g., Annually"),
-    workflow_name: str = Query(..., description="Workflow name, e.g., asdsdf"),
+    entity: str = Query(...),
+    reporting_period: str = Query(...),
+    workflow_name: str = Query(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     workflow_path = f"/{entity}/{reporting_period}/{workflow_name}"
 
-    docs = db.query(Document).filter(
-        Document.workflow_path == workflow_path,
-        Document.user_id == current_user.id
-    ).all()
+    latest_docs_subquery = (
+        db.query(
+            Document.filename,
+            func.max(Document.version).label("latest_version")
+        )
+        .filter(
+            Document.workflow_path == workflow_path,
+            Document.user_id == current_user.id
+        )
+        .group_by(Document.filename)
+        .subquery()
+    )
 
-    # Filter only Excel files by extension
-    excel_files = [
-        doc.filename for doc in docs
-        if doc.filename.lower().endswith((".xlsx", ".xls"))
+    docs = (
+        db.query(Document)
+        .join(
+            latest_docs_subquery,
+            (Document.filename == latest_docs_subquery.c.filename) &
+            (Document.version == latest_docs_subquery.c.latest_version)
+        )
+        .filter(
+            Document.workflow_path == workflow_path,
+            Document.user_id == current_user.id
+        )  # ✅ apply same filter here
+        .all()
+    )
+
+    return [
+        f"{doc.filename} (v{doc.version})"
+        for doc in docs
+        if doc.filename.lower().endswith((".xlsx", ".xls")) and doc.version
     ]
 
-    return excel_files
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_document(
@@ -105,113 +129,462 @@ def remove_document(
     return None
 
 
-def sanitize_for_json(row_dict):
+def sanitize_for_json(row_dict: Dict[str, Any]) -> Dict[str, Any]:
     def clean_value(v):
         if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
             return None
         if isinstance(v, (pd.Timestamp, datetime)):
-            return v.strftime("%d/%m/%Y")  # Format as DD/MM/YYYY
+            return v.strftime("%d/%m/%Y")
         return v
-
     return {k: clean_value(v) for k, v in row_dict.items()}
+
+
+def try_parse_date(v) -> Tuple[pd.Timestamp | None, str | None]:
+    if pd.isna(v) or v is None or (isinstance(v, str) and v.strip() == ""):
+        return None, None
+
+    if isinstance(v, (pd.Timestamp, datetime)):
+        ts = pd.to_datetime(v)
+        return ts, ts.strftime("%Y-%m-%d")
+
+    s = str(v).strip()
+    formats = [
+        "%Y-%m-%d",
+        "%Y-%m",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%d-%m-%Y",
+        "%Y/%m/%d",
+    ]
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(s, fmt)
+            return pd.to_datetime(dt), dt.strftime("%Y-%m-%d")
+        except Exception:
+            continue
+
+    try:
+        dt = pd.to_datetime(s, errors="coerce")
+        if pd.isna(dt):
+            return None, None
+        return dt, dt.strftime("%Y-%m-%d")
+    except Exception:
+        return None, None
+
 
 @router.get("/read-excel")
 def read_single_excel(
     workflow_path: str = Query(..., description="Subdirectory under server/files containing Excel files"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    from datetime import datetime
-
-    base_dir = Path(__file__).parents[2] / "files"
     cleaned_path = workflow_path.strip('"/')
-    excel_dir = base_dir / cleaned_path
 
-    records = db.query(Document).filter(Document.workflow_path == workflow_path).all()
+    # Get latest version of each document (per workflow_path, user_id, filename)
+    latest_docs_subquery = (
+        db.query(
+            Document.workflow_path,
+            Document.user_id,
+            Document.filename,
+            func.max(Document.version).label("max_version")
+        )
+        .filter(Document.workflow_path == workflow_path)
+        .group_by(Document.workflow_path, Document.user_id, Document.filename)
+        .subquery()
+    )
+
+    records = (
+        db.query(Document)
+        .join(
+            latest_docs_subquery,
+            (Document.workflow_path == latest_docs_subquery.c.workflow_path) &
+            (Document.user_id == latest_docs_subquery.c.user_id) &
+            (Document.filename == latest_docs_subquery.c.filename) &
+            (Document.version == latest_docs_subquery.c.max_version)
+        )
+        .all()
+    )
+
+    # Debug: show what we filtered
+    for rec in records:
+        print(f"[read-excel] filtered record -> filename: {rec.filename}, user_id: {rec.user_id}, workflow_path: {rec.workflow_path}, version: {rec.version}")
+
     if not records:
         return JSONResponse(status_code=404, content={"detail": f"No records found for workflow_path '{cleaned_path}'"})
 
-    if not excel_dir.exists() or not excel_dir.is_dir():
-        return JSONResponse(status_code=404, content={"detail": f"Directory not found: {excel_dir}"})
+    base_dir = Path(__file__).parents[2] / "files" / cleaned_path
+    all_processed = []
 
-    excel_files = [f for f in excel_dir.iterdir() if f.is_file() and f.suffix in (".xlsx", ".xls")]
-    if not excel_files:
-        return JSONResponse(status_code=404, content={"detail": "No Excel files found in directory"})
-
-    expected_cols = [
+    required_columns = [
         "report_date", "loan_segment", "cis_number", "pn_number",
         "loan_amount", "outstanding_balance", "amortization", "booking_date",
         "maturity_date", "eir", "monthly_payments", "dpd"
     ]
 
-    all_processed = []
-    def sanitize_for_json(row_dict):
-        def clean_value(v):
-            if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
-                return None
-            if isinstance(v, (pd.Timestamp, datetime)):
-                return v.strftime("%d/%m/%Y")  # Format as DD/MM/YYYY
-            return v
-
-        return {k: clean_value(v) for k, v in row_dict.items()}
-
     try:
-        for file_path in excel_files:
-            df = pd.read_excel(file_path, engine="openpyxl")
-            df.replace({np.nan: None}, inplace=True)
+        for record in records:
+            df_rows = None
 
-            original_records = df.to_dict(orient="records")
-            safe_original = [sanitize_for_json(row) for row in original_records]
+            # Helper to extract rows whether json_data was list or dict-of-lists
+            def extract_rows(parsed):
+                if isinstance(parsed, list):
+                    return parsed
+                if isinstance(parsed, dict):
+                    # try values that are lists first
+                    for v in parsed.values():
+                        if isinstance(v, list):
+                            return v
+                        if isinstance(v, dict) and isinstance(v.get("original_data"), list):
+                            return v.get("original_data")
+                return []
 
-            # 🔍 Find the matching record for this file (assuming filename is stored in a field)
-            matching_record = next((r for r in records if r.filename == file_path.name), None)
+            # 1) Prefer JSON stored in DB
+            if record.json_data:
+                try:
+                    parsed = json.loads(record.json_data)
+                    df_rows = extract_rows(parsed)
+                    print(f"[read-excel] using json_data from DB for file '{record.filename}', rows={len(df_rows)}")
+                except Exception as e:
+                    print(f"[read-excel] failed to parse json_data for '{record.filename}': {e}")
+                    df_rows = None
 
-            if matching_record:
-                matching_record.json_data = json.dumps(safe_original)
+            # 2) Fallback to reading Excel file from disk and persist to DB.json_data
+            if not df_rows:
+                file_path = base_dir / record.filename
+                if not file_path.exists():
+                    print(f"[read-excel] file not found on disk for '{record.filename}' -> {file_path}")
+                    all_processed.append({
+                        "id": record.id,
+                        "filename": record.filename,
+                        "valid": 0,
+                        "missing": 0,
+                        "error": 0,
+                        "duplicate": 0,
+                        "rows": [],
+                        "note": f"File not found on disk: {record.filename}"
+                    })
+                    continue
 
-            # Skip processing if expected columns are missing
-            missing_cols = [col for col in expected_cols if col not in df.columns]
-            if missing_cols:
+                try:
+                    df = pd.read_excel(file_path, engine="openpyxl", dtype=object)
+                    df.columns = [str(c).strip().lower() for c in df.columns]
+                    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+                    df_rows = [sanitize_for_json(row) for row in df.to_dict(orient="records")]
+                    # Save extracted JSON into DB for next time
+                    try:
+                        record.json_data = json.dumps(df_rows)
+                        db.add(record)
+                        db.commit()
+                        print(f"[read-excel] saved Excel -> json_data for '{record.filename}' ({len(df_rows)} rows)")
+                    except Exception as e:
+                        db.rollback()
+                        print(f"[read-excel] failed to save json_data for '{record.filename}': {e}")
+                except Exception as e:
+                    print(f"[read-excel] error reading excel for '{record.filename}': {e}")
+                    all_processed.append({
+                        "id": record.id,
+                        "filename": record.filename,
+                        "valid": 0,
+                        "missing": 0,
+                        "error": 0,
+                        "duplicate": 0,
+                        "rows": [],
+                        "note": f"Failed to read Excel file: {str(e)}"
+                    })
+                    continue
+
+            # If still no rows after attempts:
+            if not df_rows:
+                all_processed.append({
+                    "id": record.id,
+                    "filename": record.filename,
+                    "valid": 0,
+                    "missing": 0,
+                    "error": 0,
+                    "duplicate": 0,
+                    "rows": [],
+                    "note": "No data available (json_data empty and file missing/failed)"
+                })
                 continue
 
-            df.replace([np.inf, -np.inf], np.nan, inplace=True)
+            # --- Now recompute everything from df_rows (do NOT trust stored status/errors) ---
+            intermediate_rows: List[Dict[str, Any]] = []
+            dup_keys: List[tuple] = []
 
-            processed_rows = []
-            valid_count = 0
-            missing_count = 0
+            # numeric parser helper (keeps raw value)
+            def to_decimal_with_raw(x):
+                raw = x
+                try:
+                    if x is None or pd.isna(x):
+                        return None, raw
+                    if isinstance(x, Decimal):
+                        return x, raw
+                    if isinstance(x, int):
+                        return Decimal(x), raw
+                    s = str(x).replace(",", "").strip()
+                    if s == "":
+                        return None, raw
+                    return Decimal(s), raw
+                except (InvalidOperation, Exception):
+                    return None, raw
 
-            for _, row in df[expected_cols].iterrows():
-                row_dict = row.to_dict()
-                is_missing = any(pd.isna(v) or v == "" for v in row_dict.values())
-                row_dict["status"] = "missing" if is_missing else "valid"
-                row_dict["source_file"] = file_path.name
+            # missing value detection helper
+            def is_missing_value(val):
+                if val is None:
+                    return True
+                try:
+                    if pd.isna(val):
+                        return True
+                except Exception:
+                    pass
+                if isinstance(val, str):
+                    s = val.strip().lower()
+                    if s == "" or s in ("na", "n/a", "null", "none"):
+                        return True
+                return False
 
-                if is_missing:
-                    missing_count += 1
+            # Process each row and recompute status/errors
+            for row in df_rows:
+                prev_status = row.get("status")  # may be None or previous; used for debug print
+                row_out = dict(row)  # shallow copy of row data
+
+                # reset computed fields
+                row_out["errors"] = []
+                row_out["error_explanations"] = []
+                row_out["missing_fields"] = []
+
+                # Date parsing: try to parse and attach parsed values
+                for date_col in ("report_date", "booking_date", "maturity_date"):
+                    raw_val = row.get(date_col)
+                    if not is_missing_value(raw_val):
+                        parsed, norm = try_parse_date(raw_val)
+                        if parsed is None:
+                            code = f"invalid_date_format:{date_col}"
+                            row_out["errors"].append(code)
+                            row_out["error_explanations"].append(
+                                f"Unparsable date in '{date_col}': original value = {repr(raw_val)}. Expected formats: YYYY-MM-DD, YYYY-MM, DD/MM/YYYY, MM/DD/YYYY, etc."
+                            )
+                        else:
+                            row_out[f"{date_col}_parsed"] = parsed.strftime("%Y-%m-%d")
+
+                # Missing check: treat parsed date as present if parse succeeded
+                for col in required_columns:
+                    val = row.get(col)
+                    if col in ("report_date", "booking_date", "maturity_date"):
+                        if row_out.get(f"{col}_parsed"):
+                            continue
+                    if is_missing_value(val):
+                        row_out["missing_fields"].append(col)
+
+                if row_out["missing_fields"]:
+                    row_out["status"] = "missing"
+                    row_out["error_explanations"].append(
+                        f"Missing required fields: {', '.join(row_out['missing_fields'])}"
+                    )
+                    if prev_status != row_out["status"]:
+                        print(f"[read-excel] row status changed: {prev_status} -> {row_out['status']} (file='{record.filename}')")
+                    intermediate_rows.append(row_out)
+                    continue
+
+                # Numeric parsing for dpd, amortization, monthly_payments
+                dpd_val, dpd_raw = to_decimal_with_raw(row.get("dpd"))
+                amort_val, amort_raw = to_decimal_with_raw(row.get("amortization"))
+                monthly_pay_val, monthly_pay_raw = to_decimal_with_raw(row.get("monthly_payments"))
+
+                if dpd_val is None:
+                    row_out["errors"].append("numeric_parse:dpd")
+                    row_out["error_explanations"].append(f"Could not parse numeric field 'dpd' (raw value: {repr(dpd_raw)})")
+                if amort_val is None:
+                    row_out["errors"].append("numeric_parse:amortization")
+                    row_out["error_explanations"].append(f"Could not parse numeric field 'amortization' (raw value: {repr(amort_raw)})")
+                if monthly_pay_val is None:
+                    row_out["errors"].append("numeric_parse:monthly_payments")
+                    row_out["error_explanations"].append(f"Could not parse numeric field 'monthly_payments' (raw value: {repr(monthly_pay_raw)})")
+
+                # Payment consistency check (flag only)
+                try:
+                    if dpd_val is not None and dpd_val == Decimal(0):
+                        if amort_val is not None and monthly_pay_val is not None and monthly_pay_val != amort_val:
+                            row_out["errors"].append("payment_mismatch_dpd_0")
+                            row_out["error_explanations"].append(
+                                f"DPD is 0 but monthly_payments ({monthly_pay_raw}) != amortization ({amort_raw}). Expected payment equal to amortization when DPD=0."
+                            )
+                except Exception:
+                    row_out["errors"].append("payment_consistency_check_failed")
+                    row_out["error_explanations"].append("Payment consistency check failed due to unexpected error.")
+
+                # Final status: if any errors -> 'error', else -> 'valid'
+                if row_out["errors"]:
+                    row_out["status"] = "error"
                 else:
-                    valid_count += 1
+                    row_out["status"] = "valid"
 
-                processed_rows.append(sanitize_for_json(row_dict))
+                if prev_status != row_out["status"]:
+                    print(f"[read-excel] row status changed: {prev_status} -> {row_out['status']} (file='{record.filename}')")
 
-            total_rows = len(df)
-            error_count = total_rows - (valid_count + missing_count)
+                # collect duplicate detection key
+                rep_norm = row_out.get("report_date_parsed") or row_out.get("report_date") or ""
+                cis = str(row_out.get("cis_number")).strip() if row_out.get("cis_number") is not None else ""
+                pn = str(row_out.get("pn_number")).strip() if row_out.get("pn_number") is not None else ""
+                dup_keys.append((rep_norm, cis, pn))
+
+                intermediate_rows.append(row_out)
+
+            # Duplicate detection & annotation
+            from collections import Counter, defaultdict
+            dup_counter = Counter(dup_keys)
+            duplicates_found = {k: v for k, v in dup_counter.items() if v > 1}
+
+            if duplicates_found:
+                group_positions: DefaultDict[tuple, int] = defaultdict(int)
+                for row in intermediate_rows:
+                    rep_norm = row.get("report_date_parsed") or row.get("report_date") or ""
+                    cis = str(row.get("cis_number")).strip() if row.get("cis_number") else ""
+                    pn = str(row.get("pn_number")).strip() if row.get("pn_number") else ""
+                    key = (rep_norm, cis, pn)
+                    if key in duplicates_found:
+                        # Mark duplicate metadata
+                        row["duplicate"] = True
+                        row["duplicate_count"] = int(duplicates_found[key])
+                        # avoid duplicating the error code if already present
+                        if "duplicate_cis_pn_for_report_date" not in (row.get("errors") or []):
+                            row["errors"].append("duplicate_cis_pn_for_report_date")
+                        row["error_explanations"].append(
+                            f"Duplicate records found for (report_date={rep_norm}, cis_number={cis}, pn_number={pn}). Occurrences: {duplicates_found[key]}."
+                        )
+                        group_positions[key] += 1
+                        row["group_sequence"] = group_positions[key]
+
+                # Set status priority: missing > duplicate > error > valid
+                for row in intermediate_rows:
+                    if row.get("status") == "missing":
+                        continue
+                    if row.get("duplicate"):
+                        row["status"] = "duplicate"
+                    # otherwise leave as 'error' or 'valid' as previously set
+
+            # Compute row_sequence ordering (internal only)
+            ordering = []
+            for i, row in enumerate(intermediate_rows):
+                rep_norm = row.get("report_date_parsed") or row.get("report_date") or ""
+                cis = str(row.get("cis_number")).strip() if row.get("cis_number") else ""
+                pn = str(row.get("pn_number")).strip() if row.get("pn_number") else ""
+                ordering.append((i, rep_norm or "", cis or "", pn or ""))
+
+            ordering_sorted = sorted(ordering, key=lambda t: (t[1], t[2], t[3]))
+            for seq, (orig_index, *_rest) in enumerate(ordering_sorted, start=1):
+                intermediate_rows[orig_index]["row_sequence"] = int(seq)
+
+            if duplicates_found:
+                group_counters: DefaultDict[tuple, int] = defaultdict(int)
+                for orig_index, rep_norm, cis, pn in [(t[0], t[1], t[2], t[3]) for t in ordering_sorted]:
+                    key = (rep_norm, cis, pn)
+                    if key in duplicates_found:
+                        group_counters[key] += 1
+                        intermediate_rows[orig_index]["group_sequence"] = int(group_counters[key])
+                    else:
+                        intermediate_rows[orig_index]["group_sequence"] = 1
+
+            # finalize sanitized processed rows for JSON
+            # remove internal/aux keys that should NOT be returned
+            processed_rows = []
+            for r in intermediate_rows:
+                # create sanitized copy (preserves numeric types nicely)
+                sanitized = sanitize_for_json(r)
+                # Remove fields requested to be omitted from final response
+                for k in (
+                    "error_explanations",
+                    "missing_fields",
+                    "report_date_parsed",
+                    "booking_date_parsed",
+                    "maturity_date_parsed",
+                    "row_sequence",
+                ):
+                    if k in sanitized:
+                        sanitized.pop(k, None)
+                processed_rows.append(sanitized)
+
+            # compute final counts by status
+            total_rows = len(processed_rows)
+            missing_count = sum(1 for r in processed_rows if r.get("status") == "missing")
+            valid_count = sum(1 for r in processed_rows if r.get("status") == "valid")
+            duplicate_count = sum(1 for r in processed_rows if r.get("status") == "duplicate")
+            error_count = sum(1 for r in processed_rows if r.get("status") == "error")
 
             all_processed.append({
-                "filename": file_path.name,
-                "valid": valid_count,
-                "missing": missing_count,
-                "error": error_count,
+                "id": record.id,
+                "filename": record.filename,
+                "valid": int(valid_count),
+                "missing": int(missing_count),
+                "error": int(error_count),
+                "duplicate": int(duplicate_count),
                 "rows": processed_rows
             })
 
-        db.commit()
-
-        if not all_processed:
-            return JSONResponse(status_code=400, content={"detail": "No valid Excel files processed"})
-
+        # Return updated response including duplicate count
         return JSONResponse(content=all_processed)
 
     except Exception as e:
-        return JSONResponse(status_code=500, content={"detail": f"Error reading Excel files: {str(e)}"})
+        print(f"[read-excel] unexpected error: {e}")
+        return JSONResponse(status_code=500, content={"detail": f"Error reading data: {str(e)}"})
+
+
+@router.post("/insert-new-version")
+def insert_new_document(
+    payload: Dict[str, Any],
+        current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    try:
+        workflow = payload.get("workflow")
+        filename = payload.get("filename")
+        updated_data = payload.get("updatedData")
+        if not workflow or not filename or updated_data is None:
+            raise HTTPException(status_code=400, detail="workflow, filename, and updatedData are required")
+
+       # Get the maximum version for the same workflow_path, filename, and user_id
+        docs = (
+            db.query(Document)
+            .filter(
+                Document.workflow_path == workflow,
+                Document.user_id == current_user.id
+            )
+            .order_by(Document.version.desc())  # latest version first
+            .first()  # get a single latest record
+        )
+        print(docs.version)
+        # Increment version by 1 for the new record
+        version = docs.version + 1
+
+        # 2️⃣ Create new record
+        new_doc = Document(
+            workflow_path=workflow,
+            filename=filename,
+            json_data=json.dumps(updated_data),
+             user_id=current_user.id,
+            version=version
+        )
+
+        db.add(new_doc)
+        db.commit()
+        db.refresh(new_doc)
+
+        return {
+            "message": "Document inserted successfully",
+            "id": new_doc.id,
+            "filename": new_doc.filename,
+            "workflow_path": new_doc.workflow_path,
+            "version": new_doc.version
+        }
+
+    except HTTPException as he:
+        # re-raise HTTPExceptions to propagate proper status
+        raise he
+    except Exception as e:
+        # catch-all for unexpected errors
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error inserting document: {str(e)}")
 
 @router.get("/valid-rows")
 def get_valid_rows_only(
@@ -220,7 +593,30 @@ def get_valid_rows_only(
 ):
     cleaned_dir = workflow_path.strip('"/')
 
-    records = db.query(Document).filter(Document.workflow_path == workflow_path).all()
+    latest_docs_subquery = (
+        db.query(
+            Document.workflow_path,
+            Document.user_id,
+            Document.filename,
+            func.max(Document.version).label("max_version")
+        )
+        .filter(Document.workflow_path == workflow_path)
+        .group_by(Document.workflow_path, Document.user_id, Document.filename)
+        .subquery()
+    )
+
+    # Join back to Document to get actual rows
+    records = (
+        db.query(Document)
+        .join(
+            latest_docs_subquery,
+            (Document.workflow_path == latest_docs_subquery.c.workflow_path) &
+            (Document.user_id == latest_docs_subquery.c.user_id) &
+            (Document.filename == latest_docs_subquery.c.filename) &
+            (Document.version == latest_docs_subquery.c.max_version)
+        )
+        .all()  # ✅ must be .all() to make it iterable
+    )
 
     if not records:
         return JSONResponse(status_code=404, content={"detail": f"No records found for workflow_path '{cleaned_dir}'"})
@@ -233,21 +629,16 @@ def get_valid_rows_only(
                 continue
             try:
                 parsed = json.loads(record.json_data)
-                # parsed can be a list (single file) or a dict of files
                 if isinstance(parsed, list):
                     combined_data.extend(parsed)
                 elif isinstance(parsed, dict):
                     for value in parsed.values():
-                        # check if value is a list or dict
                         if isinstance(value, list):
                             combined_data.extend(value)
                         elif isinstance(value, dict):
                             combined_data.extend(value.get("original_data", []))
-            except Exception as e:
+            except Exception:
                 continue  # skip records with invalid JSON
-
-        if not combined_data:
-            return JSONResponse(status_code=404, content={"detail": "No valid json_data found in any records."})
 
         if not combined_data:
             return JSONResponse(status_code=404, content={"detail": "No valid json_data found in any records."})
@@ -259,25 +650,14 @@ def get_valid_rows_only(
             df["report_date"] = pd.to_datetime(df["report_date"], errors="coerce", dayfirst=True)
             df["dpd"] = pd.to_numeric(df["dpd"], errors="coerce").fillna(0)
             df = df.dropna(subset=["report_date"])
-
-            # print("Sample raw dpd data:")
-            # print(df[["report_date", "dpd"]].head(10))
-
             grouped = df.groupby("report_date")["dpd"].sum().sort_index()
-
-            #print("📅 Monthly DPD Summary:")
-            # for date, total_dpd in grouped.items():
-            #     print(f"  {date.strftime('%d/%m/%Y')}: dpd = {int(total_dpd)}")
-
             total_dpd_all = grouped.sum()
-            #print(f"\n📊 TOTAL DPD ACROSS ALL MONTHS: {int(total_dpd_all)}")
-
 
         return JSONResponse(content=combined_data)
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": f"Error processing records: {str(e)}"})
-  
+    
 @router.get("/consolidated-rows")
 def get_consolidated_rows_only(
     workflow_path: str = Query(..., description="Subdirectory under server/files containing Excel files"),
@@ -286,73 +666,116 @@ def get_consolidated_rows_only(
 ):
     name = "consolidated-rows"
     if not workflow_path:
-            return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path' or invalid 'row' format"})
-    existing = db.query(Json).filter(Json.workflow_path == workflow_path, Json.name == name).first()
-    if existing:
-        # Deserialize json_data before returning
-        existing_data = json.loads(existing.json_data)
-        return JSONResponse(
-                status_code=200,
-                content=existing_data
-            ) 
-    
+        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path' or invalid 'row' format"})
+
     cleaned_dir = workflow_path.strip('"/')
-    records = db.query(Document).filter(Document.workflow_path == workflow_path).all()
+
+    # get latest Document per (workflow_path, user_id, filename)
+    latest_docs_subquery = (
+        db.query(
+            Document.workflow_path,
+            Document.user_id,
+            Document.filename,
+            func.max(Document.version).label("max_version")
+        )
+        .filter(Document.workflow_path == workflow_path)
+        .group_by(Document.workflow_path, Document.user_id, Document.filename)
+        .subquery()
+    )
+
+    records = (
+        db.query(Document)
+        .join(
+            latest_docs_subquery,
+            (Document.workflow_path == latest_docs_subquery.c.workflow_path) &
+            (Document.user_id == latest_docs_subquery.c.user_id) &
+            (Document.filename == latest_docs_subquery.c.filename) &
+            (Document.version == latest_docs_subquery.c.max_version)
+        )
+        .all()
+    )
+
+    # Debug print of filtered documents
+    for rec in records:
+        print(f"[consolidated-rows] doc -> id:{rec.id} filename:{rec.filename} user:{rec.user_id} version:{rec.version}")
 
     if not records:
         return JSONResponse(status_code=404, content={"detail": f"No records found for workflow_path '{cleaned_dir}'"})
 
-    combined_data = []
+    # Check if we already have a consolidated Json record
+    existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
 
+    combined_data: list = []
     desired_fields = [
         "report_date", "loan_segment", "cis_number", "pn_number",
         "loan_amount", "outstanding_balance", "amortization", "booking_date", "dpd"
     ]
 
     try:
+        # Build combined_data from each latest Document.json_data
         for record in records:
             if not record.json_data:
+                print(f"[consolidated-rows] skipping doc id={record.id} filename={record.filename} - no json_data")
                 continue
+
             try:
                 parsed = json.loads(record.json_data)
+            except Exception as e:
+                print(f"[consolidated-rows] failed to parse json_data for doc id={record.id} filename={record.filename}: {e}")
+                continue
 
-                # Flatten dict structure
-                if isinstance(parsed, list):
-                    rows = parsed
-                elif isinstance(parsed, dict):
-                    rows = []
-                    for file_data in parsed.values():
-                        if isinstance(file_data, list):
-                            rows.extend(file_data)
-                        elif isinstance(file_data, dict):
-                            rows.extend(file_data.get("original_data", []))
-                else:
+            # Normalize structure: parsed might be list or dict-of-lists or dict with original_data
+            rows = []
+            if isinstance(parsed, list):
+                rows = parsed
+            elif isinstance(parsed, dict):
+                for v in parsed.values():
+                    if isinstance(v, list):
+                        rows.extend(v)
+                    elif isinstance(v, dict) and isinstance(v.get("original_data"), list):
+                        rows.extend(v.get("original_data"))
+            else:
+                # unknown structure, skip
+                continue
+
+            # Filter only desired fields per row
+            for row in rows:
+                # row might not be a dict, guard
+                if not isinstance(row, dict):
                     continue
-
-                # Filter only desired fields per row
-                for row in rows:
-                    filtered_row = {k: row.get(k) for k in desired_fields}
-                    combined_data.append(filtered_row)
-
-            except Exception:
-                continue  # skip invalid records
+                filtered_row = {k: row.get(k) for k in desired_fields}
+                combined_data.append(filtered_row)
 
         if not combined_data:
             return JSONResponse(status_code=404, content={"detail": "No valid data found in any records."})
 
-        new_record = Json(
-            user_id=current_user.id,
-            name="consolidated-rows",
-            workflow_path=workflow_path,
-            json_data=json.dumps(combined_data)
-        )
-        db.add(new_record)
-        db.commit()
-
-        return JSONResponse(content=combined_data)
+        # If there is an existing consolidated Json entry, update it (this implements "laging mag aupdate to")
+        if existing:
+            print(f"[consolidated-rows] updating existing consolidated Json id={existing.id}")
+            existing.json_data = json.dumps(combined_data)
+            existing.user_id = current_user.id  # optional: refresh owner
+            db.add(existing)
+            db.commit()
+            # Return the updated consolidated data (deserialized)
+            existing_data = json.loads(existing.json_data)
+            return JSONResponse(status_code=200, content=existing_data)
+        else:
+            # Create new consolidated Json record
+            print("[consolidated-rows] creating new consolidated Json record")
+            new_record = JsonData(
+                user_id=current_user.id,
+                name=name,
+                workflow_path=workflow_path,
+                json_data=json.dumps(combined_data)
+            )
+            db.add(new_record)
+            db.commit()
+            return JSONResponse(content=combined_data)
 
     except Exception as e:
+        print(f"[consolidated-rows] unexpected error: {e}")
         return JSONResponse(status_code=500, content={"detail": f"Error processing records: {str(e)}"})
+
 
 @router.post("/pivot-dpd")
 def pivot_dpd_table(
@@ -361,39 +784,97 @@ def pivot_dpd_table(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        # 🔹 Step 1: Extract workflow_path and row
         workflow_path = payload.get("workflow_path")
         name = "pivoting"
-        row_data = payload.get("row", [])
+        payload_rows = payload.get("row", [])
 
-        if not workflow_path or not isinstance(row_data, list):
-            return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path' or invalid 'row' format"})
+        if not workflow_path:
+            return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path'."})
 
-        # 🔹 Step 2: Check if workflow_path already exists in DB
-        existing = db.query(Json).filter(Json.workflow_path == workflow_path, Json.name == name).first()
+        print(f"[pivot-dpd] workflow_path={workflow_path}; payload_rows_present={isinstance(payload_rows, list) and len(payload_rows) > 0}")
+
+        # Check cached Json (we will update it after recompute)
+        existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
         if existing:
-            # Deserialize json_data before returning
-            existing_data = json.loads(existing.json_data)
-            return JSONResponse(
-                status_code=200,
-                content=existing_data
+            print(f"[pivot-dpd] cached Json found id={existing.id} (will be updated after recompute)")
+
+        rows_to_use: List[Dict[str, Any]] = []
+        if isinstance(payload_rows, list) and len(payload_rows) > 0:
+            print("[pivot-dpd] using payload rows")
+            rows_to_use = payload_rows
+        else:
+            print("[pivot-dpd] payload rows empty — building from latest Document.json_data")
+            latest_docs_subquery = (
+                db.query(
+                    Document.workflow_path,
+                    Document.user_id,
+                    Document.filename,
+                    func.max(Document.version).label("max_version")
+                )
+                .filter(Document.workflow_path == workflow_path)
+                .group_by(Document.workflow_path, Document.user_id, Document.filename)
+                .subquery()
             )
 
-        # 🔹 Step 3: Validate and Prepare Data
-        df = pd.DataFrame(row_data)
+            records = (
+                db.query(Document)
+                .join(
+                    latest_docs_subquery,
+                    (Document.workflow_path == latest_docs_subquery.c.workflow_path) &
+                    (Document.user_id == latest_docs_subquery.c.user_id) &
+                    (Document.filename == latest_docs_subquery.c.filename) &
+                    (Document.version == latest_docs_subquery.c.max_version)
+                )
+                .all()
+            )
+
+            for rec in records:
+                print(f"[pivot-dpd] doc -> id:{rec.id} filename:{rec.filename} user:{rec.user_id} version:{rec.version}")
+
+            if not records:
+                return JSONResponse(status_code=404, content={"detail": f"No Document records found for workflow_path '{workflow_path}'"})
+
+            for record in records:
+                if not record.json_data:
+                    print(f"[pivot-dpd] skipping doc id={record.id} filename={record.filename} - no json_data")
+                    continue
+                try:
+                    parsed = json.loads(record.json_data)
+                except Exception as e:
+                    print(f"[pivot-dpd] failed to parse json_data for doc id={record.id} filename={record.filename}: {e}")
+                    continue
+
+                if isinstance(parsed, list):
+                    rows = parsed
+                elif isinstance(parsed, dict):
+                    rows = []
+                    for v in parsed.values():
+                        if isinstance(v, list):
+                            rows.extend(v)
+                        elif isinstance(v, dict) and isinstance(v.get("original_data"), list):
+                            rows.extend(v.get("original_data"))
+                else:
+                    rows = []
+
+                for r in rows:
+                    if isinstance(r, dict):
+                        rows_to_use.append(r)
+
+            print(f"[pivot-dpd] combined rows length from DB: {len(rows_to_use)}")
+
+        if not isinstance(rows_to_use, list) or len(rows_to_use) == 0:
+            return JSONResponse(status_code=400, content={"detail": "No row data available to process (payload or DB)."})
+
+        # Original pivot logic (unchanged)
+        df = pd.DataFrame(rows_to_use)
         if df.empty:
             return JSONResponse(status_code=400, content={"detail": "Payload row is empty"})
 
         df.replace("", pd.NA, inplace=True)
-
         required_columns = {"pn_number", "loan_segment", "report_date", "dpd"}
         if not required_columns.issubset(df.columns):
-            return JSONResponse(
-                status_code=400,
-                content={"detail": f"Missing required columns: {required_columns - set(df.columns)}"}
-            )
+            return JSONResponse(status_code=400, content={"detail": f"Missing required columns: {required_columns - set(df.columns)}"})
 
-        # 🔹 Step 4: Process Data
         df["report_date"] = pd.to_datetime(df["report_date"], errors="coerce", infer_datetime_format=True)
         df.dropna(subset=["report_date"], inplace=True)
 
@@ -408,23 +889,34 @@ def pivot_dpd_table(
         ).reset_index()
 
         pivot_df.fillna("NA", inplace=True)
-
         result = pivot_df.to_dict(orient="records")
 
-        # 🔹 Step 5: Save to DB
-        new_record = Json(
-            user_id=current_user.id,
-            name="pivoting",
-            workflow_path=workflow_path,
-            json_data=json.dumps(result)
-        )
-        db.add(new_record)
-        db.commit()
-
-        return result
+        # Save/update Json as requested (update if exists)
+        if existing:
+            print(f"[pivot-dpd] updating existing Json id={existing.id}")
+            existing.json_data = json.dumps(result)
+            existing.user_id = current_user.id
+            db.add(existing)
+            db.commit()
+            existing_data = json.loads(existing.json_data)
+            return JSONResponse(status_code=200, content=existing_data)
+        else:
+            print("[pivot-dpd] creating new pivoting Json record")
+            new_record = JsonData(
+                user_id=current_user.id,
+                name=name,
+                workflow_path=workflow_path,
+                json_data=json.dumps(result)
+            )
+            db.add(new_record)
+            db.commit()
+            return JSONResponse(status_code=200, content=result)
 
     except Exception as e:
+        print(f"[pivot-dpd] unexpected error: {e}")
         return JSONResponse(status_code=500, content={"detail": f"Error processing pivot: {str(e)}"})
+
+
 
 def dpd_bucket(dpd_value):
     if pd.isna(dpd_value):
@@ -450,28 +942,98 @@ def bucket_dpd_pivoted(
     payload: Dict[str, Any] = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-    ):
+):
     try:
         # 🔹 Step 1: Extract workflow_path and row
         workflow_path = payload.get("workflow_path")
         name = "bucket-dpd"
-        row_data = payload.get("row", [])
+        payload_rows = payload.get("row", [])
 
-        if not workflow_path or not isinstance(row_data, list):
-            return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path' or invalid 'row' format"})
+        if not workflow_path:
+            return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path'."})
 
-        # 🔹 Step 2: Check if workflow_path already exists in DB
-        existing = db.query(Json).filter(Json.workflow_path == workflow_path, Json.name == name).first()
+        # Debug
+        print(f"[bucket-dpd] workflow_path={workflow_path}; payload_rows_present={isinstance(payload_rows, list) and len(payload_rows) > 0}")
+
+        # 🔹 Step 2: See if a cached Json exists (we won't return it immediately)
+        existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
         if existing:
-            # Deserialize json_data before returning
-            existing_data = json.loads(existing.json_data)
-            return JSONResponse(
-                status_code=200,
-                content=existing_data
+            print(f"[bucket-dpd] cached Json found id={existing.id} (will be updated after recompute)")
+
+        # 🔹 Step 3: Determine rows_to_use — prefer payload rows, else gather from latest Documents
+        rows_to_use: List[Dict[str, Any]] = []
+
+        if isinstance(payload_rows, list) and len(payload_rows) > 0:
+            print("[bucket-dpd] using payload rows")
+            rows_to_use = payload_rows
+        else:
+            print("[bucket-dpd] payload rows empty — building from latest Document.json_data")
+            latest_docs_subquery = (
+                db.query(
+                    Document.workflow_path,
+                    Document.user_id,
+                    Document.filename,
+                    func.max(Document.version).label("max_version")
+                )
+                .filter(Document.workflow_path == workflow_path)
+                .group_by(Document.workflow_path, Document.user_id, Document.filename)
+                .subquery()
             )
 
-        # 🔹 Step 3: Validate and Prepare Data
-        df = pd.DataFrame(row_data)
+            records = (
+                db.query(Document)
+                .join(
+                    latest_docs_subquery,
+                    (Document.workflow_path == latest_docs_subquery.c.workflow_path) &
+                    (Document.user_id == latest_docs_subquery.c.user_id) &
+                    (Document.filename == latest_docs_subquery.c.filename) &
+                    (Document.version == latest_docs_subquery.c.max_version)
+                )
+                .all()
+            )
+
+            for rec in records:
+                print(f"[bucket-dpd] doc -> id:{rec.id} filename:{rec.filename} user:{rec.user_id} version:{rec.version}")
+
+            if not records:
+                return JSONResponse(status_code=404, content={"detail": f"No Document records found for workflow_path '{workflow_path}'"})
+
+            for record in records:
+                if not record.json_data:
+                    print(f"[bucket-dpd] skipping doc id={record.id} filename={record.filename} - no json_data")
+                    continue
+                try:
+                    parsed = json.loads(record.json_data)
+                except Exception as e:
+                    print(f"[bucket-dpd] failed to parse json_data for doc id={record.id} filename={record.filename}: {e}")
+                    continue
+
+                # Normalize structure: parsed might be list or dict-of-lists or dict with original_data
+                if isinstance(parsed, list):
+                    rows = parsed
+                elif isinstance(parsed, dict):
+                    rows = []
+                    for v in parsed.values():
+                        if isinstance(v, list):
+                            rows.extend(v)
+                        elif isinstance(v, dict) and isinstance(v.get("original_data"), list):
+                            rows.extend(v.get("original_data"))
+                        # else ignore
+                else:
+                    rows = []
+
+                for r in rows:
+                    if isinstance(r, dict):
+                        rows_to_use.append(r)
+
+            print(f"[bucket-dpd] combined rows length from DB: {len(rows_to_use)}")
+
+        # After this, rows_to_use must be a list of dicts
+        if not isinstance(rows_to_use, list) or len(rows_to_use) == 0:
+            return JSONResponse(status_code=400, content={"detail": "No row data available to process (payload or DB)."})
+
+        # 🔹 Step 4: Original processing — do not change calculations/responses
+        df = pd.DataFrame(rows_to_use)
 
         if df.empty:
             return JSONResponse(status_code=400, content={"detail": "Payload is empty"})
@@ -504,43 +1066,47 @@ def bucket_dpd_pivoted(
         # Get date columns dynamically
         date_columns = [col for col in pivot_df.columns if col not in {"pn_number", "loan_segment"}]
 
-        # Apply DPD bucket transformation
+        # Apply DPD bucket transformation (keep your dpd_bucket function)
         for col in date_columns:
             pivot_df[col] = pd.to_numeric(pivot_df[col], errors="coerce")
             pivot_df[col] = pivot_df[col].apply(dpd_bucket)
 
-        # Print summary
-        #print("\n DPD BUCKET SUMMARY PER REPORT DATE:")
+        # Print summary (keeps your original commented prints but adds debug)
         for col in date_columns:
             bucket_counts = pivot_df[col].value_counts(dropna=False).to_dict()
-            #print(f"\n {col}:")
             total_accounts = 0
             for bucket in ["0", "1", "2", "3", "4", "NA"]:
                 count = bucket_counts.get(bucket, 0)
-                #print(f"  Bucket {bucket}: {count} accounts")
                 if bucket in ["0", "1", "2", "3", "4"]:
                     total_accounts += count
-            #print(f"   Total Accounts (Buckets 0–4): {total_accounts}")
+            print(f"[bucket-dpd] {col} total accounts (0–4): {total_accounts}")
 
-        # ✅ Save the response to Excel without affecting return value
-        # output_dir = "generated_excels"
-        # os.makedirs(output_dir, exist_ok=True)
-        # output_file = os.path.join(output_dir, "bucketed_dpd_pivoted.xlsx")
-        # pivot_df.to_excel(output_file, index=False)
-
-        # 🔹 Step 5: Save to DB
+        # 🔹 Step 5: Save to DB and return (keep same return structure)
         result = pivot_df.to_dict(orient="records")
-        new_record = Json(
-            user_id=current_user.id,
-            name="bucket-dpd",
-            workflow_path=workflow_path,
-            json_data=json.dumps(result)
-        )
-        db.add(new_record)
-        db.commit()
-        return result
+
+        if existing:
+            # update existing cached record
+            print(f"[bucket-dpd] updating existing Json id={existing.id}")
+            existing.json_data = json.dumps(result)
+            existing.user_id = current_user.id  # optionally refresh owner
+            db.add(existing)
+            db.commit()
+            existing_data = json.loads(existing.json_data)
+            return JSONResponse(status_code=200, content=existing_data)
+        else:
+            print("[bucket-dpd] creating new Json record")
+            new_record = JsonData(
+                user_id=current_user.id,
+                name="bucket-dpd",
+                workflow_path=workflow_path,
+                json_data=json.dumps(result)
+            )
+            db.add(new_record)
+            db.commit()
+            return JSONResponse(status_code=200, content=result)
 
     except Exception as e:
+        print(f"[bucket-dpd] unexpected error: {e}")
         return JSONResponse(status_code=500, content={"detail": f"Error bucketing DPD pivoted values: {str(e)}"})
 
 
@@ -569,46 +1135,102 @@ def bucket_dpd_everbad(
     payload: Dict[str, Any] = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-    ):
+):
     try:
-        # 🔹 Step 1: Extract workflow_path and row
         workflow_path = payload.get("workflow_path")
         name = "bucket-dpd-everbad"
-        row_data = payload.get("row", [])
+        payload_rows = payload.get("row", [])
 
-        if not workflow_path or not isinstance(row_data, list):
-            return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path' or invalid 'row' format"})
+        if not workflow_path:
+            return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path'."})
 
-        # 🔹 Step 2: Check if workflow_path already exists in DB
-        existing = db.query(Json).filter(Json.workflow_path == workflow_path, Json.name == name).first()
+        print(f"[bucket-dpd-everbad] workflow_path={workflow_path}; payload_rows_present={isinstance(payload_rows, list) and len(payload_rows) > 0}")
+
+        existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
         if existing:
-            # Deserialize json_data before returning
-            existing_data = json.loads(existing.json_data)
-            return JSONResponse(
-                status_code=200,
-                content=existing_data
+            print(f"[bucket-dpd-everbad] cached Json found id={existing.id} (will be updated after recompute)")
+
+        rows_to_use: List[Dict[str, Any]] = []
+        if isinstance(payload_rows, list) and len(payload_rows) > 0:
+            print("[bucket-dpd-everbad] using payload rows")
+            rows_to_use = payload_rows
+        else:
+            print("[bucket-dpd-everbad] payload rows empty — building from latest Document.json_data")
+            latest_docs_subquery = (
+                db.query(
+                    Document.workflow_path,
+                    Document.user_id,
+                    Document.filename,
+                    func.max(Document.version).label("max_version")
+                )
+                .filter(Document.workflow_path == workflow_path)
+                .group_by(Document.workflow_path, Document.user_id, Document.filename)
+                .subquery()
             )
 
-        # 🔹 Step 3: Validate and Prepare Data
-        df = pd.DataFrame(row_data)
+            records = (
+                db.query(Document)
+                .join(
+                    latest_docs_subquery,
+                    (Document.workflow_path == latest_docs_subquery.c.workflow_path) &
+                    (Document.user_id == latest_docs_subquery.c.user_id) &
+                    (Document.filename == latest_docs_subquery.c.filename) &
+                    (Document.version == latest_docs_subquery.c.max_version)
+                )
+                .all()
+            )
 
+            for rec in records:
+                print(f"[bucket-dpd-everbad] doc -> id:{rec.id} filename:{rec.filename} user:{rec.user_id} version:{rec.version}")
+
+            if not records:
+                return JSONResponse(status_code=404, content={"detail": f"No Document records found for workflow_path '{workflow_path}'"})
+
+            for record in records:
+                if not record.json_data:
+                    print(f"[bucket-dpd-everbad] skipping doc id={record.id} filename={record.filename} - no json_data")
+                    continue
+                try:
+                    parsed = json.loads(record.json_data)
+                except Exception as e:
+                    print(f"[bucket-dpd-everbad] failed to parse json_data for doc id={record.id} filename={record.filename}: {e}")
+                    continue
+
+                if isinstance(parsed, list):
+                    rows = parsed
+                elif isinstance(parsed, dict):
+                    rows = []
+                    for v in parsed.values():
+                        if isinstance(v, list):
+                            rows.extend(v)
+                        elif isinstance(v, dict) and isinstance(v.get("original_data"), list):
+                            rows.extend(v.get("original_data"))
+                else:
+                    rows = []
+
+                for r in rows:
+                    if isinstance(r, dict):
+                        rows_to_use.append(r)
+
+            print(f"[bucket-dpd-everbad] combined rows length from DB: {len(rows_to_use)}")
+
+        if not isinstance(rows_to_use, list) or len(rows_to_use) == 0:
+            return JSONResponse(status_code=400, content={"detail": "No row data available to process (payload or DB)."})
+
+        # Original everbad processing (unchanged)
+        df = pd.DataFrame(rows_to_use)
         if df.empty:
             return JSONResponse(status_code=400, content={"detail": "Payload is empty"})
 
         required_columns = {"pn_number", "loan_segment", "report_date", "dpd"}
         if not required_columns.issubset(df.columns):
-            return JSONResponse(
-                status_code=400,
-                content={"detail": f"Missing required columns: {required_columns - set(df.columns)}"}
-            )
+            return JSONResponse(status_code=400, content={"detail": f"Missing required columns: {required_columns - set(df.columns)}"})
 
-        # Clean and format
         df.replace(["", None], pd.NA, inplace=True)
         df["report_date"] = pd.to_datetime(df["report_date"], format="%d/%m/%Y", errors="coerce")
         df.dropna(subset=["report_date"], inplace=True)
         df["dpd"] = pd.to_numeric(df["dpd"], errors="coerce")
 
-        # Pivot DPDs by date
         pivot_df = df.pivot_table(
             index=["pn_number", "loan_segment"],
             columns=df["report_date"].dt.strftime('%Y-%m-%d'),
@@ -617,12 +1239,9 @@ def bucket_dpd_everbad(
         ).reset_index()
 
         date_columns = sorted([col for col in pivot_df.columns if col not in {"pn_number", "loan_segment"}])
-
-        # Ensure numeric before applying everbad logic
         for col in date_columns:
             pivot_df[col] = pd.to_numeric(pivot_df[col], errors="coerce")
 
-        # 🔁 Apply everbad rule (bad = >90 → 4)
         for idx, row in pivot_df.iterrows():
             everbad = False
             for col in date_columns:
@@ -632,46 +1251,40 @@ def bucket_dpd_everbad(
                 try:
                     if val > 90:
                         everbad = True
-                        pivot_df.at[idx, col] = 91  # explicitly set to >90
+                        pivot_df.at[idx, col] = 91
                     elif everbad:
-                        # If already everbad, force value to remain >90 (so it buckets to 4)
                         pivot_df.at[idx, col] = 91
                 except:
                     continue
 
-        # 🧠 Bucket conversion: convert to 0-4 or NA
         for col in date_columns:
             pivot_df[col] = pivot_df[col].apply(dpd_bucket1)
 
-        # 📊 Summary print
-        #print("\n DPD BUCKET SUMMARY PER REPORT DATE (after everbad):")
-        # for col in date_columns:
-        #     bucket_counts = pivot_df[col].value_counts(dropna=False).to_dict()
-        #     print(f" {col}:")
-        #     for bucket in [0, 1, 2, 3, 4, "NA", "Invalid"]:
-        #         print(f"  Bucket {bucket}: {bucket_counts.get(bucket, 0)}")
-
-        # # 💾 Save to Excel
-        # output_folder = "generated_excels"
-        # os.makedirs(output_folder, exist_ok=True)
-        # excel_file = os.path.join(output_folder, "bucketing.xlsx")
-        # pivot_df.to_excel(excel_file, index=False)
-
-        # 🔹 Step 5: Save to DB
         result = pivot_df.to_dict(orient="records")
-        new_record = Json(
-            user_id=current_user.id,
-            name="bucket-dpd-everbad",
-            workflow_path=workflow_path,
-            json_data=json.dumps(result)
-        )
-        db.add(new_record)
-        db.commit()
-        return result
+
+        if existing:
+            print(f"[bucket-dpd-everbad] updating existing Json id={existing.id}")
+            existing.json_data = json.dumps(result)
+            existing.user_id = current_user.id
+            db.add(existing)
+            db.commit()
+            existing_data = json.loads(existing.json_data)
+            return JSONResponse(status_code=200, content=existing_data)
+        else:
+            print("[bucket-dpd-everbad] creating new Json record")
+            new_record = JsonData(
+                user_id=current_user.id,
+                name=name,
+                workflow_path=workflow_path,
+                json_data=json.dumps(result)
+            )
+            db.add(new_record)
+            db.commit()
+            return JSONResponse(status_code=200, content=result)
 
     except Exception as e:
+        print(f"[bucket-dpd-everbad] unexpected error: {e}")
         return JSONResponse(status_code=500, content={"detail": f"Error: {str(e)}"})
-
 
 def get_all_dates(payload: List[Dict[str, Any]]) -> List[str]:
     if not payload:
@@ -684,26 +1297,82 @@ def calculate_odr(
     payload: Dict[str, Any] = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-    ):
-    # 🔹 Step 1: Extract workflow_path and row
+):
     workflow_path = payload.get("workflow_path")
-    row_data = payload.get("row", [])
+    payload_rows = payload.get("row", [])
     name = "calculate_odr"
-    if not workflow_path or not isinstance(row_data, list):
-        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path' or invalid 'row' format"})
 
-    # 🔹 Step 2: Check if workflow_path already exists in DB
-    existing = db.query(Json).filter(Json.workflow_path == workflow_path, Json.name == name).first()
+    if not workflow_path:
+        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path'."})
+
+    print(f"[calculate_odr] workflow_path={workflow_path}; payload_rows_present={isinstance(payload_rows, list) and len(payload_rows) > 0}")
+
+    existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
     if existing:
-        # Deserialize json_data before returning
-        existing_data = json.loads(existing.json_data)
-        return JSONResponse(
-            status_code=200,
-            content=existing_data
+        print(f"[calculate_odr] cached Json found id={existing.id} (will be updated after recompute)")
+
+    rows_to_use: List[Dict[str, Any]] = []
+    if isinstance(payload_rows, list) and len(payload_rows) > 0:
+        rows_to_use = payload_rows
+        print("[calculate_odr] using payload rows")
+    else:
+        print("[calculate_odr] payload rows empty — building from latest Document.json_data")
+        latest_docs_subquery = (
+            db.query(
+                Document.workflow_path,
+                Document.user_id,
+                Document.filename,
+                func.max(Document.version).label("max_version")
+            )
+            .filter(Document.workflow_path == workflow_path)
+            .group_by(Document.workflow_path, Document.user_id, Document.filename)
+            .subquery()
         )
 
-    # 🔹 Step 3: Validate and Prepare Data
+        records = (
+            db.query(Document)
+            .join(
+                latest_docs_subquery,
+                (Document.workflow_path == latest_docs_subquery.c.workflow_path) &
+                (Document.user_id == latest_docs_subquery.c.user_id) &
+                (Document.filename == latest_docs_subquery.c.filename) &
+                (Document.version == latest_docs_subquery.c.max_version)
+            )
+            .all()
+        )
 
+        for rec in records:
+            print(f"[calculate_odr] doc -> id:{rec.id} filename:{rec.filename} user:{rec.user_id} version:{rec.version}")
+
+        for record in records:
+            if not record.json_data:
+                print(f"[calculate_odr] skipping doc id={record.id} filename={record.filename} - no json_data")
+                continue
+            try:
+                parsed = json.loads(record.json_data)
+            except Exception as e:
+                print(f"[calculate_odr] failed to parse json_data for doc id={record.id} filename={record.filename}: {e}")
+                continue
+            if isinstance(parsed, list):
+                rows = parsed
+            elif isinstance(parsed, dict):
+                rows = []
+                for v in parsed.values():
+                    if isinstance(v, list):
+                        rows.extend(v)
+                    elif isinstance(v, dict) and isinstance(v.get("original_data"), list):
+                        rows.extend(v.get("original_data"))
+            else:
+                rows = []
+            for r in rows:
+                if isinstance(r, dict):
+                    rows_to_use.append(r)
+        print(f"[calculate_odr] combined rows length from DB: {len(rows_to_use)}")
+
+    if not isinstance(rows_to_use, list) or len(rows_to_use) == 0:
+        return JSONResponse(status_code=400, content={"detail": "No row data available to process (payload or DB)."})
+
+    # Keep original ODR logic exactly
     def is_valid_date(s):
         try:
             pd.to_datetime(s)
@@ -712,7 +1381,6 @@ def calculate_odr(
             return False
 
     def clean_sequence(seq):
-        """Applies NA cascade first, then everbad logic."""
         cleaned = []
         na_cascade = False
         ever_bad = False
@@ -720,30 +1388,26 @@ def calculate_odr(
             if na_cascade:
                 cleaned.append("NA")
                 continue
-
             if val in [None, '', 'NA']:
                 na_cascade = True
                 cleaned.append("NA")
                 continue
-
             if ever_bad:
                 cleaned.append("4")
                 continue
-
             if val == '4':
                 ever_bad = True
                 cleaned.append("4")
             else:
                 cleaned.append(val)
-
         return cleaned
 
+    row_data = rows_to_use
     if not row_data:
         return {"error": "Empty payload."}
 
     all_keys = row_data[0].keys()
     date_keys = sorted([k for k in all_keys if is_valid_date(k)], key=lambda x: pd.to_datetime(x))
-
     if len(date_keys) < 13:
         return {"error": "Need at least 13 months of data for 12-month ODR window."}
 
@@ -751,29 +1415,24 @@ def calculate_odr(
     window_size = 12
 
     for i in range(len(date_keys) - window_size):
-        obs = date_keys[i]  # Observation point
-        end = date_keys[i + window_size]  # End of performance window
-        window_range = date_keys[i:i + window_size + 1]  # Inclusive of end month
+        obs = date_keys[i]
+        end = date_keys[i + window_size]
+        window_range = date_keys[i:i + window_size + 1]
 
         good_accounts = set()
         filtered_good_payload = []
 
         for row in row_data:
             pn = row.get("pn_number")
-            # Create DPD sequence per PN within window
             seq = [str(row.get(k)) if row.get(k) not in [None, ''] else 'NA' for k in window_range]
             cleaned_seq = clean_sequence(seq)
-
-            obs_val = cleaned_seq[0]  # Observation month value
-
+            obs_val = cleaned_seq[0]
             if obs_val == 'NA':
                 continue
-
             try:
                 obs_int = int(obs_val)
                 if 0 <= obs_int <= 3:
                     good_accounts.add(pn)
-                    # Create a copy of row with cleaned values
                     cleaned_row = dict(row)
                     for idx, k in enumerate(window_range):
                         cleaned_row[k] = cleaned_seq[idx]
@@ -782,22 +1441,14 @@ def calculate_odr(
                 continue
 
         good_count = len(good_accounts)
-
         turned_bad_accounts = set()
         for row in filtered_good_payload:
             pn = row.get("pn_number")
             val = row.get(end)
-
             if val == '4':
                 turned_bad_accounts.add(pn)
-
         bad_count = len(turned_bad_accounts)
         odr = round((bad_count / good_count) * 100, 2) if good_count > 0 else 0.0
-
-        # print(f"Observation point: {pd.to_datetime(obs).strftime('%d-%m-%Y')} - End of Performance window: {pd.to_datetime(end).strftime('%d-%m-%Y')}")
-        # print(f"Number of GOOD accounts: {good_count}")
-        # print(f"Number of GOOD that turned BAD at {end}: {bad_count}")
-        # print(f"ODR: {odr:.2f}%\n")
 
         results.append({
             "Observation point": obs,
@@ -806,16 +1457,26 @@ def calculate_odr(
             "Number of Good that turned Bad": bad_count,
             "ODR": f"{odr:.2f}%"
         })
-    # 🔹 Step 5: Save to DB
-    new_record = Json(
+
+    # Save or update cache
+    if existing:
+        print(f"[calculate_odr] updating existing Json id={existing.id}")
+        existing.json_data = json.dumps(results)
+        existing.user_id = current_user.id
+        db.add(existing)
+        db.commit()
+        return JSONResponse(status_code=200, content=json.loads(existing.json_data))
+    else:
+        new_record = JsonData(
             user_id=current_user.id,
-            name="calculate_odr",
+            name=name,
             workflow_path=workflow_path,
             json_data=json.dumps(results)
         )
-    db.add(new_record)
-    db.commit()
-    return results
+        db.add(new_record)
+        db.commit()
+        print("[calculate_odr] created new Json record")
+        return JSONResponse(status_code=200, content=results)
 
 
 @router.post("/migration-matrix")
@@ -824,25 +1485,31 @@ def migration_matrix(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 🔹 Step 1: Extract workflow_path and row
     workflow_path = payload.get("workflow_path")
     row_data = payload.get("row", [])
     name = "migration-matrix"
-    
-    if not workflow_path or not isinstance(row_data, list):
-        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path' or invalid 'row' format"})
 
-    # 🔹 Step 2: Check if workflow_path already exists in DB
-    existing = db.query(Json).filter(Json.workflow_path == workflow_path, Json.name == name).first()
+    if not workflow_path:
+        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path'."})
+
+    print(f"[migration-matrix] workflow_path={workflow_path}; payload_rows_present={isinstance(row_data, list) and len(row_data) > 0}")
+    existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
     if existing:
+        print(f"[migration-matrix] cached Json found id={existing.id} (will be updated after recompute if payload provided)")
+
+    # If payload provided use it, else if cached exists return it immediately
+    if (not isinstance(row_data, list) or len(row_data) == 0) and existing:
+        print("[migration-matrix] payload empty, returning existing cached result")
         return JSONResponse(status_code=200, content=json.loads(existing.json_data))
 
-    # 🔹 Step 3: Validate and Prepare Data
-    df = pd.DataFrame(row_data)
+    rows_to_use = row_data
+    if not isinstance(rows_to_use, list) or len(rows_to_use) == 0:
+        return JSONResponse(status_code=400, content={"detail": "Missing payload row data for migration matrix."})
 
+    # Original migration-matrix processing (unchanged)
+    df = pd.DataFrame(rows_to_use)
     date_cols = [col for col in df.columns if col not in ["pn_number", "loan_segment"]]
     date_cols_sorted = sorted(date_cols, key=pd.to_datetime)
-
     if len(date_cols_sorted) < 2:
         return {"error": "Payload must contain at least two date columns"}
 
@@ -865,7 +1532,6 @@ def migration_matrix(
         except:
             return date_str
 
-    # 🔹 Step 4: Loop over adjacent date pairs
     for i in range(len(date_cols_sorted) - 1):
         from_col = date_cols_sorted[i]
         to_col = date_cols_sorted[i + 1]
@@ -874,10 +1540,8 @@ def migration_matrix(
         df[to_col] = df[to_col].astype(str)
 
         step_result = []
-
         for from_bucket in all_buckets:
             filtered = df[df[from_col] == from_bucket]
-
             row = {
                 f"{format_date(from_col)}": len(filtered),
                 f"{format_date(to_col)}_Bucket": int(from_bucket),
@@ -888,12 +1552,10 @@ def migration_matrix(
                 "91+ DPD_4": 0,
                 "Indeterminate_NA": 0,
             }
-
             for _, account in filtered.iterrows():
                 dpd_to = str(account[to_col])
                 key = map_dpd_bucket(dpd_to)
                 row[key] += 1
-
             row["Total Accounted Evaluated"] = (
                 row["0 DPD_0"]
                 + row["1-30 DPD_1"]
@@ -901,22 +1563,28 @@ def migration_matrix(
                 + row["61-90 DPD_3"]
                 + row["91+ DPD_4"]
             )
-
             step_result.append(row)
-
         output.append(step_result)
 
-    # 🔹 Step 5: Save result to DB
-    new_record = Json(
-        user_id=current_user.id,
-        name=name,
-        workflow_path=workflow_path,
-        json_data=json.dumps(output)
-    )
-    db.add(new_record)
-    db.commit()
+    # Save or update cache
+    if existing:
+        print(f"[migration-matrix] updating existing Json id={existing.id}")
+        existing.json_data = json.dumps(output)
+        existing.user_id = current_user.id
+        db.add(existing)
+        db.commit()
+        return JSONResponse(status_code=200, content=json.loads(existing.json_data))
+    else:
+        new_record = JsonData(
+            user_id=current_user.id,
+            name=name,
+            workflow_path=workflow_path,
+            json_data=json.dumps(output)
+        )
+        db.add(new_record)
+        db.commit()
+        return JSONResponse(status_code=200, content=output)
 
-    return output
 
 def get_bucket(dpd):
     if pd.isna(dpd) or dpd == "NA":
@@ -944,47 +1612,43 @@ def migration_matrix_percentage(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 🔹 Step 1: Extract workflow_path and row
     workflow_path = payload.get("workflow_path")
     row_data = payload.get("row", [])
     name = "migration_matrix_percentage"
 
-    if not workflow_path or not isinstance(row_data, list):
-        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path' or invalid 'row' format"})
+    if not workflow_path:
+        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path'."})
 
-    # 🔹 Step 2: Check if workflow_path already exists in DB
-    existing = db.query(Json).filter(Json.workflow_path == workflow_path, Json.name == name).first()
+    print(f"[migration-matrix-percentage] workflow_path={workflow_path}; payload_rows_present={isinstance(row_data, list) and len(row_data) > 0}")
+    existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
     if existing:
-        existing_data = json.loads(existing.json_data)
-        return JSONResponse(status_code=200, content=existing_data)
+        print(f"[migration-matrix-percentage] cached Json found id={existing.id} (will be updated after recompute if payload provided)")
 
-    # 🔹 Step 3: Validate and Prepare Data
+    # If no payload but cached exists return it
+    if (not isinstance(row_data, list) or len(row_data) == 0) and existing:
+        return JSONResponse(status_code=200, content=json.loads(existing.json_data))
+
     if not row_data:
         return []
+
     df = pd.DataFrame(row_data)
     date_cols = [col for col in df.columns if col not in ["pn_number", "loan_segment"]]
     if len(date_cols) < 2:
         return {"error": "Need at least two dates to calculate migration."}
-
     date_cols = sorted(date_cols, key=lambda x: pd.to_datetime(x))
 
     grouped_results = []
-
     for i in range(len(date_cols) - 1):
         from_date = date_cols[i]
         to_date = date_cols[i + 1]
         df["from_bucket"] = df[from_date].apply(get_bucket)
         df["to_bucket"] = df[to_date].apply(get_bucket)
-
         transition_group = []
-
         for source_bucket in ["0", "1", "2", "3", "4"]:
             filtered = df[df["from_bucket"] == source_bucket]
             valid_filtered = filtered[filtered["to_bucket"].isin(["0", "1", "2", "3", "4"])]
-
             total_accounts = len(valid_filtered)
             transition_counts = defaultdict(int)
-
             for _, row in filtered.iterrows():
                 to_b = row["to_bucket"]
                 if to_b == "0":
@@ -1026,50 +1690,53 @@ def migration_matrix_percentage(
                 }
 
             transition_group.append(result_row)
-
         grouped_results.append(transition_group)
 
-    # 🔹 Step 5: Save to DB
-    new_record = Json(
-        user_id=current_user.id,
-        name=name,
-        workflow_path=workflow_path,
-        json_data=json.dumps(grouped_results)
-    )
-    db.add(new_record)
-    db.commit()
+    if existing:
+        print(f"[migration-matrix-percentage] updating existing Json id={existing.id}")
+        existing.json_data = json.dumps(grouped_results)
+        existing.user_id = current_user.id
+        db.add(existing)
+        db.commit()
+        return JSONResponse(status_code=200, content=json.loads(existing.json_data))
+    else:
+        new_record = JsonData(
+            user_id=current_user.id,
+            name=name,
+            workflow_path=workflow_path,
+            json_data=json.dumps(grouped_results)
+        )
+        db.add(new_record)
+        db.commit()
+        return JSONResponse(status_code=200, content=grouped_results)
 
-    return grouped_results
 
 @router.post("/migration-matrix-average-final")
 def calculate_bucket_matrix_average(
     payload: Dict[str, Any] = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-    ):
-    # 🔹 Step 1: Extract workflow_path and row
+):
     workflow_path = payload.get("workflow_path")
     row_data = payload.get("row", [])
     name = "migration_matrix_average"
-    if not workflow_path or not isinstance(row_data, list):
-        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path' or invalid 'row' format"})
 
-    # 🔹 Step 2: Check if workflow_path already exists in DB
-    existing = db.query(Json).filter(Json.workflow_path == workflow_path, Json.name == name).first()
+    if not workflow_path:
+        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path'."})
+
+    print(f"[migration-matrix-average] workflow_path={workflow_path}; payload_rows_present={isinstance(row_data, list) and len(row_data) > 0}")
+    existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
     if existing:
-        # Deserialize json_data before returning
-        print("existing record found, returning existing data")
-        existing_data = json.loads(existing.json_data)
-        return JSONResponse(
-            status_code=200,
-            content=existing_data
-        )
+        print(f"[migration-matrix-average] cached Json found id={existing.id} (will be updated after recompute if payload provided)")
 
-    # 🔹 Step 3: Validate and Prepare Data
+    if (not isinstance(row_data, list) or len(row_data) == 0) and existing:
+        print("[migration-matrix-average] payload empty, returning existing cached result")
+        return JSONResponse(status_code=200, content=json.loads(existing.json_data))
+
     if not row_data:
         return []
-    df = pd.DataFrame(row_data)
 
+    df = pd.DataFrame(row_data)
     bucket_cols = [col for col in df.columns if col.endswith("_Bucket")]
     dpd_cols = [col for col in df.columns if "DPD" in col]
 
@@ -1084,29 +1751,19 @@ def calculate_bucket_matrix_average(
     merged_df = merged_df.dropna(subset=["Bucket"])
     merged_df["Bucket"] = merged_df["Bucket"].astype(int)
 
-    # Step 3: Print all '0 DPD_0' values from Bucket 0 per month
-    print("All '0 DPD_0' values from Bucket 0 per month:")
+    # compute averages (unchanged)
     all_0_dpd_values = []
     for month in merged_df["Report_Month"].unique():
         subset = merged_df[(merged_df["Report_Month"] == month) & (merged_df["Bucket"] == 0)]
         values = subset["0 DPD_0"].dropna().tolist()
         all_0_dpd_values.extend(values)
-        print(f"Month: {month}, Bucket: 0, '0 DPD_0' values: {values}")
+        print(f"[migration-matrix-average] Month: {month}, Bucket: 0, '0 DPD_0' values: {values}")
 
-    # Step 4: Compute average of DPD values per bucket
-    print("\nAverage of DPD values per bucket:")
     average_results = {}
-    total_0_dpd = sum(all_0_dpd_values)
-    total_count_0_dpd = len(all_0_dpd_values)
-
     for bucket in merged_df["Bucket"].unique():
         bucket_values = {}
         for col in dpd_cols:
-            bucket_values[col] = {
-                "sum": 0,
-                "count": 0
-            }
-
+            bucket_values[col] = {"sum": 0, "count": 0}
         for month in merged_df["Report_Month"].unique():
             month_df = merged_df[(merged_df["Report_Month"] == month) & (merged_df["Bucket"] == bucket)]
             if not month_df.empty:
@@ -1115,15 +1772,11 @@ def calculate_bucket_matrix_average(
                     count = month_df[col].count()
                     bucket_values[col]["sum"] += value
                     bucket_values[col]["count"] += count
-
-        # Calculate averages and totals
         for col in dpd_cols:
             avg = bucket_values[col]["sum"] / bucket_values[col]["count"] if bucket_values[col]["count"] > 0 else 0
             average_results.setdefault(bucket, {})[col] = avg
+            print(f"[migration-matrix-average] Bucket {bucket}, {col}: average = {round(avg, 2)}")
 
-            print(f"Bucket {bucket}, {col}: average = {round(avg, 2)}%")
-
-    # Step 5: Format final output
     final_result = []
     for from_bucket in sorted(average_results.keys()):
         row = {"Bucket": int(from_bucket)}
@@ -1135,17 +1788,23 @@ def calculate_bucket_matrix_average(
         row["Total"] = round(total, 2)
         final_result.append(row)
 
-    # 🔹 Step 6: Save to DB
-    new_record = Json(
-        user_id=current_user.id,
-        name="migration_matrix_average",
-        workflow_path=workflow_path,
-        json_data=json.dumps(final_result)
-    )
-    db.add(new_record)
-    db.commit()
-
-    return final_result
+    if existing:
+        print(f"[migration-matrix-average] updating existing Json id={existing.id}")
+        existing.json_data = json.dumps(final_result)
+        existing.user_id = current_user.id
+        db.add(existing)
+        db.commit()
+        return JSONResponse(status_code=200, content=json.loads(existing.json_data))
+    else:
+        new_record = JsonData(
+            user_id=current_user.id,
+            name=name,
+            workflow_path=workflow_path,
+            json_data=json.dumps(final_result)
+        )
+        db.add(new_record)
+        db.commit()
+        return JSONResponse(status_code=200, content=final_result)
 
 @router.get("/get-migration-matrix-average")
 def get_migration_matrix_average(workflow_path: str = Query(..., description="Subdirectory under server/files containing Excel files"),
@@ -1154,7 +1813,7 @@ def get_migration_matrix_average(workflow_path: str = Query(..., description="Su
     name = "migration_matrix_average"
     print(workflow_path)
     # 🔹 Step 2: Check if workflow_path already exists in DB
-    existing = db.query(Json).filter(Json.workflow_path == workflow_path, Json.name == name).first()
+    existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
     if existing:
         # Deserialize json_data before returning
         print("existing record found, returning existing data")
@@ -1179,29 +1838,28 @@ def calculate_12_month_transition_matrix(
     row_data = payload.get("row", [])
     name = "12month_transition_matrix"
 
-    if not workflow_path or not isinstance(row_data, list):
-        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path' or invalid 'row' format"})
+    if not workflow_path:
+        return JSONResponse(status_code=400, content={"detail": "Missing 'workflow_path'."})
 
-    existing = db.query(Json).filter(Json.workflow_path == workflow_path, Json.name == name).first()
+    print(f"[migration-matrix-12months] workflow_path={workflow_path}; payload_rows_present={isinstance(row_data, list) and len(row_data) > 0}")
+    existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
     if existing:
+        print(f"[migration-matrix-12months] cached Json found id={existing.id} (will be updated after recompute if payload provided)")
+
+    if (not isinstance(row_data, list) or len(row_data) == 0) and existing:
+        print("[migration-matrix-12months] payload empty, returning existing cached result")
         return JSONResponse(status_code=200, content=json.loads(existing.json_data))
 
     if not row_data:
         return []
 
-    # Correct column names with standard hyphen
     dpd_cols = ["0 DPD_0", "1-30 DPD_1", "31-60 DPD_2", "61-90 DPD_3", "91+ DPD_4"]
-
     df = pd.DataFrame(row_data).sort_values("Bucket").reset_index(drop=True)
 
-    # Safety check: all dpd columns must exist
     if not all(col in df.columns for col in dpd_cols):
         return JSONResponse(status_code=400, content={"detail": "Missing one or more DPD columns in data"})
 
-    # Convert to numpy matrix with float values (probabilities)
     matrix = df[dpd_cols].to_numpy(dtype=float)
-
-    # Ensure matrix is square
     if matrix.shape[0] != matrix.shape[1]:
         return JSONResponse(status_code=400, content={"detail": "Transition matrix must be square"})
 
@@ -1222,18 +1880,23 @@ def calculate_12_month_transition_matrix(
             result["Total"] = round(total, 4)
             result_list.append(result)
 
-    # Save to DB
-    new_record = Json(
-        user_id=current_user.id,
-        name=name,
-        workflow_path=workflow_path,
-        json_data=json.dumps(result_list)
-    )
-    db.add(new_record)
-    db.commit()
-
-    return result_list
-
+    if existing:
+        print(f"[migration-matrix-12months] updating existing Json id={existing.id}")
+        existing.json_data = json.dumps(result_list)
+        existing.user_id = current_user.id
+        db.add(existing)
+        db.commit()
+        return JSONResponse(status_code=200, content=json.loads(existing.json_data))
+    else:
+        new_record = JsonData(
+            user_id=current_user.id,
+            name=name,
+            workflow_path=workflow_path,
+            json_data=json.dumps(result_list)
+        )
+        db.add(new_record)
+        db.commit()
+        return JSONResponse(status_code=200, content=result_list)
 
 def flatten_nested_list(data):
     """Flatten nested list of lists into a single list."""

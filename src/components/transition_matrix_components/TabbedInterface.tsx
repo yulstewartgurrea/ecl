@@ -1,3 +1,4 @@
+// src/components/transition_matrix_components/TabbedInterface.tsx
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
@@ -6,7 +7,7 @@ import clsx from "clsx";
 
 import TableWithErrorIndicators from "./TableWithErrorIndicators";
 import Loader from "../Loader";
-import ApiStatusIndicator from "../ApiStatusIndicators"; // assuming same folder as Loader
+import ApiStatusIndicator from "../ApiStatusIndicators";
 
 const TabbedInterface = () => {
   const {
@@ -32,6 +33,10 @@ const TabbedInterface = () => {
     dataTypes,
     isLoading,
     error,
+    groupIds,
+    orgFilename,
+    orgData,
+    onChildRefresh,
   } = useTabbedInterfaceData(directoryPath);
 
   // Manage API status
@@ -52,6 +57,7 @@ const TabbedInterface = () => {
       setStatusMessage("Data loaded successfully.");
     }
   }, [isLoading, error]);
+  const activeId = groupIds[activeTab];
 
   return (
     <div className="w-full min-h-screen bg-[#f3f0ea] border border-gray-300 rounded-b-md border-t-0 px-6 py-4 relative">
@@ -124,6 +130,7 @@ const TabbedInterface = () => {
             { label: "Valid", color: "bg-gray-200", icon: "✅" },
             { label: "Error", color: "bg-gray-200", icon: "⚠️" },
             { label: "Missing", color: "bg-gray-200", icon: "❓" },
+            { label: "Duplicate", color: "bg-gray-200", icon: "🟡" }, // Added Duplicate
           ].map(({ label, color, icon }) => (
             <button
               key={label}
@@ -185,8 +192,12 @@ const TabbedInterface = () => {
         {/* Table */}
         <div className="mt-6">
           <TableWithErrorIndicators
+            orgData={orgData}
+            groupIds={activeId}
+            directoryPath={directoryPath}
             data={filteredData}
-            inputFile={inputFiles[activeTab]}
+            inputFile={orgFilename[activeTab]}
+            onRefresh={onChildRefresh}
           />
         </div>
 

@@ -9,7 +9,8 @@ def create_document(db: Session, document: DocumentCreate, user_id: int):
     db_document = Document(
         filename=document.filename,
         workflow_path=document.workflow_path,
-        user_id=user_id
+        user_id=user_id,
+        version=1
     )
     db.add(db_document)
     db.commit()

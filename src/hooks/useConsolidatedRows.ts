@@ -12,7 +12,8 @@ export const useConsolidatedRows = (
     workflowPath && token ? ["consolidatedRows", workflowPath, token] : null,
     ([, path, token]) => fetcher(path, token),
     {
-      revalidateOnFocus: true,
+      revalidateOnFocus: false, // 🚀 don't reload when switching back
+      revalidateIfStale: false,
       refreshInterval: 0,
     }
   );

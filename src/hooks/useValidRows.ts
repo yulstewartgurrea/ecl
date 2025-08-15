@@ -8,7 +8,6 @@ export const useValidRows = (workflowPath: string | null) => {
     workflowPath ? ["validRows", workflowPath] : null,
     () => fetcher(workflowPath!),
     {
-      revalidateOnFocus: true,
       refreshInterval: 0,
     }
   );

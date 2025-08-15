@@ -38,6 +38,7 @@ class WorkflowResponse(WorkflowBase):
 class DocumentBase(BaseModel):
     filename: str
     json_data: Optional[str] = None
+    version: Optional[int] = None
     workflow_path: str
 class DocumentCreate(DocumentBase):
     pass
