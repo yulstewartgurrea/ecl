@@ -12,29 +12,38 @@ pub struct FolderContentItem {
 pub struct FolderContents {
     pub items: Vec<FolderContentItem>,
 }
+fn get_server_dir() -> PathBuf {
+    if cfg!(debug_assertions) {
+        // DEV: project root/server
+        let mut dir = std::env::current_dir().unwrap();
+        dir.pop(); // go up from src-tauri
+        dir.push("server");
+        dir
+    } else {
+        // PROD: _up_/server
+        let exe = std::env::current_exe().unwrap();
+        let exe_dir = exe.parent().unwrap();
+        exe_dir.join("_up_").join("server")
+    }
+}
 
 /// Returns the base path depending on dev or prod
 fn get_base_path() -> Result<PathBuf, String> {
-    #[cfg(debug_assertions)]
-    {
-        // DEV mode: relative to project root
+    if cfg!(debug_assertions) {
+        // DEV: project root/server/files
         let mut base_path = std::env::current_dir().map_err(|e| e.to_string())?;
-        base_path.pop(); // go up one level from src-tauri
+        base_path.pop(); // go up from src-tauri
         base_path.push("server");
         base_path.push("files");
         Ok(base_path)
-    }
-
-    #[cfg(not(debug_assertions))]
-    {
-        let package_info = tauri::utils::config::PackageInfo::default();
-        let env = tauri::utils::config::Env::default();
-
-        tauri::utils::platform::resource_dir(&package_info, &env)
-            .map_err(|e| e.to_string())
-            .map(|dir| dir.join("server").join("files"))
+    } else {
+        // PROD: executable_dir/_up_/server/files
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe_dir = exe.parent().ok_or("Failed to get exe directory")?;
+        Ok(exe_dir.join("_up_").join("server").join("files"))
     }
 }
+
 
 #[tauri::command]
 pub fn get_folder_contents(relative_path: &str) -> Result<FolderContents, String> {
