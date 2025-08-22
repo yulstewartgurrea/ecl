@@ -189,6 +189,9 @@ const FileExplorer = () => {
     multiple: true,
     noClick: true,
   });
+  const handleRemoveFile = (fileName: string) => {
+    setContents((prev) => prev.filter((file) => file.name !== fileName));
+  };
 
   return (
     <div className="space-y-4 w-full bg-gray-50 px-4 pt-4 pb-8 rounded-lg border border-gray-200">
@@ -230,7 +233,7 @@ const FileExplorer = () => {
                 <div
                   key={file.name}
                   className={clsx(
-                    "p-3 bg-yellow-50 rounded-lg flex flex-col items-center cursor-pointer hover:bg-gray-200 transition",
+                    "relative p-3 bg-yellow-50 rounded-lg flex flex-col items-center cursor-pointer hover:bg-gray-200 transition",
                     {
                       "bg-yellow-100":
                         selectedFiles[currentPath]?.fileName === file.name,
@@ -240,6 +243,17 @@ const FileExplorer = () => {
                 >
                   {/* Excel File Icon */}
                   <div className="w-12 h-12 rounded-md flex items-center justify-center mb-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent triggering file select
+                        handleRemoveFile(file.name);
+                      }}
+                      className="absolute top-1 right-1 text-gray-600 hover:text-red-600"
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      ×
+                    </button>
                     {/* Excel icon SVG omitted for brevity */}
                     <svg
                       xmlns="http://www.w3.org/2000/svg"

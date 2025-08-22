@@ -1,11 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import {
-  ChevronLeftIcon,
-  CheckCircleIcon,
-  CloudArrowUpIcon,
-} from "@heroicons/react/24/outline";
+import { ChevronLeftIcon } from "@heroicons/react/24/outline";
 import { invoke } from "@tauri-apps/api/core";
 
 interface FileInfo {

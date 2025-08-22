@@ -7,7 +7,8 @@ import { useAppSelector } from "../../redux_toolkit/hooks";
 import { useInsertDocument } from "../../hooks/useTabbedInterfaceData";
 
 interface ColumnStats {
-  complete: number;
+  duplicate: number;
+  valid: number;
   error: number;
   missing: number;
 }
@@ -64,7 +65,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [zoomLevel, setZoomLevel] = useState(0.9);
   const tableRefZoom = useRef<HTMLTableElement | null>(null);
-
+  const [isDelete, setIsDelete] = useState(false);
   const normalize = (str: string) =>
     str.replace(/_/g, " ").trim().toLowerCase();
   const excludedHeaders = [
@@ -77,6 +78,8 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
     "row sequence",
     "source file",
     "group sequence",
+    "status",
+    "duplicate",
   ].map(normalize);
 
   const headers = useMemo(() => {
@@ -86,10 +89,11 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   }, [headersParams, data]);
 
   const headersWithFilter = ["report_date", "cis_number", "pn_number"];
-
+  const addRowIndex = (rows: any[]) =>
+    rows.map((row, i) => ({ ...row, _rowIndex: i }));
   // Initialize tableData and store original deep copy on data change
   useEffect(() => {
-    const deepCopy = JSON.parse(JSON.stringify(data || []));
+    const deepCopy = addRowIndex(data || []);
     originalRowsRef.current = deepCopy;
     setTableData(deepCopy);
     editedIndicesRef.current.clear();
@@ -121,23 +125,42 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   // Stats (based on filtered data)
   const stats = useMemo(() => {
     const result: Record<string, ColumnStats> = {};
+
     headers.forEach((key) => {
-      let complete = 0;
+      let valid = 0;
       let missing = 0;
       let error = 0;
+      let duplicate = 0;
+
       for (const row of filteredTableData) {
-        const value = row[key];
-        if (value === null || value === undefined || value === "") missing++;
-        else if (["ERROR", "NaN", "INVALID"].includes(String(value))) error++;
-        else complete++;
+        const status = row?.status; // <-- FIXED: row.status is a string
+
+        switch (status) {
+          case "valid":
+            valid++;
+            break;
+          case "missing":
+            missing++;
+            break;
+          case "error":
+            error++;
+            break;
+          case "duplicate":
+            duplicate++;
+            break;
+          default:
+            break;
+        }
       }
-      result[key] = { complete, error, missing };
+
+      result[key] = { valid, error, missing, duplicate };
     });
+
     return result;
   }, [filteredTableData, headers]);
 
   const getTotal = (stat: ColumnStats) =>
-    stat.complete + stat.error + stat.missing;
+    stat.valid + stat.error + stat.missing;
   const getPercent = (value: number, total: number) =>
     total === 0 ? 0 : Math.round((value / total) * 100);
 
@@ -153,18 +176,28 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
     window.addEventListener("wheel", handleWheel, { passive: false });
     return () => window.removeEventListener("wheel", handleWheel);
   }, []);
-
-  // handle cell change using the original row index
-  const handleCellChange = (rowIndex: number, key: string, value: string) => {
+  const handleCellChange = (
+    rowIndex: number,
+    key: string,
+    value: string | number
+  ) => {
     setTableData((prev) => {
-      const updated = [...prev];
-      updated[rowIndex] = { ...updated[rowIndex], [key]: value };
-      return updated;
+      const newData = [...prev];
+      newData[rowIndex] = { ...newData[rowIndex], [key]: value };
+      return newData;
     });
-    // mark that original index as edited
     editedIndicesRef.current.add(rowIndex);
   };
-
+  const handleDeleteRow = (rowIndex: number) => {
+    if (!isEditing) return;
+    setTableData((prev) => {
+      const updated = prev.filter((r) => r._rowIndex !== rowIndex);
+      // Reassign _rowIndex to ensure uniqueness
+      return addRowIndex(updated);
+    });
+    setIsDelete(true);
+    editedIndicesRef.current.add(rowIndex);
+  };
   // refresh from backend (keeps Authorization header) and notify parent hook
   const handleRefresh = async (_maybeResultFromInsert?: any) => {
     try {
@@ -220,32 +253,18 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
           merged.push(tableData[j]);
         }
       }
-
-      // Step 3: Remove exactly one duplicate (based on cis_number, pn_number, and report_date)
-      const seen = new Set();
-      merged = merged.filter((row: any) => {
-        if (!row) return false; // skip undefined rows just in case
-
-        const key = `${row.report_date}-${row.cis_number}-${row.pn_number}`;
-        if (seen.has(key)) {
-          // first time duplicate found, skip only once
-          return false;
-        }
-        seen.add(key);
-        return true;
-      });
-
-      // Step 4: Send to backend
+      console.log("test: ", tableData);
+      // Step 3: Send to backend
       const payload = {
         id: groupIds,
         workflow: directoryPath,
         filename: inputFile,
-        updatedData: merged,
+        updatedData: isDelete ? tableData : merged,
       };
 
       await insertDocument(payload, handleRefresh);
 
-      // Step 5: Reset state
+      // Step 4: Reset state
       originalRowsRef.current = JSON.parse(JSON.stringify(merged));
       setTableData(JSON.parse(JSON.stringify(merged)));
       editedIndicesRef.current.clear();
@@ -445,44 +464,57 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
                             </label>
                           ))}
                         </div>
-
-                        <div className="mt-3 flex justify-end gap-2">
+                        <div className="flex justify-end gap-2 text-xs">
                           <button
-                            onClick={cancelFilter}
-                            className="px-3 py-1 rounded border border-gray-400 hover:bg-gray-100"
+                            className="px-2 py-1 border rounded bg-gray-200"
+                            onClick={() => cancelFilter()}
                           >
                             Cancel
                           </button>
                           <button
+                            className="px-2 py-1 border rounded bg-blue-500 text-white"
                             onClick={() =>
                               applyFilter(header, uniqueValuesAll.map(String))
                             }
-                            className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
                           >
                             Apply
                           </button>
                         </div>
                       </div>
                     )}
-                    {filterDropdownOpen !== header &&
+                    {/* {filterDropdownOpen !== header &&
                       hoveredColumn === header &&
                       stats[header] && (
-                        <div className="absolute top-[calc(var(--header-bottom)+5px)] left-[calc(var(--header-left))] z-[9999] w-56 max-h-80 overflow-auto  shadow-lg p-3 text-black">
-                          {/* Caret/Arrow */}
+                        <div
+                          className="
+                            absolute 
+                            top-[calc(var(--header-bottom)+5px)] 
+                            left-[calc(var(--header-left))] 
+                            z-[9999] 
+                            w-max 
+                            max-w-[calc(100vw-20px)] 
+                            overflow-x-auto 
+                            shadow-lg 
+                            p-3 
+                            text-black 
+                            pointer-events-none
+                          "
+                          style={{ transform: "translateX(-50%)" }}
+                        >
                           <div className="w-0 h-0 border-l-6 border-r-6 border-b-6 border-transparent border-b-gray-300 mx-auto" />
 
-                          {/* Tooltip Box */}
-                          <div className="bg-white border border-gray-300 shadow-lg text-gray-800 text-xs px-3 py-2 rounded whitespace-nowrap relative">
+                          <div className="bg-white border border-gray-300 shadow-lg text-gray-800 text-xs px-3 py-2 rounded whitespace-nowrap relative pointer-events-auto">
                             <div className="font-semibold mb-2 text-center">
                               {header}
                             </div>
 
-                            <div className="flex text-center text-[11px] border-t border-gray-200 pt-2">
-                              <div className="flex-1 pr-3 border-r border-gray-300">
+                            <div className="flex flex-nowrap text-center text-[11px] border-t border-gray-200 pt-2 space-x-4">
+                         
+                              <div className="min-w-[60px]">
                                 <div className="text-green-600 font-semibold">
-                                  {stats[header].complete} (
+                                  {stats[header].valid} (
                                   {getPercent(
-                                    stats[header].complete,
+                                    stats[header].valid,
                                     getTotal(stats[header])
                                   )}
                                   %)
@@ -492,7 +524,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
                                 </div>
                               </div>
 
-                              <div className="flex-1 px-3 border-r border-gray-300">
+                              <div className="min-w-[60px]">
                                 <div className="text-orange-500 font-semibold">
                                   {stats[header].error} (
                                   {getPercent(
@@ -506,7 +538,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
                                 </div>
                               </div>
 
-                              <div className="flex-1 pl-3">
+                              <div className="min-w-[60px]">
                                 <div className="text-gray-700 font-semibold">
                                   {stats[header].missing} (
                                   {getPercent(
@@ -519,10 +551,24 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
                                   Missing
                                 </div>
                               </div>
+
+                              <div className="min-w-[60px]">
+                                <div className="text-gray-700 font-semibold">
+                                  {stats[header].duplicate} (
+                                  {getPercent(
+                                    stats[header].duplicate,
+                                    getTotal(stats[header])
+                                  )}
+                                  %)
+                                </div>
+                                <div className="text-gray-600 text-[10px] mt-1">
+                                  Duplicate
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      )}
+                      )} */}
                   </th>
                 );
               })}
@@ -534,19 +580,9 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
             </tr>
           </thead>
           <tbody>
-            {filteredTableData.map((row, filteredIndex) => {
-              const rowIndex = tableData.findIndex((r) => r === row);
-
-              const handleDeleteRow = () => {
-                if (!isEditing) return; // only allow deletion in edit mode
-                setTableData((prev) => {
-                  const updated = [...prev];
-                  updated.splice(rowIndex, 1);
-                  return updated;
-                });
-                // mark as edited to ensure save picks up changes
-                editedIndicesRef.current.add(rowIndex);
-              };
+            {filteredTableData.map((row) => {
+              if (!row) return null; // safeguard
+              const rowIndex = row._rowIndex;
 
               return (
                 <tr key={rowIndex} className="hover:bg-gray-100">
@@ -556,39 +592,49 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
                       className={clsx(
                         "min-w-28 p-2 border border-gray-300 bg-white",
                         {
-                          "text-right": typeof row[key] === "number",
-                          "text-center": typeof row[key] !== "number",
+                          "text-right": !isNaN(Number(row[key])),
+                          "text-center": isNaN(Number(row[key])),
                         }
                       )}
                     >
                       {isEditing ? (
                         <input
                           type="text"
-                          value={tableData[rowIndex][key] ?? ""}
-                          onChange={(e) =>
-                            handleCellChange(rowIndex, key, e.target.value)
-                          }
+                          value={row[key] ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const parsed =
+                              val !== "" && !isNaN(Number(val))
+                                ? Number(val)
+                                : val;
+                            handleCellChange(rowIndex, key, parsed);
+                          }}
                           className="border border-gray-300 rounded px-2 py-1 w-full text-sm"
                         />
-                      ) : typeof row[key] === "number" ? (
-                        formatValueGeneral(row[key], format, decimalPlaces)
+                      ) : row[key] !== "" &&
+                        row[key] !== null &&
+                        !isNaN(Number(row[key])) ? (
+                        formatValueGeneral(
+                          Number(row[key]),
+                          format,
+                          decimalPlaces
+                        ) + row[key]
                       ) : (
-                        row[key]
+                        row[key] ?? ""
                       )}
                     </td>
                   ))}
 
-                  {/* Delete button */}
-                  <td className="text-center p-2 border border-gray-300 bg-white">
-                    {isEditing && (
+                  {isEditing && (
+                    <td className="text-center p-2 border border-gray-300 bg-white">
                       <button
-                        onClick={handleDeleteRow}
+                        onClick={() => handleDeleteRow(rowIndex)}
                         className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
                       >
                         Delete
                       </button>
-                    )}
-                  </td>
+                    </td>
+                  )}
                 </tr>
               );
             })}

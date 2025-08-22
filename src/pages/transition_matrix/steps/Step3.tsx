@@ -91,7 +91,6 @@ const Step3 = () => {
         <>
           <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
           <TableTemplate1 data={data} zoomLevel={zoom} setZoomLevel={setZoom} />
-          sss
         </>
       )}
     </div>

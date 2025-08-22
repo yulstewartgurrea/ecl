@@ -205,7 +205,6 @@ def read_single_excel(
         .all()
     )
 
-    # Debug: show what we filtered
     for rec in records:
         print(f"[read-excel] filtered record -> filename: {rec.filename}, user_id: {rec.user_id}, workflow_path: {rec.workflow_path}, version: {rec.version}")
 
@@ -225,12 +224,10 @@ def read_single_excel(
         for record in records:
             df_rows = None
 
-            # Helper to extract rows whether json_data was list or dict-of-lists
             def extract_rows(parsed):
                 if isinstance(parsed, list):
                     return parsed
                 if isinstance(parsed, dict):
-                    # try values that are lists first
                     for v in parsed.values():
                         if isinstance(v, list):
                             return v
@@ -248,11 +245,10 @@ def read_single_excel(
                     print(f"[read-excel] failed to parse json_data for '{record.filename}': {e}")
                     df_rows = None
 
-            # 2) Fallback to reading Excel file from disk and persist to DB.json_data
+            # 2) Fallback to reading Excel file from disk
             if not df_rows:
                 file_path = base_dir / record.filename
                 if not file_path.exists():
-                    print(f"[read-excel] file not found on disk for '{record.filename}' -> {file_path}")
                     all_processed.append({
                         "id": record.id,
                         "filename": record.filename,
@@ -270,7 +266,8 @@ def read_single_excel(
                     df.columns = [str(c).strip().lower() for c in df.columns]
                     df.replace([np.inf, -np.inf], np.nan, inplace=True)
                     df_rows = [sanitize_for_json(row) for row in df.to_dict(orient="records")]
-                    # Save extracted JSON into DB for next time
+
+                    # Save extracted JSON into DB
                     try:
                         record.json_data = json.dumps(df_rows)
                         db.add(record)
@@ -280,7 +277,6 @@ def read_single_excel(
                         db.rollback()
                         print(f"[read-excel] failed to save json_data for '{record.filename}': {e}")
                 except Exception as e:
-                    print(f"[read-excel] error reading excel for '{record.filename}': {e}")
                     all_processed.append({
                         "id": record.id,
                         "filename": record.filename,
@@ -293,7 +289,6 @@ def read_single_excel(
                     })
                     continue
 
-            # If still no rows after attempts:
             if not df_rows:
                 all_processed.append({
                     "id": record.id,
@@ -307,11 +302,10 @@ def read_single_excel(
                 })
                 continue
 
-            # --- Now recompute everything from df_rows (do NOT trust stored status/errors) ---
+            # --- Row processing ---
             intermediate_rows: List[Dict[str, Any]] = []
             dup_keys: List[tuple] = []
 
-            # numeric parser helper (keeps raw value)
             def to_decimal_with_raw(x):
                 raw = x
                 try:
@@ -325,10 +319,9 @@ def read_single_excel(
                     if s == "":
                         return None, raw
                     return Decimal(s), raw
-                except (InvalidOperation, Exception):
+                except Exception:
                     return None, raw
 
-            # missing value detection helper
             def is_missing_value(val):
                 if val is None:
                     return True
@@ -339,172 +332,66 @@ def read_single_excel(
                     pass
                 if isinstance(val, str):
                     s = val.strip().lower()
-                    if s == "" or s in ("na", "n/a", "null", "none"):
+                    if s in ("", "na", "n/a", "null", "none"):
                         return True
                 return False
 
-            # Process each row and recompute status/errors
             for row in df_rows:
-                prev_status = row.get("status")  # may be None or previous; used for debug print
-                row_out = dict(row)  # shallow copy of row data
-
-                # reset computed fields
+                row_out = dict(row)
                 row_out["errors"] = []
-                row_out["error_explanations"] = []
-                row_out["missing_fields"] = []
+                row_out["status"] = None
+                row_out["duplicate"] = False
 
-                # Date parsing: try to parse and attach parsed values
-                for date_col in ("report_date", "booking_date", "maturity_date"):
-                    raw_val = row.get(date_col)
-                    if not is_missing_value(raw_val):
-                        parsed, norm = try_parse_date(raw_val)
-                        if parsed is None:
-                            code = f"invalid_date_format:{date_col}"
-                            row_out["errors"].append(code)
-                            row_out["error_explanations"].append(
-                                f"Unparsable date in '{date_col}': original value = {repr(raw_val)}. Expected formats: YYYY-MM-DD, YYYY-MM, DD/MM/YYYY, MM/DD/YYYY, etc."
-                            )
-                        else:
-                            row_out[f"{date_col}_parsed"] = parsed.strftime("%Y-%m-%d")
-
-                # Missing check: treat parsed date as present if parse succeeded
-                for col in required_columns:
-                    val = row.get(col)
-                    if col in ("report_date", "booking_date", "maturity_date"):
-                        if row_out.get(f"{col}_parsed"):
-                            continue
-                    if is_missing_value(val):
-                        row_out["missing_fields"].append(col)
-
-                if row_out["missing_fields"]:
+                # --- Missing check ---
+                missing_fields = [col for col in required_columns if is_missing_value(row.get(col))]
+                if missing_fields:
                     row_out["status"] = "missing"
-                    row_out["error_explanations"].append(
-                        f"Missing required fields: {', '.join(row_out['missing_fields'])}"
-                    )
-                    if prev_status != row_out["status"]:
-                        print(f"[read-excel] row status changed: {prev_status} -> {row_out['status']} (file='{record.filename}')")
-                    intermediate_rows.append(row_out)
-                    continue
 
-                # Numeric parsing for dpd, amortization, monthly_payments
-                dpd_val, dpd_raw = to_decimal_with_raw(row.get("dpd"))
-                amort_val, amort_raw = to_decimal_with_raw(row.get("amortization"))
-                monthly_pay_val, monthly_pay_raw = to_decimal_with_raw(row.get("monthly_payments"))
+                # --- Error checks ---
+                if row_out["status"] != "missing":
+                    dpd_val, dpd_raw = to_decimal_with_raw(row.get("dpd"))
+                    amort_val, amort_raw = to_decimal_with_raw(row.get("amortization"))
+                    monthly_pay_val, monthly_pay_raw = to_decimal_with_raw(row.get("monthly_payments"))
 
-                if dpd_val is None:
-                    row_out["errors"].append("numeric_parse:dpd")
-                    row_out["error_explanations"].append(f"Could not parse numeric field 'dpd' (raw value: {repr(dpd_raw)})")
-                if amort_val is None:
-                    row_out["errors"].append("numeric_parse:amortization")
-                    row_out["error_explanations"].append(f"Could not parse numeric field 'amortization' (raw value: {repr(amort_raw)})")
-                if monthly_pay_val is None:
-                    row_out["errors"].append("numeric_parse:monthly_payments")
-                    row_out["error_explanations"].append(f"Could not parse numeric field 'monthly_payments' (raw value: {repr(monthly_pay_raw)})")
+                    if dpd_val is None:
+                        row_out["errors"].append("numeric_parse:dpd")
+                    if amort_val is None:
+                        row_out["errors"].append("numeric_parse:amortization")
+                    if monthly_pay_val is None:
+                        row_out["errors"].append("numeric_parse:monthly_payments")
 
-                # Payment consistency check (flag only)
-                try:
-                    if dpd_val is not None and dpd_val == Decimal(0):
-                        if amort_val is not None and monthly_pay_val is not None and monthly_pay_val != amort_val:
-                            row_out["errors"].append("payment_mismatch_dpd_0")
-                            row_out["error_explanations"].append(
-                                f"DPD is 0 but monthly_payments ({monthly_pay_raw}) != amortization ({amort_raw}). Expected payment equal to amortization when DPD=0."
-                            )
-                except Exception:
-                    row_out["errors"].append("payment_consistency_check_failed")
-                    row_out["error_explanations"].append("Payment consistency check failed due to unexpected error.")
+                    if row_out["errors"]:
+                        row_out["status"] = "error"
 
-                # Final status: if any errors -> 'error', else -> 'valid'
-                if row_out["errors"]:
-                    row_out["status"] = "error"
-                else:
+                # --- Valid fallback ---
+                if row_out["status"] is None:
                     row_out["status"] = "valid"
 
-                if prev_status != row_out["status"]:
-                    print(f"[read-excel] row status changed: {prev_status} -> {row_out['status']} (file='{record.filename}')")
-
-                # collect duplicate detection key
-                rep_norm = row_out.get("report_date_parsed") or row_out.get("report_date") or ""
-                cis = str(row_out.get("cis_number")).strip() if row_out.get("cis_number") is not None else ""
-                pn = str(row_out.get("pn_number")).strip() if row_out.get("pn_number") is not None else ""
+                # --- Collect key for duplicate detection ---
+                rep_norm = row.get("report_date") or ""
+                cis = str(row.get("cis_number") or "").strip()
+                pn = str(row.get("pn_number") or "").strip()
                 dup_keys.append((rep_norm, cis, pn))
 
                 intermediate_rows.append(row_out)
 
-            # Duplicate detection & annotation
-            from collections import Counter, defaultdict
+            # --- Duplicate detection ---
+            from collections import Counter
             dup_counter = Counter(dup_keys)
-            duplicates_found = {k: v for k, v in dup_counter.items() if v > 1}
+            duplicates_found = {k for k, v in dup_counter.items() if v > 1}
 
-            if duplicates_found:
-                group_positions: DefaultDict[tuple, int] = defaultdict(int)
-                for row in intermediate_rows:
-                    rep_norm = row.get("report_date_parsed") or row.get("report_date") or ""
-                    cis = str(row.get("cis_number")).strip() if row.get("cis_number") else ""
-                    pn = str(row.get("pn_number")).strip() if row.get("pn_number") else ""
-                    key = (rep_norm, cis, pn)
-                    if key in duplicates_found:
-                        # Mark duplicate metadata
-                        row["duplicate"] = True
-                        row["duplicate_count"] = int(duplicates_found[key])
-                        # avoid duplicating the error code if already present
-                        if "duplicate_cis_pn_for_report_date" not in (row.get("errors") or []):
-                            row["errors"].append("duplicate_cis_pn_for_report_date")
-                        row["error_explanations"].append(
-                            f"Duplicate records found for (report_date={rep_norm}, cis_number={cis}, pn_number={pn}). Occurrences: {duplicates_found[key]}."
-                        )
-                        group_positions[key] += 1
-                        row["group_sequence"] = group_positions[key]
-
-                # Set status priority: missing > duplicate > error > valid
-                for row in intermediate_rows:
-                    if row.get("status") == "missing":
-                        continue
-                    if row.get("duplicate"):
+            for row in intermediate_rows:
+                rep_norm = row.get("report_date") or ""
+                cis = str(row.get("cis_number") or "").strip()
+                pn = str(row.get("pn_number") or "").strip()
+                key = (rep_norm, cis, pn)
+                if key in duplicates_found:
+                    row["duplicate"] = True
+                    if row["status"] not in ("missing",):
                         row["status"] = "duplicate"
-                    # otherwise leave as 'error' or 'valid' as previously set
 
-            # Compute row_sequence ordering (internal only)
-            ordering = []
-            for i, row in enumerate(intermediate_rows):
-                rep_norm = row.get("report_date_parsed") or row.get("report_date") or ""
-                cis = str(row.get("cis_number")).strip() if row.get("cis_number") else ""
-                pn = str(row.get("pn_number")).strip() if row.get("pn_number") else ""
-                ordering.append((i, rep_norm or "", cis or "", pn or ""))
-
-            ordering_sorted = sorted(ordering, key=lambda t: (t[1], t[2], t[3]))
-            for seq, (orig_index, *_rest) in enumerate(ordering_sorted, start=1):
-                intermediate_rows[orig_index]["row_sequence"] = int(seq)
-
-            if duplicates_found:
-                group_counters: DefaultDict[tuple, int] = defaultdict(int)
-                for orig_index, rep_norm, cis, pn in [(t[0], t[1], t[2], t[3]) for t in ordering_sorted]:
-                    key = (rep_norm, cis, pn)
-                    if key in duplicates_found:
-                        group_counters[key] += 1
-                        intermediate_rows[orig_index]["group_sequence"] = int(group_counters[key])
-                    else:
-                        intermediate_rows[orig_index]["group_sequence"] = 1
-
-            # finalize sanitized processed rows for JSON
-            # remove internal/aux keys that should NOT be returned
-            processed_rows = []
-            for r in intermediate_rows:
-                # create sanitized copy (preserves numeric types nicely)
-                sanitized = sanitize_for_json(r)
-                # Remove fields requested to be omitted from final response
-                for k in (
-                    "error_explanations",
-                    "missing_fields",
-                    "report_date_parsed",
-                    "booking_date_parsed",
-                    "maturity_date_parsed",
-                    "row_sequence",
-                ):
-                    if k in sanitized:
-                        sanitized.pop(k, None)
-                processed_rows.append(sanitized)
-
-            # compute final counts by status
+            # --- Final counts and response ---
+            processed_rows = [sanitize_for_json(r) for r in intermediate_rows]
             total_rows = len(processed_rows)
             missing_count = sum(1 for r in processed_rows if r.get("status") == "missing")
             valid_count = sum(1 for r in processed_rows if r.get("status") == "valid")
@@ -521,12 +408,12 @@ def read_single_excel(
                 "rows": processed_rows
             })
 
-        # Return updated response including duplicate count
         return JSONResponse(content=all_processed)
 
     except Exception as e:
         print(f"[read-excel] unexpected error: {e}")
         return JSONResponse(status_code=500, content={"detail": f"Error reading data: {str(e)}"})
+
 
 
 @router.post("/insert-new-version")

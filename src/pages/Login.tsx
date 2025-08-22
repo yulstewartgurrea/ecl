@@ -52,26 +52,25 @@ const Login = () => {
       <BackgroundComponent />
       {status !== "loading" && (
         <div className="w-1/2 overflow-hidden rounded-3xl shadow-md shadow-[#ccc] relative">
-          <div className="bg-white flex flex-row items-center justify-center px-4 py-6 pt-8 text-center sm:px-16 text-black relative">
-            <div>
+          <div className="bg-white flex flex-row items-center justify-center px-2 py-4 pt-6 text-center sm:px-16 text-black relative">
+            <div className="flex flex-col items-center mr-8">
               <img
-                src={sgvLogo}
+                src="/SGVLogoLight.png"
                 alt="Logo"
                 height={80}
                 width={80}
-                className="mr-2 rounded-[3px]"
+                className="rounded-[3px]"
               />
-            </div>
-            <div className="flex flex-col mr-8">
-              <h3 className="text-2xl text-black mt-2"> ECL Automation</h3>
+              <h3 className="text-2xl text-black mt-2">ECL Automation</h3>
               <p className="text-lg text-black mt-2">
-                An Integrated Stress Testing Internal Tool
+                Streamlining Expected Credit Loss calculations for smarter,
+                data-driven risk management
               </p>
             </div>
           </div>
           <form
             onSubmit={handleLogin}
-            className="flex flex-col  bg-white px-4 pb-6 pt-8 sm:px-16"
+            className="flex flex-col  bg-white px-2 py-4 pt-6 sm:px-16"
           >
             <div>
               <label htmlFor="username" className="block uppercase">
@@ -106,7 +105,7 @@ const Login = () => {
               )}
               <button
                 type="submit"
-                className="bg-[#762627] text-white font-bold py-6 w-full rounded-md flex items-center justify-center gap-2"
+                className="bg-[#762627] text-white font-bold py-6 w-full rounded-md flex items-center justify-center cursor-pointer gap-2"
                 // onClick={handleLogin}
               >
                 {status !== "idle" ? "Logging in..." : "Log In"}

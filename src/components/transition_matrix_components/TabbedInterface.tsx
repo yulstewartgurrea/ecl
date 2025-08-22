@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
-import { useTabbedInterfaceData } from "../../hooks/useTabbedInterfaceData"; // adjust path
+import { useTabbedInterfaceData } from "../../hooks/useTabbedInterfaceData";
 import clsx from "clsx";
 
 import TableWithErrorIndicators from "./TableWithErrorIndicators";
@@ -165,6 +165,10 @@ const TabbedInterface = () => {
               className="bg-gray-700 h-full"
               style={{ width: `${currentMetrics.missing}%` }}
             />
+            <div
+              className="bg-yellow-700 h-full"
+              style={{ width: `${currentMetrics.duplicate}%` }}
+            />
           </div>
           <div className="flex flex-grow gap-2 justify-between text-sm">
             <span>{columnCount} Columns</span>
@@ -186,6 +190,10 @@ const TabbedInterface = () => {
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-gray-700 rounded-sm" />
             <span>{currentMetrics.missing}% Missing</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-yellow-700 rounded-sm" />
+            <span>{currentMetrics.duplicate}% Duplicate</span>
           </div>
         </div>
 

@@ -4,6 +4,7 @@ import { useAppSelector } from "../redux_toolkit/hooks";
 import useSWRMutation from "swr/mutation";
 
 type Metrics = {
+  duplicate: number;
   valid: number;
   error: number;
   missing: number;
@@ -101,10 +102,16 @@ export function useTabbedInterfaceData(
           const key = baseName.replace(/\s+/g, "_");
 
           metrics[key] = {
+            duplicate: fileEntry.duplicate ?? null,
             valid: fileEntry.valid ?? 0,
             missing: fileEntry.missing ?? 0,
             error: fileEntry.error ?? 0,
           };
+          const existingMetrics = JSON.parse(
+            localStorage.getItem("metrics") || "{}"
+          );
+          const updatedMetrics = { ...existingMetrics, ...metrics };
+          localStorage.setItem("metrics", JSON.stringify(updatedMetrics));
           orgFileName.push(fileEntry.filename);
           ids.push(fileEntry.id); // <-- correctly push id
           fileNames.push(key);
@@ -164,6 +171,9 @@ export function useTabbedInterfaceData(
       valid: total ? Math.round((countByStatus("valid") / total) * 100) : 0,
       error: total ? Math.round((countByStatus("error") / total) * 100) : 0,
       missing: total ? Math.round((countByStatus("missing") / total) * 100) : 0,
+      duplicate: total
+        ? Math.round((countByStatus("duplicate") / total) * 100)
+        : 0,
     };
   }, [filteredData]);
 

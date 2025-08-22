@@ -43,6 +43,7 @@ const stepLabels = [
 const PdTransitionMatrixWorkflow = () => {
   const dispatch = useAppDispatch();
   const [currentStep, setCurrentStep] = useState(0);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const [stepsCompletionStatus, setStepsCompletionStatus] = useState<
     { label: string; completed: boolean }[] | null
@@ -70,6 +71,13 @@ const PdTransitionMatrixWorkflow = () => {
 
   const handleContinue = () => {
     if (!stepsCompletionStatus) return;
+
+    // If in Step 2 ("Data Validation"), open modal first
+    if (currentStep === 1) {
+      setShowConfirmModal(true);
+      return;
+    }
+
     if (currentStep === 2 && consolidationSubStep === 0) {
       setConsolidationSubStep(1);
       return;
@@ -181,6 +189,62 @@ const PdTransitionMatrixWorkflow = () => {
 
   return (
     <div>
+      {showConfirmModal && (
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-white/30 z-50">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-6 w-[28rem]">
+            <h2 className="text-lg font-semibold mb-3">
+              Proceed to data consolidation?
+            </h2>
+            <p className="text-sm text-gray-600 mb-5">
+              Some records still contain{" "}
+              <span className="font-medium">missing data</span>,
+              <span className="font-medium">errors</span>, or
+              <span className="font-medium"> duplicate</span> statutes that have
+              been detected.
+            </p>
+
+            {/* Show metrics from localStorage */}
+            <div className="max-h-48 overflow-y-auto border rounded-md p-2 mb-5 bg-gray-50">
+              {Object.entries(
+                JSON.parse(localStorage.getItem("metrics") || "{}")
+              ).map(([key, val]: any) => (
+                <div
+                  key={key}
+                  className="text-sm py-1 border-b last:border-b-0"
+                >
+                  <strong>{key}</strong>: missing {val.missing}, error{" "}
+                  {val.error}, duplicate {val.duplicate ?? "N/A"}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setStepsCompletionStatus((prev: any) =>
+                    prev?.map((step: any, idx: number) =>
+                      idx === currentStep ? { ...step, completed: true } : step
+                    )
+                  );
+                  setCurrentStep((prev) => prev + 1);
+                  setConsolidationSubStep(0);
+                }}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-row items-start justify-between gap-1 bg-[#f8f8f8] px-4 py-2 sticky top-0 z-20">
         <div className="mt-1">
           <button
