@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { FunnelIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, FunnelIcon, PencilIcon } from "@heroicons/react/24/outline";
 import { formatValueGeneral } from "../../utils/CommonHelper";
 import ApiStatusIndicator from "../../components/ApiStatusIndicators";
 import { useAppSelector } from "../../redux_toolkit/hooks";
@@ -322,324 +322,246 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
         onHide={() => setStatus("idle")}
       />
 
-      <div className="flex justify-between items-center mb-2">
-        {isEditing ? (
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-          >
-            Save
-          </button>
-        ) : (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Edit
-          </button>
-        )}
-      </div>
-
       <div
         className={clsx(
           additionalCss?.outerDiv ?? "overflow-auto max-h-screen min-w-full",
-          "relative" // relative for absolute dropdown
+          "flex flex-col"
         )}
         onClick={() => setFilterDropdownOpen(null)}
       >
-        <table ref={tableRefZoom} className="border border-gray-300 w-full">
-          <thead className="sticky top-0 z-10 bg-[#444444]">
-            <tr>
-              {headers.map((header) => {
-                const uniqueValuesAll = Array.from(
-                  new Set(
-                    (data || []).map((row) => row[header]).filter(Boolean)
-                  )
-                ).map(String);
-                const showFilter = headersWithFilter.includes(header);
-                const searchTerm = filterSearch[header] || "";
-                const uniqueValuesFiltered = uniqueValuesAll.filter((val) =>
-                  val.toLowerCase().includes(searchTerm.toLowerCase())
-                );
+        {/* Buttons row aligned to right above the table */}
+        <div className="flex justify-end mb-2 gap-2">
+          {isEditing ? (
+            <button
+              onClick={handleSave}
+              className="flex items-center gap-1 px-3 py-2 bg-green-500 rounded hover:bg-green-600"
+              title="Save"
+            >
+              <CheckIcon className="w-5 h-5 text-black" />
+              <span>Save</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="flex items-center gap-1 bg-[#fce404] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
+              title="Edit"
+            >
+              <PencilIcon className="w-5 h-5 text-black" />
+              <span>Edit</span>
+            </button>
+          )}
+        </div>
 
-                return (
-                  <th
-                    key={header}
-                    className="bg-[#444444] text-white p-3 border border-white relative text-nowrap cursor-default hover:bg-gray-700 transition-colors duration-200 rounded"
-                    onMouseEnter={() => setHoveredColumn(header)}
-                    onMouseLeave={() => setHoveredColumn(null)}
-                  >
-                    <div className="flex items-center justify-center gap-1">
-                      <span className="font-semibold tracking-wide select-none">
-                        {header.replace(/_/g, " ")}
-                      </span>
-                      {showFilter && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFilterDropdownOpen(
-                              filterDropdownOpen === header ? null : header
-                            );
-                            setFilterSearch((prev) => ({
-                              ...prev,
-                              [header]: "",
-                            }));
-                            if (!filterSelections[header]) {
-                              setFilterSelections((prev) => ({
+        {/* Table */}
+        <div className="overflow-auto h-[80vh] border border-gray-300 rounded">
+          <table ref={tableRefZoom} className="border border-gray-300">
+            <thead className="sticky top-0 z-10 bg-[#444444]">
+              <tr>
+                {headers.map((header) => {
+                  const uniqueValuesAll = Array.from(
+                    new Set(
+                      (data || []).map((row) => row[header]).filter(Boolean)
+                    )
+                  ).map(String);
+                  const showFilter = headersWithFilter.includes(header);
+                  const searchTerm = filterSearch[header] || "";
+                  const uniqueValuesFiltered = uniqueValuesAll.filter((val) =>
+                    val.toLowerCase().includes(searchTerm.toLowerCase())
+                  );
+
+                  return (
+                    <th
+                      key={header}
+                      className="bg-[#444444] text-white p-3 border border-white relative text-nowrap cursor-default hover:bg-gray-700 transition-colors duration-200 rounded"
+                      onMouseEnter={() => setHoveredColumn(header)}
+                      onMouseLeave={() => setHoveredColumn(null)}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="font-semibold tracking-wide select-none">
+                          {header.replace(/_/g, " ")}
+                        </span>
+                        {showFilter && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFilterDropdownOpen(
+                                filterDropdownOpen === header ? null : header
+                              );
+                              setFilterSearch((prev) => ({
                                 ...prev,
-                                [header]: new Set(uniqueValuesAll.map(String)),
+                                [header]: "",
                               }));
-                            }
-                          }}
-                          className={clsx(
-                            "p-1 rounded hover:bg-gray-600 transition-colors",
-                            filters[header] ? "text-yellow-400" : "text-white"
-                          )}
-                          aria-label={`Toggle filter for ${header}`}
-                        >
-                          <FunnelIcon className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Move the dropdown outside of table's scroll clipping */}
-                    {filterDropdownOpen === header && (
-                      <div
-                        className="absolute top-[calc(var(--header-bottom)+5px)] left-[calc(var(--header-left))] z-[9999] w-56 max-h-80 overflow-auto bg-white border border-gray-300 rounded shadow-lg p-3 text-black"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="text"
-                          placeholder="Search..."
-                          className="w-full p-1 mb-2 border border-gray-300 rounded"
-                          value={filterSearch[header] || ""}
-                          onChange={(e) =>
-                            setFilterSearch((prev) => ({
-                              ...prev,
-                              [header]: e.target.value,
-                            }))
-                          }
-                        />
-                        <div className="mb-2 flex justify-between text-xs font-semibold">
-                          <button
-                            onClick={() =>
-                              selectAll(header, uniqueValuesAll.map(String))
-                            }
-                            className="underline hover:text-blue-600"
+                              if (!filterSelections[header]) {
+                                setFilterSelections((prev) => ({
+                                  ...prev,
+                                  [header]: new Set(
+                                    uniqueValuesAll.map(String)
+                                  ),
+                                }));
+                              }
+                            }}
+                            className={clsx(
+                              "p-1 rounded hover:bg-gray-600 transition-colors",
+                              filters[header] ? "text-yellow-400" : "text-white"
+                            )}
+                            aria-label={`Toggle filter for ${header}`}
                           >
-                            Select All
+                            <FunnelIcon className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => clearAll(header)}
-                            className="underline hover:text-blue-600"
-                          >
-                            Clear All
-                          </button>
-                        </div>
-
-                        <div className="max-h-44 overflow-auto border border-gray-200 rounded p-1">
-                          {uniqueValuesFiltered.length === 0 && (
-                            <div className="text-center text-gray-500 text-xs italic">
-                              No values
-                            </div>
-                          )}
-                          {uniqueValuesFiltered.map((val) => (
-                            <label
-                              key={val}
-                              className="block text-sm cursor-pointer text-left select-none hover:bg-gray-100 rounded px-1"
-                            >
-                              <input
-                                type="checkbox"
-                                className="mr-2"
-                                checked={
-                                  filterSelections[header]?.has(String(val)) ||
-                                  false
-                                }
-                                onChange={() =>
-                                  toggleSelection(header, String(val))
-                                }
-                              />
-                              {val}
-                            </label>
-                          ))}
-                        </div>
-                        <div className="flex justify-end gap-2 text-xs">
-                          <button
-                            className="px-2 py-1 border rounded bg-gray-200"
-                            onClick={() => cancelFilter()}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            className="px-2 py-1 border rounded bg-blue-500 text-white"
-                            onClick={() =>
-                              applyFilter(header, uniqueValuesAll.map(String))
-                            }
-                          >
-                            Apply
-                          </button>
-                        </div>
+                        )}
                       </div>
-                    )}
-                    {/* {filterDropdownOpen !== header &&
-                      hoveredColumn === header &&
-                      stats[header] && (
+                      {filterDropdownOpen === header && (
                         <div
-                          className="
-                            absolute 
-                            top-[calc(var(--header-bottom)+5px)] 
-                            left-[calc(var(--header-left))] 
-                            z-[9999] 
-                            w-max 
-                            max-w-[calc(100vw-20px)] 
-                            overflow-x-auto 
-                            shadow-lg 
-                            p-3 
-                            text-black 
-                            pointer-events-none
-                          "
-                          style={{ transform: "translateX(-50%)" }}
+                          className="absolute top-[calc(var(--header-bottom)+5px)] left-[calc(var(--header-left))] z-[9999] w-56 max-h-80 overflow-auto bg-white border border-gray-300 rounded shadow-lg p-3 text-black"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <div className="w-0 h-0 border-l-6 border-r-6 border-b-6 border-transparent border-b-gray-300 mx-auto" />
+                          <input
+                            type="text"
+                            placeholder="Search..."
+                            className="w-full p-1 mb-2 border border-gray-300 rounded"
+                            value={filterSearch[header] || ""}
+                            onChange={(e) =>
+                              setFilterSearch((prev) => ({
+                                ...prev,
+                                [header]: e.target.value,
+                              }))
+                            }
+                          />
+                          <div className="mb-2 flex justify-between text-xs font-semibold">
+                            <button
+                              onClick={() =>
+                                selectAll(header, uniqueValuesAll.map(String))
+                              }
+                              className="underline hover:text-blue-600"
+                            >
+                              Select All
+                            </button>
+                            <button
+                              onClick={() => clearAll(header)}
+                              className="underline hover:text-blue-600"
+                            >
+                              Clear All
+                            </button>
+                          </div>
 
-                          <div className="bg-white border border-gray-300 shadow-lg text-gray-800 text-xs px-3 py-2 rounded whitespace-nowrap relative pointer-events-auto">
-                            <div className="font-semibold mb-2 text-center">
-                              {header}
-                            </div>
-
-                            <div className="flex flex-nowrap text-center text-[11px] border-t border-gray-200 pt-2 space-x-4">
-                         
-                              <div className="min-w-[60px]">
-                                <div className="text-green-600 font-semibold">
-                                  {stats[header].valid} (
-                                  {getPercent(
-                                    stats[header].valid,
-                                    getTotal(stats[header])
-                                  )}
-                                  %)
-                                </div>
-                                <div className="text-gray-600 text-[10px] mt-1">
-                                  Valid
-                                </div>
+                          <div className="max-h-44 overflow-auto border border-gray-200 rounded p-1">
+                            {uniqueValuesFiltered.length === 0 && (
+                              <div className="text-center text-gray-500 text-xs italic">
+                                No values
                               </div>
-
-                              <div className="min-w-[60px]">
-                                <div className="text-orange-500 font-semibold">
-                                  {stats[header].error} (
-                                  {getPercent(
-                                    stats[header].error,
-                                    getTotal(stats[header])
-                                  )}
-                                  %)
-                                </div>
-                                <div className="text-gray-600 text-[10px] mt-1">
-                                  Error
-                                </div>
-                              </div>
-
-                              <div className="min-w-[60px]">
-                                <div className="text-gray-700 font-semibold">
-                                  {stats[header].missing} (
-                                  {getPercent(
-                                    stats[header].missing,
-                                    getTotal(stats[header])
-                                  )}
-                                  %)
-                                </div>
-                                <div className="text-gray-600 text-[10px] mt-1">
-                                  Missing
-                                </div>
-                              </div>
-
-                              <div className="min-w-[60px]">
-                                <div className="text-gray-700 font-semibold">
-                                  {stats[header].duplicate} (
-                                  {getPercent(
-                                    stats[header].duplicate,
-                                    getTotal(stats[header])
-                                  )}
-                                  %)
-                                </div>
-                                <div className="text-gray-600 text-[10px] mt-1">
-                                  Duplicate
-                                </div>
-                              </div>
-                            </div>
+                            )}
+                            {uniqueValuesFiltered.map((val) => (
+                              <label
+                                key={val}
+                                className="block text-sm cursor-pointer text-left select-none hover:bg-gray-100 rounded px-1"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="mr-2"
+                                  checked={
+                                    filterSelections[header]?.has(
+                                      String(val)
+                                    ) || false
+                                  }
+                                  onChange={() =>
+                                    toggleSelection(header, String(val))
+                                  }
+                                />
+                                {val}
+                              </label>
+                            ))}
+                          </div>
+                          <div className="flex justify-end gap-2 text-xs">
+                            <button
+                              className="px-2 py-1 border rounded bg-gray-200"
+                              onClick={() => cancelFilter()}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              className="px-2 py-1 border rounded bg-blue-500 text-white"
+                              onClick={() =>
+                                applyFilter(header, uniqueValuesAll.map(String))
+                              }
+                            >
+                              Apply
+                            </button>
                           </div>
                         </div>
-                      )} */}
+                      )}
+                    </th>
+                  );
+                })}
+                {filteredTableData.length > 0 && isEditing && (
+                  <th className="bg-[#444444] text-white p-3 border border-white text-center">
+                    Actions
                   </th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTableData.map((row) => {
+                if (!row) return null; // safeguard
+                const rowIndex = row._rowIndex;
+
+                return (
+                  <tr key={rowIndex} className="hover:bg-gray-100">
+                    {headers.map((key) => (
+                      <td
+                        key={key}
+                        className={clsx(
+                          "min-w-28 p-2 border border-gray-300 bg-white",
+                          {
+                            "text-right": !isNaN(Number(row[key])),
+                            "text-center": isNaN(Number(row[key])),
+                          }
+                        )}
+                      >
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={row[key] ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const parsed =
+                                val !== "" && !isNaN(Number(val))
+                                  ? Number(val)
+                                  : val;
+                              handleCellChange(rowIndex, key, parsed);
+                            }}
+                            className="border border-gray-300 rounded px-2 py-1 w-full text-sm"
+                          />
+                        ) : row[key] !== "" &&
+                          row[key] !== null &&
+                          !isNaN(Number(row[key])) ? (
+                          formatValueGeneral(
+                            Number(row[key]),
+                            format,
+                            decimalPlaces
+                          ) + row[key]
+                        ) : (
+                          row[key] ?? ""
+                        )}
+                      </td>
+                    ))}
+
+                    {isEditing && (
+                      <td className="text-center p-2 border border-gray-300 bg-white">
+                        <button
+                          onClick={() => handleDeleteRow(rowIndex)}
+                          className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    )}
+                  </tr>
                 );
               })}
-              {filteredTableData.length > 0 && isEditing && (
-                <th className="bg-[#444444] text-white p-3 border border-white text-center">
-                  Actions
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredTableData.map((row) => {
-              if (!row) return null; // safeguard
-              const rowIndex = row._rowIndex;
-
-              return (
-                <tr key={rowIndex} className="hover:bg-gray-100">
-                  {headers.map((key) => (
-                    <td
-                      key={key}
-                      className={clsx(
-                        "min-w-28 p-2 border border-gray-300 bg-white",
-                        {
-                          "text-right": !isNaN(Number(row[key])),
-                          "text-center": isNaN(Number(row[key])),
-                        }
-                      )}
-                    >
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          value={row[key] ?? ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const parsed =
-                              val !== "" && !isNaN(Number(val))
-                                ? Number(val)
-                                : val;
-                            handleCellChange(rowIndex, key, parsed);
-                          }}
-                          className="border border-gray-300 rounded px-2 py-1 w-full text-sm"
-                        />
-                      ) : row[key] !== "" &&
-                        row[key] !== null &&
-                        !isNaN(Number(row[key])) ? (
-                        formatValueGeneral(
-                          Number(row[key]),
-                          format,
-                          decimalPlaces
-                        ) + row[key]
-                      ) : (
-                        row[key] ?? ""
-                      )}
-                    </td>
-                  ))}
-
-                  {isEditing && (
-                    <td className="text-center p-2 border border-gray-300 bg-white">
-                      <button
-                        onClick={() => handleDeleteRow(rowIndex)}
-                        className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );

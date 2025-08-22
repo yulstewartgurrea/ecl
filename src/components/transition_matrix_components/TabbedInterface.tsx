@@ -60,7 +60,7 @@ const TabbedInterface = () => {
   const activeId = groupIds[activeTab];
 
   return (
-    <div className="w-full min-h-screen bg-[#f3f0ea] border border-gray-300 rounded-b-md border-t-0 px-6 py-4 relative">
+    <div className="w-full min-h-screen  relative">
       <ApiStatusIndicator
         status={status}
         message={statusMessage}
@@ -73,14 +73,14 @@ const TabbedInterface = () => {
         </div>
       )}
 
-      <div className="flex mt-8 relative" ref={containerRef}>
+      <div className="flex mt-4 relative" ref={containerRef}>
         {visibleTabs.map((tab, index) => (
           <button
             key={index}
             onClick={() => setActiveTab(index)}
             disabled={isLoading}
             className={clsx(
-              "mr-1 py-2 px-4 rounded-t-md w-[140px] truncate text-ellipsis whitespace-nowrap",
+              "mr-1 py-2 px-4 rounded-t-md w-[160px] truncate text-ellipsis whitespace-nowrap",
               activeTab === index
                 ? "bg-[#ad8a49] text-white"
                 : "border-x border-t border-gray-300 text-gray-500 bg-gray-50",
@@ -123,7 +123,7 @@ const TabbedInterface = () => {
         )}
       </div>
 
-      <div className="mb-4 mt-2">
+      <div className="mb-4 bg-[#f3f0ea] w-full min-h-screen  border border-gray-300 rounded-b-md border-t-0 px-6 py-4 relative">
         <div className="flex gap-2 my-4 flex-wrap">
           {[
             { label: "All", color: "bg-gray-200", icon: "📄" },

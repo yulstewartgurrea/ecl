@@ -105,7 +105,7 @@ const Login = () => {
               )}
               <button
                 type="submit"
-                className="bg-[#762627] text-white font-bold py-6 w-full rounded-md flex items-center justify-center cursor-pointer gap-2"
+                className="bg-[#762627]  text-lg text-white font-bold py-6 w-full rounded-2xl flex items-center justify-center cursor-pointer gap-2"
                 // onClick={handleLogin}
               >
                 {status !== "idle" ? "Logging in..." : "Log In"}
