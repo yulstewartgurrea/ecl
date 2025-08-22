@@ -65,6 +65,7 @@ const FileExplorer = () => {
 
         if (!response.ok) {
           // Reflect error with specific message
+          console.log(importedFiles)
           setStatus("error");
           setStatusMessage(`Error ${response.status}: ${response.statusText}`);
           return;

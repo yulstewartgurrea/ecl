@@ -40,6 +40,7 @@ const TabbedInterface = () => {
   } = useTabbedInterfaceData(directoryPath);
 
   // Manage API status
+  console.log(inputFiles)
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");

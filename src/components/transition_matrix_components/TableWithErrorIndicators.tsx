@@ -6,12 +6,6 @@ import ApiStatusIndicator from "../../components/ApiStatusIndicators";
 import { useAppSelector } from "../../redux_toolkit/hooks";
 import { useInsertDocument } from "../../hooks/useTabbedInterfaceData";
 
-interface ColumnStats {
-  duplicate: number;
-  valid: number;
-  error: number;
-  missing: number;
-}
 
 interface TableWithErrorIndicatorsProps {
   data: Array<{ [key: string]: any }>;
@@ -122,47 +116,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
     );
   }, [tableData, filters]);
 
-  // Stats (based on filtered data)
-  const stats = useMemo(() => {
-    const result: Record<string, ColumnStats> = {};
 
-    headers.forEach((key) => {
-      let valid = 0;
-      let missing = 0;
-      let error = 0;
-      let duplicate = 0;
-
-      for (const row of filteredTableData) {
-        const status = row?.status; // <-- FIXED: row.status is a string
-
-        switch (status) {
-          case "valid":
-            valid++;
-            break;
-          case "missing":
-            missing++;
-            break;
-          case "error":
-            error++;
-            break;
-          case "duplicate":
-            duplicate++;
-            break;
-          default:
-            break;
-        }
-      }
-
-      result[key] = { valid, error, missing, duplicate };
-    });
-
-    return result;
-  }, [filteredTableData, headers]);
-
-  const getTotal = (stat: ColumnStats) =>
-    stat.valid + stat.error + stat.missing;
-  const getPercent = (value: number, total: number) =>
-    total === 0 ? 0 : Math.round((value / total) * 100);
 
   // zoom wheel handler
   useEffect(() => {
@@ -209,6 +163,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
       );
       if (!response.ok) {
         console.error("Refresh failed", await response.text());
+        console.log('hoveredColumn', hoveredColumn, zoomLevel)
         if (onRefresh) onRefresh(null);
         return null;
       }

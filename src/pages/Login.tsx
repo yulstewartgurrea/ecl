@@ -4,7 +4,6 @@ import { useLogin } from "../hooks/useLogin";
 import ApiStatusIndicator from "../components/ApiStatusIndicators";
 import BackgroundComponent from "../components/BGComponent";
 import { ArrowRightStartOnRectangleIcon } from "@heroicons/react/24/outline";
-import sgvLogo from "../assets/sgv_logo.png";
 
 const Login = () => {
   const [username, setUsername] = useState<string>("");

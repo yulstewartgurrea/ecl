@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import  { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import {
@@ -110,11 +110,11 @@ const TransitionMatrixLanding = () => {
         }
 
         // Assuming your backend creates the workflow successfully
-        const workflowData = await workflowResponse.json();
+        await workflowResponse.json();
 
         // ... your invoke call to create folder tree (same as before)
 
-        const folderTreeResponse = await invoke("create_folder_tree", {
+        await invoke("create_folder_tree", {
           entity: selectedPdTransitionMatrixEntity,
           period: selectedPdTransitionMatrixReportingPeriod,
           workflowName: pdTransitionMatrixWfName,

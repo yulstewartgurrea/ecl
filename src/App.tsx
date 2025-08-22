@@ -27,7 +27,7 @@ function App() {
       dispatch(loginAction({ username, token, role }));
     }
   }, [dispatch, isLoggedIn]);
-
+  console.log('isLoggedIn: ', isLoggedIn)
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

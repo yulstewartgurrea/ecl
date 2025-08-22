@@ -63,11 +63,11 @@ const PdTransitionMatrixWorkflow = () => {
     }
   }, [stepsCompletionStatus]);
 
-  const handleStepClick = (index: number) => {
-    if (stepsCompletionStatus && stepsCompletionStatus[index].completed) {
-      setCurrentStep(index);
-    }
-  };
+  // const handleStepClick = (index: number) => {
+  //   if (stepsCompletionStatus && stepsCompletionStatus[index].completed) {
+  //     setCurrentStep(index);
+  //   }
+  // };
 
   const handleContinue = () => {
     if (!stepsCompletionStatus) return;
