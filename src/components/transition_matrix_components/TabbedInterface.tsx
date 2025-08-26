@@ -21,14 +21,12 @@ const TabbedInterface = () => {
   const directoryPath = `/${entity}/${period}/${workflowName}`;
   const {
     containerRef,
-    inputFiles,
     activeTab,
     setActiveTab,
     filter,
     setFilter,
     visibleTabs,
     overflowTabs,
-    filteredData,
     currentMetrics,
     columnCount,
     rowCount,
@@ -37,7 +35,6 @@ const TabbedInterface = () => {
     error,
     groupIds,
     orgFilename,
-    orgData,
     onChildRefresh,
   } = useTabbedInterfaceData(directoryPath);
   useEffect(() => {
@@ -96,10 +93,7 @@ const TabbedInterface = () => {
     }));
   };
 
-  const { document, isLoading: docLoading } = useDocumentById(
-    selectedVersion,
-    authToken
-  );
+  const { document } = useDocumentById(selectedVersion, authToken);
   return (
     <div className="w-full min-h-screen  relative">
       <ApiStatusIndicator
@@ -133,7 +127,7 @@ const TabbedInterface = () => {
           </button>
         ))}
         {overflowTabs.length > 0 && (
-          <div className="relative group">
+          <div className="relative group z-999">
             <button
               disabled={isLoading}
               className={clsx(
@@ -143,7 +137,7 @@ const TabbedInterface = () => {
             >
               ▼
             </button>
-            <div className="absolute top-full left-0 bg-white border border-gray-300 rounded-md shadow-lg z-10 hidden group-hover:block">
+            <div className="absolute top-full right-0 bg-white border border-gray-300 rounded-md shadow-lg z-10 hidden group-hover:block min-w-[140px]">
               {overflowTabs.map((tab, i) => {
                 const realIndex = visibleTabs.length + i;
                 return (
@@ -151,7 +145,7 @@ const TabbedInterface = () => {
                     key={realIndex}
                     onClick={() => !isLoading && setActiveTab(realIndex)}
                     className={clsx(
-                      "px-4 py-2 cursor-pointer hover:bg-gray-100 truncate w-[140px]",
+                      "px-4 py-2 cursor-pointer hover:bg-[#ad8a49]-100 truncate",
                       activeTab === realIndex && "bg-[#ad8a49] text-white",
                       isLoading && "cursor-not-allowed opacity-50"
                     )}
