@@ -21,10 +21,15 @@ import Step9 from "./steps/Step9";
 import Step10 from "./steps/Step10";
 import Step11 from "./steps/Step11";
 
-//redux toolkit
+// redux toolkit
 import { useAppDispatch } from "../../redux_toolkit/hooks";
 import { resetStateNavUIState } from "../../redux_toolkit/features/general/navUIState";
-import { resetPdTransitionMatrixWfHelperData } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
+import {
+  resetPdTransitionMatrixWfHelperData,
+  setPdTransitionMatrixCurrentStep,
+} from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
+import { useSelector } from "react-redux";
+import type { RootState } from "../../redux_toolkit/store";
 
 const stepLabels = [
   "Input Files",
@@ -42,8 +47,15 @@ const stepLabels = [
 
 const PdTransitionMatrixWorkflow = () => {
   const dispatch = useAppDispatch();
-  const [currentStep, setCurrentStep] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Redux current step
+  const currentStep = useSelector(
+    (state: RootState) => state.pdTransitionMatrixWfHelper.currentStep
+  );
+  const setCurrentStepRedux = (step: number) => {
+    dispatch(setPdTransitionMatrixCurrentStep({ step }));
+  };
 
   const [stepsCompletionStatus, setStepsCompletionStatus] = useState<
     { label: string; completed: boolean }[] | null
@@ -62,12 +74,6 @@ const PdTransitionMatrixWorkflow = () => {
       );
     }
   }, [stepsCompletionStatus]);
-
-  // const handleStepClick = (index: number) => {
-  //   if (stepsCompletionStatus && stepsCompletionStatus[index].completed) {
-  //     setCurrentStep(index);
-  //   }
-  // };
 
   const handleContinue = () => {
     if (!stepsCompletionStatus) return;
@@ -89,7 +95,7 @@ const PdTransitionMatrixWorkflow = () => {
       )
     );
 
-    setCurrentStep((prev) => prev + 1);
+    setCurrentStepRedux(currentStep + 1);
     setConsolidationSubStep(0);
   };
 
@@ -99,7 +105,7 @@ const PdTransitionMatrixWorkflow = () => {
       setConsolidationSubStep(0);
       return;
     }
-    setCurrentStep((prev) => Math.max(0, prev - 1));
+    setCurrentStepRedux(Math.max(0, currentStep - 1));
   };
 
   const renderStepComponent = () => {
@@ -134,6 +140,7 @@ const PdTransitionMatrixWorkflow = () => {
   let stepDescriptionTitle = stepLabels[currentStep];
   let stepDescription = "Default description here";
   let continueLabel = "Continue";
+
   if (currentStep === 1) {
     stepDescriptionTitle = "";
     stepDescription = "";
@@ -175,7 +182,7 @@ const PdTransitionMatrixWorkflow = () => {
     continueLabel = "Use Markov property";
   } else if (currentStep === 8) {
     stepDescriptionTitle = "Markov Chain";
-    stepDescription = "uses the Markov property to derive the 12-month TTC PD.";
+    stepDescription = "Uses the Markov property to derive the 12-month TTC PD.";
     continueLabel = "Generate Output";
   } else if (currentStep === 9) {
     stepDescriptionTitle = "TTC PD";
@@ -203,7 +210,6 @@ const PdTransitionMatrixWorkflow = () => {
               been detected.
             </p>
 
-            {/* Show metrics from localStorage */}
             <div className="max-h-64 overflow-y-auto border rounded-md p-3 mb-5 bg-gray-50">
               {Object.entries(
                 JSON.parse(localStorage.getItem("metrics") || "{}")
@@ -233,7 +239,7 @@ const PdTransitionMatrixWorkflow = () => {
                       idx === currentStep ? { ...step, completed: true } : step
                     )
                   );
-                  setCurrentStep((prev) => prev + 1);
+                  setCurrentStepRedux(currentStep + 1);
                   setConsolidationSubStep(0);
                 }}
                 className="bg-[#fce404] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
@@ -251,7 +257,7 @@ const PdTransitionMatrixWorkflow = () => {
           <button
             onClick={() => {
               dispatch(resetStateNavUIState());
-              dispatch(resetPdTransitionMatrixWfHelperData());
+              // dispatch(resetPdTransitionMatrixWfHelperData());
               window.location.href = "/";
             }}
             className={clsx(
@@ -266,7 +272,7 @@ const PdTransitionMatrixWorkflow = () => {
           <Stepper
             steps={stepsCompletionStatus}
             activeStep={currentStep}
-            onStepClick={(index) => setCurrentStep(index)}
+            onStepClick={(index) => setCurrentStepRedux(index)}
           />
         )}
         <div className="flex flex-row gap-2 items-center justify-center">

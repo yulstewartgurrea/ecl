@@ -1,4 +1,4 @@
-import  { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import {
@@ -8,10 +8,10 @@ import {
   FolderIcon,
 } from "@heroicons/react/16/solid";
 import { invoke } from "@tauri-apps/api/core";
-// components
-import WorkflowFolderList from "./WorkflowFolderList";
 
-// redux toolkit
+import WorkflowFolderList from "./WorkflowFolderList";
+import ApiStatusIndicator from "../../components/ApiStatusIndicators";
+
 import { useAppDispatch, useAppSelector } from "../../redux_toolkit/hooks";
 import {
   setPdTransitionMatrixSelectedEntity,
@@ -36,7 +36,12 @@ const TransitionMatrixLanding = () => {
   const [modalMessage, setModalMessage] = useState("");
   const [proceedWithUpdate, setProceedWithUpdate] = useState(false);
 
-  // Receive from WorkflowFolderList
+  // API status
+  const [apiStatus, setApiStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [statusMessage, setStatusMessage] = useState("");
+
   const handleWorkflowSelect = (
     entity: string,
     reportingPeriod: string,
@@ -56,7 +61,9 @@ const TransitionMatrixLanding = () => {
       selectedPdTransitionMatrixReportingPeriod
     ) {
       try {
-        // Check if workflow already exists
+        setApiStatus("loading");
+        setStatusMessage("Checking existing workflow...");
+
         const checkResponse = await fetch(
           `http://127.0.0.1:8000/documents/workflows/check?entity=${encodeURIComponent(
             selectedPdTransitionMatrixEntity
@@ -71,7 +78,7 @@ const TransitionMatrixLanding = () => {
         );
 
         if (!checkResponse.ok) {
-          throw new Error("Error checking existing workflow");
+          throw new Error(`Error: ${checkResponse.statusText}`);
         }
 
         const checkData = await checkResponse.json();
@@ -81,10 +88,13 @@ const TransitionMatrixLanding = () => {
             "This workflow already exists. If you wish to continue, click Continue. Note that it will update the existing record."
           );
           setShowModal(true);
-          return; // stop further execution until user confirms modal
+          setApiStatus("idle");
+          return;
         }
 
-        // Proceed to create workflow
+        setApiStatus("loading");
+        setStatusMessage("Creating workflow...");
+
         const payload = {
           entity: selectedPdTransitionMatrixEntity,
           workflow_name: pdTransitionMatrixWfName,
@@ -109,10 +119,9 @@ const TransitionMatrixLanding = () => {
           throw new Error(errorData.detail || "Failed to create workflow");
         }
 
-        // Assuming your backend creates the workflow successfully
         await workflowResponse.json();
 
-        // ... your invoke call to create folder tree (same as before)
+        setStatusMessage("Creating folder structure...");
 
         await invoke("create_folder_tree", {
           entity: selectedPdTransitionMatrixEntity,
@@ -120,15 +129,18 @@ const TransitionMatrixLanding = () => {
           workflowName: pdTransitionMatrixWfName,
         });
 
-        // Reset update flag and modal state
         setProceedWithUpdate(false);
         setShowModal(false);
+        setApiStatus("success");
+        setStatusMessage("Workflow created successfully!");
 
         navigate(`/transition_matrix/workflow`, {
           state: { pdTransitionMatrixWfName },
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to start calculation:", error);
+        setApiStatus("error");
+        setStatusMessage(error?.message || "Something went wrong");
       }
     }
   };
@@ -167,28 +179,24 @@ const TransitionMatrixLanding = () => {
           </div>
           <div
             className={clsx(
-              "col-span-3 min-h-1/2 border border-[#e4e1e0] rounded-lg bg-white shadow-lg shadow-[#c9d4d4] pb-10  transition-all duration-300",
+              "col-span-3 min-h-1/2 border border-[#e4e1e0] rounded-lg bg-white shadow-lg shadow-[#c9d4d4] pb-10 transition-all duration-300",
               {
                 " min-w-4/5": !isSidebarOpen,
                 "min-w-5/6": isSidebarOpen,
               }
             )}
           >
+            {/* ENTITY SELECT */}
             <div className="px-10 pt-10 text-start rounded-lg">
-              <div className=" text-start rounded-lg flex items-center justify-between">
-                <label
-                  htmlFor="bank"
-                  className="block text-gray-600 mb-2 font-semibold text-sm"
-                >
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-gray-600 font-semibold text-sm">
                   GENERATE REPORT FOR:
                 </label>
               </div>
-
               <div className="flex flex-row border border-gray-300 rounded-lg bg-white">
                 <div className="h-12 w-1/12 border-r border-gray-300 flex items-center justify-center">
                   <UserGroupIcon className="w-5 h-5 text-[#8a7d7c]" />
                 </div>
-
                 <select
                   id="entity"
                   value={selectedPdTransitionMatrixEntity}
@@ -202,21 +210,18 @@ const TransitionMatrixLanding = () => {
                 </select>
               </div>
             </div>
+
+            {/* REPORTING PERIOD */}
             <div className="px-10 pt-10 text-start rounded-lg">
-              <div className=" text-start rounded-lg flex items-center justify-between">
-                <label
-                  htmlFor="bank"
-                  className="block text-gray-600 mb-2 font-semibold text-sm"
-                >
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-gray-600 font-semibold text-sm">
                   REPORTING PERIOD:
                 </label>
               </div>
-
               <div className="flex flex-row border border-gray-300 rounded-lg bg-white">
                 <div className="h-12 w-1/12 border-r border-gray-300 flex items-center justify-center">
                   <CalendarIcon className="w-5 h-5 text-[#8a7d7c]" />
                 </div>
-
                 <select
                   id="period"
                   value={selectedPdTransitionMatrixReportingPeriod}
@@ -229,11 +234,10 @@ const TransitionMatrixLanding = () => {
                 </select>
               </div>
             </div>
-            <div className="px-10 pt-8  text-start">
-              <label
-                htmlFor="currentUseSrWorkflowName"
-                className="block text-gray-600 mb-2 font-semibold text-sm"
-              >
+
+            {/* WORKFLOW NAME */}
+            <div className="px-10 pt-8 text-start">
+              <label className="block text-gray-600 mb-2 font-semibold text-sm">
                 WORKFLOW NAME:
               </label>
               <div className="flex flex-row border border-gray-300 rounded-lg bg-white">
@@ -250,39 +254,65 @@ const TransitionMatrixLanding = () => {
                 />
               </div>
             </div>
+
+            {/* START BUTTON */}
             <div className="px-10">
               <button
                 onClick={handleStartCalculation}
-                disabled={!isFormValid}
-                className={`w-full px-6 py-3 mt-6 rounded-lg transition-all duration-300 text-gray-700 ${
-                  isFormValid
-                    ? "bg-yellow-300 hover:bg-yellow-400 cursor-pointer "
-                    : "bg-yellow-400/50 cursor-not-allowed"
-                }`}
+                disabled={!isFormValid || apiStatus === "loading"}
+                className={clsx(
+                  "w-full px-6 py-3 mt-6 rounded-lg transition-all duration-300 text-gray-700 flex items-center justify-center gap-2",
+                  {
+                    "bg-yellow-300 hover:bg-yellow-400 cursor-pointer":
+                      isFormValid && apiStatus !== "loading",
+                    "bg-yellow-400/50 cursor-not-allowed":
+                      !isFormValid || apiStatus === "loading",
+                  }
+                )}
               >
-                <span className="flex items-center justify-center gap-2">
-                  Start
-                  <ChevronRightIcon className="h-5 w-5" />
-                </span>
+                {apiStatus === "loading" && (
+                  <svg
+                    className="animate-spin h-5 w-5 text-gray-700"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4l-3 3 3 3h-4z"
+                    ></path>
+                  </svg>
+                )}
+                Start
+                <ChevronRightIcon className="h-5 w-5" />
               </button>
             </div>
           </div>
         </div>
 
+        {/* WORKFLOW FOLDER LIST */}
         <div className="md:col-span-2 h-full w-full">
           <WorkflowFolderList onWorkflowSelect={handleWorkflowSelect} />
         </div>
       </div>
 
+      {/* MODAL */}
       {showModal && (
         <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-white/30 z-50">
           <div className="rounded-xl shadow-lg p-6 w-[28rem]">
             <p className="mb-4">{modalMessage}</p>
             <div className="flex justify-end gap-4">
               <button
-                onClick={() => {
-                  setShowModal(false);
-                }}
+                onClick={() => setShowModal(false)}
                 className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
               >
                 Cancel
@@ -291,7 +321,6 @@ const TransitionMatrixLanding = () => {
                 onClick={() => {
                   setProceedWithUpdate(true);
                   setShowModal(false);
-                  // Retry start calculation with update flag
                   handleStartCalculation();
                 }}
                 className="px-4 py-2 bg-yellow-400 rounded hover:bg-yellow-500"
@@ -302,6 +331,13 @@ const TransitionMatrixLanding = () => {
           </div>
         </div>
       )}
+
+      {/* API STATUS INDICATOR */}
+      <ApiStatusIndicator
+        status={apiStatus}
+        message={statusMessage}
+        onHide={() => setApiStatus("idle")}
+      />
     </>
   );
 };

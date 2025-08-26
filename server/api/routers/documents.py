@@ -202,6 +202,7 @@ def read_single_excel(
             (Document.filename == latest_docs_subquery.c.filename) &
             (Document.version == latest_docs_subquery.c.max_version)
         )
+        .order_by(Document.id.desc())   # 👈 latest first
         .all()
     )
 
@@ -1943,7 +1944,65 @@ def download_excel(payload: dict = Body(...)):
         headers={"Content-Disposition": "attachment; filename=migration_matrix.xlsx"},
     )
 
+@router.get("/document-versions")
+def get_document_versions(
+    filename: str = Query(..., description="Name of the document file"),
+    workflow: str = Query(..., description="Workflow path"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[Dict]:
+    """
+    Fetch all versions of a document for a given workflow and filename.
+    """
+    try:
+        documents = (
+            db.query(Document)
+            .filter(
+                Document.filename == filename,
+                Document.workflow_path == workflow,
+                Document.user_id == current_user.id,
+            )
+            .order_by(Document.version.desc())
+            .all()
+        )
+        if not documents:
+            raise HTTPException(status_code=500, detail="No versions found for this documentdd")
 
+        result = [
+            {
+                "id": doc.id,
+                "filename": doc.filename,
+                "workflow_path": doc.workflow_path,
+                "version": doc.version,
+                "created_at": doc.created_at,
+            }
+            for doc in documents
+        ]
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching document versions: {str(e)}")
+
+@router.get("/{document_id}")
+def get_document_by_id(
+    document_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    record = db.query(Document).filter(Document.id == document_id).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    return {
+        "id": record.id,
+        "filename": record.filename,
+        "workflow_path": record.workflow_path,
+        "version": record.version,
+        "json_data": json.loads(record.json_data) if record.json_data else None,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+    }
 
 
 

@@ -32,7 +32,10 @@ const Step4 = () => {
     directoryPath,
     authToken
   );
-
+  useEffect(() => {
+    const storageKey = "for_step_3";
+    localStorage.setItem(storageKey, "false");
+  }, []);
   // 🟢 Sync API status with fetch
   useEffect(() => {
     if (isLoading) {

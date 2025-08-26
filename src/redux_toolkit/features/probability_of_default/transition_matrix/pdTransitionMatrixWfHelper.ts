@@ -13,6 +13,7 @@ const initialState: wfHelperData = {
   isPdTransitionMatrixWfStarted: false,
   isPdTransitionMatrixWfFinish: false,
   isPdTransitionMatrixImportedOnce: false,
+  currentStep: 0,
 };
 
 const PdTransitionMatrixWfHelperSlice = createSlice({
@@ -43,7 +44,7 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
       if (period) {
         state.selectedPdTransitionMatrixReportingPeriod = period;
       }
-    },    
+    },
     setPdTransitionMatrixWfLogId(
       state,
       action: PayloadAction<{ workflow_id: number }>
@@ -81,6 +82,12 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
     resetPdTransitionMatrixWfHelperData: () => {
       return initialState;
     },
+    setPdTransitionMatrixCurrentStep(
+      state,
+      action: PayloadAction<{ step: number }>
+    ) {
+      state.currentStep = action.payload.step;
+    },
   },
 });
 
@@ -94,5 +101,6 @@ export const {
   setPdTransitionMatrixIsWfFinish,
   setPdTransitionMatrixWfData,
   resetPdTransitionMatrixWfHelperData,
+  setPdTransitionMatrixCurrentStep,
 } = PdTransitionMatrixWfHelperSlice.actions;
 export default PdTransitionMatrixWfHelperSlice.reducer;

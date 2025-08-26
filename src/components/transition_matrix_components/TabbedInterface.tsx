@@ -4,18 +4,20 @@ import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
 import { useTabbedInterfaceData } from "../../hooks/useTabbedInterfaceData";
 import clsx from "clsx";
-
+import { useDocumentVersions } from "../../hooks/useDocumentVersions";
 import TableWithErrorIndicators from "./TableWithErrorIndicators";
 import Loader from "../Loader";
 import ApiStatusIndicator from "../ApiStatusIndicators";
-
+import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
+import { useAppSelector } from "../../redux_toolkit/hooks";
+import { useDocumentById } from "../../hooks/useDocumentById";
 const TabbedInterface = () => {
   const {
     selectedPdTransitionMatrixEntity: entity,
     selectedPdTransitionMatrixReportingPeriod: period,
     pdTransitionMatrixWfName: workflowName,
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
-
+  const authToken = useAppSelector((state) => state.auth.token);
   const directoryPath = `/${entity}/${period}/${workflowName}`;
   const {
     containerRef,
@@ -38,14 +40,15 @@ const TabbedInterface = () => {
     orgData,
     onChildRefresh,
   } = useTabbedInterfaceData(directoryPath);
-
-  // Manage API status
-  console.log(inputFiles)
+  useEffect(() => {
+    const storageKey = "for_step_3";
+    localStorage.setItem(storageKey, "true");
+  }, []);
+  // console.log(inputFiles);
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
-
   useEffect(() => {
     if (isLoading) {
       setStatus("loading");
@@ -59,7 +62,44 @@ const TabbedInterface = () => {
     }
   }, [isLoading, error]);
   const activeId = groupIds[activeTab];
+  const activeFile = orgFilename[activeTab];
 
+  const { versions, mutate } = useDocumentVersions(
+    directoryPath,
+    activeFile,
+    authToken
+  );
+
+  const [selectedVersions, setSelectedVersions] = useState<
+    Record<number, number>
+  >({});
+
+  // Auto-select latest version per tab when versions load
+  useEffect(() => {
+    if (versions && versions.length > 0) {
+      setSelectedVersions((prev) => {
+        // If we already have a selection for this tab, keep it
+        if (prev[activeTab]) return prev;
+        return { ...prev, [activeTab]: versions[0].id }; // latest version
+      });
+    }
+  }, [activeTab, versions]);
+
+  // Get currently selected version for active tab
+  const selectedVersion = selectedVersions[activeTab];
+
+  const handleVersionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newVersion = Number(e.target.value);
+    setSelectedVersions((prev) => ({
+      ...prev,
+      [activeTab]: newVersion,
+    }));
+  };
+
+  const { document, isLoading: docLoading } = useDocumentById(
+    selectedVersion,
+    authToken
+  );
   return (
     <div className="w-full min-h-screen  relative">
       <ApiStatusIndicator
@@ -79,6 +119,7 @@ const TabbedInterface = () => {
           <button
             key={index}
             onClick={() => setActiveTab(index)}
+            title={tab}
             disabled={isLoading}
             className={clsx(
               "mr-1 py-2 px-4 rounded-t-md w-[160px] truncate text-ellipsis whitespace-nowrap",
@@ -125,30 +166,53 @@ const TabbedInterface = () => {
       </div>
 
       <div className="mb-4 bg-[#f3f0ea] w-full min-h-screen  border border-gray-300 rounded-b-md border-t-0 px-6 py-4 relative">
-        <div className="flex gap-2 my-4 flex-wrap">
-          {[
-            { label: "All", color: "bg-gray-200", icon: "📄" },
-            { label: "Valid", color: "bg-gray-200", icon: "✅" },
-            { label: "Error", color: "bg-gray-200", icon: "⚠️" },
-            { label: "Missing", color: "bg-gray-200", icon: "❓" },
-            { label: "Duplicate", color: "bg-gray-200", icon: "🟡" }, // Added Duplicate
-          ].map(({ label, color, icon }) => (
-            <button
-              key={label}
-              onClick={() => setFilter(label as any)}
-              disabled={isLoading}
-              className={clsx(
-                "px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1",
-                filter === label
-                  ? "bg-[#ad8a49] text-white"
-                  : `${color} text-gray-800`,
-                isLoading && "cursor-not-allowed opacity-50"
-              )}
+        <div className="flex gap-2 my-4 flex-wrap justify-between items-center">
+          {/* Left: Filter Buttons */}
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { label: "All", color: "bg-gray-200", icon: "📄" },
+              { label: "Valid", color: "bg-gray-200", icon: "✅" },
+              { label: "Error", color: "bg-gray-200", icon: "⚠️" },
+              { label: "Missing", color: "bg-gray-200", icon: "❓" },
+              { label: "Duplicate", color: "bg-gray-200", icon: "🟡" },
+            ].map(({ label, color, icon }) => (
+              <button
+                key={label}
+                onClick={() => setFilter(label as any)}
+                disabled={isLoading}
+                title={label} // Optional tooltip
+                className={clsx(
+                  "px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1",
+                  filter === label
+                    ? "bg-[#ad8a49] text-white"
+                    : `${color} text-gray-800`,
+                  isLoading && "cursor-not-allowed opacity-50"
+                )}
+              >
+                <span>{icon}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Right: Version Control */}
+          <div className="flex items-center gap-2">
+            <DocumentDuplicateIcon className="w-5 h-5 text-gray-600 rotate-180" />{" "}
+            {/* Reverse clock */}
+            <span className="text-gray-600 text-sm font-medium">Version:</span>
+            <select
+              value={selectedVersion}
+              onChange={handleVersionChange}
+              disabled={isLoading || versions.length === 0}
+              className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none"
             >
-              <span>{icon}</span>
-              {label}
-            </button>
-          ))}
+              {versions.map((v: any) => (
+                <option key={v.id} value={v.id}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Metrics bar */}
@@ -201,12 +265,13 @@ const TabbedInterface = () => {
         {/* Table */}
         <div className="mt-6">
           <TableWithErrorIndicators
-            orgData={orgData}
+            orgData={document?.json_data || []}
             groupIds={activeId}
             directoryPath={directoryPath}
-            data={filteredData}
+            data={document?.json_data || []}
             inputFile={orgFilename[activeTab]}
             onRefresh={onChildRefresh}
+            onSaveSuccess={() => mutate()}
           />
         </div>
 

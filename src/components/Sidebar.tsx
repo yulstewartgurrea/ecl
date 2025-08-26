@@ -205,7 +205,6 @@
 //               ))}
 //             </nav>
 //           </div>
-         
 
 //         {/* Logout Button at the bottom */}
 //         {isSidebarOpen && (
@@ -459,7 +458,6 @@
 
 // export default Sidebar;
 
-
 import clsx from "clsx";
 import { Outlet, useNavigate } from "react-router-dom";
 import {
@@ -470,6 +468,7 @@ import {
   Square3Stack3DIcon,
   ArrowTrendingDownIcon,
   ChartPieIcon,
+  ChartBarIcon,
 } from "@heroicons/react/24/outline";
 import { useState } from "react";
 
@@ -509,6 +508,11 @@ const sidebarOptions: any[] = [
     icon: ChartPieIcon,
     subTabs: [],
   },
+  {
+    tabName: "Expected Credit Loss (ECL)",
+    icon: ChartBarIcon,
+    subTabs: [],
+  },
 ];
 
 const Sidebar = () => {
@@ -530,13 +534,18 @@ const Sidebar = () => {
     dispatch(resetStateNavUIState());
   };
 
-  const handleTabClick = () => {//tabName: string
+  const handleTabClick = () => {
+    //tabName: string
     // dispatch(setActiveTab(activeTab === tabName ? "" : tabName));
-    navigate('/pd_landing')
+    navigate("/pd_landing");
   };
 
-  const handleTabDownArrowClick = (e:any, tabName: string, hasSubTabs: boolean) => {
-    e.stopPropagation()
+  const handleTabDownArrowClick = (
+    e: any,
+    tabName: string,
+    hasSubTabs: boolean
+  ) => {
+    e.stopPropagation();
     dispatch(setActiveTab(activeTab === tabName ? "" : tabName));
 
     if (hasSubTabs) {
@@ -550,7 +559,7 @@ const Sidebar = () => {
         return newSet;
       });
     }
-  };  
+  };
 
   const handleSubTabClick = (tabName: string, subTabName: string) => {
     dispatch(setActiveTab(tabName));
@@ -618,12 +627,15 @@ const Sidebar = () => {
               return (
                 <div key={option.tabName} className="flex flex-col w-full">
                   <div
-                    onClick={() =>
-                      handleTabClick()//option.tabName
+                    onClick={
+                      () => handleTabClick() //option.tabName
                     }
-                    className={clsx("flex items-center justify-between px-1 py-2 rounded-md cursor-pointer hover:bg-[#f8f8f8] transition-all duration-200 gap-1",{
-                      " bg-[#f8f8f8]": active,
-                    })}
+                    className={clsx(
+                      "flex items-center justify-between px-1 py-2 rounded-md cursor-pointer hover:bg-[#f8f8f8] transition-all duration-200 gap-1",
+                      {
+                        " bg-[#f8f8f8]": active,
+                      }
+                    )}
                   >
                     <div
                       className={clsx("flex items-center gap-2", {
@@ -631,7 +643,7 @@ const Sidebar = () => {
                         "text-gray-600": !active,
                       })}
                     >
-                      <option.icon className="w-5 h-5"/>
+                      <option.icon className="w-5 h-5" />
                       <span className="whitespace-nowrap font-medium text-sm">
                         {option.tabName}
                       </span>
@@ -647,7 +659,13 @@ const Sidebar = () => {
                             // "text-gray-600": !active,
                           }
                         )}
-                        onClick={(e) => handleTabDownArrowClick(e, option.tabName, option.subTabs.length > 0)}
+                        onClick={(e) =>
+                          handleTabDownArrowClick(
+                            e,
+                            option.tabName,
+                            option.subTabs.length > 0
+                          )
+                        }
                       />
                     )}
                   </div>
@@ -660,22 +678,29 @@ const Sidebar = () => {
                           <div
                             key={subTab.subTabName}
                             onClick={() =>
-                              handleSubTabClick(option.tabName, subTab.subTabName)
+                              handleSubTabClick(
+                                option.tabName,
+                                subTab.subTabName
+                              )
                             }
                             className={clsx(
                               "py-1 px-2 rounded-md cursor-pointer text-sm flex items-center gap-2 group transition-all duration-300",
                               {
                                 "bg-[#f8f8f8] text-gray-600": isActiveSub,
-                                "text-gray-600 hover:bg-[#f8f8f8]": !isActiveSub,
+                                "text-gray-600 hover:bg-[#f8f8f8]":
+                                  !isActiveSub,
                               }
                             )}
                           >
                             {/* Bullet */}
                             <div
-                              className={clsx("w-2 h-2 rounded-full bg-white border border-[#ffbe0b]", {
-                                // "bg-white border border-[#ffbe0b]": !isActiveSub,
-                                // " border border-[#ffbe0b]": isActiveSub,
-                              })}
+                              className={clsx(
+                                "w-2 h-2 rounded-full bg-white border border-[#ffbe0b]",
+                                {
+                                  // "bg-white border border-[#ffbe0b]": !isActiveSub,
+                                  // " border border-[#ffbe0b]": isActiveSub,
+                                }
+                              )}
                             />
                             <span className="whitespace-nowrap">
                               {subTab.subTabName}
@@ -715,4 +740,3 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
-

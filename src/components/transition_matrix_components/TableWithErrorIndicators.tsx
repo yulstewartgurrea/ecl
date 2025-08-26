@@ -6,7 +6,6 @@ import ApiStatusIndicator from "../../components/ApiStatusIndicators";
 import { useAppSelector } from "../../redux_toolkit/hooks";
 import { useInsertDocument } from "../../hooks/useTabbedInterfaceData";
 
-
 interface TableWithErrorIndicatorsProps {
   data: Array<{ [key: string]: any }>;
   inputFile: string;
@@ -18,6 +17,7 @@ interface TableWithErrorIndicatorsProps {
   directoryPath?: any;
   orgData?: any;
   onRefresh?: (updatedFile: any | null) => void; // parent hook handler
+  onSaveSuccess?: () => void;
 }
 
 const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
@@ -31,6 +31,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   directoryPath,
   orgData,
   onRefresh,
+  onSaveSuccess,
 }) => {
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -46,7 +47,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   const [tableData, setTableData] = useState<any[]>([]);
   const originalRowsRef = useRef<any[]>([]); // deep-copy of original JSON rows
   const editedIndicesRef = useRef<Set<number>>(new Set()); // indices (original) that were edited
-
+  console.log("orgData: ", orgData);
   const {
     isLoading: isSaving,
     error: saveError,
@@ -116,8 +117,6 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
     );
   }, [tableData, filters]);
 
-
-
   // zoom wheel handler
   useEffect(() => {
     const handleWheel = (event: WheelEvent) => {
@@ -163,7 +162,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
       );
       if (!response.ok) {
         console.error("Refresh failed", await response.text());
-        console.log('hoveredColumn', hoveredColumn, zoomLevel)
+        console.log("hoveredColumn", hoveredColumn, zoomLevel);
         if (onRefresh) onRefresh(null);
         return null;
       }
@@ -224,6 +223,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
       setTableData(JSON.parse(JSON.stringify(merged)));
       editedIndicesRef.current.clear();
       setIsEditing(false);
+      if (onSaveSuccess) onSaveSuccess();
     } catch (err) {
       console.error(`Error saving document: ${(err as Error).message}`);
       alert(`Error saving document: ${(err as Error).message}`);
@@ -494,7 +494,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
                             Number(row[key]),
                             format,
                             decimalPlaces
-                          ) + row[key]
+                          )
                         ) : (
                           row[key] ?? ""
                         )}

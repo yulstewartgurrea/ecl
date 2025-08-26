@@ -26,7 +26,7 @@ const ApiStatusIndicator = ({
     if (autoHide && (status === "success" || status === "error")) {
       timer = setTimeout(() => {
         onHide?.(); // 🔹 tell parent to reset status
-      }, 500);
+      }, 800);
     }
     return () => clearTimeout(timer);
   }, [status, autoHide, onHide]);
