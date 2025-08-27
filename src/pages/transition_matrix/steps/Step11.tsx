@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   ArrowDownTrayIcon,
-  DocumentPlusIcon,
   FunnelIcon,
 } from "@heroicons/react/24/outline";
 
@@ -145,22 +144,22 @@ const Step11 = () => {
   );
 
   // save progress
-  const handleSaveProgress = () => {
-    try {
-      setStatus("loading");
-      setStatusMessage("Saving progress...");
-      localStorage.setItem("step11_odr_saved", JSON.stringify(odrData));
-      setStatus("success");
-      setStatusMessage("Progress saved.");
-      setTimeout(() => {
-        setStatus("idle");
-        setStatusMessage("");
-      }, 1500);
-    } catch {
-      setStatus("error");
-      setStatusMessage("Failed to save.");
-    }
-  };
+  // const handleSaveProgress = () => {
+  //   try {
+  //     setStatus("loading");
+  //     setStatusMessage("Saving progress...");
+  //     localStorage.setItem("step11_odr_saved", JSON.stringify(odrData));
+  //     setStatus("success");
+  //     setStatusMessage("Progress saved.");
+  //     setTimeout(() => {
+  //       setStatus("idle");
+  //       setStatusMessage("");
+  //     }, 1500);
+  //   } catch {
+  //     setStatus("error");
+  //     setStatusMessage("Failed to save.");
+  //   }
+  // };
 
   // download CSV
   const handleDownload = () => {

@@ -11,7 +11,6 @@ import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 import { useStep7ProcessedData } from "../../../hooks/useStep7ProcessedData";
 import {
   ArrowDownTrayIcon,
-  DocumentPlusIcon,
 } from "@heroicons/react/24/outline";
 import { downloadValidRowsExcel } from "../../../services/documents";
 

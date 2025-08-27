@@ -2,7 +2,6 @@
 import React, { useState } from "react";
 import {
   ArrowDownTrayIcon,
-  DocumentPlusIcon,
 } from "@heroicons/react/24/outline";
 
 import TableTemplate1 from "../../../components/TableTemplate1";
@@ -46,27 +45,27 @@ const Step10: React.FC = () => {
   const { xValues, yValues } = prepareChartDataForLineGraph(ttcData);
 
   // Save progress locally (non-destructive)
-  const handleSaveProgress = () => {
-    try {
-      setStatus("loading");
-      setStatusMessage("Saving progress...");
-      localStorage.setItem("step10_ttc_saved", JSON.stringify(ttcData ?? []));
-      setStatus("success");
-      setStatusMessage("Progress saved locally.");
-      setTimeout(() => {
-        setStatus("idle");
-        setStatusMessage("");
-      }, 1400);
-    } catch (err) {
-      console.error(err);
-      setStatus("error");
-      setStatusMessage("Failed to save progress.");
-      setTimeout(() => {
-        setStatus("idle");
-        setStatusMessage("");
-      }, 2200);
-    }
-  };
+  // const handleSaveProgress = () => {
+  //   try {
+  //     setStatus("loading");
+  //     setStatusMessage("Saving progress...");
+  //     localStorage.setItem("step10_ttc_saved", JSON.stringify(ttcData ?? []));
+  //     setStatus("success");
+  //     setStatusMessage("Progress saved locally.");
+  //     setTimeout(() => {
+  //       setStatus("idle");
+  //       setStatusMessage("");
+  //     }, 1400);
+  //   } catch (err) {
+  //     console.error(err);
+  //     setStatus("error");
+  //     setStatusMessage("Failed to save progress.");
+  //     setTimeout(() => {
+  //       setStatus("idle");
+  //       setStatusMessage("");
+  //     }, 2200);
+  //   }
+  // };
 
   // Download CSV helper — client side only
   const downloadCSV = (rows: DpdRow[], filename = "ttc_pd.csv") => {

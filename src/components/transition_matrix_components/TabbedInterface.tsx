@@ -9,8 +9,7 @@ import TableWithErrorIndicators from "./TableWithErrorIndicators";
 import Loader from "../Loader";
 import ApiStatusIndicator from "../ApiStatusIndicators";
 import {
-  CircleStackIcon,
-  DocumentDuplicateIcon,
+  ClockIcon,
 } from "@heroicons/react/24/outline";
 import { useAppSelector } from "../../redux_toolkit/hooks";
 import { useDocumentById } from "../../hooks/useDocumentById";
@@ -211,7 +210,7 @@ const TabbedInterface = () => {
 
           {/* Right: Version Control */}
           <div className="flex items-center gap-2">
-            <CircleStackIcon className="w-5 h-5 text-gray-600 rotate-180" />{" "}
+            <ClockIcon className="w-5 h-5 text-gray-600 rotate-180" />{" "}
             {/* Reverse clock */}
             <span className="text-gray-600 text-sm font-medium">Version:</span>
             <select

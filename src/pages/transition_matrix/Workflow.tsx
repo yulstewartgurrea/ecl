@@ -1,8 +1,6 @@
 import clsx from "clsx";
 import { useState, useEffect } from "react";
 import {
-  InformationCircleIcon,
-  QuestionMarkCircleIcon,
   ChevronRightIcon,
   ChevronLeftIcon,
 } from "@heroicons/react/24/outline";
