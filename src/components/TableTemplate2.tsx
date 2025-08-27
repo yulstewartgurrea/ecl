@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { formatValueGeneral } from "../utils/CommonHelper";
 
@@ -12,7 +12,7 @@ interface OverTableTemplate2Props {
   setZoomLevel?: (value: number) => void; // optional controlled zoom setter
 }
 
-const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
+const TableTemplate2: React.FC<OverTableTemplate2Props> = ({
   data,
   format = "money",
   decimalPlaces = 2,
@@ -21,7 +21,7 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
   zoomLevel: controlledZoomLevel,
   setZoomLevel: controlledSetZoomLevel,
 }) => {
-  const tableRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
   const headers =
     headersParams ?? (data.length > 0 ? Object.keys(data[0]) : []);
 
@@ -36,7 +36,7 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
     const handleWheel = (event: WheelEvent) => {
       if (event.ctrlKey) {
         event.preventDefault();
-        const delta = event.deltaY < 0 ? 0.1 : -0.1;
+        const delta = event.deltaY < 0 ? 0.075 : -0.075;
         const newZoom = Math.min(Math.max(zoomLevel + delta, 0.5), 2);
         setZoomLevel(newZoom);
       }
@@ -45,22 +45,26 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
     window.addEventListener("wheel", handleWheel, { passive: false });
     return () => window.removeEventListener("wheel", handleWheel);
   }, [zoomLevel, setZoomLevel]);
+
   return (
-    <div ref={tableRef} className="overflow-auto max-h-screen min-w-full">
+    <div
+      ref={tableRef}
+      className="overflow-auto max-h-[72vh] min-w-full rounded-lg border border-gray-200 bg-white shadow-sm"
+    >
       <table
         style={{ zoom: zoomLevel }}
-        className="border border-gray-300 w-full"
+        className="w-full border-collapse text-sm"
       >
-        <thead className="sticky top-0 z-10">
+        <thead className="sticky top-0 z-20">
           <tr>
             {headers.map((header, headerIndex: number) => (
               <th
                 key={header}
                 className={clsx(
-                  "min-w-20 text-center px-2 py-1 border border-gray-300",
+                  "text-center px-3 py-2 border border-gray-100 whitespace-nowrap text-xs",
                   {
-                    "bg-[#dcdcdc] text-gray-700": headerIndex !== 0,
-                    "bg-[#444444] text-white": headerIndex === 0,
+                    "bg-gray-800 text-white": headerIndex === 0,
+                    "bg-gray-50 text-gray-700": headerIndex !== 0,
                   }
                 )}
               >
@@ -71,9 +75,14 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
         </thead>
         <tbody>
           {data.map((row, rowIndex) => (
-            <tr key={rowIndex} className="hover:bg-gray-100 cursor-pointer">
+            <tr
+              key={rowIndex}
+              className={clsx(
+                rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50",
+                "hover:bg-gray-100"
+              )}
+            >
               {headers.map((key, headerMapIndex) => {
-                // 1️⃣ Compute the displayValue exactly as you do in your JSX:
                 let displayValue;
                 if (key === "Bucket") {
                   displayValue = row[key];
@@ -87,7 +96,6 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
                   displayValue = row[key];
                 }
 
-                // 2️⃣ If this is Month 12 AND Bucket 4, log the formatted value
                 if (row.Month === "Month 12" && row.Bucket === 4) {
                   console.log(
                     "🗓️ Month 12 – Bucket 4 cell:",
@@ -97,17 +105,20 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
                   );
                 }
 
-                // 3️⃣ Finally render
                 return (
                   <td
                     key={key}
-                    className={clsx("min-w-20 px-2 py-1 border text-center", {
-                      [additionalCss?.firstColColor!]:
-                        headerMapIndex === 0 && !!additionalCss?.firstColColor,
-                      "bg-[#dcdcdc] border-gray-300":
-                        headerMapIndex === 0 && !additionalCss?.firstColColor,
-                      "bg-white border-gray-200": headerMapIndex !== 0,
-                    })}
+                    className={clsx(
+                      "px-3 py-2 border text-center align-middle truncate text-sm",
+                      {
+                        [additionalCss?.firstColColor!]:
+                          headerMapIndex === 0 &&
+                          !!additionalCss?.firstColColor,
+                        "bg-gray-50 border-gray-100":
+                          headerMapIndex === 0 && !additionalCss?.firstColColor,
+                        "bg-white border-gray-100": headerMapIndex !== 0,
+                      }
+                    )}
                   >
                     {displayValue}
                   </td>
@@ -121,4 +132,4 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
   );
 };
 
-export default OverTableTemplate2;
+export default TableTemplate2;

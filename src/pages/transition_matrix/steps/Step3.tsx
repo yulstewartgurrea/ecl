@@ -1,3 +1,4 @@
+import { FunnelIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../redux_toolkit/store";
@@ -13,12 +14,23 @@ import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { downloadValidRowsExcel } from "../../../services/documents";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 
+const FILTER_FIELDS = [
+  "Present in a per CIS/Borrower Basis (for debtor assessment)",
+  "Days in Arrears",
+  "Outstanding Balance",
+  "Principal Amount",
+  "Value of Security (collateral information)",
+  "Actual Amount of Repayment",
+  "Source of Repayment",
+];
+
 const Step3 = () => {
   const [zoom, setZoom] = useState(0.9);
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
 
   const {
     selectedPdTransitionMatrixEntity: entity,
@@ -27,10 +39,8 @@ const Step3 = () => {
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
 
   const directoryPath = `/${entity}/${period}/${workflowName}`;
-
   const { data, isLoading, error } = useValidRows(directoryPath);
 
-  // 🟢 Update API indicator when fetch status changes
   useEffect(() => {
     if (isLoading) {
       setStatus("loading");
@@ -48,7 +58,6 @@ const Step3 = () => {
     }
   }, [isLoading, error, data]);
 
-  // 🔹 Download handler
   const handleDownload = async () => {
     if (!data) return;
     try {
@@ -57,42 +66,121 @@ const Step3 = () => {
       await downloadValidRowsExcel(data, "valid_file");
       setStatus("success");
       setStatusMessage("Download complete.");
-    } catch (err) {
+    } catch {
       setStatus("error");
       setStatusMessage("Download failed.");
     }
   };
 
+  const toggleFilter = (field: string) => {
+    setSelectedFilters((prev) =>
+      prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field]
+    );
+  };
+
   return (
-    <div className="w-full min-h-screen bg-[#f3f0ea] border border-gray-300 rounded-b-md border-t-0 px-6 py-4 relative">
-      {/* API Status Indicator */}
-      <ApiStatusIndicator status={status} message={statusMessage} />
+    <div className="w-full min-h-screen bg-gray-50 px-6 py-8">
+      <div className="max-w-[1400px] mx-auto relative">
+        {/* API Status Indicator */}
+        <ApiStatusIndicator
+          status={status}
+          message={statusMessage}
+          onHide={() => setStatus("idle")}
+        />
 
-      {/* Loader overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#f3f0ea]/50 z-10">
-          <Loader />
+        {/* Loader overlay */}
+        {isLoading && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
+            <div className="rounded-lg bg-white p-6 shadow-lg flex items-center gap-4">
+              <Loader />
+              <div>
+                <div className="text-sm font-medium text-gray-700">
+                  Loading valid rows data
+                </div>
+                <div className="text-xs text-gray-500">
+                  This may take a moment depending on dataset size.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div>
+            <p className="text-sm text-gray-500 mt-1">
+              Average and month-by-month transition matrices.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
+              <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
+                {entity || "—"}
+              </span>
+              <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
+                {period || "—"}
+              </span>
+              <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
+                {workflowName || "—"}
+              </span>
+            </div>
+          </div>
+
+          {/* Download Button */}
+          <div className="flex justify-end items-center gap-4">
+            <button
+              onClick={handleDownload}
+              className="bg-white cursor-pointer border border-gray-300 px-4 py-1 rounded-lg inline-flex items-center gap-1"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+              Download
+            </button>
+          </div>
         </div>
-      )}
 
-      <div className="flex justify-end items-center gap-4 mt-6 pl-4">
-        <button
-          onClick={handleDownload}
-          className="bg-white cursor-pointer border border-gray-300 font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1"
-        >
-          <ArrowDownTrayIcon className="w-5 h-5 font-normal" />
-          Download
-        </button>
+        {/* Filters */}
+        <div className="col-span-3 space-y-4 mb-6">
+          <div className="rounded-lg bg-white border border-gray-200 p-4 shadow-sm">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <FunnelIcon className="w-4 h-4" /> Filters
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {FILTER_FIELDS.map((field) => (
+                <label
+                  key={field}
+                  className="flex items-center gap-2 text-xs cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    className="accent-gray-400"
+                    checked={selectedFilters.includes(field)}
+                    onChange={() => toggleFilter(field)}
+                  />
+                  {field}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="p-4 bg-red-100 text-red-700 rounded-lg mb-4">
+            Failed to fetch data.
+          </div>
+        )}
+
+        {/* Content */}
+        {!isLoading && !error && (
+          <>
+            <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
+            <TableTemplate1
+              data={data}
+              zoomLevel={zoom}
+              setZoomLevel={setZoom}
+            />
+          </>
+        )}
       </div>
-
-      {!isLoading && error && <p>Failed to fetch data</p>}
-
-      {!isLoading && !error && data && (
-        <>
-          <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
-          <TableTemplate1 data={data} zoomLevel={zoom} setZoomLevel={setZoom} />
-        </>
-      )}
     </div>
   );
 };

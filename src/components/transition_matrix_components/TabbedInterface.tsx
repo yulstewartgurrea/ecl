@@ -8,7 +8,10 @@ import { useDocumentVersions } from "../../hooks/useDocumentVersions";
 import TableWithErrorIndicators from "./TableWithErrorIndicators";
 import Loader from "../Loader";
 import ApiStatusIndicator from "../ApiStatusIndicators";
-import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
+import {
+  CircleStackIcon,
+  DocumentDuplicateIcon,
+} from "@heroicons/react/24/outline";
 import { useAppSelector } from "../../redux_toolkit/hooks";
 import { useDocumentById } from "../../hooks/useDocumentById";
 const TabbedInterface = () => {
@@ -102,12 +105,29 @@ const TabbedInterface = () => {
         onHide={() => setStatus("idle")}
       />
 
+      {/* Loader overlay */}
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#f3f0ea]/50 z-10">
-          <Loader />
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
+          <div className="rounded-lg bg-white p-6 shadow-lg flex items-center gap-4">
+            <Loader />
+            <div>
+              <div className="text-sm font-medium text-gray-700">
+                Loading migration data
+              </div>
+              <div className="text-xs text-gray-500">
+                This may take a moment depending on the dataset size.
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
+      {/* Error */}
+      {error && (
+        <p className="text-sm text-red-600 mt-4">
+          Failed to fetch migration data
+        </p>
+      )}
       <div className="flex mt-4 relative" ref={containerRef}>
         {visibleTabs.map((tab, index) => (
           <button
@@ -191,7 +211,7 @@ const TabbedInterface = () => {
 
           {/* Right: Version Control */}
           <div className="flex items-center gap-2">
-            <DocumentDuplicateIcon className="w-5 h-5 text-gray-600 rotate-180" />{" "}
+            <CircleStackIcon className="w-5 h-5 text-gray-600 rotate-180" />{" "}
             {/* Reverse clock */}
             <span className="text-gray-600 text-sm font-medium">Version:</span>
             <select

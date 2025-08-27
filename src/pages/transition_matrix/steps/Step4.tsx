@@ -66,45 +66,83 @@ const Step4 = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#f3f0ea] border border-gray-300 rounded-b-md border-t-0 px-6 py-4 relative">
-      {/* API Status Indicator */}
-      <ApiStatusIndicator
-        status={status}
-        message={statusMessage}
-        onHide={() => setStatus("idle")}
-      />
+    <div className="w-full min-h-screen bg-gray-50 px-6 py-8">
+      <div className="max-w-[1400px] mx-auto relative">
+        {/* API Status Indicator */}
+        <ApiStatusIndicator
+          status={status}
+          message={statusMessage}
+          onHide={() => setStatus("idle")}
+        />
 
-      {/* Loader overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#f3f0ea]/50 z-10">
-          <Loader />
+        {/* Loader overlay */}
+        {isLoading && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
+            <div className="rounded-lg bg-white p-6 shadow-lg flex items-center gap-4">
+              <Loader />
+              <div>
+                <div className="text-sm font-medium text-gray-700">
+                  Loading default rate data
+                </div>
+                <div className="text-xs text-gray-500">
+                  This may take a moment depending on dataset size.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-start justify-between gap-4 b-10">
+          <div>
+            <p className="text-sm text-gray-500 mt-1">
+              Average and month-by-month transition matrices.
+            </p>
+            <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
+              <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
+                {entity || "—"}
+              </span>
+              <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
+                {period || "—"}
+              </span>
+              <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
+                {workflowName || "—"}
+              </span>
+            </div>
+          </div>
+
+          {/* Top Buttons */}
+          <div className="flex justify-end items-center gap-4  pl-4">
+            <button
+              onClick={handleDownload}
+              className="bg-white cursor-pointer border border-gray-300 px-4 py-1 rounded-lg inline-flex items-center gap-1"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+              Download
+            </button>
+          </div>
         </div>
-      )}
 
-      <div className="flex justify-end items-center gap-4 mt-6 pl-4">
-        <button
-          onClick={handleDownload}
-          className="bg-white cursor-pointer border border-gray-300 font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1"
-        >
-          <ArrowDownTrayIcon className="w-5 h-5 font-normal" />
-          Download
-        </button>
+        {/* Error */}
+        {error && (
+          <div className="p-4 bg-red-100 text-red-700 rounded-lg mb-4">
+            Failed to fetch data.
+          </div>
+        )}
+
+        {/* Content */}
+        {!isLoading && !error && (
+          <>
+            <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
+            <TableTemplate1
+              data={data}
+              format="decimal"
+              decimalPlaces={0}
+              zoomLevel={zoom}
+              setZoomLevel={setZoom}
+            />
+          </>
+        )}
       </div>
-
-      {error && <p>Failed to fetch data</p>}
-
-      {!isLoading && !error && (
-        <>
-          <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
-          <TableTemplate1
-            data={data}
-            format="decimal"
-            decimalPlaces={0}
-            zoomLevel={zoom}
-            setZoomLevel={setZoom}
-          />
-        </>
-      )}
     </div>
   );
 };

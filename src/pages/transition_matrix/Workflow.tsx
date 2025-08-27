@@ -275,10 +275,10 @@ const PdTransitionMatrixWorkflow = () => {
             onStepClick={(index) => setCurrentStepRedux(index)}
           />
         )}
-        <div className="flex flex-row gap-2 items-center justify-center">
+        {/* <div className="flex flex-row gap-2 items-center justify-center">
           <InformationCircleIcon className="text-gray-500 h-8 w-8 cursor-pointer" />
           <QuestionMarkCircleIcon className="text-gray-500 h-8 w-8 cursor-pointer" />
-        </div>
+        </div> */}
       </div>
       <div className="w-full flex flex-row p-2">
         <div className="w-full min-h-[750px] bg-white p-4 shadow-md rounded">

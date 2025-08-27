@@ -9,7 +9,10 @@ import Loader from "../../../components/Loader";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 
 import { useStep7ProcessedData } from "../../../hooks/useStep7ProcessedData";
-import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowDownTrayIcon,
+  DocumentPlusIcon,
+} from "@heroicons/react/24/outline";
 import { downloadValidRowsExcel } from "../../../services/documents";
 
 const Step7 = () => {
@@ -33,7 +36,7 @@ const Step7 = () => {
     authToken || null
   );
 
-  // Track API call status
+  // Track API status
   useEffect(() => {
     if (isLoading) {
       setStatus("loading");
@@ -47,7 +50,7 @@ const Step7 = () => {
     }
   }, [isLoading, error, data]);
 
-  // Download handler with status updates
+  // Download handler
   const handleDownload = async () => {
     if (!data) return;
     try {
@@ -63,48 +66,102 @@ const Step7 = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#f3f0ea] border border-gray-300 rounded-b-md border-t-0 px-6 py-4 relative">
-      {/* API Status Indicator */}
-      <ApiStatusIndicator
-        status={status}
-        message={statusMessage}
-        onHide={() => setStatus("idle")}
-      />
+    <div className="w-full min-h-screen bg-gray-50 px-6 py-6">
+      <div className="max-w-[1400px] mx-auto">
+        {/* API Status Indicator */}
+        <ApiStatusIndicator
+          status={status}
+          message={statusMessage}
+          onHide={() => setStatus("idle")}
+        />
 
-      {/* Loader overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#f3f0ea]/50 z-10">
-          <Loader />
+        {/* Loader overlay */}
+        {isLoading && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
+            <div className="rounded-lg bg-white p-6 shadow-lg flex items-center gap-4">
+              <Loader />
+              <div>
+                <div className="text-sm font-medium text-gray-700">
+                  Loading default rate data
+                </div>
+                <div className="text-xs text-gray-500">
+                  This may take a moment depending on dataset size.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="flex items-start justify-between gap-4 b-10">
+          <div>
+            <p className="text-sm text-gray-500 mt-1">
+              Average and month-by-month transition matrices.
+            </p>
+            <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
+              <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
+                {entity || "—"}
+              </span>
+              <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
+                {period || "—"}
+              </span>
+              <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
+                {workflowName || "—"}
+              </span>
+            </div>
+          </div>
+
+          {/* Top Buttons */}
+          <div className="flex justify-end items-center gap-4  pl-4">
+            <button
+              onClick={handleDownload}
+              className="bg-white cursor-pointer border border-gray-300 px-4 py-1 rounded-lg inline-flex items-center gap-1"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+              Download
+            </button>
+          </div>
         </div>
-      )}
+        {/* Table Container */}
+        <div className="bg-white p-4 rounded-lg border border-gray-300 mt-6">
+          {/* Zoom Slider */}
+          <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-4" />
 
-      {/* Download button */}
-      <div className="flex justify-end items-center gap-4 mt-6 pl-4">
-        <button
-          onClick={handleDownload}
-          className="bg-white cursor-pointer border border-gray-300 font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1"
-        >
-          <ArrowDownTrayIcon className="w-5 h-5 font-normal" />
-          Download
-        </button>
+          {!isLoading && !error && data && (
+            <div className="overflow-auto max-h-[600px]">
+              <TableTemplate1
+                data={data}
+                format="decimal"
+                decimalPlaces={0}
+                zoomLevel={zoom}
+                setZoomLevel={setZoom}
+              />
+            </div>
+          )}
+          {error && (
+            <p className="text-sm text-red-600 p-4">
+              Failed to fetch default rate data.
+            </p>
+          )}
+        </div>
+
+        {/* Notes */}
+        <div className="rounded-lg bg-white border border-gray-200 p-4 shadow-sm mt-6">
+          <h4 className="text-sm font-semibold text-gray-700">Notes</h4>
+          <ul className="text-xs text-gray-500 mt-2 list-disc list-inside space-y-1">
+            <li>
+              The <span className="font-medium">Default Rate Table</span> shows
+              the percentage of accounts that default over time.
+            </li>
+            <li>
+              Use <span className="font-medium">Ctrl + Mouse Wheel</span> to
+              adjust zoom.
+            </li>
+            <li>
+              Data may vary depending on the selected entity, reporting period,
+              and workflow.
+            </li>
+          </ul>
+        </div>
       </div>
-
-      {/* Error message */}
-      {error && <p className="text-red-600 mt-4">Failed to fetch data</p>}
-
-      {/* Data display */}
-      {!isLoading && !error && data && (
-        <div className="bg-white p-4 rounded-lg mt-12">
-          <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
-          <TableTemplate1
-            data={data}
-            format="decimal"
-            decimalPlaces={0}
-            zoomLevel={zoom}
-            setZoomLevel={setZoom}
-          />
-        </div>
-      )}
     </div>
   );
 };
