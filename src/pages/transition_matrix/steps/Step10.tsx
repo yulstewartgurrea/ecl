@@ -184,8 +184,7 @@ const Step10: React.FC = () => {
                 <h4 className="text-sm font-semibold text-gray-700">Notes</h4>
 
                 <p className="text-xs text-gray-500 mt-2">
-                  No UI changes were made to the data logic — only visual
-                  improvements. Use{" "}
+                  Use{" "}
                   <span className="font-medium">Ctrl + mouse wheel</span> to
                   adjust zoom.
                 </p>

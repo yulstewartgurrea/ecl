@@ -130,18 +130,24 @@ const Step4 = () => {
         )}
 
         {/* Content */}
-        {!isLoading && !error && (
+       {!isLoading && !error && (
           <>
-            <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
-            <TableTemplate1
-              data={data}
-              format="decimal"
-              decimalPlaces={0}
-              zoomLevel={zoom}
-              setZoomLevel={setZoom}
-            />
+            {/* Zoom + Main Table */}
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="flex justify-end mb-4">
+                <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/5" />
+              </div>
+              <TableTemplate1
+                data={data}
+                format="decimal"
+                decimalPlaces={0}
+                zoomLevel={zoom}
+                setZoomLevel={setZoom}
+              />
+            </div>
           </>
         )}
+
       </div>
     </div>
   );

@@ -189,17 +189,22 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
                 key={header}
                 className="bg-[#444444] text-white text-center p-2 border border-white relative"
               >
-                <div className="flex items-center justify-center gap-1">
-                  {header.replace(/_/g, " ")}
+                <div className="flex items-center justify-center gap-2">
+                  <span className="truncate">
+                    {header === "ODR" ? "Observed Default Rate" : header.replace(/_/g, " ")}
+                  </span>
+
                   {(header === "report_date" || header === "pn_number") && (
-                    <FunnelIcon
-                      className="h-4 w-4 cursor-pointer"
+                    <button
+                      type="button"
+                      aria-label={`Filter ${header}`}
                       onClick={() =>
-                        openFilter === header
-                          ? setOpenFilter(null)
-                          : openFilterFor(header)
+                        openFilter === header ? setOpenFilter(null) : openFilterFor(header)
                       }
-                    />
+                      className="p-1 rounded hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+                    >
+                      <FunnelIcon className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
 
@@ -312,7 +317,7 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
                 >
                   {typeof row[key] === "number"
                     ? formatValueGeneral(row[key], format, decimalPlaces)
-                    : row[key]}
+                    : row[key]} 
                 </td>
               ))}
             </tr>

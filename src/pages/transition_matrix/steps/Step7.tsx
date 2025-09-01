@@ -66,7 +66,7 @@ const Step7 = () => {
 
   return (
     <div className="w-full min-h-screen bg-gray-50 px-6 py-6">
-      <div className="max-w-[1400px] mx-auto">
+      <div className="max-w-[1400px] ">
         {/* API Status Indicator */}
         <ApiStatusIndicator
           status={status}
@@ -125,7 +125,7 @@ const Step7 = () => {
           <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-4" />
 
           {!isLoading && !error && data && (
-            <div className="overflow-auto max-h-[600px]">
+            <div>
               <TableTemplate1
                 data={data}
                 format="decimal"

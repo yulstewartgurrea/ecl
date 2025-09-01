@@ -55,7 +55,7 @@ const TableTemplate2: React.FC<OverTableTemplate2Props> = ({
         style={{ zoom: zoomLevel }}
         className="w-full border-collapse text-sm"
       >
-        <thead className="sticky top-0 z-20">
+        <thead className="sticky top-0 z-10">
           <tr>
             {headers.map((header, headerIndex: number) => (
               <th

@@ -309,7 +309,7 @@ const Step8: React.FC = () => {
 
                     <div className="mt-4 space-y-4">
                       {typeIndex === 0 ? (
-                        migrationMatrixData.map((d: any, monthIndex: any) => (
+         migrationMatrixData.map((d: number[][], monthIndex: number) => (
                           <div
                             key={`count-${monthIndex}`}
                             className="p-3 bg-white border border-gray-100 rounded"
@@ -324,8 +324,7 @@ const Step8: React.FC = () => {
                           </div>
                         ))
                       ) : typeIndex === 1 ? (
-                        migrationMatrixPercentage.map(
-                          (d: any, monthIndex: any) => (
+                         migrationMatrixPercentage.map((d: number[][], monthIndex: number) => (
                             <div
                               key={`pct-${monthIndex}`}
                               className="p-3 bg-white border border-gray-100 rounded"

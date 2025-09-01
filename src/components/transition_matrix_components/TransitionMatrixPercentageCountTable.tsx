@@ -83,7 +83,7 @@ const TransitionMatrixPercentageCountTable: React.FC<
         style={{ zoom: zoomLevel }}
         className="w-full table-fixed border-collapse text-sm"
       >
-        <thead className="sticky top-0 z-20">
+        <thead className="sticky top-0 z-10">
           <tr>
             {headersRow1.map((val, i) => (
               <th
