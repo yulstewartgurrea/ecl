@@ -1995,14 +1995,168 @@ def get_document_by_id(
     if not record:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    return {
+    # Base response
+    response = {
         "id": record.id,
         "filename": record.filename,
         "workflow_path": record.workflow_path,
         "version": record.version,
-        "json_data": json.loads(record.json_data) if record.json_data else None,
+        "json_data": None,
         "created_at": record.created_at.isoformat() if record.created_at else None,
+        "status_metrics": {
+            "valid": 0,
+            "error": 0,
+            "missing": 0,
+            "duplicate": 0
+        }
     }
+
+    # --- Process Excel / JSON like read-excel ---
+    df_rows = None
+    required_columns = [
+        "report_date", "loan_segment", "cis_number", "pn_number",
+        "loan_amount", "outstanding_balance", "amortization", "booking_date",
+        "maturity_date", "eir", "monthly_payments", "dpd"
+    ]
+
+    base_dir = Path(__file__).parents[2] / "files" / record.workflow_path.strip('"/')
+
+    # Helper functions
+    def extract_rows(parsed):
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict):
+            for v in parsed.values():
+                if isinstance(v, list):
+                    return v
+                if isinstance(v, dict) and isinstance(v.get("original_data"), list):
+                    return v.get("original_data")
+        return []
+
+    def to_decimal_with_raw(x):
+        raw = x
+        try:
+            if x is None or pd.isna(x):
+                return None, raw
+            if isinstance(x, Decimal):
+                return x, raw
+            if isinstance(x, int):
+                return Decimal(x), raw
+            s = str(x).replace(",", "").strip()
+            if s == "":
+                return None, raw
+            return Decimal(s), raw
+        except Exception:
+            return None, raw
+
+    def is_missing_value(val):
+        if val is None:
+            return True
+        try:
+            if pd.isna(val):
+                return True
+        except Exception:
+            pass
+        if isinstance(val, str):
+            s = val.strip().lower()
+            if s in ("", "na", "n/a", "null", "none"):
+                return True
+        return False
+
+    # Prefer JSON stored in DB
+    if record.json_data:
+        try:
+            parsed = json.loads(record.json_data)
+            df_rows = extract_rows(parsed)
+        except Exception:
+            df_rows = None
+
+    # Fallback to reading Excel file
+    if not df_rows:
+        file_path = base_dir / record.filename
+        if file_path.exists():
+            try:
+                df = pd.read_excel(file_path, engine="openpyxl", dtype=object)
+                df.columns = [str(c).strip().lower() for c in df.columns]
+                df.replace([np.inf, -np.inf], np.nan, inplace=True)
+                df_rows = [dict(r) for r in df.to_dict(orient="records")]
+
+                # Save extracted JSON into DB for future
+                try:
+                    record.json_data = json.dumps(df_rows)
+                    db.add(record)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+            except Exception:
+                df_rows = []
+
+    if df_rows:
+        # --- Row processing ---
+        intermediate_rows: List[Dict[str, Any]] = []
+        dup_keys: List[tuple] = []
+
+        for row in df_rows:
+            row_out = dict(row)
+            row_out["errors"] = []
+            row_out["status"] = None
+            row_out["duplicate"] = False
+
+            # Missing check
+            missing_fields = [col for col in required_columns if is_missing_value(row.get(col))]
+            if missing_fields:
+                row_out["status"] = "missing"
+
+            # Error checks
+            if row_out["status"] != "missing":
+                dpd_val, _ = to_decimal_with_raw(row.get("dpd"))
+                amort_val, _ = to_decimal_with_raw(row.get("amortization"))
+                monthly_pay_val, _ = to_decimal_with_raw(row.get("monthly_payments"))
+
+                if dpd_val is None:
+                    row_out["errors"].append("numeric_parse:dpd")
+                if amort_val is None:
+                    row_out["errors"].append("numeric_parse:amortization")
+                if monthly_pay_val is None:
+                    row_out["errors"].append("numeric_parse:monthly_payments")
+
+                if row_out["errors"]:
+                    row_out["status"] = "error"
+
+            if row_out["status"] is None:
+                row_out["status"] = "valid"
+
+            # Duplicate detection
+            rep_norm = row.get("report_date") or ""
+            cis = str(row.get("cis_number") or "").strip()
+            pn = str(row.get("pn_number") or "").strip()
+            dup_keys.append((rep_norm, cis, pn))
+
+            intermediate_rows.append(row_out)
+
+        # Mark duplicates
+        dup_counter = Counter(dup_keys)
+        duplicates_found = {k for k, v in dup_counter.items() if v > 1}
+        for row in intermediate_rows:
+            rep_norm = row.get("report_date") or ""
+            cis = str(row.get("cis_number") or "").strip()
+            pn = str(row.get("pn_number") or "").strip()
+            if (rep_norm, cis, pn) in duplicates_found:
+                row["duplicate"] = True
+                if row["status"] not in ("missing",):
+                    row["status"] = "duplicate"
+
+        # Calculate status metrics
+        response["status_metrics"] = {
+            "valid": sum(1 for r in intermediate_rows if r["status"] == "valid"),
+            "error": sum(1 for r in intermediate_rows if r["status"] == "error"),
+            "missing": sum(1 for r in intermediate_rows if r["status"] == "missing"),
+            "duplicate": sum(1 for r in intermediate_rows if r["status"] == "duplicate"),
+        }
+
+        response["json_data"] = intermediate_rows
+
+    return response
 
 
 

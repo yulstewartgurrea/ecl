@@ -16,6 +16,7 @@ interface TableWithErrorIndicatorsProps {
   groupIds?: any; // expect array aligned with tabs (keeps current behavior)
   directoryPath?: any;
   orgData?: any;
+  baseDataForSave?: any[]; 
   onRefresh?: (updatedFile: any | null) => void; // parent hook handler
   onSaveSuccess?: () => void;
 }
@@ -30,6 +31,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   groupIds,
   directoryPath,
   orgData,
+  baseDataForSave,
   onRefresh,
   onSaveSuccess,
 }) => {
@@ -45,9 +47,8 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   const [filterSearch, setFilterSearch] = useState<Record<string, string>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [tableData, setTableData] = useState<any[]>([]);
-  const originalRowsRef = useRef<any[]>([]); // deep-copy of original JSON rows
-  const editedIndicesRef = useRef<Set<number>>(new Set()); // indices (original) that were edited
-  console.log("orgData: ", orgData);
+  const originalRowsRef = useRef<any[]>([]);
+  const editedIndicesRef = useRef<Set<number>>(new Set());
   const {
     isLoading: isSaving,
     error: saveError,
@@ -73,7 +74,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
     "row sequence",
     "source file",
     "group sequence",
-    "status",
+    "rowIndex",
     "duplicate",
   ].map(normalize);
 
@@ -116,7 +117,6 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
       })
     );
   }, [tableData, filters]);
-
   // zoom wheel handler
   useEffect(() => {
     const handleWheel = (event: WheelEvent) => {
@@ -130,27 +130,35 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
     return () => window.removeEventListener("wheel", handleWheel);
   }, []);
   const handleCellChange = (
-    rowIndex: number,
+    rowIndex: number, // this is the _rowIndex
     key: string,
     value: string | number
   ) => {
     setTableData((prev) => {
-      const newData = [...prev];
-      newData[rowIndex] = { ...newData[rowIndex], [key]: value };
+      const newData = prev.map((r) => ({ ...r })); // shallow copy
+      const i = newData.findIndex((r) => r._rowIndex === rowIndex);
+      if (i >= 0) {
+        newData[i] = { ...newData[i], [key]: value };
+      } else {
+        // fallback: if not found by _rowIndex, try treating as index
+        if (newData[rowIndex]) newData[rowIndex] = { ...newData[rowIndex], [key]: value };
+      }
       return newData;
     });
-    editedIndicesRef.current.add(rowIndex);
+    editedIndicesRef.current.add(rowIndex); // store _rowIndex
   };
+
   const handleDeleteRow = (rowIndex: number) => {
     if (!isEditing) return;
     setTableData((prev) => {
       const updated = prev.filter((r) => r._rowIndex !== rowIndex);
-      // Reassign _rowIndex to ensure uniqueness
+      // Reassign _rowIndex sequentially so the in-memory array is compact
       return addRowIndex(updated);
     });
     setIsDelete(true);
-    editedIndicesRef.current.add(rowIndex);
+    editedIndicesRef.current.add(rowIndex); // mark the _rowIndex as changed
   };
+
   // refresh from backend (keeps Authorization header) and notify parent hook
   const handleRefresh = async (_maybeResultFromInsert?: any) => {
     try {
@@ -191,36 +199,60 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
 
   const handleSave = async () => {
     try {
-      const original = orgData;
+      // Use baseDataForSave if provided (e.g. filteredData from parent), else orgData
+      const originalSource = (baseDataForSave && baseDataForSave.length ? baseDataForSave : orgData) || [];
 
-      // Step 1: Merge edits from tableData into original
-      let merged = original.map((origRow: any, i: number) => {
-        if (editedIndicesRef.current.has(i)) {
-          return tableData[i];
-        }
-        return origRow;
+      // Build a map keyed by _rowIndex for the original source.
+      // If original rows don't have _rowIndex, create them from index.
+      const originalMap = new Map<number, any>();
+      originalSource.forEach((r: any, idx: number) => {
+        const key = typeof r._rowIndex === "number" ? r._rowIndex : idx;
+        originalMap.set(key, { ...r, _rowIndex: key });
       });
 
-      // Step 2: Append any new rows added in tableData
-      if (tableData.length > merged.length) {
-        for (let j = merged.length; j < tableData.length; j++) {
-          merged.push(tableData[j]);
+      // Apply edits from tableData into originalMap using _rowIndex
+      tableData.forEach((row) => {
+        const key = row._rowIndex;
+        if (originalMap.has(key)) {
+          // If this _rowIndex was edited, replace it
+          if (editedIndicesRef.current.has(key)) {
+            originalMap.set(key, { ...originalMap.get(key), ...row });
+          }
+        } else {
+          // New row — assign a new unique _rowIndex (use current timestamp + random to avoid collisions)
+          const newKey = Date.now() + Math.floor(Math.random() * 1000);
+          originalMap.set(newKey, { ...row, _rowIndex: newKey });
+        }
+      });
+
+      // If rows were deleted (isDelete true), ensure the originalMap excludes them:
+      if (isDelete) {
+        // We already removed rows from tableData; ensure originalMap only contains keys present in tableData
+        const presentKeys = new Set(tableData.map((r) => r._rowIndex));
+        for (const k of Array.from(originalMap.keys())) {
+          if (!presentKeys.has(k)) {
+            originalMap.delete(k);
+          }
         }
       }
-      console.log("test: ", tableData);
-      // Step 3: Send to backend
+
+      // Build final array sorted by _rowIndex or insertion order as you prefer
+      const updatedData = Array.from(originalMap.values());
+
+      // Build payload
       const payload = {
         id: groupIds,
         workflow: directoryPath,
         filename: inputFile,
-        updatedData: isDelete ? tableData : merged,
+        updatedData: updatedData,
       };
 
+      // Send to backend
       await insertDocument(payload, handleRefresh);
 
-      // Step 4: Reset state
-      originalRowsRef.current = JSON.parse(JSON.stringify(merged));
-      setTableData(JSON.parse(JSON.stringify(merged)));
+      // Reset internal state using the updatedData
+      originalRowsRef.current = JSON.parse(JSON.stringify(updatedData));
+      setTableData(JSON.parse(JSON.stringify(updatedData)));
       editedIndicesRef.current.clear();
       setIsEditing(false);
       if (onSaveSuccess) onSaveSuccess();
@@ -229,6 +261,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
       alert(`Error saving document: ${(err as Error).message}`);
     }
   };
+
 
   // Filter handlers (unchanged)
   const toggleSelection = (header: string, val: string) => {

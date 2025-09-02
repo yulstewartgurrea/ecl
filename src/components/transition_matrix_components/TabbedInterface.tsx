@@ -1,5 +1,5 @@
 // src/components/transition_matrix_components/TabbedInterface.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
 import { useTabbedInterfaceData } from "../../hooks/useTabbedInterfaceData";
@@ -19,6 +19,7 @@ const TabbedInterface = () => {
     selectedPdTransitionMatrixReportingPeriod: period,
     pdTransitionMatrixWfName: workflowName,
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
+  const [filteredData, setFilteredData] = useState<any[]>([]);
   const authToken = useAppSelector((state) => state.auth.token);
   const directoryPath = `/${entity}/${period}/${workflowName}`;
   const {
@@ -26,7 +27,6 @@ const TabbedInterface = () => {
     activeTab,
     setActiveTab,
     filter,
-    setFilter,
     visibleTabs,
     overflowTabs,
     currentMetrics,
@@ -39,6 +39,12 @@ const TabbedInterface = () => {
     orgFilename,
     onChildRefresh,
   } = useTabbedInterfaceData(directoryPath);
+  const [selectedVersions, setSelectedVersions] = useState<
+    Record<number, number>
+  >({});
+  const selectedVersion = selectedVersions[activeTab];
+
+  const { document } = useDocumentById(selectedVersion, authToken);
   useEffect(() => {
     const storageKey = "for_step_3";
     localStorage.setItem(storageKey, "true");
@@ -62,6 +68,7 @@ const TabbedInterface = () => {
   }, [isLoading, error]);
   const activeId = groupIds[activeTab];
   const activeFile = orgFilename[activeTab];
+  const [activeStatusFilter, setActiveStatusFilter] = useState("All");
 
   const { versions, mutate } = useDocumentVersions(
     directoryPath,
@@ -69,9 +76,8 @@ const TabbedInterface = () => {
     authToken
   );
 
-  const [selectedVersions, setSelectedVersions] = useState<
-    Record<number, number>
-  >({});
+
+
 
   // Auto-select latest version per tab when versions load
   useEffect(() => {
@@ -85,7 +91,7 @@ const TabbedInterface = () => {
   }, [activeTab, versions]);
 
   // Get currently selected version for active tab
-  const selectedVersion = selectedVersions[activeTab];
+
 
   const handleVersionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newVersion = Number(e.target.value);
@@ -95,7 +101,20 @@ const TabbedInterface = () => {
     }));
   };
 
-  const { document } = useDocumentById(selectedVersion, authToken);
+
+  const filterDocumentData = (statusLabel: string) => {
+    if (!document?.json_data) return [];
+    if (statusLabel === "All") return document.json_data;
+    return document.json_data.filter(
+      (row) => row.status?.toLowerCase() === statusLabel.toLowerCase()
+    );
+  };
+  useEffect(() => {
+  if (!document?.json_data) return;
+
+  const filtered = filterDocumentData(activeStatusFilter);
+  setFilteredData(filtered);
+}, [document, activeStatusFilter]);
   return (
     <div className="w-full min-h-screen  relative">
       <ApiStatusIndicator
@@ -182,30 +201,35 @@ const TabbedInterface = () => {
         <div className="flex gap-2 my-4 flex-wrap justify-between items-center">
           {/* Left: Filter Buttons */}
           <div className="flex gap-2 flex-wrap">
-            {[
-              { label: "All", color: "bg-gray-200", icon: "📄" },
-              { label: "Valid", color: "bg-gray-200", icon: "✅" },
-              { label: "Error", color: "bg-gray-200", icon: "⚠️" },
-              { label: "Missing", color: "bg-gray-200", icon: "❓" },
-              { label: "Duplicate", color: "bg-gray-200", icon: "🟡" },
-            ].map(({ label, color, icon }) => (
+            {["All", "Valid", "Error", "Missing", "Duplicate"].map((label) => (
               <button
                 key={label}
-                onClick={() => setFilter(label as any)}
+                onClick={() => setActiveStatusFilter(label)}
                 disabled={isLoading}
-                title={label} // Optional tooltip
+                title={label}
                 className={clsx(
                   "px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1",
-                  filter === label
+                  activeStatusFilter === label
                     ? "bg-[#ad8a49] text-white"
-                    : `${color} text-gray-800`,
+                    : "bg-gray-200 text-gray-800",
                   isLoading && "cursor-not-allowed opacity-50"
                 )}
               >
-                <span>{icon}</span>
+                <span>
+                  {label === "All"
+                    ? "📄"
+                    : label === "Valid"
+                    ? "✅"
+                    : label === "Error"
+                    ? "⚠️"
+                    : label === "Missing"
+                    ? "❓"
+                    : "🟡"}
+                </span>
                 {label}
               </button>
             ))}
+
           </div>
 
           {/* Right: Version Control */}
@@ -279,9 +303,10 @@ const TabbedInterface = () => {
         <div className="mt-6">
           <TableWithErrorIndicators
             orgData={document?.json_data || []}
+            baseDataForSave={filteredData && filteredData.length ? filteredData : document?.json_data || []} // <-- NEW
             groupIds={activeId}
             directoryPath={directoryPath}
-            data={document?.json_data || []}
+            data={filteredData || []}
             inputFile={orgFilename[activeTab]}
             onRefresh={onChildRefresh}
             onSaveSuccess={() => mutate()}
