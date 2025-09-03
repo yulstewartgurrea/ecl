@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../redux_toolkit/store";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
@@ -33,6 +33,43 @@ const Step5 = () => {
     directoryPath,
     authToken
   );
+
+  // Function to check if a string is a date in yyyy-mm-dd format
+  const isDateFormat = (str: string): boolean => {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    return dateRegex.test(str);
+  };
+
+  // Function to check if a string is a date with "dpd" suffix (with space or underscore)
+  const isDateWithDpd = (str: string): boolean => {
+    const dateWithDpdRegex = /^\d{4}-\d{2}-\d{2}\s*dpd$/i;
+    return dateWithDpdRegex.test(str);
+  };
+
+  // Transform data headers from yyyy-mm-dd to yyyy-mm-dd_dpd
+  const transformedData = useMemo(() => {
+    if (!data || !Array.isArray(data)) return data;
+
+    return data.map((row: any) => {
+      const transformedRow: any = {};
+      
+      Object.keys(row).forEach((key) => {
+        if (isDateFormat(key)) {
+          // Transform date headers to include _dpd suffix
+          transformedRow[`${key}-dpd`] = row[key];
+        } else if (isDateWithDpd(key)) {
+          // Fix existing date headers that have "dpd" with space to use underscore
+          const datePart = key.replace(/\s*dpd$/i, '');
+          transformedRow[`${datePart}-dpd`] = row[key];
+        } else {
+          // Keep non-date headers as is
+          transformedRow[key] = row[key];
+        }
+      });
+      
+      return transformedRow;
+    });
+  }, [data]);
 
   // 🔹 Sync API status
   useEffect(() => {
@@ -132,17 +169,19 @@ const Step5 = () => {
           <>
             {/* Zoom + Main Table */}
             <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="flex justify-end mb-4">
+              <div className="flex justify-end">
                 <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/5" />
               </div>
               <DpdTable />
-              <TableTemplate1
-                data={data}
+              <div className="mt-4">
+                <TableTemplate1
+                data={transformedData}
                 format="decimal"
                 decimalPlaces={0}
                 zoomLevel={zoom}
                 setZoomLevel={setZoom}
-              />
+                />
+              </div>
             </div>
           </>
         )}
