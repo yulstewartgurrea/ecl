@@ -1,5 +1,4 @@
-// src/components/transition_matrix_components/TabbedInterface.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
 import { useTabbedInterfaceData } from "../../hooks/useTabbedInterfaceData";
@@ -28,9 +27,6 @@ const TabbedInterface = () => {
     setActiveTab,
     visibleTabs,
     overflowTabs,
-    currentMetrics,
-    columnCount,
-    rowCount,
     dataTypes,
     isLoading,
     error,
@@ -48,11 +44,11 @@ const TabbedInterface = () => {
     const storageKey = "for_step_3";
     localStorage.setItem(storageKey, "true");
   }, []);
-  // console.log(inputFiles);
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
+
   useEffect(() => {
     if (isLoading) {
       setStatus("loading");
@@ -75,21 +71,14 @@ const TabbedInterface = () => {
     authToken
   );
 
-
-
-
-  // Auto-select latest version per tab when versions load
   useEffect(() => {
     if (versions && versions.length > 0) {
       setSelectedVersions((prev) => {
-        // If we already have a selection for this tab, keep it
         if (prev[activeTab]) return prev;
-        return { ...prev, [activeTab]: versions[0].id }; // latest version
+        return { ...prev, [activeTab]: versions[0].id };
       });
     }
   }, [activeTab, versions]);
-
-  // Get currently selected version for active tab
 
 
   const handleVersionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -114,6 +103,34 @@ const TabbedInterface = () => {
   const filtered = filterDocumentData(activeStatusFilter);
   setFilteredData(filtered);
 }, [document, activeStatusFilter]);
+
+const metrics = useMemo(() => {
+  if (!filteredData || filteredData.length === 0) return { valid: 0, error: 0, missing: 0, duplicate: 0 };
+
+  const total = filteredData.length;
+
+  // Count statuses in filteredData
+  const counts = { valid: 0, error: 0, missing: 0, duplicate: 0 };
+  filteredData.forEach((row: any) => {
+    const status = row.status?.toLowerCase();
+    if (status === "valid") counts.valid += 1;
+    else if (status === "error") counts.error += 1;
+    else if (status === "missing") counts.missing += 1;
+    else if (status === "duplicate") counts.duplicate += 1;
+  });
+
+  return {
+    valid: Math.round((counts.valid / total) * 100),
+    error: Math.round((counts.error / total) * 100),
+    missing: Math.round((counts.missing / total) * 100),
+    duplicate: Math.round((counts.duplicate / total) * 100),
+  };
+}, [filteredData]);
+const filteredColumnCount = useMemo(() => {
+  if (!filteredData || filteredData.length === 0) return 0;
+  return Object.keys(filteredData[0]).length;
+}, [filteredData]);
+const filteredRowCount = filteredData.length;
   return (
     <div className="w-full min-h-screen  relative">
       <ApiStatusIndicator
@@ -254,49 +271,54 @@ const TabbedInterface = () => {
         {/* Metrics bar */}
         <div className="w-full flex flex-row items-center gap-4">
           <div className="h-10 w-7/12 bg-gray-200 overflow-hidden flex rounded">
-            <div
-              className="bg-green-500 h-full"
-              style={{ width: `${currentMetrics.valid}%` }}
-            />
-            <div
-              className="bg-orange-400 h-full"
-              style={{ width: `${currentMetrics.error}%` }}
-            />
-            <div
-              className="bg-gray-700 h-full"
-              style={{ width: `${currentMetrics.missing}%` }}
-            />
-            <div
-              className="bg-yellow-700 h-full"
-              style={{ width: `${currentMetrics.duplicate}%` }}
-            />
+            <div className="h-10 w-7/12 bg-gray-200 overflow-hidden flex rounded">
+              <div
+                className="bg-green-500 h-full"
+                style={{ width: `${metrics.valid}%` }}
+              />
+              <div
+                className="bg-orange-400 h-full"
+                style={{ width: `${metrics.error}%` }}
+              />
+              <div
+                className="bg-gray-700 h-full"
+                style={{ width: `${metrics.missing}%` }}
+              />
+              <div
+                className="bg-yellow-700 h-full"
+                style={{ width: `${metrics.duplicate}%` }}
+              />
+            </div>
+
           </div>
           <div className="flex flex-grow gap-2 justify-between text-sm">
-            <span>{columnCount} Columns</span>
-            <span>{rowCount} Rows</span>
+            <span>{filteredColumnCount} Columns</span>
+            <span>{filteredRowCount} Rows</span>
             <span>{dataTypes.size} Data Types</span>
           </div>
+
         </div>
 
         {/* Metrics labels */}
-        <div className="flex gap-6 mt-2 text-sm items-center">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-green-500 rounded-sm" />
-            <span>{currentMetrics.valid}% Valid</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-orange-400 rounded-sm" />
-            <span>{currentMetrics.error}% Error</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-gray-700 rounded-sm" />
-            <span>{currentMetrics.missing}% Missing</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-yellow-700 rounded-sm" />
-            <span>{currentMetrics.duplicate}% Duplicate</span>
-          </div>
-        </div>
+<div className="flex gap-6 mt-2 text-sm items-center">
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-3 bg-green-500 rounded-sm" />
+    <span>{metrics.valid}% Valid</span>
+  </div>
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-3 bg-orange-400 rounded-sm" />
+    <span>{metrics.error}% Error</span>
+  </div>
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-3 bg-gray-700 rounded-sm" />
+    <span>{metrics.missing}% Missing</span>
+  </div>
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-3 bg-yellow-700 rounded-sm" />
+    <span>{metrics.duplicate}% Duplicate</span>
+  </div>
+</div>
+
 
         {/* Table */}
         <div className="mt-6">

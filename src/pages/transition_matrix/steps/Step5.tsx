@@ -131,11 +131,12 @@ const Step5 = () => {
         {!isLoading && !error && (
           <>
             {/* Zoom + Main Table */}
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="flex justify-end mb-4">
+
+            <div className="bg-white p-2 mt-2 rounded-lg shadow-md">
+              <div className="justify-start">
+                <DpdTable />
                 <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/5" />
               </div>
-              <DpdTable />
               <TableTemplate1
                 data={data}
                 format="decimal"

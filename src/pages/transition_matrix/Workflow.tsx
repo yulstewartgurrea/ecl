@@ -141,14 +141,14 @@ const PdTransitionMatrixWorkflow = () => {
   let continueLabel = "Continue";
 
   if (currentStep === 1) {
-    stepDescriptionTitle = "";
-    stepDescription = "";
+    stepDescriptionTitle = "Monthly transactional dataset";
+    stepDescription = "Validates the uploaded dataset for completeness, accuracy, and consistency.";
     continueLabel = "Proceed";
   }
   if (currentStep === 2 && consolidationSubStep === 0) {
     stepDescriptionTitle = "Input data";
     stepDescription =
-      "Contains monthly transactional-level data, including details such as transaction dates, amounts, and account identifiers";
+      "Consolidates multiple months of data into a single dataset for analysis.";
     continueLabel = "Consolidate";
   } else if (currentStep === 2 && consolidationSubStep === 1) {
     stepDescriptionTitle = "Data consolidation";
@@ -283,7 +283,7 @@ const PdTransitionMatrixWorkflow = () => {
               Some records still contain{" "}
               <span className="font-medium">missing data</span>,{" "}
               <span className="font-medium">errors</span>, or{" "}
-              <span className="font-medium">duplicate</span> statutes that have
+              <span className="font-medium">duplicate</span> status that have
               been detected.
             </p>
 
