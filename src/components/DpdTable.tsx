@@ -8,7 +8,7 @@ const DpdBucketTable = () => {
   ];
 
   return (
-    <div className="bg-white rounded-md shadow-sm border border-gray-200 w-full max-w-xs p-4 mt-8">
+    <div className="bg-white rounded-md shadow-sm border border-gray-200 w-full max-w-xs p-4">
       <table className="w-full text-xs text-gray-700 border border-gray-200">
         <thead className="bg-gray-100 text-gray-600 font-medium">
           <tr>
