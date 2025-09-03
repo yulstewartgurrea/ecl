@@ -34,6 +34,7 @@ const Step3 = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(100);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -82,6 +83,15 @@ const Step3 = () => {
     );
   }, []);
 
+  // Memoized filtered fields based on search
+  const filteredFields = useMemo(() => {
+    if (!searchTerm) return FILTER_FIELDS;
+    
+    return FILTER_FIELDS.filter(field =>
+      field.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [searchTerm]);
+
   // Memoized filtered data
   const filteredData = useMemo(() => {
     if (!data || selectedFilters.length === 0) return data || [];
@@ -120,6 +130,7 @@ const Step3 = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
+        setSearchTerm(""); // Clear search when closing
       }
     };
 
@@ -209,8 +220,23 @@ const Step3 = () => {
               </button>
               
               {isDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 min-w-[300px] max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                {FILTER_FIELDS.map((field) => (
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 min-w-[300px] max-h-64 overflow-hidden">
+                  {/* Search Bar */}
+                  <div className="p-3 border-b border-gray-200">
+                    <input
+                      type="text"
+                      placeholder="Search filters..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  
+                  {/* Filter List */}
+                  <div className="max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                    {filteredFields.length > 0 ? (
+                      filteredFields.map((field) => (
                   <div
                     key={field}
                     onClick={() => toggleFilter(field)}
@@ -226,10 +252,16 @@ const Step3 = () => {
                         checked={selectedFilters.includes(field)}
                         readOnly
                       />
-                      {field}
+                        {field}
+                      </div>
                     </div>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                        No filters found matching "{searchTerm}"
+                      </div>
+                    )}
                   </div>
-                ))}
                 </div>
               )}
             </div>
