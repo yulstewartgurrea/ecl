@@ -45,7 +45,6 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   onSaveSuccess,
 }) => {
   const dispatch = useAppDispatch();
-  const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const authToken = useAppSelector((state) => state.auth.token);
   const [filterDropdownOpen, setFilterDropdownOpen] = useState<string | null>(
@@ -61,6 +60,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   // map local _rowIndex -> global index in orgData (or -1 if not mapped)
   const originalIndexMapRef = useRef<Map<number, number>>(new Map());
   // track edits/deletes by global index
+  const editedIndicesRef = useRef<Set<number>>(new Set());
   const editedGlobalRef = useRef<Set<number>>(new Set());
   const deletedGlobalRef = useRef<Set<number>>(new Set());
   const {
@@ -120,6 +120,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
         try {
           return JSON.stringify(r) === s;
         } catch {
+          console.log('zoomLevel: ', zoomLevel, isDelete)
           return false;
         }
       });
@@ -240,7 +241,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
       reindexed.forEach((r, newLocalIdx) => {
         // Try to find previous mapping by matching content to previous rows (best-effort)
         let prevLocal = -1;
-        for (const [k, v] of originalIndexMapRef.current.entries()) {
+        for (const [k] of originalIndexMapRef.current.entries()) {
           const prevRow = originalRowsRef.current[k];
           try {
             if (prevRow && JSON.stringify(prevRow) === JSON.stringify(r)) {
@@ -520,8 +521,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
                     <th
                       key={header}
                       className="bg-[#444444] text-white p-3 border border-white relative text-nowrap cursor-default hover:bg-gray-700 transition-colors duration-200 rounded"
-                      onMouseEnter={() => setHoveredColumn(header)}
-                      onMouseLeave={() => setHoveredColumn(null)}
+                    
                     >
                       <div className="flex items-center justify-center gap-1">
                         <span className="font-semibold tracking-wide select-none">

@@ -73,6 +73,7 @@ const Step6 = () => {
     });
   }, [data]);
 
+  
   useEffect(() => {
     if (isLoading) {
       setStatus("loading");
@@ -96,6 +97,7 @@ const Step6 = () => {
       setStatusMessage("Download complete.");
     } catch {
       setStatus("error");
+      console.log(transformedData)
       setStatusMessage("Download failed.");
     }
   };

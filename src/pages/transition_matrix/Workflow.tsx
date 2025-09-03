@@ -210,84 +210,85 @@ const PdTransitionMatrixWorkflow = () => {
   // ----------------------
   // Sorting helper for modal
   // ----------------------
-  const MONTH_ORDER = [
-    "jan",
-    "feb",
-    "mar",
-    "apr",
-    "may",
-    "jun",
-    "jul",
-    "aug",
-    "sep",
-    "oct",
-    "nov",
-    "dec",
-  ];
+  // const MONTH_ORDER = [
+  //   "jan",
+  //   "feb",
+  //   "mar",
+  //   "apr",
+  //   "may",
+  //   "jun",
+  //   "jul",
+  //   "aug",
+  //   "sep",
+  //   "oct",
+  //   "nov",
+  //   "dec",
+  // ];
 
-  const getSortedMetricKeys = (): string[] => {
-    try {
-      const metricsObj = JSON.parse(localStorage.getItem("metrics") || "{}");
-      const keys = Object.keys(metricsObj);
+  // const getSortedMetricKeys = (): string[] => {
+  //   try {
+  //     const metricsObj = JSON.parse(localStorage.getItem("metrics") || "{}");
+  //     const keys = Object.keys(metricsObj);
 
-      // quick return if no keys
-      if (!keys.length) return keys;
+  //     // quick return if no keys
+  //     if (!keys.length) return keys;
 
-      // regex covers full month names and 3-letter abbreviations followed by optional separators then 4-digit year
-      const regex =
-        /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[ _-]*[_\s-]*(\d{4})\b/i;
+  //     // regex covers full month names and 3-letter abbreviations followed by optional separators then 4-digit year
+  //     const regex =
+  //       /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[ _-]*[_\s-]*(\d{4})\b/i;
 
-      const parsed = keys.map((k, idx) => {
-        const lower = k.toLowerCase();
-        const m = lower.match(regex);
-        if (m) {
-          const monthStr = m[1].slice(0, 3);
-          const monthIdx = MONTH_ORDER.indexOf(monthStr);
-          const year = parseInt(m[2], 10);
-          return { key: k, year: Number.isFinite(year) ? year : null, monthIdx: monthIdx >= 0 ? monthIdx : null, idx };
-        }
-        // fallback: try find year and month contained anywhere
-        const yearMatch = lower.match(/(\d{4})/);
-        const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
-        const monthIdx = MONTH_ORDER.findIndex((m) => lower.includes(m));
-        return { key: k, year: Number.isFinite(year) ? year : null, monthIdx: monthIdx >= 0 ? monthIdx : null, idx };
-      });
+  //     const parsed = keys.map((k, idx) => {
+  //       const lower = k.toLowerCase();
+  //       const m = lower.match(regex);
+  //       if (m) {
+  //         const monthStr = m[1].slice(0, 3);
+  //         const monthIdx = MONTH_ORDER.indexOf(monthStr);
+  //         const year = parseInt(m[2], 10);
+  //         return { key: k, year: Number.isFinite(year) ? year : null, monthIdx: monthIdx >= 0 ? monthIdx : null, idx };
+  //       }
+  //       // fallback: try find year and month contained anywhere
+  //       const yearMatch = lower.match(/(\d{4})/);
+  //       const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
+  //       const monthIdx = MONTH_ORDER.findIndex((m) => lower.includes(m));
+  //       return { key: k, year: Number.isFinite(year) ? year : null, monthIdx: monthIdx >= 0 ? monthIdx : null, idx };
+  //     });
 
-      parsed.sort((a, b) => {
-        // both have years
-        if (a.year !== null && b.year !== null) {
-          if (a.year !== b.year) return a.year - b.year;
-          // same year: compare months if both available
-          if (a.monthIdx !== null && b.monthIdx !== null) return a.monthIdx - b.monthIdx;
-          if (a.monthIdx !== null) return -1; // a has month, b doesn't -> a first
-          if (b.monthIdx !== null) return 1;
-          return a.idx - b.idx; // stable fallback
-        }
+  //     parsed.sort((a, b) => {
+  //       // both have years
+  //       if (a.year !== null && b.year !== null) {
+  //         if (a.year !== b.year) return a.year - b.year;
+  //         // same year: compare months if both available
+  //         if (a.monthIdx !== null && b.monthIdx !== null) return a.monthIdx - b.monthIdx;
+  //         if (a.monthIdx !== null) return -1; // a has month, b doesn't -> a first
+  //         if (b.monthIdx !== null) return 1;
+  //         return a.idx - b.idx; // stable fallback
+  //       }
 
-        // one has year -> it goes first
-        if (a.year !== null) return -1;
-        if (b.year !== null) return 1;
+  //       // one has year -> it goes first
+  //       if (a.year !== null) return -1;
+  //       if (b.year !== null) return 1;
 
-        // neither has year -> try months only
-        if (a.monthIdx !== null && b.monthIdx !== null) return a.monthIdx - b.monthIdx;
-        if (a.monthIdx !== null) return -1;
-        if (b.monthIdx !== null) return 1;
+  //       // neither has year -> try months only
+  //       if (a.monthIdx !== null && b.monthIdx !== null) return a.monthIdx - b.monthIdx;
+  //       if (a.monthIdx !== null) return -1;
+  //       if (b.monthIdx !== null) return 1;
 
-        // final stable fallback
-        return a.idx - b.idx;
-      });
+  //       // final stable fallback
+  //       return a.idx - b.idx;
+  //     });
 
-      return parsed.map((p) => p.key);
-    } catch (err) {
-      // parsing error, fallback to raw keys
-      console.error("Failed to parse metrics from localStorage:", err);
-      return Object.keys(JSON.parse(localStorage.getItem("metrics") || "{}"));
-    }
-  };
+  //     return parsed.map((p) => p.key);
+  //   } catch (err) {
+  //     // parsing error, fallback to raw keys
+  //     console.error("Failed to parse metrics from localStorage:", err);
+  //     return Object.keys(JSON.parse(localStorage.getItem("metrics") || "{}"));
+  //   }
+  // };
 
-  const hasIssues = Object.values(workflowMetrics).some(
-    (m: any) => (m.missing ?? 0) > 0 || (m.error ?? 0) > 0 || (m.duplicate ?? 0) > 0
-  );
+  // const hasIssues = Object.values(workflowMetrics).some(
+  //   (m: any) => (m.missing ?? 0) > 0 || (m.error ?? 0) > 0 || (m.duplicate ?? 0) > 0
+  // );
+  // console.log('hasIssues: ', hasIssues, getSortedMetricKeys)
   return (
     <div>
       {showConfirmModal && (
