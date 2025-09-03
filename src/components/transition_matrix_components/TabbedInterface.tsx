@@ -1,5 +1,5 @@
 // src/components/transition_matrix_components/TabbedInterface.tsx
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
 import { useTabbedInterfaceData } from "../../hooks/useTabbedInterfaceData";
@@ -26,7 +26,6 @@ const TabbedInterface = () => {
     containerRef,
     activeTab,
     setActiveTab,
-    filter,
     visibleTabs,
     overflowTabs,
     currentMetrics,
@@ -106,7 +105,7 @@ const TabbedInterface = () => {
     if (!document?.json_data) return [];
     if (statusLabel === "All") return document.json_data;
     return document.json_data.filter(
-      (row) => row.status?.toLowerCase() === statusLabel.toLowerCase()
+      (row:any) => row.status?.toLowerCase() === statusLabel.toLowerCase()
     );
   };
   useEffect(() => {
