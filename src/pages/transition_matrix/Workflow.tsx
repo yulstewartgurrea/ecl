@@ -283,7 +283,7 @@ const PdTransitionMatrixWorkflow = () => {
               Some records still contain{" "}
               <span className="font-medium">missing data</span>,{" "}
               <span className="font-medium">errors</span>, or{" "}
-              <span className="font-medium">duplicate</span> statutes that have
+              <span className="font-medium">duplicate</span> statuses that have
               been detected.
             </p>
 
