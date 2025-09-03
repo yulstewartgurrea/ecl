@@ -5,6 +5,7 @@ import {
   FolderIcon,
   ArrowUpTrayIcon,
   CloudArrowDownIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { useDropzone } from "react-dropzone";
@@ -18,6 +19,125 @@ interface FileItem {
   is_folder: boolean;
   is_sync?: boolean;
 }
+
+interface ValidationError {
+  year: string;
+  missingMonths: string[];
+}
+
+interface YearValidationError {
+  type: 'missing_years' | 'insufficient_years';
+  message: string;
+  availableYears: string[];
+  missingYears?: string[];
+}
+
+// Month validation utilities
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const parseFileName = (filename: string): { year: string; month: string } | null => {
+  // Expected format: "Transactional Report [Month] [Year].xlsx"
+  const match = filename.match(/Transactional Report (\w+) (\d{4})\.xlsx$/i);
+  if (match) {
+    return {
+      month: match[1],
+      year: match[2]
+    };
+  }
+  return null;
+};
+
+const validateMonthlyFiles = (filenames: string[]): ValidationError[] => {
+  const yearData: { [year: string]: Set<string> } = {};
+  const errors: ValidationError[] = [];
+
+  // Parse all filenames and group by year
+  filenames.forEach(filename => {
+    const parsed = parseFileName(filename);
+    if (parsed) {
+      if (!yearData[parsed.year]) {
+        yearData[parsed.year] = new Set();
+      }
+      yearData[parsed.year].add(parsed.month);
+    }
+  });
+
+  // Check each year for completeness
+  Object.entries(yearData).forEach(([year, months]) => {
+    const missingMonths = MONTHS.filter(month => !months.has(month));
+    if (missingMonths.length > 0) {
+      errors.push({
+        year,
+        missingMonths
+      });
+    }
+  });
+
+  return errors;
+};
+
+const validateConsecutiveYears = (filenames: string[]): YearValidationError | null => {
+  const years = new Set<string>();
+  
+  // Extract all years from filenames
+  filenames.forEach(filename => {
+    const parsed = parseFileName(filename);
+    if (parsed) {
+      years.add(parsed.year);
+    }
+  });
+
+  const availableYears = Array.from(years).sort((a, b) => parseInt(a) - parseInt(b));
+  
+  if (availableYears.length < 3) {
+    return {
+      type: 'insufficient_years',
+      message: `Only ${availableYears.length} year(s) found. Need at least 3 consecutive years.`,
+      availableYears
+    };
+  }
+
+  // Check for consecutive years
+  const yearNumbers = availableYears.map(y => parseInt(y));
+  const minYear = Math.min(...yearNumbers);
+  const maxYear = Math.max(...yearNumbers);
+  
+  // Check if we have at least 3 consecutive years
+  let consecutiveCount = 0;
+  let maxConsecutive = 0;
+  let currentConsecutive = 0;
+  
+  for (let year = minYear; year <= maxYear; year++) {
+    if (yearNumbers.includes(year)) {
+      currentConsecutive++;
+      maxConsecutive = Math.max(maxConsecutive, currentConsecutive);
+    } else {
+      currentConsecutive = 0;
+    }
+  }
+  
+  if (maxConsecutive < 3) {
+    // Find missing years in the range
+    const missingYears: string[] = [];
+    for (let year = minYear; year <= maxYear; year++) {
+      if (!yearNumbers.includes(year)) {
+        missingYears.push(year.toString());
+      }
+    }
+    
+    return {
+      type: 'missing_years',
+      message: `Missing years detected. Need at least 3 consecutive years.`,
+      availableYears,
+      missingYears
+    };
+  }
+
+  return null; // No errors
+};
 
 const FileExplorer = () => {
   const [currentPath] = useState("ECL_Calculation_Run_1");
@@ -33,6 +153,13 @@ const FileExplorer = () => {
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
+  const [yearValidationError, setYearValidationError] = useState<YearValidationError | null>(null);
+  const [showYearValidationError, setShowYearValidationError] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateFiles, setDuplicateFiles] = useState<string[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const authToken = useAppSelector((state) => state.auth.token);
   const {
     selectedPdTransitionMatrixEntity: entity,
@@ -80,8 +207,38 @@ const FileExplorer = () => {
         }));
 
         setContents(fileItems);
+        
+        // Validate existing files for completeness (only if there are files)
+        let existingValidationErrors: ValidationError[] = [];
+        let existingYearValidationError: YearValidationError | null = null;
+        
+        if (files.length > 0) {
+          existingValidationErrors = validateMonthlyFiles(files);
+          existingYearValidationError = validateConsecutiveYears(files);
+        }
+        
+        setValidationErrors(existingValidationErrors);
+        setYearValidationError(existingYearValidationError);
+        
+        let statusMessage = "Files loaded successfully";
+        if (existingValidationErrors.length > 0) {
+          setShowValidationErrors(true);
+          statusMessage += `. ${existingValidationErrors.length} year(s) have missing months`;
+        }
+        if (existingYearValidationError) {
+          setShowYearValidationError(true);
+          statusMessage += `. ${existingYearValidationError.message}`;
+        }
+        if (existingValidationErrors.length === 0 && !existingYearValidationError) {
+          if (files.length > 0) {
+            statusMessage += " - all months and years are complete!";
+          }
+        } else if (files.length > 0) {
+          statusMessage += " - see details below.";
+        }
+        
         setStatus("success");
-        setStatusMessage("Files loaded successfully");
+        setStatusMessage(statusMessage);
       } catch (error) {
         console.error("Error fetching files:", error);
         setStatus("error");
@@ -93,6 +250,7 @@ const FileExplorer = () => {
     }
 
     fetchExistingFiles();
+    console.log('useEffect')
   }, [entity, period, workflowName, authToken]);
 
   const handleFileSelect = (path: string, fileName: string) => {
@@ -112,17 +270,59 @@ const FileExplorer = () => {
     });
   }
 
-  const onDrop = async (acceptedFiles: File[]) => {
+  const checkForDuplicates = (files: File[]): string[] => {
+    const existingFilenames = contents.map(f => f.name);
+    return files
+      .map(f => f.name)
+      .filter(filename => existingFilenames.includes(filename));
+  };
+
+  const handleDuplicateConfirmation = async (replaceExisting: boolean) => {
+    setShowDuplicateModal(false);
+    
+    if (!replaceExisting) {
+      // Filter out duplicate files and only upload new ones
+      const newFiles = pendingFiles.filter(file => !duplicateFiles.includes(file.name));
+      if (newFiles.length > 0) {
+        await processFileUpload(newFiles);
+      }
+    } else {
+      // Upload all files (including duplicates)
+      await processFileUpload(pendingFiles);
+    }
+    
+    // Clear pending state
+    setPendingFiles([]);
+    setDuplicateFiles([]);
+  };
+
+  const processFileUpload = async (filesToUpload: File[]) => {
     if (!entity || !period || !workflowName) {
       console.error("Missing workflow data from Redux state");
       return;
+    }
+
+    // Validate files for complete months (but don't block upload)
+    const allFilenames = [...contents.map(f => f.name), ...filesToUpload.map(f => f.name)];
+    const validationErrors = validateMonthlyFiles(allFilenames);
+    const yearValidationError = validateConsecutiveYears(allFilenames);
+    
+    // Update validation errors but don't block upload
+    setValidationErrors(validationErrors);
+    setYearValidationError(yearValidationError);
+    
+    if (validationErrors.length > 0) {
+      setShowValidationErrors(true);
+    }
+    if (yearValidationError) {
+      setShowYearValidationError(true);
     }
 
     const workflow_path = `/${entity}/${period}/${workflowName}`;
 
     try {
       // Prepare payload for backend document creation API
-      const filesPayload = acceptedFiles.map((file) => ({
+      const filesPayload = filesToUpload.map((file) => ({
         filename: file.name,
         workflow_path: workflow_path,
       }));
@@ -148,7 +348,7 @@ const FileExplorer = () => {
 
       // Convert files to base64 for Tauri upload
       const docUpload = await Promise.all(
-        acceptedFiles.map(async (file) => {
+        filesToUpload.map(async (file) => {
           const base64 = await fileToBase64(file);
           return {
             filename: file.name,
@@ -167,7 +367,7 @@ const FileExplorer = () => {
       console.log("Upload result:", result);
 
       // Update local UI state with new files
-      const newFiles = acceptedFiles.map((file) => ({
+      const newFiles = filesToUpload.map((file) => ({
         name: file.name,
         is_folder: false,
         is_sync: true,
@@ -185,13 +385,60 @@ const FileExplorer = () => {
     }
   };
 
+  const onDrop = async (acceptedFiles: File[]) => {
+    if (!entity || !period || !workflowName) {
+      console.error("Missing workflow data from Redux state");
+      return;
+    }
+
+    // Check for duplicate files
+    const duplicates = checkForDuplicates(acceptedFiles);
+    
+    if (duplicates.length > 0) {
+      // Show modal for duplicate confirmation
+      setDuplicateFiles(duplicates);
+      setPendingFiles(acceptedFiles);
+      setShowDuplicateModal(true);
+      return;
+    }
+
+    // No duplicates, proceed with upload
+    await processFileUpload(acceptedFiles);
+  };
+
   const { getRootProps, getInputProps, open, isDragActive } = useDropzone({
     onDrop,
     multiple: true,
     noClick: true,
   });
   const handleRemoveFile = (fileName: string) => {
-    setContents((prev) => prev.filter((file) => file.name !== fileName));
+    setContents((prev) => {
+      const newContents = prev.filter((file) => file.name !== fileName);
+      
+      // Re-validate after removing a file
+      const remainingFilenames = newContents.map(f => f.name);
+      const newValidationErrors = validateMonthlyFiles(remainingFilenames);
+      const newYearValidationError = validateConsecutiveYears(remainingFilenames);
+      
+      setValidationErrors(newValidationErrors);
+      setYearValidationError(newYearValidationError);
+      
+      if (newValidationErrors.length === 0 && !newYearValidationError) {
+        setShowValidationErrors(false);
+        setShowYearValidationError(false);
+        setStatus("success");
+        setStatusMessage("All months and years are now complete!");
+      } else {
+        if (newValidationErrors.length > 0) {
+          setShowValidationErrors(true);
+        }
+        if (newYearValidationError) {
+          setShowYearValidationError(true);
+        }
+      }
+      
+      return newContents;
+    });
   };
 
   return (
@@ -206,6 +453,106 @@ const FileExplorer = () => {
           </button>
         </div>
       </div>
+
+    
+      {/* Year Validation Errors Display */}
+      {showYearValidationError && yearValidationError && (
+        <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+          <div className="flex items-center mb-3">
+            <ExclamationTriangleIcon className="w-5 h-5 text-orange-600 mr-2" />
+            <h3 className="text-sm font-semibold text-orange-800">
+              Year Coverage Status
+            </h3>
+            <button
+              onClick={() => setShowYearValidationError(false)}
+              className="ml-auto text-orange-600 hover:text-orange-800"
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className="bg-white p-3 rounded border border-orange-200">
+            <div className="font-medium text-orange-800 mb-2">
+              {yearValidationError.message}
+            </div>
+            
+            <div className="mb-3">
+              <div className="text-sm text-orange-700 mb-2">
+                Available years: {yearValidationError.availableYears.join(', ')}
+              </div>
+              
+              {yearValidationError.missingYears && yearValidationError.missingYears.length > 0 && (
+                <div className="text-sm text-orange-700 mb-2">
+                  Missing years: {yearValidationError.missingYears.join(', ')}
+                </div>
+              )}
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              {yearValidationError.availableYears.map((year, index) => (
+                <span
+                  key={index}
+                  className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full"
+                >
+                  {year}
+                </span>
+              ))}
+            </div>
+          </div>
+          
+          <div className="mt-3 text-sm text-orange-700">
+            {/* <p>You can still upload files, but consider adding data for consecutive years for complete analysis coverage.</p> */}
+            <p className="mt-1">
+              <strong>Requirement:</strong> At least 3 consecutive years of data
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Validation Errors Display */}
+      {showValidationErrors && validationErrors.length > 0 && (
+        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-center mb-3">
+            <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600 mr-2" />
+            <h3 className="text-sm font-semibold text-yellow-800">
+              Monthly Reports Status
+            </h3>
+            <button
+              onClick={() => setShowValidationErrors(false)}
+              className="ml-auto text-yellow-600 hover:text-yellow-800"
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className="space-y-3">
+            {validationErrors.map((error, index) => (
+              <div key={index} className="bg-white p-3 rounded border border-yellow-200">
+                <div className="font-medium text-yellow-800 mb-2">
+                  Year {error.year} - Missing {error.missingMonths.length} month(s):
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {error.missingMonths.map((month, monthIndex) => (
+                    <span
+                      key={monthIndex}
+                      className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full"
+                    >
+                      {month}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-3 text-sm text-yellow-700">
+            {/* <p>You can still upload files, but consider adding the missing months for complete data coverage.</p> */}
+            <p className="mt-1">
+              <strong>Expected format:</strong> "Transactional Report [Month] [Year].xlsx"
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-6 gap-4">
         <div className="col-span-1 flex flex-col items-center p-4 ">
@@ -324,6 +671,68 @@ const FileExplorer = () => {
           onHide={() => setStatus("idle")}
         />
       </div>
+
+      {/* Duplicate Files Confirmation Modal */}
+      {showDuplicateModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-lg">
+            <div className="flex items-center mb-4 bg-red-100 p-3 rounded-t-lg -m-6 mb-4">
+              <ExclamationTriangleIcon className="w-6 h-6 text-orange-500 mr-3" />
+              <h3 className="text-lg font-semibold text-orange-800">
+                Duplicate Files Detected
+              </h3>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-gray-700 mb-3">
+                The following files already exist in the current folder:
+              </p>
+              <div className="bg-gray-50 p-3 rounded border max-h-32 overflow-y-auto">
+                {duplicateFiles.map((filename, index) => (
+                  <div key={index} className="text-sm text-gray-600 py-1">
+                    • {filename}
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">
+                What would you like to do?
+              </p>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => handleDuplicateConfirmation(false)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Skip Duplicates
+              </button>
+              <button
+                onClick={() => handleDuplicateConfirmation(true)}
+                className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
+              >
+                Replace All
+              </button>
+            </div>
+            
+            <div className="mt-3 text-center">
+              <button
+                onClick={() => {
+                  setShowDuplicateModal(false);
+                  setPendingFiles([]);
+                  setDuplicateFiles([]);
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Cancel Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 };
