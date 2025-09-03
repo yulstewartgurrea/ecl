@@ -208,9 +208,14 @@ const FileExplorer = () => {
 
         setContents(fileItems);
         
-        // Validate existing files for completeness
-        const existingValidationErrors = validateMonthlyFiles(files);
-        const existingYearValidationError = validateConsecutiveYears(files);
+        // Validate existing files for completeness (only if there are files)
+        let existingValidationErrors: ValidationError[] = [];
+        let existingYearValidationError: YearValidationError | null = null;
+        
+        if (files.length > 0) {
+          existingValidationErrors = validateMonthlyFiles(files);
+          existingYearValidationError = validateConsecutiveYears(files);
+        }
         
         setValidationErrors(existingValidationErrors);
         setYearValidationError(existingYearValidationError);
@@ -225,8 +230,10 @@ const FileExplorer = () => {
           statusMessage += `. ${existingYearValidationError.message}`;
         }
         if (existingValidationErrors.length === 0 && !existingYearValidationError) {
-          statusMessage += " - all months and years are complete!";
-        } else {
+          if (files.length > 0) {
+            statusMessage += " - all months and years are complete!";
+          }
+        } else if (files.length > 0) {
           statusMessage += " - see details below.";
         }
         
@@ -494,7 +501,7 @@ const FileExplorer = () => {
           </div>
           
           <div className="mt-3 text-sm text-orange-700">
-            <p>You can still upload files, but consider adding data for consecutive years for complete analysis coverage.</p>
+            {/* <p>You can still upload files, but consider adding data for consecutive years for complete analysis coverage.</p> */}
             <p className="mt-1">
               <strong>Requirement:</strong> At least 3 consecutive years of data
             </p>
@@ -539,7 +546,7 @@ const FileExplorer = () => {
           </div>
           
           <div className="mt-3 text-sm text-yellow-700">
-            <p>You can still upload files, but consider adding the missing months for complete data coverage.</p>
+            {/* <p>You can still upload files, but consider adding the missing months for complete data coverage.</p> */}
             <p className="mt-1">
               <strong>Expected format:</strong> "Transactional Report [Month] [Year].xlsx"
             </p>
