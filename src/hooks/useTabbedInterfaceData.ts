@@ -54,6 +54,45 @@ type UseTabbedInterfaceDataReturn = {
   onChildRefresh: (updatedFile: any | null) => void;
 };
 
+// Utility function for sorting filenames
+const sortFilenames = (filenames: string[], sortType: 'alphabetical' | 'monthly' = 'alphabetical'): string[] => {
+  console.log('Sorting filenames:', filenames, 'with type:', sortType);
+  
+  if (sortType === 'monthly') {
+    const monthMap: any = {
+      January: 1,
+      February: 2,
+      March: 3,
+      April: 4,
+      May: 5,
+      June: 6,
+      July: 7,
+      August: 8,
+      September: 9,
+      October: 10,
+      November: 11,
+      December: 12
+    };
+
+    const sorted = [...filenames].sort((a, b) => {
+      // Extract month and year
+      const [ , , monthA, yearA ] = a.split("_");
+      const [ , , monthB, yearB ] = b.split("_");
+
+      const yA = parseInt(yearA);
+      const yB = parseInt(yearB);
+      if (yA !== yB) return yA - yB; // sort by year first
+      return monthMap[monthA] - monthMap[monthB]; // then by month
+    });
+    
+    console.log('Monthly sorted result:', sorted);
+    return sorted;
+  }
+  
+  // Default alphabetical sorting
+  return filenames.sort();
+};
+
 export function useTabbedInterfaceData(
   directoryPath: string
 ): UseTabbedInterfaceDataReturn {
@@ -146,8 +185,9 @@ export function useTabbedInterfaceData(
     return () => window.removeEventListener("resize", calculateVisibleTabs);
   }, []);
 
-  const visibleTabs = inputFiles.slice(0, visibleCount);
-  const overflowTabs = inputFiles.slice(visibleTabs.length);
+  const visibleTabs = sortFilenames(inputFiles.slice(0, visibleCount), 'monthly');
+  const overflowTabs = sortFilenames(inputFiles.slice(visibleTabs.length), 'monthly');
+  console.log('overflowTabs', overflowTabs)
   const activeFile = inputFiles[activeTab];
   const activeData = fileDataMap[activeFile] || [];
 

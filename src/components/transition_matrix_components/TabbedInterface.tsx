@@ -156,7 +156,7 @@ const TabbedInterface = () => {
             >
               ▼
             </button>
-            <div className="absolute top-full right-0 bg-white border border-gray-300 rounded-md shadow-lg z-10 hidden group-hover:block min-w-[140px]">
+            <div className="absolute top-full right-0 bg-white border border-gray-300 rounded-md shadow-lg z-10 hidden group-hover:block min-w-[140px] max-h-80 overflow-y-auto">
               {overflowTabs.map((tab, i) => {
                 const realIndex = visibleTabs.length + i;
                 return (
