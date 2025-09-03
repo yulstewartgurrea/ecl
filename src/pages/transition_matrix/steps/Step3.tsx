@@ -1,5 +1,5 @@
 import { FunnelIcon } from "@heroicons/react/24/outline";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../redux_toolkit/store";
 
@@ -31,6 +31,10 @@ const Step3 = () => {
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const {
     selectedPdTransitionMatrixEntity: entity,
@@ -72,11 +76,61 @@ const Step3 = () => {
     }
   };
 
-  const toggleFilter = (field: string) => {
+  const toggleFilter = useCallback((field: string) => {
     setSelectedFilters((prev) =>
       prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field]
     );
-  };
+  }, []);
+
+  // Memoized filtered data
+  const filteredData = useMemo(() => {
+    if (!data || selectedFilters.length === 0) return data || [];
+    
+    return data.filter((row: any) => {
+      return selectedFilters.some(filter => 
+        row[filter] !== undefined && row[filter] !== null && row[filter] !== ''
+      );
+    });
+  }, [data, selectedFilters]);
+
+  // Memoized pagination calculations
+  const paginationData = useMemo(() => {
+    const totalItems = filteredData.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentData = filteredData.slice(startIndex, endIndex);
+
+    return {
+      totalItems,
+      totalPages,
+      currentData,
+      startIndex,
+      endIndex
+    };
+  }, [filteredData, currentPage, itemsPerPage]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedFilters]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
 
   return (
     <div className="w-full min-h-screen bg-gray-50 px-6 py-8">
@@ -139,25 +193,45 @@ const Step3 = () => {
         {/* Filters */}
         <div className="col-span-3 space-y-4 mb-6">
           <div className="rounded-lg bg-white border border-gray-200 p-4 shadow-sm">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <FunnelIcon className="w-4 h-4" /> Filters
-            </h4>
+            
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {FILTER_FIELDS.map((field) => (
-                <label
-                  key={field}
-                  className="flex items-center gap-2 text-xs cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    className="accent-gray-400"
-                    checked={selectedFilters.includes(field)}
-                    onChange={() => toggleFilter(field)}
-                  />
-                  {field}
-                </label>
-              ))}
+            <div className="relative" ref={dropdownRef}>
+              <button 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="bg-gray-100 hover:bg-gray-200 border border-gray-300 px-4 py-2 rounded-lg text-sm font-medium text-gray-700 flex items-center gap-2"
+              >
+                <FunnelIcon className="w-4 h-4" />
+                {selectedFilters.length > 0 
+                  ? `${selectedFilters.length} filter${selectedFilters.length > 1 ? 's' : ''} selected`
+                  : 'Select Filters'
+                }
+                <span className={`ml-1 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}>▼</span>
+              </button>
+              
+              {isDropdownOpen && (
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 min-w-[300px] max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                {FILTER_FIELDS.map((field) => (
+                  <div
+                    key={field}
+                    onClick={() => toggleFilter(field)}
+                    className={`
+                      px-4 py-2 cursor-pointer hover:bg-gray-100 text-xs border-b border-gray-100 last:border-b-0
+                      ${selectedFilters.includes(field) ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}
+                    `}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="accent-blue-500"
+                        checked={selectedFilters.includes(field)}
+                        readOnly
+                      />
+                      {field}
+                    </div>
+                  </div>
+                ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -169,12 +243,58 @@ const Step3 = () => {
           </div>
         )}
 
+        {/* Pagination Controls */}
+        {!isLoading && !error && paginationData.totalItems > 0 && (
+          <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg border border-gray-200">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600">
+                Showing {paginationData.startIndex + 1} to {Math.min(paginationData.endIndex, paginationData.totalItems)} of {paginationData.totalItems} entries
+              </span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="border border-gray-300 rounded px-2 py-1 text-sm"
+              >
+                <option value={50}>50 per page</option>
+                <option value={100}>100 per page</option>
+                <option value={200}>200 per page</option>
+                <option value={500}>500 per page</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {paginationData.totalPages}
+              </span>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(paginationData.totalPages, prev + 1))}
+                disabled={currentPage === paginationData.totalPages}
+                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Content */}
         {!isLoading && !error && (
           <>
             <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
             <TableTemplate1
-              data={data}
+              data={paginationData.currentData}
               zoomLevel={zoom}
               setZoomLevel={setZoom}
             />
