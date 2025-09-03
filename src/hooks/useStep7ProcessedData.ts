@@ -15,17 +15,17 @@ export const useStep7ProcessedData = (
 
     data.forEach(
       ({
-        "Observation point": obsPoint,
+        "End of performance window": obsPoint,
         ODR,
       }: {
-        "Observation point": string;
+        "End of performance window": string;
         ODR: string;
       }) => {
         const idx = existing.findIndex(
-          (e: any) => e["Observation point"] === obsPoint
+          (e: any) => e["End of performance window"] === obsPoint
         );
         if (idx >= 0) existing[idx].ODR = ODR;
-        else existing.push({ "Observation point": obsPoint, ODR });
+        else existing.push({ "End of performance window": obsPoint, ODR });
       }
     );
 

@@ -1,4 +1,4 @@
-// PdTransitionMatrixWorkflow.tsx (updated)
+"use client";
 import clsx from "clsx";
 import { useState, useEffect } from "react";
 import {
@@ -21,12 +21,15 @@ import Step10 from "./steps/Step10";
 import Step11 from "./steps/Step11";
 
 // redux toolkit
-import { useAppDispatch } from "../../redux_toolkit/hooks";
+import { useAppDispatch, useAppSelector } from "../../redux_toolkit/hooks";
 import { resetStateNavUIState } from "../../redux_toolkit/features/general/navUIState";
 import {
   resetPdTransitionMatrixWfHelperData,
   setPdTransitionMatrixCurrentStep,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
+import {
+  resetPdMatrixWfHelperData
+} from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdMatrixWfHelper";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
 
@@ -46,8 +49,13 @@ const stepLabels = [
 
 const PdTransitionMatrixWorkflow = () => {
   const dispatch = useAppDispatch();
+  const {
+    selectedPdTransitionMatrixEntity: entity,
+    selectedPdTransitionMatrixReportingPeriod: period,
+    pdTransitionMatrixWfName: workflowName,
+  } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-
+  const directoryPath = `/${entity}/${period}/${workflowName}`;
   // Redux current step
   const currentStep = useSelector(
     (state: RootState) => state.pdTransitionMatrixWfHelper.currentStep
@@ -59,6 +67,12 @@ const PdTransitionMatrixWorkflow = () => {
   const [stepsCompletionStatus, setStepsCompletionStatus] = useState<
     { label: string; completed: boolean }[] | null
   >(null);
+  const workflowMetrics = useAppSelector(
+    (state: RootState) =>
+      state.pdMatrixWfHelper.workflowMetrics[
+        directoryPath
+      ] || {}
+  );
 
   // For two screens inside Step 2 (Data Consolidation)
   const [consolidationSubStep, setConsolidationSubStep] = useState<0 | 1>(0);
@@ -271,70 +285,68 @@ const PdTransitionMatrixWorkflow = () => {
     }
   };
 
+  const hasIssues = Object.values(workflowMetrics).some(
+    (m: any) => (m.missing ?? 0) > 0 || (m.error ?? 0) > 0 || (m.duplicate ?? 0) > 0
+  );
   return (
     <div>
       {showConfirmModal && (
-        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-white/30 z-50">
-          <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-8 w-[36rem] max-w-[90%]">
-            <h2 className="text-lg font-semibold mb-3">
-              Proceed to data consolidation?
-            </h2>
-            <p className="text-sm text-gray-600 mb-5">
-              Some records still contain{" "}
-              <span className="font-medium">missing data</span>,{" "}
-              <span className="font-medium">errors</span>, or{" "}
-              <span className="font-medium">duplicate</span> status that have
-              been detected.
-            </p>
+              <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-white/30 z-50">
+                <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-8 w-[36rem] max-w-[90%]">
+                  <h2 className="text-lg font-semibold mb-3">
+                    Proceed to data consolidation?
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-5">
+                    Some records still contain{" "}
+                    <span className="font-medium">missing data</span>,{" "}
+                    <span className="font-medium">errors</span>, or{" "}
+                    <span className="font-medium">duplicate</span> status that have
+                    been detected.
+                  </p>
 
-            {/* -------------------------
-                Sorted metric list
-               ------------------------- */}
-            <div className="max-h-64 overflow-y-auto border rounded-md p-3 mb-5 bg-gray-50">
-              {(() => {
-                const metrics = JSON.parse(localStorage.getItem("metrics") || "{}");
-                const sortedKeys = getSortedMetricKeys();
-                if (!sortedKeys.length) {
-                  return <div className="text-sm text-gray-600">No issues detected.</div>;
-                }
-                return sortedKeys.map((key) => {
-                  const val: any = metrics[key] ?? {};
-                  return (
-                    <div key={key} className="text-sm py-1 border-b last:border-b-0">
-                      <strong>{key}</strong>: missing {val.missing ?? "N/A"}, error {val.error ?? "N/A"}, duplicate {val.duplicate ?? "N/A"}
-                    </div>
-                  );
-                });
-              })()}
-            </div>
+                  <div className="max-h-64 overflow-y-auto border rounded-md p-3 mb-5 bg-gray-50">
+                    {Object.keys(workflowMetrics).length === 0 && (
+                      <div className="text-sm text-gray-600">No issues detected.</div>
+                    )}
+                    {Object.entries(workflowMetrics).map(([key, val]: any) => (
+                      <div
+                        key={key}
+                        className="text-sm py-1 border-b last:border-b-0"
+                      >
+                        <strong>{key}</strong>: missing {val.missing ?? "N/A"}, error{" "}
+                        {val.error ?? "N/A"}, duplicate {val.duplicate ?? "N/A"}
+                      </div>
+                    ))}
+                  </div>
 
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="bg-gray-200 hover:bg-gray-300 cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowConfirmModal(false);
-                  setStepsCompletionStatus((prev: any) =>
-                    prev?.map((step: any, idx: number) =>
-                      idx === currentStep ? { ...step, completed: true } : step
-                    )
-                  );
-                  setCurrentStepRedux(currentStep + 1);
-                  setConsolidationSubStep(0);
-                }}
-                className="bg-[#fce404] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
-              >
-                Continue
-                <ChevronRightIcon className="w-5 h-5 font-bold mt-0.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setShowConfirmModal(false)}
+                      className="bg-gray-200 hover:bg-gray-300 cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowConfirmModal(false);
+                        setStepsCompletionStatus((prev: any) =>
+                          prev?.map((step: any, idx: number) =>
+                            idx === currentStep ? { ...step, completed: true } : step
+                          )
+                        );
+                        setCurrentStepRedux(currentStep + 1);
+                        setConsolidationSubStep(0);
+                      }}
+                     // disabled={hasIssues} uncomment if need to block continue when issues exist
+                      className="bg-[#fce404] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Continue
+                      <ChevronRightIcon className="w-5 h-5 font-bold mt-0.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
       <div className="flex flex-row items-start justify-between gap-1 bg-[#f8f8f8] px-4 py-2 sticky top-0 z-20">
         <div className="mt-1">
@@ -342,6 +354,7 @@ const PdTransitionMatrixWorkflow = () => {
             onClick={() => {
               dispatch(resetStateNavUIState());
               // dispatch(resetPdTransitionMatrixWfHelperData());
+              dispatch(resetPdMatrixWfHelperData());
               window.location.href = "/";
             }}
             className={clsx(

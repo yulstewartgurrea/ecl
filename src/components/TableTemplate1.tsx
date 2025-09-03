@@ -32,8 +32,12 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
   const [internalHighlightedRow, setInternalHighlightedRow] = useState<
     number | null
   >(null);
+  const excludedHeaders = ["errors", "status", "duplicate", "rowIndex"];
   const headers =
-    headersParams ?? (data.length > 0 ? Object.keys(data[0]) : []);
+  headersParams ??
+  (data.length > 0
+    ? Object.keys(data[0]).filter((key) => !excludedHeaders.includes(key))
+    : []);
 
   // applied filters
   const [filters, setFilters] = useState<{ [key: string]: Set<string> }>({});

@@ -117,12 +117,7 @@ export function useTabbedInterfaceData(
   const TAB_WIDTH = 140;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const workflowMetrics = useAppSelector(
-    (state: any) =>
-      state.pdMatrixWfHelper.workflowMetrics[
-        "pd_matrix_workflow"
-      ] || {}
-  );
+  
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -159,7 +154,7 @@ export function useTabbedInterfaceData(
           };
           dispatch(
             setWorkflowMetrics({
-              workflow: "pd_matrix_workflow",
+              workflow: directoryPath,
               metricsMap: metrics,
             })
           );

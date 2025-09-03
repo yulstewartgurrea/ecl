@@ -333,7 +333,7 @@ export function getMonth12Bucket4(): number[] | null {
 // services/documents.ts
 
 export type OdrCacheEntry = {
-  "Observation point": string;
+  "End of performance window": string;
   ODR: string;
 };
 

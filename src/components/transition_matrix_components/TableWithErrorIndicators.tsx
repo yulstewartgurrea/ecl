@@ -3,8 +3,18 @@ import clsx from "clsx";
 import { CheckIcon, FunnelIcon, PencilIcon } from "@heroicons/react/24/outline";
 import { formatValueGeneral } from "../../utils/CommonHelper";
 import ApiStatusIndicator from "../../components/ApiStatusIndicators";
-import { useAppSelector } from "../../redux_toolkit/hooks";
 import { useInsertDocument } from "../../hooks/useTabbedInterfaceData";
+import { useAppSelector, useAppDispatch } from "../../redux_toolkit/hooks";
+import {
+  setWorkflowMetrics,
+} from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdMatrixWfHelper";
+
+type Metrics = {
+  duplicate: number;
+  valid: number;
+  error: number;
+  missing: number;
+};
 
 interface TableWithErrorIndicatorsProps {
   data: Array<{ [key: string]: any }>;
@@ -31,10 +41,10 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   groupIds,
   directoryPath,
   orgData,
-  baseDataForSave,
   onRefresh,
   onSaveSuccess,
 }) => {
+  const dispatch = useAppDispatch();
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const authToken = useAppSelector((state) => state.auth.token);
@@ -48,7 +58,11 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [tableData, setTableData] = useState<any[]>([]);
   const originalRowsRef = useRef<any[]>([]);
-  const editedIndicesRef = useRef<Set<number>>(new Set());
+  // map local _rowIndex -> global index in orgData (or -1 if not mapped)
+  const originalIndexMapRef = useRef<Map<number, number>>(new Map());
+  // track edits/deletes by global index
+  const editedGlobalRef = useRef<Set<number>>(new Set());
+  const deletedGlobalRef = useRef<Set<number>>(new Set());
   const {
     isLoading: isSaving,
     error: saveError,
@@ -87,13 +101,55 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   const headersWithFilter = ["report_date", "cis_number", "pn_number"];
   const addRowIndex = (rows: any[]) =>
     rows.map((row, i) => ({ ...row, _rowIndex: i }));
+
+  // Helper to best-match a row to orgData; returns global index or -1
+  const findGlobalIndexForRow = (row: any, orgArr: any[]) => {
+    if (!orgArr || orgArr.length === 0) return -1;
+    // Try to match by likely stable keys first
+    const stableKeys = ["row_sequence", "cis_number", "pn_number", "id"];
+    for (const k of stableKeys) {
+      if (row[k] !== undefined) {
+        const found = orgArr.findIndex((r) => r && r[k] === row[k]);
+        if (found >= 0) return found;
+      }
+    }
+    // Fallback to stringify comparison (best-effort)
+    try {
+      const s = JSON.stringify(row);
+      const found = orgArr.findIndex((r) => {
+        try {
+          return JSON.stringify(r) === s;
+        } catch {
+          return false;
+        }
+      });
+      return found >= 0 ? found : -1;
+    } catch {
+      return -1;
+    }
+  };
+
   // Initialize tableData and store original deep copy on data change
   useEffect(() => {
     const deepCopy = addRowIndex(data || []);
     originalRowsRef.current = deepCopy;
     setTableData(deepCopy);
-    editedIndicesRef.current.clear();
-  }, [data]);
+    editedGlobalRef.current.clear();
+    deletedGlobalRef.current.clear();
+    setIsDelete(false);
+
+    // Build mapping from the local (filtered) _rowIndex -> index in the full orgData
+    const map = new Map<number, number>();
+    if (orgData && Array.isArray(orgData)) {
+      deepCopy.forEach((row, localIdx) => {
+        const foundIndex = findGlobalIndexForRow(row, orgData);
+        map.set(localIdx, foundIndex);
+      });
+    } else {
+      deepCopy.forEach((_, localIdx) => map.set(localIdx, localIdx));
+    }
+    originalIndexMapRef.current = map;
+  }, [data, orgData]);
 
   // Initialize filterSelections
   useEffect(() => {
@@ -117,6 +173,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
       })
     );
   }, [tableData, filters]);
+
   // zoom wheel handler
   useEffect(() => {
     const handleWheel = (event: WheelEvent) => {
@@ -129,8 +186,9 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
     window.addEventListener("wheel", handleWheel, { passive: false });
     return () => window.removeEventListener("wheel", handleWheel);
   }, []);
+
   const handleCellChange = (
-    rowIndex: number, // this is the _rowIndex
+    rowIndex: number, // this is the _rowIndex (local index in tableData)
     key: string,
     value: string | number
   ) => {
@@ -139,27 +197,76 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
       const i = newData.findIndex((r) => r._rowIndex === rowIndex);
       if (i >= 0) {
         newData[i] = { ...newData[i], [key]: value };
+        // mark corresponding global index as edited
+        const globalIdx = originalIndexMapRef.current.get(rowIndex);
+        if (typeof globalIdx === "number" && globalIdx >= 0) {
+          editedGlobalRef.current.add(globalIdx);
+        } else {
+          // if no mapping, mark the local _rowIndex as - meaning new row; edits will be applied on save by appending
+          // no action needed in editedGlobalRef for new rows
+        }
       } else {
         // fallback: if not found by _rowIndex, try treating as index
-        if (newData[rowIndex]) newData[rowIndex] = { ...newData[rowIndex], [key]: value };
+        if (newData[rowIndex]) {
+          newData[rowIndex] = { ...newData[rowIndex], [key]: value };
+          const globalIdx = originalIndexMapRef.current.get(rowIndex);
+          if (typeof globalIdx === "number" && globalIdx >= 0) {
+            editedGlobalRef.current.add(globalIdx);
+          }
+        }
       }
       return newData;
     });
-    editedIndicesRef.current.add(rowIndex); // store _rowIndex
   };
 
   const handleDeleteRow = (rowIndex: number) => {
     if (!isEditing) return;
+
+    // Determine global index (if mapped). If mapped, mark deletedGlobalRef
+    const globalIdx = originalIndexMapRef.current.get(rowIndex);
+    if (typeof globalIdx === "number" && globalIdx >= 0) {
+      deletedGlobalRef.current.add(globalIdx);
+    } else {
+      // It's a new/unmapped row - no need to mark global delete
+    }
+
     setTableData((prev) => {
       const updated = prev.filter((r) => r._rowIndex !== rowIndex);
       // Reassign _rowIndex sequentially so the in-memory array is compact
-      return addRowIndex(updated);
+      const reindexed = addRowIndex(updated);
+
+      // After reindexing, rebuild originalIndexMapRef to map new local indices to the same global indices where possible.
+      const newMap = new Map<number, number>();
+      reindexed.forEach((r, newLocalIdx) => {
+        // Try to find previous mapping by matching content to previous rows (best-effort)
+        let prevLocal = -1;
+        for (const [k, v] of originalIndexMapRef.current.entries()) {
+          const prevRow = originalRowsRef.current[k];
+          try {
+            if (prevRow && JSON.stringify(prevRow) === JSON.stringify(r)) {
+              prevLocal = k;
+              break;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        // Prefer to keep previous global mapping if found, else attempt to match to orgData
+        let mappedGlobal = -1;
+        if (prevLocal >= 0) mappedGlobal = originalIndexMapRef.current.get(prevLocal) ?? -1;
+        if (mappedGlobal === -1 && orgData) {
+          mappedGlobal = findGlobalIndexForRow(r, orgData);
+        }
+        newMap.set(newLocalIdx, mappedGlobal);
+      });
+      originalIndexMapRef.current = newMap;
+      originalRowsRef.current = reindexed; // keep current snapshot
+      return reindexed;
     });
+
     setIsDelete(true);
-    editedIndicesRef.current.add(rowIndex); // mark the _rowIndex as changed
   };
 
-  // refresh from backend (keeps Authorization header) and notify parent hook
   const handleRefresh = async (_maybeResultFromInsert?: any) => {
     try {
       const response = await fetch(
@@ -168,23 +275,72 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
           headers: { Authorization: authToken ? `Bearer ${authToken}` : "" },
         }
       );
+
       if (!response.ok) {
         console.error("Refresh failed", await response.text());
-        console.log("hoveredColumn", hoveredColumn, zoomLevel);
         if (onRefresh) onRefresh(null);
         return null;
       }
+
+      // parse response once
       const allFiles = await response.json();
+
+      // build fresh metrics map (overwrite semantics)
+      const metrics: Record<string, Metrics> = {};
+      allFiles.forEach((fileEntry: any) => {
+        const baseName = fileEntry.filename.replace(/\.[^/.]+$/, "");
+        const key = baseName.replace(/\s+/g, "_");
+        metrics[key] = {
+          duplicate: fileEntry.duplicate ?? null,
+          valid: fileEntry.valid ?? 0,
+          missing: fileEntry.missing ?? 0,
+          error: fileEntry.error ?? 0,
+        };
+      });
+
+      // ALWAYS overwrite workflow metrics in Redux for this directoryPath
+      try {
+        dispatch(
+          setWorkflowMetrics({
+            workflow: directoryPath,
+            metricsMap: metrics,
+          })
+        );
+      } catch (err) {
+        console.warn("Failed to dispatch setWorkflowMetrics:", err);
+      }
+
+      // find updated file we care about
       const updatedFile = allFiles.find((f: any) => f.filename === inputFile);
+
       if (updatedFile) {
+        // prefer parent-driven update if available
+        if (onRefresh) {
+          try {
+            onRefresh(updatedFile);
+          } catch (err) {
+            console.warn("onRefresh callback threw:", err);
+          }
+          return updatedFile;
+        }
+
+        // fallback: update local state directly (backwards compatible)
         originalRowsRef.current = JSON.parse(
           JSON.stringify(updatedFile.rows || [])
         );
         setTableData(JSON.parse(JSON.stringify(updatedFile.rows || [])));
-        editedIndicesRef.current.clear();
 
-        // notify parent (hook) so it updates fileDataMap / metricsMap
-        if (onRefresh) onRefresh(updatedFile);
+        // clear edit/delete refs safely (depending on which variant you're using in this file)
+        try {
+          editedIndicesRef && editedIndicesRef.current && editedIndicesRef.current.clear();
+        } catch {}
+        try {
+          editedGlobalRef && editedGlobalRef.current && editedGlobalRef.current.clear();
+        } catch {}
+        try {
+          deletedGlobalRef && deletedGlobalRef.current && deletedGlobalRef.current.clear();
+        } catch {}
+
         return updatedFile;
       } else {
         if (onRefresh) onRefresh(null);
@@ -197,47 +353,48 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
     }
   };
 
+
+
   const handleSave = async () => {
     try {
-      // Use baseDataForSave if provided (e.g. filteredData from parent), else orgData
-      const originalSource = (baseDataForSave && baseDataForSave.length ? baseDataForSave : orgData) || [];
+      // Start from the full original dataset (orgData) to avoid losing non-visible rows
+      const fullOriginal = Array.isArray(orgData) ? JSON.parse(JSON.stringify(orgData)) : [];
 
-      // Build a map keyed by _rowIndex for the original source.
-      // If original rows don't have _rowIndex, create them from index.
-      const originalMap = new Map<number, any>();
-      originalSource.forEach((r: any, idx: number) => {
-        const key = typeof r._rowIndex === "number" ? r._rowIndex : idx;
-        originalMap.set(key, { ...r, _rowIndex: key });
-      });
+      // Build a map keyed by global index for the full original data
+      const globalMap = new Map<number, any>();
+      for (let i = 0; i < fullOriginal.length; i++) {
+        globalMap.set(i, { ...fullOriginal[i], _originalGlobalIndex: i });
+      }
 
-      // Apply edits from tableData into originalMap using _rowIndex
-      tableData.forEach((row) => {
-        const key = row._rowIndex;
-        if (originalMap.has(key)) {
-          // If this _rowIndex was edited, replace it
-          if (editedIndicesRef.current.has(key)) {
-            originalMap.set(key, { ...originalMap.get(key), ...row });
-          }
-        } else {
-          // New row — assign a new unique _rowIndex (use current timestamp + random to avoid collisions)
-          const newKey = Date.now() + Math.floor(Math.random() * 1000);
-          originalMap.set(newKey, { ...row, _rowIndex: newKey });
-        }
-      });
-
-      // If rows were deleted (isDelete true), ensure the originalMap excludes them:
-      if (isDelete) {
-        // We already removed rows from tableData; ensure originalMap only contains keys present in tableData
-        const presentKeys = new Set(tableData.map((r) => r._rowIndex));
-        for (const k of Array.from(originalMap.keys())) {
-          if (!presentKeys.has(k)) {
-            originalMap.delete(k);
-          }
+      // 1) Apply deletions marked by deletedGlobalRef
+      for (const delIdx of Array.from(deletedGlobalRef.current)) {
+        if (globalMap.has(delIdx)) {
+          globalMap.delete(delIdx);
         }
       }
 
-      // Build final array sorted by _rowIndex or insertion order as you prefer
-      const updatedData = Array.from(originalMap.values());
+      // 2) Apply edits from tableData by mapping local -> global
+      tableData.forEach((row) => {
+        const localIdx = row._rowIndex;
+        const globalIdx = originalIndexMapRef.current.get(localIdx);
+        if (typeof globalIdx === "number" && globalIdx >= 0 && globalMap.has(globalIdx)) {
+          // merge changes
+          globalMap.set(globalIdx, { ...globalMap.get(globalIdx), ...row });
+        } else {
+          // new/unmapped row => append as new entry using a new global key
+          const newGlobalKey = globalMap.size > 0 ? Math.max(...Array.from(globalMap.keys())) + 1 : 0;
+          globalMap.set(newGlobalKey, { ...row, _rowIndex: newGlobalKey });
+        }
+      });
+
+      // 3) Build final array preserving order by global index
+      const updatedData = Array.from(globalMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, v]) => {
+          const copy = { ...v };
+          delete copy._originalGlobalIndex;
+          return copy;
+        });
 
       // Build payload
       const payload = {
@@ -253,15 +410,17 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
       // Reset internal state using the updatedData
       originalRowsRef.current = JSON.parse(JSON.stringify(updatedData));
       setTableData(JSON.parse(JSON.stringify(updatedData)));
-      editedIndicesRef.current.clear();
+      editedGlobalRef.current.clear();
+      deletedGlobalRef.current.clear();
+      originalIndexMapRef.current = new Map(); // will be rebuilt on next data prop update
       setIsEditing(false);
+      setIsDelete(false);
       if (onSaveSuccess) onSaveSuccess();
     } catch (err) {
       console.error(`Error saving document: ${(err as Error).message}`);
       alert(`Error saving document: ${(err as Error).message}`);
     }
   };
-
 
   // Filter handlers (unchanged)
   const toggleSelection = (header: string, val: string) => {

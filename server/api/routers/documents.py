@@ -1304,6 +1304,7 @@ def calculate_odr(
 
     for i in range(len(date_keys) - window_size):
         obs = date_keys[i]
+        start = (pd.to_datetime(obs) + pd.DateOffset(months=1)).strftime("%Y-%m-%d")
         end = date_keys[i + window_size]
         window_range = date_keys[i:i + window_size + 1]
 
@@ -1340,6 +1341,7 @@ def calculate_odr(
 
         results.append({
             "Observation point": obs,
+            "Start of performance window": start,
             "End of performance window": end,
             "Number of Good": good_count,
             "Number of Good that turned Bad": bad_count,

@@ -46,30 +46,53 @@ const Step5 = () => {
     return dateWithDpdRegex.test(str);
   };
 
-  // Transform data headers from yyyy-mm-dd to yyyy-mm-dd_dpd
+  // Transform data headers from yyyy-mm-dd to yyyy-mm-dd_dpd and sort ascending
   const transformedData = useMemo(() => {
     if (!data || !Array.isArray(data)) return data;
 
-    return data.map((row: any) => {
+    // Step 1: Normalize headers per row
+    const normalized = data.map((row: any) => {
       const transformedRow: any = {};
-      
+
       Object.keys(row).forEach((key) => {
         if (isDateFormat(key)) {
-          // Transform date headers to include _dpd suffix
           transformedRow[`${key}-dpd`] = row[key];
         } else if (isDateWithDpd(key)) {
-          // Fix existing date headers that have "dpd" with space to use underscore
-          const datePart = key.replace(/\s*dpd$/i, '');
+          const datePart = key.replace(/\s*dpd$/i, "");
           transformedRow[`${datePart}-dpd`] = row[key];
         } else {
-          // Keep non-date headers as is
           transformedRow[key] = row[key];
         }
       });
-      
+
       return transformedRow;
     });
+
+    if (normalized.length === 0) return normalized;
+
+    // Step 2: Extract all keys
+    const allKeys = Object.keys(normalized[0]);
+
+    // Step 3: Separate date headers and sort them (ascending)
+    const dateKeys = allKeys
+      .filter((key) => /^\d{4}-\d{2}-\d{2}-dpd$/.test(key))
+      .sort((a, b) => new Date(a.replace("-dpd", "")).getTime() - new Date(b.replace("-dpd", "")).getTime());
+
+    // Step 4: Non-date keys stay in their order
+    const nonDateKeys = allKeys.filter((key) => !/^\d{4}-\d{2}-\d{2}-dpd$/.test(key));
+
+    const sortedKeys = [...nonDateKeys, ...dateKeys];
+
+    // Step 5: Rebuild rows with sorted keys
+    return normalized.map((row) => {
+      const sortedRow: any = {};
+      sortedKeys.forEach((key) => {
+        sortedRow[key] = row[key];
+      });
+      return sortedRow;
+    });
   }, [data]);
+
 
   // 🔹 Sync API status
   useEffect(() => {
@@ -175,14 +198,13 @@ const Step5 = () => {
                 <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/5" />
               </div>
               <TableTemplate1
-                data={data}
+                data={transformedData}
                 format="decimal"
                 decimalPlaces={0}
                 zoomLevel={zoom}
                 setZoomLevel={setZoom}
                 />
               </div>
-            </div>
           </>
         )}
       </div>
