@@ -1,7 +1,12 @@
 // src/hooks/useTabbedInterfaceData.ts
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useAppSelector } from "../redux_toolkit/hooks";
+import { useAppSelector, useAppDispatch } from "../redux_toolkit/hooks";
 import useSWRMutation from "swr/mutation";
+import {
+  setWorkflowMetrics,
+} from "../redux_toolkit/features/probability_of_default/transition_matrix/pdMatrixWfHelper";
+
+
 
 type Metrics = {
   duplicate: number;
@@ -57,6 +62,7 @@ type UseTabbedInterfaceDataReturn = {
 export function useTabbedInterfaceData(
   directoryPath: string
 ): UseTabbedInterfaceDataReturn {
+  const dispatch = useAppDispatch();
   const containerRef = useRef<HTMLDivElement>(null);
   const authToken = useAppSelector((state) => state.auth.token);
   const [metricsMap, setMetricsMap] = useState<Record<string, Metrics>>({});
@@ -72,7 +78,12 @@ export function useTabbedInterfaceData(
   const TAB_WIDTH = 140;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-
+  const workflowMetrics = useAppSelector(
+    (state: any) =>
+      state.pdMatrixWfHelper.workflowMetrics[
+        "pd_matrix_workflow"
+      ] || {}
+  );
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -107,11 +118,12 @@ export function useTabbedInterfaceData(
             missing: fileEntry.missing ?? 0,
             error: fileEntry.error ?? 0,
           };
-          const existingMetrics = JSON.parse(
-            localStorage.getItem("metrics") || "{}"
+          dispatch(
+            setWorkflowMetrics({
+              workflow: "pd_matrix_workflow",
+              metricsMap: metrics,
+            })
           );
-          const updatedMetrics = { ...existingMetrics, ...metrics };
-          localStorage.setItem("metrics", JSON.stringify(updatedMetrics));
           orgFileName.push(fileEntry.filename);
           ids.push(fileEntry.id); // <-- correctly push id
           fileNames.push(key);
