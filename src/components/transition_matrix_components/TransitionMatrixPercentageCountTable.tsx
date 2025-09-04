@@ -10,7 +10,9 @@ interface TransitionMatrixCountTableProps {
   setZoomLevel?: (value: number) => void; // optional controlled zoom setter
 }
 
-const TransitionMatrixCountTable: React.FC<TransitionMatrixCountTableProps> = ({
+const TransitionMatrixPercentageCountTable: React.FC<
+  TransitionMatrixCountTableProps
+> = ({
   data,
   format = "number",
   decimalPlaces = 0,
@@ -49,7 +51,6 @@ const TransitionMatrixCountTable: React.FC<TransitionMatrixCountTableProps> = ({
     if (key === totalKey) return key;
     return key.split("_")[0];
   });
-
   const headersRow2 = orderedKeys.map((key) => {
     if (!key.includes("_") || key === totalKey) return "";
     return key.split("_")[1];
@@ -66,7 +67,7 @@ const TransitionMatrixCountTable: React.FC<TransitionMatrixCountTableProps> = ({
     const handleWheel = (event: WheelEvent) => {
       if (event.ctrlKey) {
         event.preventDefault();
-        const delta = event.deltaY < 0 ? 0.1 : -0.1;
+        const delta = event.deltaY < 0 ? 0.075 : -0.075;
         const newZoom = Math.min(Math.max(zoomLevel + delta, 0.5), 2);
         setZoomLevel(newZoom);
       }
@@ -77,21 +78,24 @@ const TransitionMatrixCountTable: React.FC<TransitionMatrixCountTableProps> = ({
   }, [zoomLevel, setZoomLevel]);
 
   return (
-    <div className="overflow-auto max-h-screen min-w-full">
+    <div className="overflow-auto max-h-[72vh] min-w-full rounded-lg border border-gray-200 bg-white shadow-sm">
       <table
-        ref={null}
         style={{ zoom: zoomLevel }}
-        className="border border-gray-300 w-full"
+        className="w-full table-fixed border-collapse text-sm"
       >
         <thead className="sticky top-0 z-10">
           <tr>
             {headersRow1.map((val, i) => (
               <th
                 key={`header1-${i}`}
-                className="bg-[#444444] text-white text-center px-2 py-1 border border-white"
+                className="bg-gradient-to-r from-gray-700 to-gray-600 text-white text-center px-3 py-2 border border-white"
                 rowSpan={headersRow2[i] ? 1 : 2}
               >
-                {val}
+                <div className="flex items-center justify-center gap-2">
+                  <span className="font-medium text-xs tracking-wide">
+                    {val}
+                  </span>
+                </div>
               </th>
             ))}
           </tr>
@@ -101,10 +105,10 @@ const TransitionMatrixCountTable: React.FC<TransitionMatrixCountTableProps> = ({
                 <th
                   key={`header2-${i}`}
                   className={clsx(
-                    "font-semibold text-center px-2 py-1 border border-gray-400 text-gray-700",
+                    "font-semibold text-center px-2 py-1 border border-gray-200 text-xs",
                     {
-                      "bg-[#dcdcdc]": val !== "Bucket",
-                      "bg-gray-300": val === "Bucket",
+                      "bg-gray-50": val === "Bucket",
+                      "bg-gray-100": val !== "Bucket",
                     }
                   )}
                 >
@@ -116,19 +120,26 @@ const TransitionMatrixCountTable: React.FC<TransitionMatrixCountTableProps> = ({
         </thead>
         <tbody>
           {data.map((row, rowIndex) => (
-            <tr key={rowIndex} className="hover:bg-gray-100 cursor-pointer">
+            <tr
+              key={rowIndex}
+              className={clsx(
+                "cursor-default",
+                rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50",
+                "hover:bg-gray-100"
+              )}
+            >
               {orderedKeys.map((key, colIndex) => (
                 <td
                   key={colIndex}
                   className={clsx(
-                    "min-w-28 px-2 py-1 border border-gray-400 text-center",
+                    "px-3 py-2 border border-gray-100 text-center align-middle truncate",
                     {
-                      "bg-[#dcdcdc]": key.includes("Bucket"),
+                      "font-medium bg-gray-50": key.includes("Bucket"),
                       "bg-white": !key.includes("Bucket"),
                     }
                   )}
                 >
-                  {typeof row[key] === "number" && !key.includes("Bucket") 
+                  {typeof row[key] === "number" && !key.includes("Bucket")
                     ? formatValueGeneral(row[key], format, decimalPlaces)
                     : row[key]}
                 </td>
@@ -141,4 +152,4 @@ const TransitionMatrixCountTable: React.FC<TransitionMatrixCountTableProps> = ({
   );
 };
 
-export default TransitionMatrixCountTable;
+export default TransitionMatrixPercentageCountTable;

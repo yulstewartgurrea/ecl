@@ -1,225 +1,369 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   ArrowDownTrayIcon,
-  DocumentPlusIcon,
-  XMarkIcon,
+  FunnelIcon,
 } from "@heroicons/react/24/outline";
-import { FunnelIcon } from "@heroicons/react/24/outline";
+
 import TableTemplate1 from "../../../components/TableTemplate1";
 import ZoomSlider from "../../../components/ZoomSlider";
 import LineGraph from "../../../components/visuals/LineGraph";
-import { generateODRDummyData } from "../../../utils/CommonHelper";
+import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
+
+import { fetchOdrFromLocalStorage } from "../../../services/documents";
 
 const YEARS = [2021, 2022, 2023, 2024, 2025];
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
+
+type OdrRow = { Time: string; ODR: number };
 
 const Step11 = () => {
   const [zoom, setZoom] = useState(0.9);
-  const [dummyData, setDummyData] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (!dummyData || dummyData.length === 0) {
-      const generateDummyData = generateODRDummyData(60);
-      setDummyData(generateDummyData);
-    }
-  }, []);
-
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [odrData, setOdrData] = useState<OdrRow[]>([]);
   const [selectedYears, setSelectedYears] = useState<number[]>([2021]);
   const [startMonth, setStartMonth] = useState("January");
   const [endMonth, setEndMonth] = useState("December");
 
-  const toggleYear = (y: number) => {
-    const isSelected = selectedYears.includes(y);
-    let newYears = isSelected
-      ? selectedYears.filter((v) => v !== y)
-      : [...selectedYears, y];
+  // status feedback
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [statusMessage, setStatusMessage] = useState("");
+  // Filter states
+  const [selectedIncome, setSelectedIncome] = useState(false);
+  const [selectedIndustry, setSelectedIndustry] = useState(false);
+  const [selectedAge, setSelectedAge] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState(false);
 
-    if (newYears.length === 0) {
-      newYears = [Math.min(...YEARS)];
-    }
+  const toggleIncome = () => setSelectedIncome((prev) => !prev);
+  const toggleIndustry = () => setSelectedIndustry((prev) => !prev);
+  const toggleAge = () => setSelectedAge((prev) => !prev);
+  const toggleBranch = () => setSelectedBranch((prev) => !prev);
 
-    setSelectedYears(newYears);
-  };
+  const FILTER_FIELDS = [
+    { label: "Income Class", selected: selectedIncome, toggle: toggleIncome },
+    { label: "Industry", selected: selectedIndustry, toggle: toggleIndustry },
+    { label: "Age", selected: selectedAge, toggle: toggleAge },
+    { label: "Branch", selected: selectedBranch, toggle: toggleBranch },
+  ];
+  useEffect(() => {
+    const cache = fetchOdrFromLocalStorage();
+    if (!cache) return;
 
-  const handleToggleAllYears = () => {
-    const allSelected = YEARS.every((y) => selectedYears.includes(y));
+    const transformed: OdrRow[] = cache.map((e) => {
+      const dateString = e["End of performance window"] || "";
+      const odrString = e.ODR || "";
+      
+      if (!dateString || !odrString) {
+        return { Time: "", ODR: 0 }; // Return empty values for missing data
+      }
+      
+      const [year, month, day] = dateString.split("-").map(Number);
+      const date = new Date(year, month - 1, day);
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      const yyyy = String(date.getFullYear());
+      const odrPct = parseFloat(odrString.replace("%", ""));
+      return { Time: `${mm}/${dd}/${yyyy}`, ODR: odrPct / 100 };
+    });
 
-    if (allSelected) {
-      setSelectedYears([Math.min(...YEARS)]);
-    } else {
-      setSelectedYears([...YEARS]);
-    }
-  };
+    transformed.sort(
+      (a, b) => new Date(a.Time).getTime() - new Date(b.Time).getTime()
+    );
+    setOdrData(transformed);
+  }, []);
 
+  // toggle year
+  const toggleYear = useCallback((year: number) => {
+    setSelectedYears((prev) => {
+      const isSelected = prev.includes(year);
+      let updated = isSelected
+        ? prev.filter((y) => y !== year)
+        : [...prev, year];
+      if (updated.length === 0) updated = [Math.min(...YEARS)];
+      return updated;
+    });
+  }, []);
+
+  // toggle all
+  const handleToggleAllYears = useCallback(() => {
+    setSelectedYears((prev) =>
+      YEARS.every((y) => prev.includes(y)) ? [Math.min(...YEARS)] : [...YEARS]
+    );
+  }, []);
   const isAllSelected = YEARS.every((y) => selectedYears.includes(y));
 
-  // Filter graph data
+  // filter
   const filteredData = useMemo(() => {
-    if (!dummyData || dummyData.length === 0) return [];
-    const si = MONTHS.indexOf(startMonth);
-    const ei = MONTHS.indexOf(endMonth);
-
-    return dummyData.filter(({ Time }) => {
+    if (!odrData.length) return [];
+    const startIdx = MONTHS.indexOf(startMonth);
+    const endIdx = MONTHS.indexOf(endMonth);
+    return odrData.filter(({ Time }) => {
       const [mo, , yr] = Time.split("/").map(Number);
-      const m = mo - 1;
-      return selectedYears.includes(yr) && m >= si && m <= ei;
+      const monthIndex = mo - 1;
+      return (
+        selectedYears.includes(yr) &&
+        monthIndex >= startIdx &&
+        monthIndex <= endIdx
+      );
     });
-  }, [dummyData, selectedYears, startMonth, endMonth]);
+  }, [odrData, selectedYears, startMonth, endMonth]);
 
-  const graphParams = {
-    xValues: filteredData.map((d) => d.Time),
-    yValues: [
-      {
-        label: "ODR",
-        data: filteredData.map((d) => d.ODR),
-        borderColor: "rgba(255,205,86,1)",
-        backgroundColor: "rgba(255,205,86,0.2)",
-        fill: false,
-        tension: 0.1,
-      },
-    ],
-    dataLabel: "ODR",
-    xAxisLabel: "Month",
-    yAxisLabel: "ODR (%)",
-    format: "percent" as const,
-    yAxisLabelFormat: "percent" as const,
-    decimalPlaces: 2,
-    showGrid: true,
-    showYLabels: true,
-    showPointLabels: false,
-    title: "Historical Default Rate",
-    chartAreaBackgroundColor: "#f9fafb",
+  // chart
+  const graphParams = useMemo(
+    () => ({
+      xValues: filteredData.map((d) => d.Time),
+      yValues: [
+        {
+          label: "ODR",
+          data: filteredData.map((d) => d.ODR),
+          borderColor: "rgba(255,205,86,1)",
+          backgroundColor: "rgba(255,205,86,0.2)",
+          fill: false,
+          tension: 0.1,
+        },
+      ],
+      dataLabel: "ODR",
+      xAxisLabel: "Month",
+      yAxisLabel: "ODR (%)",
+      format: "percent" as const,
+      yAxisLabelFormat: "percent" as const,
+      decimalPlaces: 2,
+      showGrid: true,
+      showYLabels: true,
+      showPointLabels: false,
+      title: "Historical Default Rate",
+      chartAreaBackgroundColor: "#f9fafb",
+    }),
+    [filteredData]
+  );
+
+  // save progress
+  // const handleSaveProgress = () => {
+  //   try {
+  //     setStatus("loading");
+  //     setStatusMessage("Saving progress...");
+  //     localStorage.setItem("step11_odr_saved", JSON.stringify(odrData));
+  //     setStatus("success");
+  //     setStatusMessage("Progress saved.");
+  //     setTimeout(() => {
+  //       setStatus("idle");
+  //       setStatusMessage("");
+  //     }, 1500);
+  //   } catch {
+  //     setStatus("error");
+  //     setStatusMessage("Failed to save.");
+  //   }
+  // };
+
+  // download CSV
+  const handleDownload = () => {
+    try {
+      setStatus("loading");
+      setStatusMessage("Preparing download...");
+      const headers = ["Time", "ODR"];
+      const csv = [
+        headers.join(","),
+        ...filteredData.map((r) => `${r.Time},${r.ODR}`),
+      ].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.setAttribute("download", "odr.csv");
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setStatus("success");
+      setStatusMessage("Download ready.");
+      setTimeout(() => {
+        setStatus("idle");
+        setStatusMessage("");
+      }, 1500);
+    } catch {
+      setStatus("error");
+      setStatusMessage("Download failed.");
+    }
   };
 
   return (
-    <div className="bg-white rounded-lg flex flex-col items-center w-full">
-      <div className="w-full flex justify-end items-center gap-4 mt-6 pl-4">
-        <button
-          // onClick={onSaveProgress}
-          className="bg-[#fce404] cursor-pointer border border-gray-300 max-w-60 text-nowrap font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1"
-        >
-          <DocumentPlusIcon className="w-5 h-5 font-normal" />
-          Save Progress
-        </button>
-
-        <button
-          // onClick={onDownload}
-          className="bg-white cursor-pointer border border-gray-300 font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center gap-1"
-        >
-          <ArrowDownTrayIcon className="w-5 h-5 font-normal" />
-          Download
-        </button>
-      </div>        
-      <div className="flex w-full items-start p-4 ">
-        <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6" />
-      </div>
-
-      <div className="grid grid-cols-3 w-full gap-12 p-4 ">
-        <div className="col-span-1 overflow-auto max-h-[560px] border border-gray-300 rounded hide-scrollbar">
-          <TableTemplate1
-            data={dummyData}
-            additionalCss={{
-              outerDiv: "overflow-auto max-h-[600px] min-w-full",
-            }}
-            format="percentage"
-            decimalPlaces={2}
-            zoomLevel={zoom}
-            setZoomLevel={setZoom}
-          />
+    <div className="w-full min-h-screen bg-gray-50 px-6 py-6">
+      <div className="max-w-[1400px] mx-auto">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm text-gray-500 mt-1">
+              Filter by year and month range, view historical ODR trends.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <ApiStatusIndicator
+              status={status}
+              message={statusMessage}
+              onHide={() => {
+                setStatus("idle");
+                setStatusMessage("");
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm font-medium bg-white border border-gray-300 hover:bg-gray-50"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+              Download
+            </button>
+          </div>
         </div>
 
-        <div className="col-span-2 flex flex-col items-start">
-          <div className="relative flex items-start w-full">
-            <button
-              onClick={() => setFilterOpen((o) => !o)}
-              className="w-24 flex items-center justify-center gap-1 bg-[#fce404] px-3 py-1 cursor-pointer rounded-lg"
-            >
-              <FunnelIcon className="w-4 h-4" /> Filter
-            </button>
+        {/* Zoom */}
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div className="w-1/3">
+            <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-full" />
+          </div>
+          <div className="text-sm text-gray-600">
+            Zoom: <span className="font-medium">{Math.round(zoom * 100)}%</span>
+          </div>
+        </div>
 
-            {filterOpen && (
-              <div className="absolute top-7 left-0 mt-2 w-[360px] bg-white border border-gray-300 rounded shadow-lg z-10 space-y-2 p-4">
-                {/* Year filter header with X button */}
-                <div className="flex justify-between items-center">
-                  <p className="font-medium mb-1">Year</p>
-                  <button onClick={() => setFilterOpen(false)}>
-                    <XMarkIcon className="w-5 h-5 hover:bg-red-100 rounded" />
-                  </button>
+        {/* Main grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Table + Notes */}
+          <div className="col-span-2 space-y-4">
+            <div className="rounded-lg bg-white border border-gray-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-medium text-gray-700">
+                  ODR Table
                 </div>
+                <div className="text-xs text-gray-500">
+                  {filteredData?.length ?? 0} rows
+                </div>
+              </div>
+              <TableTemplate1
+                data={filteredData}
+                format="percentage"
+                decimalPlaces={2}
+                zoomLevel={zoom}
+                setZoomLevel={setZoom}
+              />
+            </div>
 
-                {/* Select/Unselect All */}
+            {/* Notes */}
+            <div className="rounded-lg bg-white border border-gray-200 p-4 shadow-sm">
+              <h4 className="text-sm font-semibold text-gray-700">Notes</h4>
+              <p className="text-xs text-gray-500 mt-2">
+                Observed Default Rate (ODR) is the realized default percentage
+                at a given observation point. You can filter by year and
+                restrict months to focus analysis.
+              </p>
+            </div>
+          </div>
 
-
-                {/* Year checkboxes */}
-                <div className="grid grid-cols-4 gap-2">
-                  <div className="mb-1 flex items-center gap-2 text-xs">
+          <div className="col-span-3 space-y-4">
+            <div className="rounded-lg bg-white border border-gray-200 p-4 shadow-sm">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <FunnelIcon className="w-4 h-4" /> Filters
+              </h4>
+              {/* Years */}
+              <div className="mb-3">
+                <div className="flex items-center gap-2 flex-wrap text-xs">
+                  <label className="flex items-center gap-1 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={isAllSelected}
                       onChange={handleToggleAllYears}
-                      className="accent-gray-300"
+                      className="accent-gray-400"
                     />
                     {isAllSelected ? "Unselect All" : "Select All"}
-                  </div>                  
-                  {YEARS.map((y) => (
-                    <label key={y} className="inline-flex items-center gap-2 text-xs">
+                  </label>
+                  {YEARS.map((year) => (
+                    <label
+                      key={year}
+                      className="flex items-center gap-1 cursor-pointer"
+                    >
                       <input
                         type="checkbox"
-                        checked={selectedYears.includes(y)}
-                        onChange={() => toggleYear(y)}
-                        className="accent-gray-300"
+                        checked={selectedYears.includes(year)}
+                        onChange={() => toggleYear(year)}
+                        className="accent-gray-400"
                       />
-                      {y}
+                      {year}
                     </label>
                   ))}
                 </div>
-
-                {/* Start month */}
-                <div className="border-t border-t-gray-200 pt-2 pb-1">
-                  <p className="font-medium mb-1">Start Month</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {MONTHS.map((m) => (
-                      <label key={m} className="inline-flex items-center gap-2 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={startMonth === m}
-                          onChange={() => setStartMonth(m)}
-                          className="accent-gray-300"
-                        />
-                        {m}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* End month */}
-                <div className="border-t border-t-gray-200 pt-2">
-                  <p className="font-medium mb-1">End Month</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {MONTHS.map((m) => (
-                      <label key={m} className="inline-flex items-center gap-2 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={endMonth === m}
-                          onChange={() => setEndMonth(m)}
-                          className="accent-gray-300"
-                        />
-                        {m}
-                      </label>
-                    ))}
-                  </div>
-                </div>
               </div>
-            )}
+              {/* Months */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium mb-1">Start Month</p>
+                  <select
+                    className="w-full border border-gray-300 rounded p-1 text-xs"
+                    value={startMonth}
+                    onChange={(e) => setStartMonth(e.target.value)}
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <p className="text-xs font-medium mb-1">End Month</p>
+                  <select
+                    className="w-full border border-gray-300 rounded p-1 text-xs"
+                    value={endMonth}
+                    onChange={(e) => setEndMonth(e.target.value)}
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                {FILTER_FIELDS.map((filter) => (
+                  <div key={filter.label} className="mb-3">
+                    <label className="flex items-center gap-1 cursor-pointer text-xs font-medium">
+                      <input
+                        type="checkbox"
+                        checked={filter.selected}
+                        onChange={filter.toggle}
+                        className="accent-gray-400"
+                      />
+                      {filter.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Chart */}
+            <div className="rounded-lg bg-white border border-gray-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-medium text-gray-700">
+                  ODR Chart
+                </div>
+                <div className="text-xs text-gray-500">Filtered range</div>
+              </div>
+              <div className="w-full h-[460px]">
+                <LineGraph {...graphParams} />
+              </div>
+            </div>
           </div>
+        </div>
 
-          <div className="w-11/12 min-h-[500px] border border-gray-300 rounded mt-4">
-            <LineGraph {...graphParams} />
-          </div>
+        <div className="mt-6 text-xs text-gray-500">
+          Tip: Use filters above to adjust year and month range for ODR
+          analysis.
         </div>
       </div>
     </div>
@@ -227,4 +371,3 @@ const Step11 = () => {
 };
 
 export default Step11;
-

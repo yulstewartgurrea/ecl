@@ -3,6 +3,8 @@ import {
   Square3Stack3DIcon,
   ArrowTrendingDownIcon,
   ChartPieIcon,
+  ChartBarIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -36,12 +38,24 @@ const EclLandingPage = () => {
       icon: ChartPieIcon,
     description: 'Calculate the total value at risk in the event of a default, helping to understand the financial impact on the organization.'
     },     
+     {
+      title: 'Expected Credit Loss (ECL)',
+      icon: ChartBarIcon,
+      description: 'Calculates and monitors potential credit losses proactively, updating estimates based on current conditions and forecasts'
+    },
+    {
+      title: 'Settings',
+      icon: Cog6ToothIcon,
+      description: 'Manage application settings, preferences, and check for updates to keep your application current.'
+    },     
   ];
 
   const handleOnCardClick = (title: string) => {
     if (title === 'Probability of Default (PD)') {
         dispatch(setActiveTab(activeTab === title ? "" : title)); 
       navigate('/pd_landing');
+    } else if (title === 'Settings') {
+      navigate('/settings');
     }
   }
 

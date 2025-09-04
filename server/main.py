@@ -1,70 +1,86 @@
 from fastapi import FastAPI
-from sqlalchemy import text
-from sqlalchemy.orm import Session
+from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-from database import get_db, engine, Base, SessionLocal
-from api.routers import users, workflows, documents, auth
-from core.dependencies import get_password_hash 
+
+# Import DB and session factory
+from database import engine, Base, SessionLocal
+
+import models  # noqa: F401
+from models import User, Workflow, Document, JsonData
+
+
+
+
+# Routers and helpers
+from api.routers import users, workflows, documents, auth, login
+from core.dependencies import get_password_hash
 
 app = FastAPI()
 
-# Create tables
+# CORS - allow dev origins; adjust / tighten for production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Create tables from SQLAlchemy models (safe, single call)
 Base.metadata.create_all(bind=engine)
 
-@app.on_event("startup")
-async def initialize_database():
-    with SessionLocal() as db:
-        try:
-            user_count = db.execute(text("SELECT COUNT(*) FROM users")).scalar()
-            
-            if user_count == 0:
-                # Hash passwords before storing
-                admin_password = get_password_hash("sgvadmin0987")
-                user_password = get_password_hash("sgvuser0987")
-                
-                db.execute(text(f"""
-                    INSERT INTO users (username, email, hashed_password)
-                    VALUES 
-                        ('admin', 'admin@example.com', '{admin_password}'),
-                        ('user', 'user@example.com', '{user_password}')
-                """))
-                
-                db.execute(text("""
-                    INSERT INTO workflows (
-                        entity, workflow_name, baseline_year, 
-                        json_data, reporting_period, workflow_type, user_id
-                    ) VALUES (
-                        'Sample Entity', 'Initial Workflow', 2023,
-                        '{"key": "value"}', 'Annual', 'default',
-                        (SELECT id FROM users WHERE username = 'admin')
-                    )
-                """))
-                
-                db.execute(text("""
-                    INSERT INTO documents (
-                        filename, document_key, document_type, user_id
-                    ) VALUES (
-                        'sample.pdf', 'doc_123', 'pdf',
-                        (SELECT id FROM users WHERE username = 'admin')
-                    )
-                """))
-                
-                db.commit()
-                print("Database populated with initial data")
-            else:
-                print("Database already contains data - skipping population")
-                
-        except Exception as e:
-            print(f"Error during database population: {e}")
-            db.rollback()
-            raise
 
+def insert_initial_users():
+    """
+    Insert initial users if they don't already exist.
+    Uses ORM-style session and hashed passwords.
+    """
+    initial_users = [
+        {"username": "admin", "password": "sgvadmin0987", "role": "admin"},
+        {"username": "user1", "password": "sgvuser0987", "role": "user"},
+        {"username": "user2", "password": "sgvuser0987", "role": "user"},
+    ]
+
+    db = SessionLocal()
+    try:
+        for u in initial_users:
+            exists = db.query(User).filter_by(username=u["username"]).first()
+            if not exists:
+                user = User(
+                    username=u["username"],
+                    hashed_password=get_password_hash(u["password"]),
+                    role=u["role"],
+                )
+                db.add(user)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+try:
+    insert_initial_users()
+except Exception as e:
+    import traceback
+    traceback.print_exc()
+    print("Warning: initial user insertion failed:", e)
+
+
+
+# Test endpoints
+@app.get("/test-cors")
+async def test_cors():
+    return {"message": "CORS is working"}
 
 @app.get("/health")
 def health_check():
     return {"status": "ok", "timestamp": datetime.utcnow()}
 
+# Include routers (make sure each router is defined correctly)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(workflows.router)
 app.include_router(documents.router)
+app.include_router(login.router)

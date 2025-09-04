@@ -1,103 +1,4 @@
-// import React, { useRef, useState, useEffect } from "react";
-// import clsx from "clsx";
-// import { formatValueGeneral } from "../utils/CommonHelper";
-
-// interface overTableTemplate2Props {
-//   data: Array<{ [key: string]: any }>;
-//   format?: string;
-//   decimalPlaces?: number;
-//   headersParams?: string[];
-//   additionalCss?: any
-// }
-
-// const TableTemplate2: React.FC<overTableTemplate2Props> = ({
-//   data,
-//   format = "money",
-//   decimalPlaces = 2,
-//   headersParams,
-//   additionalCss
-// }) => {
-//   const tableRef = useRef<HTMLDivElement>(null);
-
-//   const headers =
-//     headersParams ?? (data.length > 0 ? Object.keys(data[0]) : []);
-
-
-//   // zoom
-//   const [zoomLevel, setZoomLevel] = useState(0.9);
-//   const tableRefZoom = useRef<HTMLTableElement | null>(null);
-
-//   useEffect(() => {
-//     const handleWheel = (event: WheelEvent) => {
-//       if (event.ctrlKey) {
-//         event.preventDefault();
-//         const delta = event.deltaY < 0 ? 0.1 : -0.1;
-//         setZoomLevel((prev) => Math.min(Math.max(prev + delta, 0.5), 2));
-//       }
-//     };
-
-//     window.addEventListener("wheel", handleWheel, { passive: false });
-//     return () => window.removeEventListener("wheel", handleWheel);
-//   }, []);
-
-//   return (
-//     <div ref={tableRef} className="overflow-auto max-h-screen min-w-full ">
-//       <table
-//         ref={tableRefZoom}
-//         style={{ zoom: zoomLevel }}
-//         className="border border-gray-300 w-full "
-//       >
-//         <thead className="sticky top-0 z-10">
-//           <tr>
-//             {headers.map((header, headerIndex: number) => (
-//               <th
-//                 key={header}
-//                 className={clsx("min-w-20 text-center px-2 py-1 border border-gray-300", {
-//                   "bg-[#dcdcdc] text-gray-700": headerIndex !== 0,
-//                   "bg-[#444444] text-white": headerIndex == 0,
-//                 })}
-//               >
-//                 {header.replace(/_/g, " ")}
-//               </th>
-//             ))}
-//           </tr>
-//         </thead>
-//         <tbody>
-//           {data.map((row, rowIndex) => (
-//             <tr
-//               key={rowIndex}
-//               className={clsx("hover:bg-gray-100 cursor-pointer")}
-//             >
-//               {headers.map((key, headerMapIndex:number) => (
-//               <td
-//                 key={key}
-//                 className={clsx(
-//                   "min-w-20 px-2 py-1 border text-center",
-//                   {
-//                     [additionalCss.firstColColor!]: headerMapIndex === 0 && !!additionalCss?.firstColColor,
-
-//                     "bg-[#dcdcdc] border-gray-300": headerMapIndex === 0 && !additionalCss?.firstColColor,
-//                     "bg-white border-gray-200": headerMapIndex !== 0,
-//                   }
-//                 )}
-//               >
-//                                 {typeof row[key] === "number"
-//                     ? formatValueGeneral(row[key], format, decimalPlaces)
-//                     : row[key]}
-//                 </td>
-//               ))}
-//             </tr>
-//           ))}
-//         </tbody>
-//       </table>
-//     </div>
-//   );
-// };
-
-// export default TableTemplate2;
-
-
-import React, { useRef, useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { formatValueGeneral } from "../utils/CommonHelper";
 
@@ -111,7 +12,7 @@ interface OverTableTemplate2Props {
   setZoomLevel?: (value: number) => void; // optional controlled zoom setter
 }
 
-const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
+const TableTemplate2: React.FC<OverTableTemplate2Props> = ({
   data,
   format = "money",
   decimalPlaces = 2,
@@ -120,8 +21,7 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
   zoomLevel: controlledZoomLevel,
   setZoomLevel: controlledSetZoomLevel,
 }) => {
-  const tableRef = useRef<HTMLDivElement>(null);
-
+  const tableRef = useRef<HTMLDivElement | null>(null);
   const headers =
     headersParams ?? (data.length > 0 ? Object.keys(data[0]) : []);
 
@@ -136,7 +36,7 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
     const handleWheel = (event: WheelEvent) => {
       if (event.ctrlKey) {
         event.preventDefault();
-        const delta = event.deltaY < 0 ? 0.1 : -0.1;
+        const delta = event.deltaY < 0 ? 0.075 : -0.075;
         const newZoom = Math.min(Math.max(zoomLevel + delta, 0.5), 2);
         setZoomLevel(newZoom);
       }
@@ -147,10 +47,13 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
   }, [zoomLevel, setZoomLevel]);
 
   return (
-    <div ref={tableRef} className="overflow-auto max-h-screen min-w-full">
+    <div
+      ref={tableRef}
+      className="overflow-auto max-h-[72vh] min-w-full rounded-lg border border-gray-200 bg-white shadow-sm"
+    >
       <table
         style={{ zoom: zoomLevel }}
-        className="border border-gray-300 w-full"
+        className="w-full border-collapse text-sm"
       >
         <thead className="sticky top-0 z-10">
           <tr>
@@ -158,10 +61,10 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
               <th
                 key={header}
                 className={clsx(
-                  "min-w-20 text-center px-2 py-1 border border-gray-300",
+                  "text-center px-3 py-2 border border-gray-100 whitespace-nowrap text-xs",
                   {
-                    "bg-[#dcdcdc] text-gray-700": headerIndex !== 0,
-                    "bg-[#444444] text-white": headerIndex === 0,
+                    "bg-gray-800 text-white": headerIndex === 0,
+                    "bg-gray-50 text-gray-700": headerIndex !== 0,
                   }
                 )}
               >
@@ -172,23 +75,55 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
         </thead>
         <tbody>
           {data.map((row, rowIndex) => (
-            <tr key={rowIndex} className="hover:bg-gray-100 cursor-pointer">
-              {headers.map((key, headerMapIndex: number) => (
-                <td
-                  key={key}
-                  className={clsx("min-w-20 px-2 py-1 border text-center", {
-                    [additionalCss?.firstColColor!]:
-                      headerMapIndex === 0 && !!additionalCss?.firstColColor,
-                    "bg-[#dcdcdc] border-gray-300":
-                      headerMapIndex === 0 && !additionalCss?.firstColColor,
-                    "bg-white border-gray-200": headerMapIndex !== 0,
-                  })}
-                >
-                  {typeof row[key] === "number"
-                    ? formatValueGeneral(row[key], format, decimalPlaces)
-                    : row[key]}
-                </td>
-              ))}
+            <tr
+              key={rowIndex}
+              className={clsx(
+                rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50",
+                "hover:bg-gray-100"
+              )}
+            >
+              {headers.map((key, headerMapIndex) => {
+                let displayValue;
+                if (key === "Bucket") {
+                  displayValue = row[key];
+                } else if (typeof row[key] === "number") {
+                  displayValue = formatValueGeneral(
+                    row[key],
+                    format,
+                    decimalPlaces
+                  );
+                } else {
+                  displayValue = row[key];
+                }
+
+                if (row.Month === "Month 12" && row.Bucket === 4) {
+                  console.log(
+                    "🗓️ Month 12 – Bucket 4 cell:",
+                    key,
+                    "→",
+                    displayValue
+                  );
+                }
+
+                return (
+                  <td
+                    key={key}
+                    className={clsx(
+                      "px-3 py-2 border text-center align-middle truncate text-sm",
+                      {
+                        [additionalCss?.firstColColor!]:
+                          headerMapIndex === 0 &&
+                          !!additionalCss?.firstColColor,
+                        "bg-gray-50 border-gray-100":
+                          headerMapIndex === 0 && !additionalCss?.firstColColor,
+                        "bg-white border-gray-100": headerMapIndex !== 0,
+                      }
+                    )}
+                  >
+                    {displayValue}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
@@ -197,6 +132,4 @@ const OverTableTemplate2: React.FC<OverTableTemplate2Props> = ({
   );
 };
 
-export default OverTableTemplate2;
-
-
+export default TableTemplate2;
