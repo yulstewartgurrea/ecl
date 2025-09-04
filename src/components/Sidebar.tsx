@@ -469,6 +469,7 @@ import {
   ArrowTrendingDownIcon,
   ChartPieIcon,
   ChartBarIcon,
+  Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
 import { useState } from "react";
 
@@ -513,6 +514,11 @@ const sidebarOptions: any[] = [
     icon: ChartBarIcon,
     subTabs: [],
   },
+  {
+    tabName: "Settings",
+    icon: Cog6ToothIcon,
+    subTabs: [],
+  },
 ];
 
 const Sidebar = () => {
@@ -534,10 +540,12 @@ const Sidebar = () => {
     dispatch(resetStateNavUIState());
   };
 
-  const handleTabClick = () => {
-    //tabName: string
-    // dispatch(setActiveTab(activeTab === tabName ? "" : tabName));
-    navigate("/pd_landing");
+  const handleTabClick = (tabName: string) => {
+    if (tabName === "Settings") {
+      navigate("/settings");
+    } else {
+      navigate("/pd_landing");
+    }
   };
 
   const handleTabDownArrowClick = (
@@ -627,9 +635,7 @@ const Sidebar = () => {
               return (
                 <div key={option.tabName} className="flex flex-col w-full">
                   <div
-                    onClick={
-                      () => handleTabClick() //option.tabName
-                    }
+                    onClick={() => handleTabClick(option.tabName)}
                     className={clsx(
                       "flex items-center justify-between px-1 py-2 rounded-md cursor-pointer hover:bg-[#f8f8f8] transition-all duration-200 gap-1",
                       {
