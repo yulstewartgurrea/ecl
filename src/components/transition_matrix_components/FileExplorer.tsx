@@ -106,7 +106,7 @@ const validateConsecutiveYears = (filenames: string[]): YearValidationError | nu
   const maxYear = Math.max(...yearNumbers);
   
   // Check if we have at least 3 consecutive years
-  let consecutiveCount = 0;
+  // let consecutiveCount = 0;
   let maxConsecutive = 0;
   let currentConsecutive = 0;
   

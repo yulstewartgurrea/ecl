@@ -34,7 +34,7 @@ const Step7 = () => {
     directoryPath || null,
     authToken || null
   );
-
+  console.log("Step7 data:", data);
   // Track API status
   useEffect(() => {
     if (isLoading) {

@@ -27,47 +27,46 @@ const StepNavigation = ({
   hideBackButton = false,
 }: StepNavigationProps) => {
   return (
-    <div className="w-full flex flex-row justify-between gap-4">
-      <div className="inline-flex gap-2">
-        <span className="font-bold text-nowrap">{`${descriptionTitle? `${descriptionTitle}: `: ""}`}</span>
-        <div className="italic">{description}</div>
+    <div className="w-full flex flex-row justify-between items-center gap-4 p-2 bg-gray-50 rounded-lg shadow-sm mb-4">
+      {/* Description (can wrap) */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 text-gray-700">
+        {descriptionTitle && <span className="font-semibold">{descriptionTitle}:</span>}
+        <span className="italic text-gray-500">{description}</span>
       </div>
 
-      <div className="inline-flex items-center justify-center gap-4">
-        <button
-          onClick={onBack}
-          className={clsx(
-            "disabled:bg-[#b4b4b4]/40 bg-[#b4b4b4] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg  items-center justify-center disabled:cursor-not-allowed",
-            {
-              hidden: hideBackButton,
-              "inline-flex": !hideBackButton,
-            }
-          )}
-          disabled={currentStep === 0}
-        >
-          <ChevronLeftIcon className="w-5 h-5 font-bold mt-0.5" />
-          {backLabel}
-        </button>
+      {/* Buttons (never wrap) */}
+      <div className="flex items-center gap-3 flex-nowrap">
+        {!hideBackButton && (
+          <button
+            onClick={onBack}
+            disabled={currentStep === 0}
+            className={clsx(
+              "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200",
+              "bg-gray-200 hover:bg-gray-300 shadow focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+            )}
+          >
+            <ChevronLeftIcon className="w-5 h-5" />
+            {backLabel}
+          </button>
+        )}
 
-        <div className="flex justify-between">
-          {currentStep < totalSteps - 1 ? (
-            <button
-              onClick={onContinue}
-              className="bg-[#fce404] max-w-60 text-nowrap cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
-            >
-              {continueLabel}
-              <ChevronRightIcon className="w-5 h-5 font-bold mt-0.5" />
-            </button>
-          ) : (
-            <button
-              onClick={onFinish}
-              className="bg-[#fce404] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
-            >
-              {continueLabel}
-              <ChevronRightIcon className="w-5 h-5 font-bold mt-0.5" />
-            </button>
-          )}
-        </div>
+    {currentStep < totalSteps - 1 ? (
+      <button
+        onClick={onContinue}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg font-semibold bg-gradient-to-br cursor-pointer from-yellow-400 to-yellow-300 hover:from-yellow-500 hover:to-yellow-400 text-gray-900 shadow-lg transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-300 whitespace-nowrap"
+      >
+        {continueLabel}
+        <ChevronRightIcon className="w-5 h-5" />
+      </button>
+    ) : (
+      <button
+        onClick={onFinish}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg font-semibold bg-gradient-to-br cursor-pointer from-yellow-500 to-yellow-400 hover:from-yellow-600 hover:to-yellow-500 text-gray-900 shadow-lg transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-300 whitespace-nowrap"
+      >
+        {continueLabel}
+        <ChevronRightIcon className="w-5 h-5" />
+      </button>
+    )}
       </div>
     </div>
   );

@@ -73,6 +73,7 @@ const Step6 = () => {
     });
   }, [data]);
 
+  
   useEffect(() => {
     if (isLoading) {
       setStatus("loading");
@@ -96,6 +97,7 @@ const Step6 = () => {
       setStatusMessage("Download complete.");
     } catch {
       setStatus("error");
+      console.log(transformedData)
       setStatusMessage("Download failed.");
     }
   };
@@ -168,21 +170,18 @@ const Step6 = () => {
         {!isLoading && !error && (
           <>
             {/* Zoom + Main Table */}
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="flex justify-end">
+            <div className="bg-white p-2 mt-2 rounded-lg shadow-md">
+              <div className="justify-start">
+                <DpdTable />
                 <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/5" />
               </div>
-              <DpdTable />
-              <div className="mt-4">
-                <TableTemplate1
-                  data={transformedData}
-                  format="decimal"
-                  decimalPlaces={0}
-                  zoomLevel={zoom}
-                  setZoomLevel={setZoom}
-                />
-              </div>
-              
+              <TableTemplate1
+                data={data}
+                format="decimal"
+                decimalPlaces={0}
+                zoomLevel={zoom}
+                setZoomLevel={setZoom}
+              />
             </div>
           </>
         )}

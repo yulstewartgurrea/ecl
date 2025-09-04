@@ -32,8 +32,12 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
   const [internalHighlightedRow, setInternalHighlightedRow] = useState<
     number | null
   >(null);
+  const excludedHeaders = ["errors", "status", "duplicate", "rowIndex"];
   const headers =
-    headersParams ?? (data.length > 0 ? Object.keys(data[0]) : []);
+  headersParams ??
+  (data.length > 0
+    ? Object.keys(data[0]).filter((key) => !excludedHeaders.includes(key))
+    : []);
 
   // applied filters
   const [filters, setFilters] = useState<{ [key: string]: Set<string> }>({});
@@ -175,7 +179,7 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
     <div
       ref={tableRef}
       className={clsx(
-        additionalCss?.outerDiv ?? "overflow-auto max-h-screen min-w-full"
+        additionalCss?.outerDiv ?? "overflow-auto max-h-screen min-w-full bg-white rounded-md shadow-sm border border-gray-200"
       )}
     >
       <table
@@ -191,8 +195,13 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
               >
                 <div className="flex items-center justify-center gap-2">
                   <span className="truncate">
-                    {header === "ODR" ? "Observed Default Rate" : header.replace(/_/g, " ")}
+                    {header === "ODR"
+                      ? "Observed Default Rate"
+                      : /^\d{4}-\d{2}-\d{2}$/.test(header) // check if it's a date
+                        ? `${header}-dpd`
+                        : header.replace(/_/g, " ")}
                   </span>
+
 
                   {(header === "report_date" || header === "pn_number") && (
                     <button

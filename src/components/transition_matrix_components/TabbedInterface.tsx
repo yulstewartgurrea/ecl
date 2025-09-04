@@ -1,5 +1,4 @@
-// src/components/transition_matrix_components/TabbedInterface.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
 import { useTabbedInterfaceData } from "../../hooks/useTabbedInterfaceData";
@@ -19,19 +18,15 @@ const TabbedInterface = () => {
     selectedPdTransitionMatrixReportingPeriod: period,
     pdTransitionMatrixWfName: workflowName,
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
+  const [filteredData, setFilteredData] = useState<any[]>([]);
   const authToken = useAppSelector((state) => state.auth.token);
   const directoryPath = `/${entity}/${period}/${workflowName}`;
   const {
     containerRef,
     activeTab,
     setActiveTab,
-    filter,
-    setFilter,
     visibleTabs,
     overflowTabs,
-    currentMetrics,
-    columnCount,
-    rowCount,
     dataTypes,
     isLoading,
     error,
@@ -39,15 +34,21 @@ const TabbedInterface = () => {
     orgFilename,
     onChildRefresh,
   } = useTabbedInterfaceData(directoryPath);
+  const [selectedVersions, setSelectedVersions] = useState<
+    Record<number, number>
+  >({});
+  const selectedVersion = selectedVersions[activeTab];
+
+  const { document } = useDocumentById(selectedVersion, authToken);
   useEffect(() => {
     const storageKey = "for_step_3";
     localStorage.setItem(storageKey, "true");
   }, []);
-  // console.log(inputFiles);
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
+
   useEffect(() => {
     if (isLoading) {
       setStatus("loading");
@@ -62,6 +63,7 @@ const TabbedInterface = () => {
   }, [isLoading, error]);
   const activeId = groupIds[activeTab];
   const activeFile = orgFilename[activeTab];
+  const [activeStatusFilter, setActiveStatusFilter] = useState("All");
 
   const { versions, mutate } = useDocumentVersions(
     directoryPath,
@@ -69,23 +71,15 @@ const TabbedInterface = () => {
     authToken
   );
 
-  const [selectedVersions, setSelectedVersions] = useState<
-    Record<number, number>
-  >({});
-
-  // Auto-select latest version per tab when versions load
   useEffect(() => {
     if (versions && versions.length > 0) {
       setSelectedVersions((prev) => {
-        // If we already have a selection for this tab, keep it
         if (prev[activeTab]) return prev;
-        return { ...prev, [activeTab]: versions[0].id }; // latest version
+        return { ...prev, [activeTab]: versions[0].id };
       });
     }
   }, [activeTab, versions]);
 
-  // Get currently selected version for active tab
-  const selectedVersion = selectedVersions[activeTab];
 
   const handleVersionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newVersion = Number(e.target.value);
@@ -95,7 +89,48 @@ const TabbedInterface = () => {
     }));
   };
 
-  const { document } = useDocumentById(selectedVersion, authToken);
+
+  const filterDocumentData = (statusLabel: string) => {
+    if (!document?.json_data) return [];
+    if (statusLabel === "All") return document.json_data;
+    return document.json_data.filter(
+      (row:any) => row.status?.toLowerCase() === statusLabel.toLowerCase()
+    );
+  };
+  useEffect(() => {
+  if (!document?.json_data) return;
+
+  const filtered = filterDocumentData(activeStatusFilter);
+  setFilteredData(filtered);
+}, [document, activeStatusFilter]);
+
+const metrics = useMemo(() => {
+  if (!filteredData || filteredData.length === 0) return { valid: 0, error: 0, missing: 0, duplicate: 0 };
+
+  const total = filteredData.length;
+
+  // Count statuses in filteredData
+  const counts = { valid: 0, error: 0, missing: 0, duplicate: 0 };
+  filteredData.forEach((row: any) => {
+    const status = row.status?.toLowerCase();
+    if (status === "valid") counts.valid += 1;
+    else if (status === "error") counts.error += 1;
+    else if (status === "missing") counts.missing += 1;
+    else if (status === "duplicate") counts.duplicate += 1;
+  });
+
+  return {
+    valid: Math.round((counts.valid / total) * 100),
+    error: Math.round((counts.error / total) * 100),
+    missing: Math.round((counts.missing / total) * 100),
+    duplicate: Math.round((counts.duplicate / total) * 100),
+  };
+}, [filteredData]);
+const filteredColumnCount = useMemo(() => {
+  if (!filteredData || filteredData.length === 0) return 0;
+  return Object.keys(filteredData[0]).length;
+}, [filteredData]);
+const filteredRowCount = filteredData.length;
   return (
     <div className="w-full min-h-screen  relative">
       <ApiStatusIndicator
@@ -182,30 +217,35 @@ const TabbedInterface = () => {
         <div className="flex gap-2 my-4 flex-wrap justify-between items-center">
           {/* Left: Filter Buttons */}
           <div className="flex gap-2 flex-wrap">
-            {[
-              { label: "All", color: "bg-gray-200", icon: "📄" },
-              { label: "Valid", color: "bg-gray-200", icon: "✅" },
-              { label: "Error", color: "bg-gray-200", icon: "⚠️" },
-              { label: "Missing", color: "bg-gray-200", icon: "❓" },
-              { label: "Duplicate", color: "bg-gray-200", icon: "🟡" },
-            ].map(({ label, color, icon }) => (
+            {["All", "Valid", "Error", "Missing", "Duplicate"].map((label) => (
               <button
                 key={label}
-                onClick={() => setFilter(label as any)}
+                onClick={() => setActiveStatusFilter(label)}
                 disabled={isLoading}
-                title={label} // Optional tooltip
+                title={label}
                 className={clsx(
                   "px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1",
-                  filter === label
+                  activeStatusFilter === label
                     ? "bg-[#ad8a49] text-white"
-                    : `${color} text-gray-800`,
+                    : "bg-gray-200 text-gray-800",
                   isLoading && "cursor-not-allowed opacity-50"
                 )}
               >
-                <span>{icon}</span>
+                <span>
+                  {label === "All"
+                    ? "📄"
+                    : label === "Valid"
+                    ? "✅"
+                    : label === "Error"
+                    ? "⚠️"
+                    : label === "Missing"
+                    ? "❓"
+                    : "🟡"}
+                </span>
                 {label}
               </button>
             ))}
+
           </div>
 
           {/* Right: Version Control */}
@@ -231,57 +271,63 @@ const TabbedInterface = () => {
         {/* Metrics bar */}
         <div className="w-full flex flex-row items-center gap-4">
           <div className="h-10 w-7/12 bg-gray-200 overflow-hidden flex rounded">
-            <div
-              className="bg-green-500 h-full"
-              style={{ width: `${currentMetrics.valid}%` }}
-            />
-            <div
-              className="bg-orange-400 h-full"
-              style={{ width: `${currentMetrics.error}%` }}
-            />
-            <div
-              className="bg-gray-700 h-full"
-              style={{ width: `${currentMetrics.missing}%` }}
-            />
-            <div
-              className="bg-yellow-700 h-full"
-              style={{ width: `${currentMetrics.duplicate}%` }}
-            />
+            <div className="h-10 w-7/12 bg-gray-200 overflow-hidden flex rounded">
+              <div
+                className="bg-green-500 h-full"
+                style={{ width: `${metrics.valid}%` }}
+              />
+              <div
+                className="bg-orange-400 h-full"
+                style={{ width: `${metrics.error}%` }}
+              />
+              <div
+                className="bg-gray-700 h-full"
+                style={{ width: `${metrics.missing}%` }}
+              />
+              <div
+                className="bg-yellow-700 h-full"
+                style={{ width: `${metrics.duplicate}%` }}
+              />
+            </div>
+
           </div>
           <div className="flex flex-grow gap-2 justify-between text-sm">
-            <span>{columnCount} Columns</span>
-            <span>{rowCount} Rows</span>
+            <span>{filteredColumnCount} Columns</span>
+            <span>{filteredRowCount} Rows</span>
             <span>{dataTypes.size} Data Types</span>
           </div>
+
         </div>
 
         {/* Metrics labels */}
-        <div className="flex gap-6 mt-2 text-sm items-center">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-green-500 rounded-sm" />
-            <span>{currentMetrics.valid}% Valid</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-orange-400 rounded-sm" />
-            <span>{currentMetrics.error}% Error</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-gray-700 rounded-sm" />
-            <span>{currentMetrics.missing}% Missing</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-yellow-700 rounded-sm" />
-            <span>{currentMetrics.duplicate}% Duplicate</span>
-          </div>
-        </div>
+<div className="flex gap-6 mt-2 text-sm items-center">
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-3 bg-green-500 rounded-sm" />
+    <span>{metrics.valid}% Valid</span>
+  </div>
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-3 bg-orange-400 rounded-sm" />
+    <span>{metrics.error}% Error</span>
+  </div>
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-3 bg-gray-700 rounded-sm" />
+    <span>{metrics.missing}% Missing</span>
+  </div>
+  <div className="flex items-center gap-1">
+    <div className="w-3 h-3 bg-yellow-700 rounded-sm" />
+    <span>{metrics.duplicate}% Duplicate</span>
+  </div>
+</div>
+
 
         {/* Table */}
         <div className="mt-6">
           <TableWithErrorIndicators
             orgData={document?.json_data || []}
+            baseDataForSave={filteredData && filteredData.length ? filteredData : document?.json_data || []} // <-- NEW
             groupIds={activeId}
             directoryPath={directoryPath}
-            data={document?.json_data || []}
+            data={filteredData || []}
             inputFile={orgFilename[activeTab]}
             onRefresh={onChildRefresh}
             onSaveSuccess={() => mutate()}

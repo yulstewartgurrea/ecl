@@ -63,7 +63,7 @@ const Step11 = () => {
     if (!cache) return;
 
     const transformed: OdrRow[] = cache.map((e) => {
-      const [year, month, day] = e["Observation point"].split("-").map(Number);
+      const [year, month, day] = e["End of performance window"].split("-").map(Number);
       const date = new Date(year, month - 1, day);
       const mm = String(date.getMonth() + 1).padStart(2, "0");
       const dd = String(date.getDate()).padStart(2, "0");
