@@ -128,6 +128,40 @@ def remove_document(
         raise HTTPException(status_code=404, detail="Document not found")
     return None
 
+def try_parse_date(v) -> Tuple[pd.Timestamp | None, str | None]:
+    if pd.isna(v) or v is None or (isinstance(v, str) and v.strip() == ""):
+        return None, None
+
+    if isinstance(v, (pd.Timestamp, datetime)):
+        ts = pd.to_datetime(v)
+        return ts, ts.strftime("%Y-%m-%d")
+
+    s = str(v).strip()
+    formats = [
+        "%Y-%m-%d",
+        "%Y-%m",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%d-%m-%Y",
+        "%Y/%m/%d",
+    ]
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(s, fmt)
+            return pd.to_datetime(dt), dt.strftime("%Y-%m-%d")
+        except Exception:
+            continue
+
+    try:
+        dt = pd.to_datetime(s, errors="coerce")
+        if pd.isna(dt):
+            return None, None
+        return dt, dt.strftime("%Y-%m-%d")
+    except Exception:
+        return None, None
+
+
+
 
 def sanitize_for_json(row_dict: Dict[str, Any]) -> Dict[str, Any]:
     def clean_value(v):
@@ -175,246 +209,269 @@ def try_parse_date(v) -> Tuple[pd.Timestamp | None, str | None]:
 @router.get("/read-excel")
 def read_single_excel(
     workflow_path: str = Query(..., description="Subdirectory under server/files containing Excel files"),
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    base_dir = Path(__file__).parents[2] / "files"
     cleaned_path = workflow_path.strip('"/')
+    excel_dir = base_dir / cleaned_path
 
-    # Get latest version of each document (per workflow_path, user_id, filename)
-    latest_docs_subquery = (
-        db.query(
-            Document.workflow_path,
-            Document.user_id,
-            Document.filename,
-            func.max(Document.version).label("max_version")
-        )
-        .filter(Document.workflow_path == workflow_path)
-        .group_by(Document.workflow_path, Document.user_id, Document.filename)
-        .subquery()
-    )
-
-    records = (
-        db.query(Document)
-        .join(
-            latest_docs_subquery,
-            (Document.workflow_path == latest_docs_subquery.c.workflow_path) &
-            (Document.user_id == latest_docs_subquery.c.user_id) &
-            (Document.filename == latest_docs_subquery.c.filename) &
-            (Document.version == latest_docs_subquery.c.max_version)
-        )
-        .order_by(Document.id.desc())   # 👈 latest first
-        .all()
-    )
-
-    for rec in records:
-        print(f"[read-excel] filtered record -> filename: {rec.filename}, user_id: {rec.user_id}, workflow_path: {rec.workflow_path}, version: {rec.version}")
-
+    records = db.query(Document).filter(Document.workflow_path == workflow_path).all()
     if not records:
         return JSONResponse(status_code=404, content={"detail": f"No records found for workflow_path '{cleaned_path}'"})
 
-    base_dir = Path(__file__).parents[2] / "files" / cleaned_path
-    all_processed = []
+    if not excel_dir.exists() or not excel_dir.is_dir():
+        return JSONResponse(status_code=404, content={"detail": f"Directory not found: {excel_dir}"})
 
+    excel_files = [f for f in excel_dir.iterdir() if f.is_file() and f.suffix.lower() in (".xlsx", ".xls")]
+    if not excel_files:
+        return JSONResponse(status_code=404, content={"detail": "No Excel files found in directory"})
+
+    # Columns you specified as required for "missing" classification
     required_columns = [
         "report_date", "loan_segment", "cis_number", "pn_number",
         "loan_amount", "outstanding_balance", "amortization", "booking_date",
         "maturity_date", "eir", "monthly_payments", "dpd"
     ]
 
+    all_processed = []
+
     try:
-        for record in records:
-            df_rows = None
+        for file_path in excel_files:
+            df = pd.read_excel(file_path, engine="openpyxl", dtype=object)
 
-            def extract_rows(parsed):
-                if isinstance(parsed, list):
-                    return parsed
-                if isinstance(parsed, dict):
-                    for v in parsed.values():
-                        if isinstance(v, list):
-                            return v
-                        if isinstance(v, dict) and isinstance(v.get("original_data"), list):
-                            return v.get("original_data")
-                return []
+            # normalize headers
+            df.columns = [str(c).strip().lower() for c in df.columns]
 
-            # 1) Prefer JSON stored in DB
-            if record.json_data:
-                try:
-                    parsed = json.loads(record.json_data)
-                    df_rows = extract_rows(parsed)
-                    print(f"[read-excel] using json_data from DB for file '{record.filename}', rows={len(df_rows)}")
-                except Exception as e:
-                    print(f"[read-excel] failed to parse json_data for '{record.filename}': {e}")
-                    df_rows = None
+            # keep NaN as-is for pd.isna checks; we still remove infs
+            df.replace([np.inf, -np.inf], np.nan, inplace=True)
 
-            # 2) Fallback to reading Excel file from disk
-            if not df_rows:
-                file_path = base_dir / record.filename
-                if not file_path.exists():
-                    all_processed.append({
-                        "id": record.id,
-                        "filename": record.filename,
-                        "valid": 0,
-                        "missing": 0,
-                        "error": 0,
-                        "duplicate": 0,
-                        "rows": [],
-                        "note": f"File not found on disk: {record.filename}"
-                    })
-                    continue
+            original_records = df.to_dict(orient="records")
+            safe_original = [sanitize_for_json(row) for row in original_records]
 
-                try:
-                    df = pd.read_excel(file_path, engine="openpyxl", dtype=object)
-                    df.columns = [str(c).strip().lower() for c in df.columns]
-                    df.replace([np.inf, -np.inf], np.nan, inplace=True)
-                    df_rows = [sanitize_for_json(row) for row in df.to_dict(orient="records")]
+            matching_record = next((r for r in records if r.filename == file_path.name), None)
+            if matching_record:
+                matching_record.json_data = json.dumps(safe_original)
 
-                    # Save extracted JSON into DB
-                    try:
-                        record.json_data = json.dumps(df_rows)
-                        db.add(record)
-                        db.commit()
-                        print(f"[read-excel] saved Excel -> json_data for '{record.filename}' ({len(df_rows)} rows)")
-                    except Exception as e:
-                        db.rollback()
-                        print(f"[read-excel] failed to save json_data for '{record.filename}': {e}")
-                except Exception as e:
-                    all_processed.append({
-                        "id": record.id,
-                        "filename": record.filename,
-                        "valid": 0,
-                        "missing": 0,
-                        "error": 0,
-                        "duplicate": 0,
-                        "rows": [],
-                        "note": f"Failed to read Excel file: {str(e)}"
-                    })
-                    continue
-
-            if not df_rows:
+            # quick header check
+            missing_cols = [col for col in required_columns if col not in df.columns]
+            if missing_cols:
                 all_processed.append({
-                    "id": record.id,
-                    "filename": record.filename,
+                    "filename": file_path.name,
                     "valid": 0,
                     "missing": 0,
                     "error": 0,
-                    "duplicate": 0,
                     "rows": [],
-                    "note": "No data available (json_data empty and file missing/failed)"
+                    "note": f"Missing columns in file header: {missing_cols}"
                 })
                 continue
 
-            # --- Row processing ---
-            intermediate_rows: List[Dict[str, Any]] = []
-            dup_keys: List[tuple] = []
+            # if file has no rows (empty sheet), report and continue
+            if df.shape[0] == 0:
+                all_processed.append({
+                    "filename": file_path.name,
+                    "valid": 0,
+                    "missing": 0,
+                    "error": 0,
+                    "rows": [],
+                    "note": "File is empty (no rows)"
+                })
+                continue
 
+            # helper to convert numeric-like strings to Decimal (return value + raw)
             def to_decimal_with_raw(x):
                 raw = x
                 try:
                     if x is None or pd.isna(x):
                         return None, raw
+                    # If already a Decimal or int, convert safely
                     if isinstance(x, Decimal):
                         return x, raw
                     if isinstance(x, int):
                         return Decimal(x), raw
+                    # strip commas and whitespace; handle strings like "0", "0.0", "1,234.56"
                     s = str(x).replace(",", "").strip()
                     if s == "":
                         return None, raw
                     return Decimal(s), raw
-                except Exception:
+                except (InvalidOperation, Exception):
                     return None, raw
 
-            def is_missing_value(val):
-                if val is None:
-                    return True
-                try:
-                    if pd.isna(val):
-                        return True
-                except Exception:
-                    pass
-                if isinstance(val, str):
-                    s = val.strip().lower()
-                    if s in ("", "na", "n/a", "null", "none"):
-                        return True
-                return False
+            intermediate_rows: List[Dict[str, Any]] = []
+            dup_keys: List[tuple] = []
 
-            for row in df_rows:
-                row_out = dict(row)
-                row_out["errors"] = []
-                row_out["status"] = None
-                row_out["duplicate"] = False
+            # iterate using required_columns to build focused rows
+            for idx, row in df[required_columns].iterrows():
+                raw_row = {col: row.get(col) for col in required_columns}
+                row_out: Dict[str, Any] = raw_row.copy()  # we'll add meta fields here
+                row_out["source_file"] = file_path.name
+                row_out["error_explanations"] = []  # human-readable explanation list
+                row_out["errors"] = []              # compact error codes (kept for programmatic use)
+                row_out["missing_fields"] = []
 
-                # --- Missing check ---
-                missing_fields = [col for col in required_columns if is_missing_value(row.get(col))]
-                if missing_fields:
+                # --- Missing check: which required fields are empty? ---
+                for col in required_columns:
+                    val = raw_row.get(col)
+                    # treat NaN/None or whitespace-only strings as missing
+                    if pd.isna(val) or (isinstance(val, str) and val.strip() == ""):
+                        row_out["missing_fields"].append(col)
+
+                if row_out["missing_fields"]:
                     row_out["status"] = "missing"
+                    row_out["error_explanations"].append(
+                        f"Missing required fields: {', '.join(row_out['missing_fields'])}"
+                    )
+                    intermediate_rows.append(row_out)
+                    continue
 
-                # --- Error checks ---
-                if row_out["status"] != "missing":
-                    dpd_val, dpd_raw = to_decimal_with_raw(row.get("dpd"))
-                    amort_val, amort_raw = to_decimal_with_raw(row.get("amortization"))
-                    monthly_pay_val, monthly_pay_raw = to_decimal_with_raw(row.get("monthly_payments"))
+                # otherwise start as valid
+                row_out["status"] = "valid"
 
-                    if dpd_val is None:
-                        row_out["errors"].append("numeric_parse:dpd")
-                    if amort_val is None:
-                        row_out["errors"].append("numeric_parse:amortization")
-                    if monthly_pay_val is None:
-                        row_out["errors"].append("numeric_parse:monthly_payments")
-
-                    if row_out["errors"]:
+                # --- Date parsing checks with detailed messages ---
+                for date_col in ("report_date", "booking_date", "maturity_date"):
+                    raw_val = raw_row.get(date_col)
+                    parsed, norm = try_parse_date(raw_val)
+                    if parsed is None:
+                        code = f"invalid_date_format:{date_col}"
+                        row_out["errors"].append(code)
+                        row_out["error_explanations"].append(
+                            f"Unparsable date in '{date_col}': original value = {repr(raw_val)}. Expected formats: YYYY-MM-DD, YYYY-MM, DD/MM/YYYY, MM/DD/YYYY, etc."
+                        )
                         row_out["status"] = "error"
+                    else:
+                        row_out[f"{date_col}_parsed"] = parsed.strftime("%Y-%m-%d")
 
-                # --- Valid fallback ---
-                if row_out["status"] is None:
-                    row_out["status"] = "valid"
+                # --- Numeric parsing with Decimal (no float conversion) ---
+                dpd_val, dpd_raw = to_decimal_with_raw(raw_row.get("dpd"))
+                amort_val, amort_raw = to_decimal_with_raw(raw_row.get("amortization"))
+                monthly_pay_val, monthly_pay_raw = to_decimal_with_raw(raw_row.get("monthly_payments"))
 
-                # --- Collect key for duplicate detection ---
-                rep_norm = row.get("report_date") or ""
-                cis = str(row.get("cis_number") or "").strip()
-                pn = str(row.get("pn_number") or "").strip()
+                if dpd_val is None:
+                    row_out["errors"].append("numeric_parse:dpd")
+                    row_out["error_explanations"].append(f"Could not parse numeric field 'dpd' (raw value: {repr(dpd_raw)})")
+                    row_out["status"] = "error"
+                if amort_val is None:
+                    row_out["errors"].append("numeric_parse:amortization")
+                    row_out["error_explanations"].append(f"Could not parse numeric field 'amortization' (raw value: {repr(amort_raw)})")
+                    row_out["status"] = "error"
+                if monthly_pay_val is None:
+                    row_out["errors"].append("numeric_parse:monthly_payments")
+                    row_out["error_explanations"].append(f"Could not parse numeric field 'monthly_payments' (raw value: {repr(monthly_pay_raw)})")
+                    row_out["status"] = "error"
+
+                # --- Payment consistency check (flag only — DO NOT CORRECT) using Decimal ==
+                try:
+                    if dpd_val is not None and dpd_val == Decimal(0):
+                        if amort_val is not None and monthly_pay_val is not None and monthly_pay_val != amort_val:
+                            row_out["errors"].append("payment_mismatch_dpd_0")
+                            row_out["error_explanations"].append(
+                                f"DPD is 0 but monthly_payments ({monthly_pay_raw}) != amortization ({amort_raw}). Expected payment equal to amortization when DPD=0."
+                            )
+                            row_out["status"] = "error"
+                except Exception:
+                    row_out["errors"].append("payment_consistency_check_failed")
+                    row_out["error_explanations"].append("Payment consistency check failed due to unexpected error.")
+                    row_out["status"] = "error"
+
+                # Save canonical key for duplicate detection (use parsed report_date if available)
+                rep_norm = row_out.get("report_date_parsed") or str(row_out.get("report_date"))
+                cis = str(row_out.get("cis_number")).strip() if row_out.get("cis_number") is not None else ""
+                pn = str(row_out.get("pn_number")).strip() if row_out.get("pn_number") is not None else ""
                 dup_keys.append((rep_norm, cis, pn))
 
                 intermediate_rows.append(row_out)
 
-            # --- Duplicate detection ---
-            from collections import Counter
+            # Duplicate detection within file
+            from collections import Counter, defaultdict
             dup_counter = Counter(dup_keys)
-            duplicates_found = {k for k, v in dup_counter.items() if v > 1}
+            duplicates_found = {k: v for k, v in dup_counter.items() if v > 1}
 
-            for row in intermediate_rows:
-                rep_norm = row.get("report_date") or ""
-                cis = str(row.get("cis_number") or "").strip()
-                pn = str(row.get("pn_number") or "").strip()
-                key = (rep_norm, cis, pn)
-                if key in duplicates_found:
-                    row["duplicate"] = True
-                    if row["status"] not in ("missing",):
-                        row["status"] = "duplicate"
+            # annotate duplicates and add explanations
+            if duplicates_found:
+                group_positions: DefaultDict[tuple, int] = defaultdict(int)
+                for row in intermediate_rows:
+                    rep_norm = row.get("report_date_parsed") or str(row.get("report_date"))
+                    cis = str(row.get("cis_number")).strip() if row.get("cis_number") is not None else ""
+                    pn = str(row.get("pn_number")).strip() if row.get("pn_number") is not None else ""
+                    key = (rep_norm, cis, pn)
+                    if key in duplicates_found:
+                        row["duplicate"] = True
+                        row["duplicate_count"] = int(duplicates_found[key])
+                        row["errors"].append("duplicate_cis_pn_for_report_date")
+                        row["error_explanations"].append(
+                            f"Duplicate records found for (report_date={rep_norm}, cis_number={cis}, pn_number={pn}). Occurrences: {duplicates_found[key]}."
+                        )
+                        group_positions[key] += 1
+                        row["group_sequence"] = group_positions[key]
 
-            # --- Final counts and response ---
+            # Now compute file-level ordering sequence (row_sequence) and precise group_sequence
+            ordering = []
+            for i, row in enumerate(intermediate_rows):
+                rep_norm = row.get("report_date_parsed") or str(row.get("report_date"))
+                cis = str(row.get("cis_number")).strip() if row.get("cis_number") is not None else ""
+                pn = str(row.get("pn_number")).strip() if row.get("pn_number") is not None else ""
+                ordering.append((i, rep_norm or "", cis or "", pn or ""))
+
+            ordering_sorted = sorted(ordering, key=lambda t: (t[1], t[2], t[3]))
+
+            for seq, (orig_index, *_rest) in enumerate(ordering_sorted, start=1):
+                intermediate_rows[orig_index]["row_sequence"] = int(seq)
+
+            if duplicates_found:
+                group_counters: DefaultDict[tuple, int] = defaultdict(int)
+                for orig_index, rep_norm, cis, pn in [(t[0], t[1], t[2], t[3]) for t in ordering_sorted]:
+                    key = (rep_norm, cis, pn)
+                    if key in duplicates_found:
+                        group_counters[key] += 1
+                        intermediate_rows[orig_index]["group_sequence"] = int(group_counters[key])
+                    else:
+                        intermediate_rows[orig_index]["group_sequence"] = 1
+
+            # finalize and sanitize processed_rows for JSON output
             processed_rows = [sanitize_for_json(r) for r in intermediate_rows]
+
+            # build per-pn summary for payment_mismatch_dpd_0 (and include cis + report_date)
+            seen = set()
+            flagged_pn_summary = []
+            for r in processed_rows:
+                errors = r.get("errors") or []
+                if "payment_mismatch_dpd_0" in errors:
+                    rep = r.get("report_date_parsed") or r.get("report_date")
+                    pn = r.get("pn_number")
+                    cis = r.get("cis_number")
+                    key = (rep, pn)
+                    if key not in seen:
+                        seen.add(key)
+                        flagged_pn_summary.append({
+                            "report_date": rep,
+                            "pn_number": pn,
+                            "cis_number": cis,
+                            "reason": "DPD is 0 but monthly_payments != amortization for this pn_number",
+                            "occurrences": sum(1 for x in processed_rows if (x.get("report_date_parsed") or x.get("report_date")) == rep and x.get("pn_number") == pn and ("payment_mismatch_dpd_0" in (x.get("errors") or [])))
+                        })
+
             total_rows = len(processed_rows)
             missing_count = sum(1 for r in processed_rows if r.get("status") == "missing")
             valid_count = sum(1 for r in processed_rows if r.get("status") == "valid")
-            duplicate_count = sum(1 for r in processed_rows if r.get("status") == "duplicate")
-            error_count = sum(1 for r in processed_rows if r.get("status") == "error")
+            error_count = total_rows - (valid_count + missing_count)
 
             all_processed.append({
-                "id": record.id,
-                "filename": record.filename,
+                "filename": file_path.name,
                 "valid": int(valid_count),
                 "missing": int(missing_count),
                 "error": int(error_count),
-                "duplicate": int(duplicate_count),
-                "rows": processed_rows
+                "rows": processed_rows,
+                "flagged_pn_summary": flagged_pn_summary
             })
+
+        db.commit()
+
+        if not all_processed:
+            return JSONResponse(status_code=400, content={"detail": "No valid Excel files processed"})
 
         return JSONResponse(content=all_processed)
 
     except Exception as e:
-        print(f"[read-excel] unexpected error: {e}")
-        return JSONResponse(status_code=500, content={"detail": f"Error reading data: {str(e)}"})
-
+        return JSONResponse(status_code=500, content={"detail": f"Error reading Excel files: {str(e)}"})
 
 
 @router.post("/insert-new-version")
@@ -1641,14 +1698,14 @@ def calculate_bucket_matrix_average(
     merged_df = merged_df.dropna(subset=["Bucket"])
     merged_df["Bucket"] = merged_df["Bucket"].astype(int)
 
-    # compute averages (unchanged)
-    all_0_dpd_values = []
-    for month in merged_df["Report_Month"].unique():
-        subset = merged_df[(merged_df["Report_Month"] == month) & (merged_df["Bucket"] == 0)]
-        values = subset["0 DPD_0"].dropna().tolist()
-        all_0_dpd_values.extend(values)
-        print(f"[migration-matrix-average] Month: {month}, Bucket: 0, '0 DPD_0' values: {values}")
+    # ✅ Helper: truncate instead of round
+    def truncate(num: float, decimals: int = 2) -> float:
+        if pd.isna(num):
+            return 0.0
+        factor = 10 ** decimals
+        return int(num * factor) / factor
 
+    # compute averages (unchanged logic)
     average_results = {}
     for bucket in merged_df["Bucket"].unique():
         bucket_values = {}
@@ -1665,17 +1722,17 @@ def calculate_bucket_matrix_average(
         for col in dpd_cols:
             avg = bucket_values[col]["sum"] / bucket_values[col]["count"] if bucket_values[col]["count"] > 0 else 0
             average_results.setdefault(bucket, {})[col] = avg
-            print(f"[migration-matrix-average] Bucket {bucket}, {col}: average = {round(avg, 2)}")
+            print(f"[migration-matrix-average] Bucket {bucket}, {col}: average = {avg}")
 
     final_result = []
     for from_bucket in sorted(average_results.keys()):
         row = {"Bucket": int(from_bucket)}
         total = 0
         for col in dpd_cols:
-            rounded_val = round(average_results[from_bucket].get(col, 0), 2)
-            row[col] = rounded_val
-            total += rounded_val
-        row["Total"] = round(total, 2)
+            val = average_results[from_bucket].get(col, 0)
+            row[col] = val
+            total += val
+        row["Total"] = total
         final_result.append(row)
 
     if existing:
@@ -2023,7 +2080,7 @@ def get_document_by_id(
 
     base_dir = Path(__file__).parents[2] / "files" / record.workflow_path.strip('"/')
 
-    # Helper functions
+    # Helper functions (match read-excel behavior)
     def extract_rows(parsed):
         if isinstance(parsed, list):
             return parsed
@@ -2065,7 +2122,7 @@ def get_document_by_id(
                 return True
         return False
 
-    # Prefer JSON stored in DB
+    # Prefer JSON stored in DB (same approach as read-excel)
     if record.json_data:
         try:
             parsed = json.loads(record.json_data)
@@ -2073,7 +2130,7 @@ def get_document_by_id(
         except Exception:
             df_rows = None
 
-    # Fallback to reading Excel file
+    # Fallback to reading Excel file (same as read-excel)
     if not df_rows:
         file_path = base_dir / record.filename
         if file_path.exists():
@@ -2083,7 +2140,7 @@ def get_document_by_id(
                 df.replace([np.inf, -np.inf], np.nan, inplace=True)
                 df_rows = [dict(r) for r in df.to_dict(orient="records")]
 
-                # Save extracted JSON into DB for future
+                # Save extracted JSON into DB for future (same behavior)
                 try:
                     record.json_data = json.dumps(df_rows)
                     db.add(record)
@@ -2094,71 +2151,190 @@ def get_document_by_id(
                 df_rows = []
 
     if df_rows:
-        # --- Row processing ---
+        # --- Row processing (mirror read-excel) ---
         intermediate_rows: List[Dict[str, Any]] = []
         dup_keys: List[tuple] = []
 
+        # local helpers used in read-excel (expect these to be present in module)
+        # try_parse_date and sanitize_for_json are assumed available
+
         for row in df_rows:
-            row_out = dict(row)
+            # Use a shallow copy so original fields remain available
+            raw_row = dict(row)
+            row_out: Dict[str, Any] = raw_row.copy()
+            row_out["source_file"] = record.filename
+            row_out["error_explanations"] = []
             row_out["errors"] = []
-            row_out["status"] = None
-            row_out["duplicate"] = False
+            row_out["missing_fields"] = []
 
-            # Missing check
-            missing_fields = [col for col in required_columns if is_missing_value(row.get(col))]
-            if missing_fields:
+            # --- Missing check: which required fields are empty? ---
+            for col in required_columns:
+                val = raw_row.get(col)
+                if is_missing_value(val) or (isinstance(val, str) and val.strip() == ""):
+                    row_out["missing_fields"].append(col)
+
+            if row_out["missing_fields"]:
                 row_out["status"] = "missing"
+                row_out["error_explanations"].append(
+                    f"Missing required fields: {', '.join(row_out['missing_fields'])}"
+                )
+                intermediate_rows.append(row_out)
+                # still add dup key using raw report_date to track duplicates even for missing rows
+                rep_norm = row_out.get("report_date") or ""
+                cis = str(row_out.get("cis_number") or "").strip()
+                pn = str(row_out.get("pn_number") or "").strip()
+                dup_keys.append((rep_norm, cis, pn))
+                continue
 
-            # Error checks
-            if row_out["status"] != "missing":
-                dpd_val, _ = to_decimal_with_raw(row.get("dpd"))
-                amort_val, _ = to_decimal_with_raw(row.get("amortization"))
-                monthly_pay_val, _ = to_decimal_with_raw(row.get("monthly_payments"))
+            # start as valid
+            row_out["status"] = "valid"
 
-                if dpd_val is None:
-                    row_out["errors"].append("numeric_parse:dpd")
-                if amort_val is None:
-                    row_out["errors"].append("numeric_parse:amortization")
-                if monthly_pay_val is None:
-                    row_out["errors"].append("numeric_parse:monthly_payments")
-
-                if row_out["errors"]:
+            # --- Date parsing checks with detailed messages ---
+            for date_col in ("report_date", "booking_date", "maturity_date"):
+                raw_val = raw_row.get(date_col)
+                parsed, norm = try_parse_date(raw_val)
+                if parsed is None:
+                    code = f"invalid_date_format:{date_col}"
+                    row_out["errors"].append(code)
+                    row_out["error_explanations"].append(
+                        f"Unparsable date in '{date_col}': original value = {repr(raw_val)}. Expected formats: YYYY-MM-DD, YYYY-MM, DD/MM/YYYY, MM/DD/YYYY, etc."
+                    )
                     row_out["status"] = "error"
+                else:
+                    row_out[f"{date_col}_parsed"] = parsed.strftime("%Y-%m-%d")
 
-            if row_out["status"] is None:
-                row_out["status"] = "valid"
+            # --- Numeric parsing with Decimal (no float conversion) ---
+            dpd_val, dpd_raw = to_decimal_with_raw(raw_row.get("dpd"))
+            amort_val, amort_raw = to_decimal_with_raw(raw_row.get("amortization"))
+            monthly_pay_val, monthly_pay_raw = to_decimal_with_raw(raw_row.get("monthly_payments"))
 
-            # Duplicate detection
-            rep_norm = row.get("report_date") or ""
-            cis = str(row.get("cis_number") or "").strip()
-            pn = str(row.get("pn_number") or "").strip()
+            if dpd_val is None:
+                row_out["errors"].append("numeric_parse:dpd")
+                row_out["error_explanations"].append(f"Could not parse numeric field 'dpd' (raw value: {repr(dpd_raw)})")
+                row_out["status"] = "error"
+            if amort_val is None:
+                row_out["errors"].append("numeric_parse:amortization")
+                row_out["error_explanations"].append(f"Could not parse numeric field 'amortization' (raw value: {repr(amort_raw)})")
+                row_out["status"] = "error"
+            if monthly_pay_val is None:
+                row_out["errors"].append("numeric_parse:monthly_payments")
+                row_out["error_explanations"].append(f"Could not parse numeric field 'monthly_payments' (raw value: {repr(monthly_pay_raw)})")
+                row_out["status"] = "error"
+
+            # --- Payment consistency check (flag only — DO NOT CORRECT) using Decimal ==
+            try:
+                if dpd_val is not None and dpd_val == Decimal(0):
+                    if amort_val is not None and monthly_pay_val is not None and monthly_pay_val != amort_val:
+                        row_out["errors"].append("payment_mismatch_dpd_0")
+                        row_out["error_explanations"].append(
+                            f"DPD is 0 but monthly_payments ({monthly_pay_raw}) != amortization ({amort_raw}). Expected payment equal to amortization when DPD=0."
+                        )
+                        row_out["status"] = "error"
+            except Exception:
+                row_out["errors"].append("payment_consistency_check_failed")
+                row_out["error_explanations"].append("Payment consistency check failed due to unexpected error.")
+                row_out["status"] = "error"
+
+            # Save canonical key for duplicate detection (use parsed report_date if available)
+            rep_norm = row_out.get("report_date_parsed") or str(row_out.get("report_date") or "")
+            cis = str(row_out.get("cis_number") or "").strip()
+            pn = str(row_out.get("pn_number") or "").strip()
             dup_keys.append((rep_norm, cis, pn))
 
             intermediate_rows.append(row_out)
 
-        # Mark duplicates
+        # Duplicate detection within file (and across rows parsed)
+        from collections import Counter, defaultdict
         dup_counter = Counter(dup_keys)
-        duplicates_found = {k for k, v in dup_counter.items() if v > 1}
-        for row in intermediate_rows:
-            rep_norm = row.get("report_date") or ""
+        duplicates_found = {k: v for k, v in dup_counter.items() if v > 1}
+
+        # annotate duplicates and add explanations (preserve grouping sequence)
+        if duplicates_found:
+            group_positions: defaultdict = defaultdict(int)
+            for row in intermediate_rows:
+                rep_norm = row.get("report_date_parsed") or str(row.get("report_date") or "")
+                cis = str(row.get("cis_number") or "").strip()
+                pn = str(row.get("pn_number") or "").strip()
+                key = (rep_norm, cis, pn)
+                if key in duplicates_found:
+                    row["duplicate"] = True
+                    row["duplicate_count"] = int(duplicates_found[key])
+                    row.setdefault("errors", []).append("duplicate_cis_pn_for_report_date")
+                    row.setdefault("error_explanations", []).append(
+                        f"Duplicate records found for (report_date={rep_norm}, cis_number={cis}, pn_number={pn}). Occurrences: {duplicates_found[key]}."
+                    )
+                    group_positions[key] += 1
+                    row["group_sequence"] = group_positions[key]
+
+        # compute file-level ordering sequence (row_sequence) and precise group_sequence
+        ordering = []
+        for i, row in enumerate(intermediate_rows):
+            rep_norm = row.get("report_date_parsed") or str(row.get("report_date") or "")
             cis = str(row.get("cis_number") or "").strip()
             pn = str(row.get("pn_number") or "").strip()
-            if (rep_norm, cis, pn) in duplicates_found:
-                row["duplicate"] = True
-                if row["status"] not in ("missing",):
-                    row["status"] = "duplicate"
+            ordering.append((i, rep_norm or "", cis or "", pn or ""))
 
-        # Calculate status metrics
+        ordering_sorted = sorted(ordering, key=lambda t: (t[1], t[2], t[3]))
+
+        for seq, (orig_index, *_rest) in enumerate(ordering_sorted, start=1):
+            intermediate_rows[orig_index]["row_sequence"] = int(seq)
+
+        if duplicates_found:
+            group_counters: defaultdict = defaultdict(int)
+            for orig_index, rep_norm, cis, pn in [(t[0], t[1], t[2], t[3]) for t in ordering_sorted]:
+                key = (rep_norm, cis, pn)
+                if key in duplicates_found:
+                    group_counters[key] += 1
+                    intermediate_rows[orig_index]["group_sequence"] = int(group_counters[key])
+                else:
+                    intermediate_rows[orig_index]["group_sequence"] = 1
+        else:
+            # ensure group_sequence exists
+            for r in intermediate_rows:
+                if "group_sequence" not in r:
+                    r["group_sequence"] = 1
+
+        # finalize and sanitize processed_rows for JSON output (use same sanitizer)
+        processed_rows = [sanitize_for_json(r) for r in intermediate_rows]
+
+        # build per-pn summary for payment_mismatch_dpd_0 (and include cis + report_date)
+        seen = set()
+        flagged_pn_summary = []
+        for r in processed_rows:
+            errors = r.get("errors") or []
+            if "payment_mismatch_dpd_0" in errors:
+                rep = r.get("report_date_parsed") or r.get("report_date")
+                pn = r.get("pn_number")
+                cis = r.get("cis_number")
+                key = (rep, pn)
+                if key not in seen:
+                    seen.add(key)
+                    flagged_pn_summary.append({
+                        "report_date": rep,
+                        "pn_number": pn,
+                        "cis_number": cis,
+                        "reason": "DPD is 0 but monthly_payments != amortization for this pn_number",
+                        "occurrences": sum(1 for x in processed_rows if (x.get("report_date_parsed") or x.get("report_date")) == rep and x.get("pn_number") == pn and ("payment_mismatch_dpd_0" in (x.get("errors") or [])))
+                    })
+
+        total_rows = len(processed_rows)
+        missing_count = sum(1 for r in processed_rows if r.get("status") == "missing")
+        valid_count = sum(1 for r in processed_rows if r.get("status") == "valid")
+        error_count = total_rows - (valid_count + missing_count)
+
         response["status_metrics"] = {
-            "valid": sum(1 for r in intermediate_rows if r["status"] == "valid"),
-            "error": sum(1 for r in intermediate_rows if r["status"] == "error"),
-            "missing": sum(1 for r in intermediate_rows if r["status"] == "missing"),
-            "duplicate": sum(1 for r in intermediate_rows if r["status"] == "duplicate"),
+            "valid": int(valid_count),
+            "error": int(error_count),
+            "missing": int(missing_count),
+            "duplicate": int(sum(1 for r in processed_rows if r.get("duplicate") is True)),
         }
 
-        response["json_data"] = intermediate_rows
+        # include processed rows and summary to match read-excel shape
+        response["json_data"] = processed_rows
+        response["flagged_pn_summary"] = flagged_pn_summary
 
     return response
+
 
 
 
