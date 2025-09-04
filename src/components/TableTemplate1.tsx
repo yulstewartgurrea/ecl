@@ -111,7 +111,7 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
   const totalPages = Math.ceil(totalItems / currentItemsPerPage);
   const startIndex = (currentPage - 1) * currentItemsPerPage;
   const endIndex = startIndex + currentItemsPerPage;
-  const currentData = enablePagination ? data.slice(startIndex, endIndex) : data;
+  // const currentData = enablePagination ? data.slice(startIndex, endIndex) : data;
 
   // Reset to first page when data changes
   useEffect(() => {

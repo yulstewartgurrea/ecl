@@ -90,16 +90,16 @@ const Step3 = () => {
     );
   }, [searchTerm]);
 
-  // Memoized filtered data
-  const filteredData = useMemo(() => {
-    if (!data || selectedFilters.length === 0) return data || [];
+  // // Memoized filtered data
+  // const filteredData = useMemo(() => {
+  //   if (!data || selectedFilters.length === 0) return data || [];
     
-    return data.filter((row: any) => {
-      return selectedFilters.some(filter => 
-        row[filter] !== undefined && row[filter] !== null && row[filter] !== ''
-      );
-    });
-  }, [data, selectedFilters]);
+  //   return data.filter((row: any) => {
+  //     return selectedFilters.some(filter => 
+  //       row[filter] !== undefined && row[filter] !== null && row[filter] !== ''
+  //     );
+  //   });
+  // }, [data, selectedFilters]);
 
 
 
