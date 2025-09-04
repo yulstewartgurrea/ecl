@@ -25,3 +25,5 @@ dist-ssr
 # Ignore server persistence
 server/files/
 server/*.sqlite
+
+~/*
