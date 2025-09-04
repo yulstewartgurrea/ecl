@@ -63,12 +63,19 @@ const Step11 = () => {
     if (!cache) return;
 
     const transformed: OdrRow[] = cache.map((e) => {
-      const [year, month, day] = e["End of performance window"].split("-").map(Number);
+      const dateString = e["End of performance window"] || "";
+      const odrString = e.ODR || "";
+      
+      if (!dateString || !odrString) {
+        return { Time: "", ODR: 0 }; // Return empty values for missing data
+      }
+      
+      const [year, month, day] = dateString.split("-").map(Number);
       const date = new Date(year, month - 1, day);
       const mm = String(date.getMonth() + 1).padStart(2, "0");
       const dd = String(date.getDate()).padStart(2, "0");
       const yyyy = String(date.getFullYear());
-      const odrPct = parseFloat(e.ODR.replace("%", ""));
+      const odrPct = parseFloat(odrString.replace("%", ""));
       return { Time: `${mm}/${dd}/${yyyy}`, ODR: odrPct / 100 };
     });
 

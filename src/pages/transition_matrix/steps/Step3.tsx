@@ -31,8 +31,6 @@ const Step3 = () => {
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(100);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -103,27 +101,7 @@ const Step3 = () => {
     });
   }, [data, selectedFilters]);
 
-  // Memoized pagination calculations
-  const paginationData = useMemo(() => {
-    const totalItems = filteredData.length;
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentData = filteredData.slice(startIndex, endIndex);
 
-    return {
-      totalItems,
-      totalPages,
-      currentData,
-      startIndex,
-      endIndex
-    };
-  }, [filteredData, currentPage, itemsPerPage]);
-
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedFilters]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -275,60 +253,19 @@ const Step3 = () => {
           </div>
         )}
 
-        {/* Pagination Controls */}
-        {!isLoading && !error && paginationData.totalItems > 0 && (
-          <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg border border-gray-200">
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">
-                Showing {paginationData.startIndex + 1} to {Math.min(paginationData.endIndex, paginationData.totalItems)} of {paginationData.totalItems} entries
-              </span>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => {
-                  setItemsPerPage(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              >
-                <option value={50}>50 per page</option>
-                <option value={100}>100 per page</option>
-                <option value={200}>200 per page</option>
-                <option value={500}>500 per page</option>
-              </select>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Previous
-              </button>
-              
-              <span className="text-sm text-gray-600">
-                Page {currentPage} of {paginationData.totalPages}
-              </span>
-              
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(paginationData.totalPages, prev + 1))}
-                disabled={currentPage === paginationData.totalPages}
-                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
+
 
         {/* Content */}
         {!isLoading && !error && (
           <>
             <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
             <TableTemplate1
-              data={paginationData.currentData}
+              data={data}
               zoomLevel={zoom}
               setZoomLevel={setZoom}
+              enablePagination={true}
+              itemsPerPage={100}
+              showPaginationInfo={true}
             />
           </>
         )}

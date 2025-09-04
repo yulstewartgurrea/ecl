@@ -14,6 +14,9 @@ interface TableTemplate1Props {
   additionalCss?: any;
   zoomLevel?: number;
   setZoomLevel?: (zoom: number | ((prev: number) => number)) => void;
+  enablePagination?: boolean;
+  itemsPerPage?: number;
+  showPaginationInfo?: boolean;
 }
 
 const TableTemplate1: React.FC<TableTemplate1Props> = ({
@@ -27,11 +30,18 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
   additionalCss,
   zoomLevel,
   setZoomLevel,
+  enablePagination = false,
+  itemsPerPage = 100,
+  showPaginationInfo = true,
 }) => {
   const tableRef = useRef<HTMLDivElement>(null);
   const [internalHighlightedRow, setInternalHighlightedRow] = useState<
     number | null
   >(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentItemsPerPage, setCurrentItemsPerPage] = useState(itemsPerPage);
   const excludedHeaders = ["errors", "status", "duplicate", "rowIndex"];
   const headers =
   headersParams ??
@@ -96,6 +106,23 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
     return () => window.removeEventListener("wheel", handleWheel);
   }, [updateZoom]);
 
+  // Pagination calculations
+  const totalItems = data.length;
+  const totalPages = Math.ceil(totalItems / currentItemsPerPage);
+  const startIndex = (currentPage - 1) * currentItemsPerPage;
+  const endIndex = startIndex + currentItemsPerPage;
+  const currentData = enablePagination ? data.slice(startIndex, endIndex) : data;
+
+  // Reset to first page when data changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [data.length]);
+
+  // Update items per page when prop changes
+  useEffect(() => {
+    setCurrentItemsPerPage(itemsPerPage);
+  }, [itemsPerPage]);
+
   // unique values for dropdowns
   const uniqueValues = (key: string) =>
     [...new Set(data.map((row) => row[key]))].filter(
@@ -112,6 +139,11 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
       return true;
     });
   });
+
+  // Apply pagination to filtered data
+  const paginatedData = enablePagination 
+    ? filteredData.slice(startIndex, endIndex) 
+    : filteredData;
 
   // toggle select in tempFilters
   const toggleSelect = (header: string, value: string) => {
@@ -182,6 +214,55 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
         additionalCss?.outerDiv ?? "overflow-auto max-h-screen min-w-full bg-white rounded-md shadow-sm border border-gray-200"
       )}
     >
+      {/* Top Pagination Controls */}
+      {enablePagination && totalPages > 1 && (
+        <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            {showPaginationInfo && (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-600">
+                  Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} entries
+                </span>
+                <select
+                  value={currentItemsPerPage}
+                  onChange={(e) => {
+                    setCurrentItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                >
+                  <option value={50}>50 per page</option>
+                  <option value={100}>100 per page</option>
+                  <option value={200}>200 per page</option>
+                  <option value={500}>500 per page</option>
+                </select>
+              </div>
+            )}
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </span>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <table
         style={{ zoom: effectiveZoom }}
         className="border border-gray-300 w-full relative"
@@ -304,7 +385,7 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
           </tr>
         </thead>
         <tbody>
-          {filteredData.map((row, rowIndex) => (
+          {paginatedData.map((row, rowIndex) => (
             <tr
               key={rowIndex}
               className={clsx("hover:bg-gray-100 cursor-pointer")}
@@ -333,6 +414,56 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
           ))}
         </tbody>
       </table>
+      
+      {/* Pagination Controls */}
+      {enablePagination && totalPages > 1 && (
+        <div className="bg-gray-50 border-t border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            {showPaginationInfo && (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-600">
+                  Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} entries
+                </span>
+                <select
+                  value={currentItemsPerPage}
+                  onChange={(e) => {
+                    setCurrentItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                >
+                  <option value={50}>50 per page</option>
+                  <option value={100}>100 per page</option>
+                  <option value={200}>200 per page</option>
+                  <option value={500}>500 per page</option>
+                </select>
+              </div>
+            )}
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </span>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
