@@ -5,13 +5,69 @@ use std::{
     sync::Mutex,
     io::Read,
 };
-use tauri::{Manager, WindowEvent};
+use tauri::{Manager, WindowEvent, State};
 use std::net::TcpStream;
+use tauri_plugin_updater::UpdaterExt;
+use chrono;
 
 struct FastApiProcess(Mutex<Option<std::process::Child>>);
 mod api;
 
 use crate::api::folderapi::{create_folder_tree, upload_files, list_folder_contents, get_folder_contents};
+
+// Updater commands
+#[tauri::command]
+async fn check_for_updates(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let updater = app.updater().map_err(|e| format!("Failed to get updater: {}", e))?;
+    
+    match updater.check().await {
+        Ok(Some(update)) => {
+            // Convert update info to JSON
+            let update_info = serde_json::json!({
+                "version": update.version,
+                "date": chrono::Utc::now().to_rfc3339(),
+                "body": "Bug fixes and improvements"
+            });
+            Ok(update_info)
+        }
+        Ok(None) => Err("No updates available".to_string()),
+        Err(e) => Err(format!("Failed to check for updates: {}", e)),
+    }
+}
+
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    let updater = app.updater().map_err(|e| format!("Failed to get updater: {}", e))?;
+    
+    match updater.check().await {
+        Ok(Some(update)) => {
+            match update.download_and_install(
+                |chunk_length, content_length| {
+                    // Handle download progress
+                    println!("Downloaded {} bytes out of {:?}", chunk_length, content_length);
+                },
+                || {
+                    // Handle completion
+                    println!("Download and installation completed.");
+                },
+            ).await {
+                Ok(_) => {
+                    // Restart the app after successful update
+                    app.restart();
+                    Ok(())
+                }
+                Err(e) => Err(format!("Failed to install update: {}", e)),
+            }
+        }
+        Ok(None) => Err("No updates available".to_string()),
+        Err(e) => Err(format!("Failed to check for updates: {}", e)),
+    }
+}
+
+#[tauri::command]
+async fn get_app_version() -> Result<String, String> {
+    Ok(env!("CARGO_PKG_VERSION").to_string())
+}
 
 
 
@@ -158,10 +214,15 @@ async fn main() {
     let fastapi_child = start_fastapi(&server_dir, &python_exe);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             create_folder_tree,
             upload_files,
-            list_folder_contents, get_folder_contents
+            list_folder_contents, 
+            get_folder_contents,
+            check_for_updates,
+            install_update,
+            get_app_version
         ])
         .manage(FastApiProcess(Mutex::new(Some(fastapi_child))))
         .on_window_event(|window, event| {
