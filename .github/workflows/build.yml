@@ -35,7 +35,7 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       
     - name: Cache Rust dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
@@ -52,7 +52,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.YUL_GITHUB_TOKEN }}
         
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ecl-app-${{ matrix.os }}
         path: src-tauri/target/release/bundle/
