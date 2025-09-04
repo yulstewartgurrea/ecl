@@ -181,6 +181,9 @@ const Step6 = () => {
                 decimalPlaces={0}
                 zoomLevel={zoom}
                 setZoomLevel={setZoom}
+                enablePagination={true}
+                itemsPerPage={100}
+                showPaginationInfo={true}
               />
             </div>
           </>
