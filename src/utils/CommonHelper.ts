@@ -95,29 +95,35 @@ const formatValueGeneral = (
   if (typeof value !== "number") {
     return value?.toString();
   }
+
+  // ✅ Helper to truncate without rounding
+  const truncate = (num: number, dp: number) => {
+    const factor = Math.pow(10, dp);
+    return Math.trunc(num * factor) / factor;
+  };
+
   if (format === "money") {
-    const absoluteValue = Math.abs(value);
+    const absoluteValue = Math.abs(truncate(value, decimalPlaces));
     const formattedValue = absoluteValue.toLocaleString("en-PH", {
       minimumFractionDigits: decimalPlaces,
       maximumFractionDigits: decimalPlaces,
     });
+
     if (value < 0 && encloseMoneyInParenthesis) {
       return `(${formattedValue})`;
-    } else return formattedValue;
+    } else {
+      return formattedValue;
+    }
   } else if (format === "percentage") {
-    // console.log('addPercentSign: ', addPercentSign)
-    // console.log('`${(value * 100).toFixed(decimalPlaces)}${addPercentSign ? "%" : ""}`')
-    // console.log(`${(value * 100).toFixed(decimalPlaces)}${
-    //   addPercentSign ? "%" : ""
-    // }`)
-    return `${(value * 100).toFixed(decimalPlaces)}${
-      addPercentSign ? "%" : ""
-    }`;
+    const truncated = truncate(value * 100, decimalPlaces);
+    return `${truncated.toFixed(decimalPlaces)}${addPercentSign ? "%" : ""}`;
   } else if (format === "decimal") {
-    return value.toFixed(decimalPlaces);
+    return truncate(value, decimalPlaces).toFixed(decimalPlaces);
   }
-  return value.toFixed(decimalPlaces);
+
+  return truncate(value, decimalPlaces).toFixed(decimalPlaces);
 };
+
 
 const extractUniqueYearsFromObjectKeys = (
   data: object,
@@ -173,7 +179,7 @@ const isOtherModActiveWorkflow = (modWfActiveStatus:any) => {
     isOperationalRiskWorkflowStarted,isComplianceRiskWorkflowStarted, isIrrbbWorkflowStarted, isCarWorkflowStarted,
     isLcrWorkflowStarted, isNsfrWorkflowStarted, isIstReportsWorkflowStarted
   } = modWfActiveStatus
-  let response: any = {
+  const response: any = {
     isOtherModActive: null,
     message: "",
   };
