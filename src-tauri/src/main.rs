@@ -143,7 +143,7 @@ fn start_fastapi(server_dir: &PathBuf, python_exe: &PathBuf) -> std::process::Ch
     let stdout = fs::File::create(&stdout_path).unwrap();
     let stderr = fs::File::create(&stderr_path).unwrap();
 
-    let mut args = vec!["-m", "uvicorn", "main:app", "--port", "8000"];
+    let mut args = vec!["-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"];
     if cfg!(debug_assertions) {
         args.push("--reload");
         args.push("--reload-dir");
@@ -210,6 +210,8 @@ async fn main() {
     // Ensure server subfolders like `files` exist
     ensure_server_folders(&server_dir);
 
+    // Commented out to prevent auto-starting FastAPI server
+    // This allows running FastAPI separately for development
     let python_exe = setup_python_env(&server_dir);
     let fastapi_child = start_fastapi(&server_dir, &python_exe);
 
