@@ -25,6 +25,7 @@ origins = [
     "http://localhost",
     "http://127.0.0.1",
     "http://localhost:3000",
+    "app://localhost"
 ]
 
 # CORS - allow dev origins; adjust / tighten for production
