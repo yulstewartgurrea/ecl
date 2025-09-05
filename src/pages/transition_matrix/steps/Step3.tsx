@@ -90,7 +90,7 @@ const Step3 = () => {
     );
   }, [searchTerm]);
 
-  // // Memoized filtered data
+  // Memoized filtered data
   // const filteredData = useMemo(() => {
   //   if (!data || selectedFilters.length === 0) return data || [];
     

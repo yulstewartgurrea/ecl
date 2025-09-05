@@ -4,23 +4,18 @@ import { useLogin } from "../hooks/useLogin";
 import ApiStatusIndicator from "../components/ApiStatusIndicators";
 import BackgroundComponent from "../components/BGComponent";
 import { ArrowRightStartOnRectangleIcon } from "@heroicons/react/24/outline";
-
+const APP_VERSION = "v1.0.0";
 const Login = () => {
   const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [status, setStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState<string | undefined>();
   const navigate = useNavigate();
   const { trigger } = useLogin();
 
-  // 🔹 Redirect if already authenticated
   useEffect(() => {
-    const token = localStorage.getItem("access_token"); // or wherever you store the JWT
-    if (token) {
-      navigate("/"); // navigate to dashboard/home
-    }
+    const token = localStorage.getItem("access_token");
+    if (token) navigate("/");
   }, [navigate]);
 
   const handleLogin = async () => {
@@ -30,15 +25,9 @@ const Login = () => {
       const data = await trigger({ username, password });
       setStatus("success");
       setMessage("Login successful!");
-
-      // Save username and role to localStorage for auto login
       localStorage.setItem("username", username);
       localStorage.setItem("role", data.role);
-
-      // redirect after a short pause
-      setTimeout(() => {
-        navigate("/");
-      }, 300);
+      setTimeout(() => navigate("/"), 300);
     } catch (err: any) {
       setStatus("error");
       setMessage(err?.message || "Login failed (unknown error)");
@@ -69,12 +58,10 @@ const Login = () => {
           </div>
           <form
             onSubmit={handleLogin}
-            className="flex flex-col  bg-white px-2 py-4 pt-6 sm:px-16"
+            className="flex flex-col bg-white px-2 py-4 pt-6 sm:px-16"
           >
             <div>
-              <label htmlFor="username" className="block uppercase">
-                Username
-              </label>
+              <label htmlFor="username" className="block uppercase">Username</label>
               <input
                 id="username"
                 name="username"
@@ -86,9 +73,7 @@ const Login = () => {
               />
             </div>
             <div className="mt-6">
-              <label htmlFor="password" className="block uppercase">
-                Password
-              </label>
+              <label htmlFor="password" className="block uppercase">Password</label>
               <input
                 id="password"
                 name="password"
@@ -99,18 +84,17 @@ const Login = () => {
               />
             </div>
             <div className="my-10">
-              {status === "error" && message && (
-                <p className="text-red-500">{message}</p>
-              )}
+              {status === "error" && message && <p className="text-red-500">{message}</p>}
               <button
                 type="submit"
-                className="bg-[#762627]  text-lg text-white font-bold py-6 w-full rounded-2xl flex items-center justify-center cursor-pointer gap-2"
-                // onClick={handleLogin}
+                className="bg-[#762627] text-lg text-white font-bold py-6 w-full rounded-2xl flex items-center justify-center cursor-pointer gap-2"
               >
                 {status !== "idle" ? "Logging in..." : "Log In"}
                 <ArrowRightStartOnRectangleIcon className="h-6 w-6" />
               </button>
             </div>
+            {/* Version info */}
+            <p className="text-center text-gray-500 mt-2 text-sm">Version: {APP_VERSION}</p>
           </form>
         </div>
       )}
