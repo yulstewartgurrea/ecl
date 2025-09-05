@@ -40,7 +40,7 @@
       "certificateThumbprint": null,
       "digestAlgorithm": null,
       "nsis": {
-        "languages": ["en-US"]
+        "languages": ["English"]
       },
       "signCommand": null,
       "timestampUrl": null,
