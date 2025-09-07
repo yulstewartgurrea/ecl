@@ -6,6 +6,17 @@
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://127.0.0.1:8000/*" },
+        { "url": "http://localhost:8000/*" },
+        { "url": "app://localhost:8000/*" },
+        { "url": "app://127.0.0.1:8000/*" },
+        { "url": "tauri://127.0.0.1:8000/*" },
+        { "url": "tauri://localhost:8000/*" }
+      ]
+    }
   ]
 }
