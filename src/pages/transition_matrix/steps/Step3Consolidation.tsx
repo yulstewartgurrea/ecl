@@ -151,7 +151,7 @@ const Step3Consolidation = () => {
         )}
 
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div className="mb-6">
           <div>
             <p className="text-sm text-gray-500 mt-1">
               Average and month-by-month transition matrices.
@@ -168,84 +168,6 @@ const Step3Consolidation = () => {
               </span>
             </div>
           </div>
-
-          {/* Download Button */}
-          <div className="flex justify-end items-center gap-4">
-            <button
-              onClick={handleDownload}
-              className="bg-white cursor-pointer border border-gray-300 px-4 py-1 rounded-lg inline-flex items-center gap-1"
-            >
-              <ArrowDownTrayIcon className="w-5 h-5" />
-              Download
-            </button>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="col-span-3 space-y-4 mb-6">
-          <div className="rounded-lg bg-white border border-gray-200 p-4 shadow-sm">
-            
-
-            <div className="relative" ref={dropdownRef}>
-              <button 
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="bg-gray-100 hover:bg-gray-200 border border-gray-300 px-4 py-2 rounded-lg text-sm font-medium text-gray-700 flex items-center gap-2"
-              >
-                <FunnelIcon className="w-4 h-4" />
-                {selectedFilters.length > 0 
-                  ? `${selectedFilters.length} filter${selectedFilters.length > 1 ? 's' : ''} selected`
-                  : 'Select Filters'
-                }
-                <span className={`ml-1 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}>▼</span>
-              </button>
-              
-              {isDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 min-w-[300px] max-h-64 overflow-hidden">
-                  {/* Search Bar */}
-                  <div className="p-3 border-b border-gray-200">
-                    <input
-                      type="text"
-                      placeholder="Search filters..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                  
-                  {/* Filter List */}
-                  <div className="max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                    {filteredFields.length > 0 ? (
-                      filteredFields.map((field) => (
-                  <div
-                    key={field}
-                    onClick={() => toggleFilter(field)}
-                    className={`
-                      px-4 py-2 cursor-pointer hover:bg-gray-100 text-xs border-b border-gray-100 last:border-b-0
-                      ${selectedFilters.includes(field) ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}
-                    `}
-                  >
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        className="accent-blue-500"
-                        checked={selectedFilters.includes(field)}
-                        readOnly
-                      />
-                        {field}
-                      </div>
-                    </div>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                        No filters found matching "{searchTerm}"
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
 
         {/* Error */}
@@ -259,17 +181,135 @@ const Step3Consolidation = () => {
 
         {/* Content */}
         {!isLoading && !error && (
-          <>
-            <ZoomSlider zoom={zoom} setZoom={setZoom} className="w-1/6 mb-2" />
-            <TableTemplate1
-              data={filteredData}
-              zoomLevel={zoom}
-              setZoomLevel={setZoom}
-              enablePagination={true}
-              itemsPerPage={100}
-              showPaginationInfo={true}
-            />
-          </>
+          <div className="bg-[#f3f0ea] w-full min-h-screen border border-gray-300 rounded-b-md border-t-0 px-6 py-4 relative">
+            {/* Taskbar inside the card */}
+            <div className="flex gap-2 my-4 flex-wrap justify-between items-center">
+              {/* Left: Filter Controls and Zoom */}
+              <div className="flex gap-4 flex-wrap items-center">
+                <div className="relative" ref={dropdownRef}>
+                  <button 
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 bg-gray-200 text-gray-800 hover:bg-[#ad8a49] hover:text-white transition-colors"
+                  >
+                    <FunnelIcon className="w-4 h-4" />
+                    {selectedFilters.length > 0 
+                      ? `${selectedFilters.length} filter${selectedFilters.length > 1 ? 's' : ''} selected`
+                      : 'Select Filters'
+                    }
+                    <span className={`ml-1 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}>▼</span>
+                  </button>
+                  
+                  {isDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 min-w-[300px] max-h-64 overflow-hidden">
+                      {/* Search Bar */}
+                      <div className="p-3 border-b border-gray-200">
+                        <input
+                          type="text"
+                          placeholder="Search filters..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      
+                      {/* Filter List */}
+                      <div className="max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                        {filteredFields.length > 0 ? (
+                          filteredFields.map((field) => (
+                        <div
+                          key={field}
+                          onClick={() => toggleFilter(field)}
+                          className={`
+                            px-4 py-2 cursor-pointer hover:bg-gray-100 text-xs border-b border-gray-100 last:border-b-0
+                            ${selectedFilters.includes(field) ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}
+                          `}
+                        >
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              className="accent-blue-500"
+                              checked={selectedFilters.includes(field)}
+                              readOnly
+                            />
+                              {field}
+                            </div>
+                          </div>
+                          ))
+                        ) : (
+                          <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                            No filters found matching "{searchTerm}"
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Zoom Control */}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600 text-sm font-medium">Zoom:</span>
+                  <ZoomSlider 
+                    zoom={zoom} 
+                    setZoom={setZoom} 
+                    className="w-32" 
+                  />
+                  <span className="text-xs text-gray-500 min-w-[3rem]">
+                    {Math.round(zoom * 100)}%
+                  </span>
+                </div>
+                
+                {/* Selected Filters Display */}
+                {selectedFilters.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedFilters.map((filter) => (
+                      <span
+                        key={filter}
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-[#ad8a49] text-white text-xs rounded-full"
+                      >
+                        {filter}
+                        <button
+                          onClick={() => toggleFilter(filter)}
+                          className="ml-1 text-white hover:text-gray-200"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <button
+                      onClick={() => setSelectedFilters([])}
+                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Download Button */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownload}
+                  className="px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1 bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                >
+                  <ArrowDownTrayIcon className="w-4 h-4" />
+                  Download
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="mt-6">
+              <TableTemplate1
+                data={filteredData}
+                zoomLevel={zoom}
+                setZoomLevel={setZoom}
+                enablePagination={true}
+                itemsPerPage={100}
+                showPaginationInfo={true}
+              />
+            </div>
+          </div>
         )}
       </div>
     </div>
