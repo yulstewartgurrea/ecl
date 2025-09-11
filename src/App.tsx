@@ -6,7 +6,7 @@ import Login from "./pages/Login";
 import TransitionMatrixLanding from "./pages/transition_matrix";
 import PdTransitionMatrixWorkflow from "./pages/transition_matrix/Workflow";
 import Settings from "./pages/Settings";
-
+import Configuration from "./pages/Configuration";
 //redux toolkit
 import { useAppSelector, useAppDispatch } from "./redux_toolkit/hooks";
 import { Navigate, Route, Routes } from "react-router-dom";
@@ -38,6 +38,7 @@ function App() {
         <Route index element={<EclLandingPage />} />
         <Route path="pd_landing" element={<PdLandingPage />} />
         <Route path="settings" element={<Settings />} />
+         <Route path="ecl_configuration" element={<Configuration />} />
         <Route path="transition_matrix" element={<TransitionMatrixLanding />} />
         <Route
           path="transition_matrix/workflow"

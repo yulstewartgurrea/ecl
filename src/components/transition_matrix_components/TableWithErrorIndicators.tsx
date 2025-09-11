@@ -8,6 +8,7 @@ import { useAppSelector, useAppDispatch } from "../../redux_toolkit/hooks";
 import {
   setWorkflowMetrics,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdMatrixWfHelper";
+import EditButton from "../ui/EditButton";
 
 type Metrics = {
   duplicate: number;
@@ -480,23 +481,34 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
         {/* Buttons row aligned to right above the table */}
         <div className="flex justify-end mb-2 gap-2">
           {isEditing ? (
-            <button
-              onClick={handleSave}
-              className="flex items-center gap-1 px-3 py-2 bg-green-500 rounded hover:bg-green-600"
-              title="Save"
-            >
-              <CheckIcon className="w-5 h-5 text-black" />
-              <span>Save</span>
-            </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white
+                      shadow hover:bg-emerald-700 active:bg-emerald-800
+                      focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2
+                      disabled:opacity-60 disabled:cursor-not-allowed transition"
+            title="Save"
+          >
+            {isSaving ? (
+              <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" className="opacity-30" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path d="M4 12a8 8 0 018-8" className="opacity-90" fill="currentColor" />
+              </svg>
+            ) : (
+              <CheckIcon className="h-5 w-5" />
+            )}
+            <span>{isSaving ? "Saving..." : "Save"}</span>
+          </button>
+
           ) : (
-            <button
+            <EditButton
+              iconOnly
+              variant="ghost"
+              size="sm"
               onClick={() => setIsEditing(true)}
-              className="flex items-center gap-1 bg-[#fce404] cursor-pointer shadow-md font-normal px-4 py-1 rounded-lg inline-flex items-center justify-center"
-              title="Edit"
-            >
-              <PencilIcon className="w-5 h-5 text-black" />
-              <span>Edit</span>
-            </button>
+            />
           )}
         </div>
 

@@ -204,9 +204,9 @@ const TransitionMatrixLanding = () => {
                   className="w-11/12 text-gray-600 py-2 pl-1 focus:outline-none bg-gray-50 rounded-r-lg"
                 >
                   <option value="">Select an entity</option>
-                  <option value="BanKo">Entity 1</option>
-                  <option value="LSB">Entity 2</option>
-                  <option value="Parent">Entity 3</option>
+                  <option value="Entity 1">Entity 1</option>
+                  <option value="Entity 2">Entity 2</option>
+                  <option value="Entity 3">Entity 3</option>
                 </select>
               </div>
             </div>
