@@ -12,7 +12,7 @@ import { useAppSelector, useAppDispatch } from "./redux_toolkit/hooks";
 import { Navigate, Route, Routes } from "react-router-dom";
 import PdLandingPage from "./pages/PdLandingPage";
 import EclLandingPage from "./pages/EclLandingPage";
-import OverlayLandingPage from "./pages/overlay/Index";
+import OverlayLandingPage from "./pages/overlay/Overlay";
 import { login as loginAction } from "./redux_toolkit/features/general/auth";
 import { useEffect } from "react";
 
