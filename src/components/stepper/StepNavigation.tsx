@@ -38,7 +38,7 @@ const StepNavigation = ({
   totalSteps,
   descriptionTitle,
   description,
-  onBack,
+  // onBack,
   onContinue,
   onFinish,
   backLabel = "Previous",
@@ -61,9 +61,9 @@ const StepNavigation = ({
     (state: RootState) => state.pdMatrixWfHelper.workflowMetrics[directoryPath] || {}
   );
 
-  const hasIssues = Object.values(workflowMetrics ?? {}).some((m: any) =>
-    (m?.missing ?? 0) > 0 || (m?.error ?? 0) > 0 || (m?.duplicate ?? 0) > 0
-  );
+  // const hasIssues = Object.values(workflowMetrics ?? {}).some((m: any) =>
+  //   (m?.missing ?? 0) > 0 || (m?.error ?? 0) > 0 || (m?.duplicate ?? 0) > 0
+  // );
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingTarget, setPendingTarget] = useState<number | null>(null);
