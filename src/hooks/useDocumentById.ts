@@ -1,6 +1,8 @@
 // src/hooks/useDocumentById.ts
 import useSWR from "swr";
 
+import { fetch } from "@tauri-apps/plugin-http";
+
 const fetcher = (url: string, token?: string) =>
   fetch(url, {
     headers: {
