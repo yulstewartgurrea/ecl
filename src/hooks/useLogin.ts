@@ -6,6 +6,8 @@ import {
   resetStateAuth,
 } from "../redux_toolkit/features/general/auth";
 
+import { fetch } from "@tauri-apps/plugin-http";
+
 interface LoginPayload {
   username: string;
   password: string;
