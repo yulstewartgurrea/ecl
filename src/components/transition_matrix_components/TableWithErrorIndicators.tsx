@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { CheckIcon, FunnelIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, FunnelIcon } from "@heroicons/react/24/outline";
 import { formatValueGeneral } from "../../utils/CommonHelper";
 import ApiStatusIndicator from "../../components/ApiStatusIndicators";
 import { useInsertDocument } from "../../hooks/useTabbedInterfaceData";

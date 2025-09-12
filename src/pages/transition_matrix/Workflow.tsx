@@ -2,7 +2,7 @@
 import clsx from "clsx";
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeftIcon } from "@heroicons/react/24/outline";
-import Stepper from "../../components/stepper/Stepper";
+import Stepper, { type Step, type StepperHandle } from "../../components/stepper/Stepper";
 import Step1 from "./steps/Step1";
 import Step2 from "./steps/Step2";
 import Step3 from "./steps/Step3";
@@ -94,22 +94,22 @@ const PdTransitionMatrixWorkflow = () => {
   };
 
   /** Use this from buttons to trigger Stepper’s guard */
-  const handleContinue = () => {
-    // Inside Step 3 (index 2), we have two screens
-    if (currentStep === 2 && consolidationSubStep === 0) {
-      setConsolidationSubStep(1);
-      return;
-    }
-    stepperRef.current?.attemptStepChange(currentStep + 1);
-  };
+  // const handleContinue = () => {
+  //   // Inside Step 3 (index 2), we have two screens
+  //   if (currentStep === 2 && consolidationSubStep === 0) {
+  //     setConsolidationSubStep(1);
+  //     return;
+  //   }
+  //   stepperRef.current?.attemptStepChange(currentStep + 1);
+  // };
 
-  const handleBack = () => {
-    if (consolidationSubStep === 1) {
-      setConsolidationSubStep(0);
-      return;
-    }
-    setCurrentStepRedux(Math.max(0, currentStep - 1));
-  };
+  // const handleBack = () => {
+  //   if (consolidationSubStep === 1) {
+  //     setConsolidationSubStep(0);
+  //     return;
+  //   }
+  //   setCurrentStepRedux(Math.max(0, currentStep - 1));
+  // };
 
   const renderStepComponent = () => {
     switch (currentStep) {

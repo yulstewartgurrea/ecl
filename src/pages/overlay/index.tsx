@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import OverlayDevelopmentStep1 from './development/Development';
 import OverlayExecutionStep1 from './execution/steps/Step1';
 import Stepper from '../../components/stepper/Stepper';

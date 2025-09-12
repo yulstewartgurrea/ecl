@@ -145,7 +145,7 @@ const Sidebar = () => {
       ([, path]) => path === currentPath
     );
     if (subtabEntry) {
-      const [subTabName, path] = subtabEntry;
+      const [subTabName] = subtabEntry;
       // find parent tab to highlight
       const parentTab =
         "Probability of Default (PD)"; // current sub-tabs belong to PD

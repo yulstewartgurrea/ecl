@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Stepper from '../../../components/stepper/Stepper';
 import Step1 from './steps/Step1';
 import Step2 from './steps/Step2';

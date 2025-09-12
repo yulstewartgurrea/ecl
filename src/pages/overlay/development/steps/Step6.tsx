@@ -1,4 +1,4 @@
-import React from 'react';
+// import React from 'react';
 
 const Step6 = () => {
   return (
@@ -20,3 +20,4 @@ const Step6 = () => {
 };
 
 export default Step6;
+
