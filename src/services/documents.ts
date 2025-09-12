@@ -1,3 +1,5 @@
+import { fetch } from "@tauri-apps/plugin-http";
+
 export const getValidRows = async (workflowPath: string) => {
   const res = await fetch(
     `http://localhost:8000/documents/valid-rows?workflow_path=${workflowPath}`

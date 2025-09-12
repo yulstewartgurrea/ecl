@@ -19,6 +19,8 @@ import {
   setPdTransitionMatrixWfName,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 
+import { fetch } from "@tauri-apps/plugin-http";
+
 const TransitionMatrixLanding = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();

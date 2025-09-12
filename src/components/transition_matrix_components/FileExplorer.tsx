@@ -14,6 +14,9 @@ import { useSelector } from "react-redux";
 import type { RootState } from "../../redux_toolkit/store";
 import { useAppSelector } from "../../redux_toolkit/hooks";
 import ApiStatusIndicator from "../ApiStatusIndicators";
+
+import { fetch } from "@tauri-apps/plugin-http";
+
 interface FileItem {
   name: string;
   is_folder: boolean;
