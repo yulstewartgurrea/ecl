@@ -4,7 +4,7 @@ import { useLogin } from "../hooks/useLogin";
 import ApiStatusIndicator from "../components/ApiStatusIndicators";
 import BackgroundComponent from "../components/BGComponent";
 import { ArrowRightStartOnRectangleIcon } from "@heroicons/react/24/outline";
-const APP_VERSION = "v1.0.0";
+const APP_VERSION = "v2.0.0";
 const Login = () => {
   const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");

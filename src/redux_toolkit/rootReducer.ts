@@ -5,10 +5,13 @@ import auth from './features/general/auth';
 import navUIState from './features/general/navUIState';
 import pdTransitionMatrixWfHelper from './features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper';
 import pdMatrixWfHelper from './features/probability_of_default/transition_matrix/pdMatrixWfHelper';
-
+import eclEntitiesReducer from "./features/ecl/eclConfigSlice";
+import eclBaselinesReducer from "./features/ecl/eclBaselinesSlice";
 export const rootReducer = combineReducers({
   auth,
   navUIState,
   pdTransitionMatrixWfHelper,
-  pdMatrixWfHelper
+  pdMatrixWfHelper,
+  eclEntitiesReducer,
+  eclBaselinesReducer
 })
