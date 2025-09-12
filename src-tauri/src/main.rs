@@ -222,10 +222,10 @@ async fn main() {
             create_folder_tree,
             upload_files,
             list_folder_contents, 
-            get_folder_contents,
-            check_for_updates,
-            install_update,
-            get_app_version
+            get_folder_contents
+            // check_for_updates,
+            // install_update,
+            // get_app_version
         ])
         .manage(FastApiProcess(Mutex::new(Some(fastapi_child))))
         .on_window_event(|window, event| {
