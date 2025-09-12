@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import OverlayDevelopmentStep1 from './development/steps/Step1';
+import OverlayDevelopmentStep1 from './development/Development';
 import OverlayExecutionStep1 from './execution/steps/Step1';
 import Stepper from '../../components/stepper/Stepper';
 
@@ -21,29 +21,27 @@ const OverlayLandingPage = () => {
         return <OverlayDevelopmentStep1 />;
       case 1:
         return <OverlayExecutionStep1 />;
-    };
-  }
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Main Content */}
-      <main className="bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Stepper Component */}
-          <div className="mb-8">
-            <Stepper
-              steps={steps}
-              activeStep={activeStep}
-              onApprovedStepChange={handleStepChange}
-              canContinue={true}
-            />
-          </div>
-          
-          {/* Step Content */}
-          { renderStepComponent() }
-        </div>
-      </main>
+    <div>
+      <div className="flex flex-row items-start justify-between gap-1 bg-[#f8f8f8] px-4 py-2 sticky top-0 z-20">
+        <Stepper
+          steps={steps}
+          activeStep={activeStep}
+          onApprovedStepChange={handleStepChange}
+          canContinue={true}
+        />
+      </div>
 
+      <div className="w-full flex flex-row p-2">
+        <div className="w-full min-h-[750px] bg-white p-4 shadow-md rounded">
+          {renderStepComponent()}
+        </div>
+      </div>
     </div>
   );
 };
