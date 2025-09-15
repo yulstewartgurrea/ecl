@@ -345,6 +345,9 @@ const TabbedInterface = () => {
             inputFile={orgFilename[activeTab]}
             onRefresh={onChildRefresh}
             onSaveSuccess={() => mutate()}
+            enablePagination={true}
+            itemsPerpage={100}
+            showPaginationInfo={true}
           />
         </div>
 
