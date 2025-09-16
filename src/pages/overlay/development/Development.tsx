@@ -59,7 +59,7 @@ const OverlayDevelopmentStep1 = () => {
       </div>
 
       {/* Development Content */}
-      <div className="max-w-7xl mx-auto lg:px-4 py-8">
+      <div className=" mx-auto lg:px-4  bg-[#f8f8f8]">
         {renderSubStepContent()}
       </div>
     </div>
