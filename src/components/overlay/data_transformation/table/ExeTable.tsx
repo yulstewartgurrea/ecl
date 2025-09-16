@@ -18,7 +18,7 @@ export type ExeTableProps = {
 };
 
 export default function ExeTable({
-  frequency,   // eslint-disable-line @typescript-eslint/no-unused-vars
+  // frequency,   // eslint-disable-line @typescript-eslint/no-unused-vars
   view,
   data,
   mevData,

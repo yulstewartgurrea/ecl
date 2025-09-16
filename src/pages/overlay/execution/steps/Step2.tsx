@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import ExeTable from "../../../../components/overlay/interpolation/table/ExeTable";
 import type { Frequency } from "../../../../components/overlay/interpolation/table/Columns";
 import { ProcessModal } from "../../../../components/ProcessModal";
