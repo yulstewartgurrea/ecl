@@ -110,7 +110,7 @@ export default function OverlayExecutionPage3() {
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
       <header className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white border-b">
-        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
+        <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">
               Consolidate all monthly MEVs
@@ -123,7 +123,7 @@ export default function OverlayExecutionPage3() {
       </header>
 
       {/* view buttons */}
-      <div className="mx-auto max-w-7xl px-4 py-4">
+      <div className="mx-auto px-4 py-4">
         <div className="inline-flex rounded-2xl bg-gray-100 p-1 shadow-inner">
           <button
             onClick={() => setView("consolidated")}
@@ -147,7 +147,7 @@ export default function OverlayExecutionPage3() {
       </div>
 
       {/* table(s) */}
-      <main className="mx-auto max-w-7xl px-4 pb-8">
+      <main className="mx-auto px-4 pb-8">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3">
           <ExeTable
             frequency={frequency}

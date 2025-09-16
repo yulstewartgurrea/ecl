@@ -99,14 +99,15 @@ export default function OverlayExecutionPage2() {
     []
   );
 
+
   const data: Array<Record<string, any>> =
     frequency === "monthly" ? monthlyData : quarterlyData;
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
       {/* Header */}
-      <header className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white border-b">
-        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
+      <header className=" backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white border-b">
+        <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">
               Expected Credit Loss Automation
@@ -134,7 +135,7 @@ export default function OverlayExecutionPage2() {
       </header>
 
       {/* Toolbar */}
-      <div className="mx-auto max-w-7xl px-4 py-4">
+      <div className="mx-auto px-4 py-4">
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           {/* Segmented control */}
           <div className="inline-flex rounded-2xl bg-gray-100 p-1 shadow-inner w-fit">
@@ -167,7 +168,7 @@ export default function OverlayExecutionPage2() {
       </div>
 
       {/* Data card */}
-      <main className="mx-auto max-w-7xl px-4 pb-8">
+      <main className="mx-auto px-4 pb-8">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <div className="text-sm text-gray-600">
