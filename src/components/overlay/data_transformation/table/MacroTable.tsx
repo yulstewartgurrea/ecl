@@ -101,22 +101,34 @@ export default function MacroTable<T extends Record<string, any>>({
         </thead>
 
         <tbody>
-          {rows.map((r, idx) => (
-            <tr key={(getRowId ? getRowId(r, idx) : idx) as React.Key} className={zebra && idx % 2 ? "bg-gray-50" : undefined}>
-              {flatLeaves.map((leaf, j) => {
+        {rows.map((r, idx) => {
+            const rawKey = getRowId ? getRowId(r, idx) : idx;   // e.g. "2024-06"
+            const rowKey = `${String(rawKey)}__${idx}`;         // => "2024-06__5" (always unique)
+            return (
+            <tr
+                key={rowKey}
+                className={zebra && idx % 2 ? "bg-gray-50" : undefined}
+            >
+                {flatLeaves.map((leaf, j) => {
                 const v = leaf.key ? r[leaf.key] : undefined;
                 const content = numberFormat ? numberFormat(v, leaf.key || "") : defaultFmt(v);
                 const align =
-                  leaf.align === "right" ? "text-right" : leaf.align === "center" ? "text-center" : "text-left";
+                    leaf.align === "right" ? "text-right" :
+                    leaf.align === "center" ? "text-center" : "text-left";
                 return (
-                  <td key={j} className={`px-2 py-1.5 border border-gray-200 text-[12px] ${align} tabular-nums`}>
+                    <td
+                    key={`${leaf.key ?? "col"}__${j}`}     // see #2 below
+                    className={`px-2 py-1.5 border border-gray-200 text-[12px] ${align} tabular-nums`}
+                    >
                     {content}
-                  </td>
+                    </td>
                 );
-              })}
+                })}
             </tr>
-          ))}
+            );
+        })}
         </tbody>
+
       </table>
     </div>
   );
