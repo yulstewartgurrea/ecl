@@ -12,7 +12,7 @@ const OverlayDevelopmentStep1 = () => {
   const [activeSubStep, setActiveSubStep] = useState(0);
   
   const developmentSteps = [
-    { label: "Uploading of Inputs", completed: false },
+    { label: "Inputs", completed: false },
     { label: "Interpolation", completed: false },
     { label: "Data Transformation", completed: false },
     { label: "Multi Factor Analysis", completed: false },
@@ -59,7 +59,7 @@ const OverlayDevelopmentStep1 = () => {
       </div>
 
       {/* Development Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto lg:px-4 py-8">
         {renderSubStepContent()}
       </div>
     </div>
