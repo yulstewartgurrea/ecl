@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import OverlayDevelopmentStep1 from './development/Development';
-import OverlayExecutionStep1 from './execution/steps/Step1';
+import OverlayExecutionStep1 from './execution/Development';
 
 const OverlayLandingPage = () => {
   const [activeStep, setActiveStep] = useState(0);
@@ -31,17 +31,28 @@ const OverlayLandingPage = () => {
   return (
     <div>
       {/* Header with Dropdown */}
-      <div className="bg-gradient-to-r from-gray-300 via-gray-400 to-gray-500 px-6 py-6 shadow-2xl">
+      <div className="bg-white px-6 py-4">
+        <div className="flex flex-col ">
+          {/* Main Header */}
+          {/* add title overlay here */}
+          <h1 className="text-3xl font-bold text-gray-800">Overlay</h1>
+         
+        </div>
+      </div>
+      <div className="bg-white px-6 py-4">
         <div className="flex flex-col gap-4">
+          {/* Main Header */}
           {/* Dropdown Button */}
           <div className="relative self-start">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-3 bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 hover:from-yellow-400 hover:via-yellow-500 hover:to-yellow-600 text-black px-8 py-4 rounded-2xl transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 hover:scale-105 font-bold text-lg border-2 border-black/20"
-            >
-              <span className="font-bold">{steps[activeStep].label}</span>
-              <ChevronDownIcon className={`w-6 h-6 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
+            <div className="flex items-center gap-3">
+              <div
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="bg-[#F9D949] hover:bg-[#F7D73A] text-black p-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl cursor-pointer"
+              >
+                <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </div>
+              <span className="font-bold text-lg text-gray-800">{steps[activeStep].label}</span>
+            </div>
             
             {/* Dropdown Menu */}
             {isDropdownOpen && (

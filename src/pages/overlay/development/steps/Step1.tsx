@@ -38,73 +38,16 @@ const Step1 = () => {
   };
 
   const fileTypes = [
-    { name: 'Historical Data', type: 'CSV, Excel', required: true },
-    { name: 'Market Data', type: 'JSON, XML', required: true },
-    { name: 'Configuration', type: 'YAML, JSON', required: false },
-    { name: 'Reference Data', type: 'CSV, TXT', required: false },
+    { name: 'Monthly Historical Macroecnomic Variables', type: 'CSV, Excel', required: true },
+    { name: 'Quarterly Historical Mevs', type: 'CSV, Excel', required: true }
   ];
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h3 className="text-2xl font-bold text-gray-800 mb-4">Uploading of Inputs</h3>
-      <p className="text-gray-700 mb-6">
-        Upload and validate your input data files. This step ensures all required data is available for the overlay development process.
-      </p>
+      <h3 className="text-2xl font-bold text-gray-800 mb-4">Input files</h3>
       
-      {/* Main Upload Area with Broken Lines */}
-      <div
-        className={`relative border-2 border-dashed rounded-lg p-8 transition-colors ${
-          dragActive 
-            ? 'border-blue-500 bg-blue-50' 
-            : 'border-gray-300 hover:border-gray-400'
-        }`}
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-      >
-        {/* Broken Line Pattern */}
-        <div className="absolute inset-0 pointer-events-none">
-          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <defs>
-              <pattern id="brokenLines" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-                <path d="M0,10 L20,10" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3,3" />
-                <path d="M10,0 L10,20" stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3,3" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#brokenLines)" />
-          </svg>
-        </div>
-
-        {/* Upload Content */}
-        <div className="relative z-10 text-center">
-          <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h4 className="text-lg font-medium text-gray-900 mb-2">
-            Drag and drop files here
-          </h4>
-          <p className="text-gray-600 mb-4">
-            or click to browse files
-          </p>
-          
-          <input
-            type="file"
-            multiple
-            onChange={handleFileInput}
-            className="hidden"
-            id="file-upload"
-          />
-          <label
-            htmlFor="file-upload"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
-          >
-            Browse Files
-          </label>
-        </div>
-      </div>
-
       {/* File Type Boxes */}
       <div className="mt-8">
-        <h4 className="text-lg font-semibold text-gray-800 mb-4">Required File Types</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {fileTypes.map((fileType, index) => (
             <div

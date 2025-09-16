@@ -8,11 +8,11 @@ from database import engine, Base, SessionLocal
 import models  # noqa: F401
 from models import User, Workflow, Document, JsonData
 
-
-
-
 # Routers and helpers
 from api.routers import users, workflows, documents, auth, login
+from api.routers.overlay.development import data_interpolation, data_transformation
+
+
 from core.dependencies import get_password_hash
 
 app = FastAPI()
@@ -95,3 +95,5 @@ app.include_router(users.router)
 app.include_router(workflows.router)
 app.include_router(documents.router)
 app.include_router(login.router)
+app.include_router(data_interpolation.router)
+app.include_router(data_transformation.router)

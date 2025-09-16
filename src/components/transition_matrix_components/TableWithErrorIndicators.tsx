@@ -32,6 +32,9 @@ interface TableWithErrorIndicatorsProps {
   baseDataForSave?: any[]; 
   onRefresh?: (updatedFile: any | null) => void; // parent hook handler
   onSaveSuccess?: () => void;
+  enablePagination?: boolean;
+  itemsPerpage?: number;
+  showPaginationInfo?: boolean;
 }
 
 const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
@@ -46,7 +49,34 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   orgData,
   onRefresh,
   onSaveSuccess,
+  enablePagination = false,
+  itemsPerpage = 100,
+  showPaginationInfo = true,
 }) => {
+  // Pagination State
+  const [currentPage, setCurrentpage] = useState(1);
+  const [currentItemsPerPage, setCurrentItemsPerPage] = useState(itemsPerpage);
+
+  // Apply Pagination Effect
+  useEffect(() => {
+    if (enablePagination) {
+      setCurrentpage(1);
+      setCurrentItemsPerPage(itemsPerpage);
+    }
+  }, [data, enablePagination, itemsPerpage]);
+
+  // Handlers for Pagination Controls
+  const handlePreviousPage = () => {
+    setCurrentpage((prev) => Math.max(prev - 1, 1));
+  };
+  const handleNextPage = () => {
+    setCurrentpage((prev) => Math.min(prev + 1, totalPages));
+  };
+  const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setCurrentItemsPerPage(Number(e.target.value));
+    setCurrentpage(1);
+  };
+
   const dispatch = useAppDispatch();
   const [filters, setFilters] = useState<Record<string, string>>({});
   const authToken = useAppSelector((state) => state.auth.token);
@@ -79,6 +109,24 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
   const [zoomLevel, setZoomLevel] = useState(0.9);
   const tableRefZoom = useRef<HTMLTableElement | null>(null);
   const [isDelete, setIsDelete] = useState(false);
+
+  // Filtering and Pagination logic
+  const filteredTableData = useMemo(() => {
+    return tableData.filter((row) =>
+      Object.entries(filters).every(([key, filterValue]) => {
+        if (!filterValue) return true;
+        const selectedValues = filterValue.split(",");
+        return selectedValues.includes(String(row[key]));
+      })
+    );
+  }, [tableData, filters]);
+
+  const totalItems = filteredTableData.length;
+  const totalPages = Math.ceil(totalItems / currentItemsPerPage);
+  const startIndex = (currentPage - 1) * currentItemsPerPage;
+  const endIndex = startIndex + currentItemsPerPage;
+  const paginatedFilteredData = enablePagination ? filteredTableData.slice(startIndex, endIndex) : filteredTableData;
+
   const normalize = (str: string) =>
     str.replace(/_/g, " ").trim().toLowerCase();
   const excludedHeaders = [
@@ -167,16 +215,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
     setFilterSelections(newSelections);
   }, [data]);
 
-  // Compute filtered table data (this is what the UI shows)
-  const filteredTableData = useMemo(() => {
-    return tableData.filter((row) =>
-      Object.entries(filters).every(([key, filterValue]) => {
-        if (!filterValue) return true;
-        const selectedValues = filterValue.split(",");
-        return selectedValues.includes(String(row[key]));
-      })
-    );
-  }, [tableData, filters]);
+  // ...existing code...
 
   // zoom wheel handler
   useEffect(() => {
@@ -514,6 +553,44 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
           )}
         </div>
 
+        {/* Pagination Controls */}
+        {enablePagination && totalPages > 1 && (
+          <div className="flex items-center justify-between mb-2">
+            {showPaginationInfo && (
+              <div className="text-sm text-gray-700">
+                Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} entries
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+              > Previous</button>
+              <span className="text-sm">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+              > Next</button>
+              <select
+                value={currentItemsPerPage}
+                onChange={handleItemsPerPageChange}
+                className="border border-gray-300 rounded p-1 text-sm"
+                aria-label="Items per page"
+              >
+                {[50, 100, 200, 500].map((size) => (
+                  <option key={size} value={size}>
+                    {size} per page
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         <div className="overflow-auto h-[80vh] border border-gray-300 rounded">
           <table ref={tableRefZoom} className="border border-gray-300">
@@ -535,7 +612,6 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
                     <th
                       key={header}
                       className="bg-[#444444] text-white p-3 border border-white relative text-nowrap cursor-default hover:bg-gray-700 transition-colors duration-200 rounded"
-                    
                     >
                       <div className="flex items-center justify-center gap-1">
                         <span className="font-semibold tracking-wide select-none">
@@ -662,7 +738,7 @@ const TableWithErrorIndicators: React.FC<TableWithErrorIndicatorsProps> = ({
               </tr>
             </thead>
             <tbody>
-              {filteredTableData.map((row) => {
+              {paginatedFilteredData.map((row) => {
                 if (!row) return null; // safeguard
                 const rowIndex = row._rowIndex;
 
