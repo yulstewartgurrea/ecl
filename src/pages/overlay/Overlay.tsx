@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
 import OverlayDevelopmentStep1 from './development/Development';
-import OverlayExecutionStep1 from './execution/steps/Step1';
+import OverlayExecutionStep1 from './execution/Development';
 
 const OverlayLandingPage = () => {
   const [activeStep, setActiveStep] = useState(0);
