@@ -24,6 +24,5 @@ dist-ssr
 *.sw?
 # Ignore server persistence
 server/files/
-server/*.sqlite
-
+server/db.sqlite
 ~/*

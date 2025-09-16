@@ -8,17 +8,17 @@ import Step3 from './steps/Step3';
 // import Step6 from './steps/Step6';
 // import Step7 from './steps/Step7';
 
-const OverlayDevelopmentStep2 = () => {
+const OverlayDevelopmentStep1 = () => {
   const [activeSubStep, setActiveSubStep] = useState(0);
   
   const developmentSteps = [
-    { label: "Uploading of Inputs", completed: false },
+    { label: "Inputs", completed: false },
     { label: "Interpolation", completed: false },
     { label: "Data Transformation", completed: false },
-    // { label: "Multi Factor Analysis", completed: false },
-    // { label: "Filtering of Models", completed: false },
-    // { label: "Candidate Models", completed: false },
-    // { label: "Final Model", completed: false },
+    { label: "Multi Factor Analysis", completed: false },
+    { label: "Filtering of Models", completed: false },
+    { label: "Candidate Models", completed: false },
+    { label: "Final Model", completed: false },
   ];
 
   const handleSubStepChange = (targetIndex: number) => {
@@ -57,12 +57,13 @@ const OverlayDevelopmentStep2 = () => {
           canContinue={true}
         />
       </div>
+
       {/* Development Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className=" mx-auto lg:px-4 bg-[#f8f8f8]">
         {renderSubStepContent()}
       </div>
     </div>
   );
 };
 
-export default OverlayDevelopmentStep2;
+export default OverlayDevelopmentStep1;

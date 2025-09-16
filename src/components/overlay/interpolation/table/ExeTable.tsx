@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import MacroTable from "./MacroTable";
 import { buildMacroColumns } from "./Columns";
 import type { Frequency } from "./Columns";
