@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 import pandas as pd
 import os
 from typing import List, Dict, Any
+from helpers.file_utils import find_and_read_data_file, get_root_folder
 
 router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development"])
 
@@ -12,37 +13,19 @@ async def get_data_interpolation():
     Supports both monthly and quarterly periods
     """
     try:
-
         # get root folder
-        root_folder = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+        root_folder = get_root_folder()
+        print(root_folder)
 
         periods = ['monthly', 'quarterly']
         arr = []
         for period in periods:
-            # Try to find the file with different extensions
-            file_path = None
-            file_extensions = ['.csv', '.xlsx', '.xls']
-            
-            for ext in file_extensions:
-                potential_path = os.path.join(root_folder, "data", "ecl", "development", f"data_interpolation_{period}{ext}")
-                if os.path.exists(potential_path):
-                    file_path = potential_path
-                    break
-            
-            # Check if file exists
-            if not file_path:
-                raise HTTPException(status_code=404, detail=f"Data interpolation file not found for period: {period}. Tried extensions: {file_extensions}")
-            
-            # Read the file based on extension
-            file_ext = os.path.splitext(file_path)[1].lower()
-            if file_ext == '.csv':
-                df = pd.read_csv(file_path)
-            elif file_ext == '.xlsx':
-                df = pd.read_excel(file_path, engine="openpyxl")
-            elif file_ext == '.xls':
-                df = pd.read_excel(file_path, engine="xlrd")
-            else:
-                raise HTTPException(status_code=400, detail=f"Unsupported file format: {file_ext}")
+            # Use reusable function to find and read the file
+            df = find_and_read_data_file(
+                root_folder=root_folder,
+                subfolder_path="server/data/ecl/development",
+                filename_base=f"data_interpolation_{period}"
+            )
             
             # Convert DataFrame to JSON
             # Drop fully empty cols/rows
@@ -76,3 +59,34 @@ async def get_data_interpolation():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading data interpolation file: {str(e)}")
 
+# @router.post("/data_interpolation")
+# async def calculate_data_interpolation():
+#     """
+#         Calculate data interpolation
+#     """
+#     try:
+#         root_folder = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+#         file_extensions = ['.csv', '.xlsx', '.xls']
+#             for ext in file_extensions:
+#                 potential_path = os.path.join(root_folder, "data", "ecl", "development", f"data_interpolation_{period}{ext}")
+#                 if os.path.exists(potential_path):
+#                     file_path = potential_path
+#                     break
+
+#         process_data_interpolation_res = process_data_interpolation()
+
+#         res = {
+#             'code': 1,
+#             'success': True,
+#             'msg': 'Success',
+#             'data': process_data_interpolation_res
+#         }
+
+#         return JSONResponse(status_code=200, content=res)
+#     except Exception as e:
+#         res = {
+#             'code': -1,
+#             'msg': f'Something went wrong. {e}',
+#             'success': False
+#         }
+#         return JSONResponse(status_code=500, content=res)
