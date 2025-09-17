@@ -53,6 +53,38 @@ class Workflow(Base):
     def __repr__(self):
         return f"<Workflow id={self.id} name={self.workflow_name!r}>"
 
+class Entity(Base):
+    __tablename__ = "entity"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    created_at = Column(
+        DateTime, nullable=False, server_default=sql_text("CURRENT_TIMESTAMP")
+    )
+    updated_at = Column(
+        DateTime, nullable=False, server_default=sql_text("CURRENT_TIMESTAMP"), onupdate=datetime.utcnow
+    )
+    loanproducts = relationship("LoanProduct", back_populates="entity")
+
+    def __repr__(self):
+        return f"<Entity id={self.id} name={self.name!r}>"
+
+class LoanProduct(Base):
+    __tablename__ = "loanproduct"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    created_at = Column(
+        DateTime, nullable=False, server_default=sql_text("CURRENT_TIMESTAMP")
+    )
+    updated_at = Column(
+        DateTime, nullable=False, server_default=sql_text("CURRENT_TIMESTAMP"), onupdate=datetime.utcnow
+    )
+    entity_id = Column(Integer, ForeignKey("entity.id"), nullable=False)
+    entity = relationship("Entity", back_populates="loanproducts")
+
+    def __repr__(self):
+        return f"<LoanProduct id={self.id} name={self.name!r}>"
+
+
 class Document(Base):
     __tablename__ = "documents"
 
@@ -71,6 +103,7 @@ class Document(Base):
         server_default=sql_text("CURRENT_TIMESTAMP"),
         onupdate=datetime.utcnow,
     )
+    document_type = Column(String, nullable=False)
 
     user = relationship("User", back_populates="documents")
 
