@@ -122,8 +122,8 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
     print("="*60)
     
     # File paths
-    input_file = "server/data/ecl/development/input/overlay/development/quarterly_historical_mev.csv"
-    output_dir = "data/ecl/development"
+    input_file = "server/data/ecl/overlay/input/development/quarterly_historical_mev.csv"
+    output_dir = "data/ecl/overlay/output/development"
     
     # Check if input file exists
     # if not os.path.exists(input_file):
@@ -142,9 +142,6 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
 
         df = extract_data(df, target_columns)
 
-        df.to_csv("data/ecl/development/input/overlay/development/quarterly_historical_mev_extracted.csv", index=False)
-        print(df)
-        
         # Store rows where Year is not numeric to add back later
         initial_rows = len(df)
         non_numeric_year_mask = pd.to_numeric(df['year'], errors='coerce').isna()
@@ -368,7 +365,7 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         csv_growth = os.path.join(output_dir, f"monthly_interpolated_data_with_growth_proper_{timestamp}.csv")
         excel_growth = os.path.join(output_dir, f"monthly_interpolated_data_with_growth_proper_{timestamp}.xlsx")
         
-        monthly_with_growth.to_csv(csv_growth, index=False)
+        # monthly_with_growth.to_csv(excel_growth, index=False)
         # monthly_with_growth.to_excel(excel_growth, index=False, sheet_name='Monthly_Data_With_Growth')
         
         print(f"✅ Files saved:")
@@ -456,6 +453,8 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             
             # Prepend to monthly_with_growth_clean (add at the top)
             monthly_with_growth_clean = pd.concat([non_numeric_rows_growth, monthly_with_growth_clean], ignore_index=True)
+
+            monthly_with_growth_clean.to_csv("data/ecl/overlay/output/development/data_interpolation_output.csv", index=False)
             
             print(f"✅ Added back {len(non_numeric_rows)} rows to final output")
             print(f"📊 Final monthly_df_clean shape: {monthly_df_clean.shape}")
