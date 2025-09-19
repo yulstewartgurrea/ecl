@@ -6,10 +6,113 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
+def extract_data(df, target_columns):
+    """
+    Extract only the specified columns from quarterly_historical_mev.csv
+    """
+    try:
+
+        df = df.copy()
+        # Step 2: Find the header row (row 0 contains column names)
+        print("\n🔍 Step 2: Finding header row...")
+        header_row = 0  # Based on the CSV structure, row 0 has column names
+        print(f"✅ Using header row at line {header_row + 1}")
+        
+        # Step 3: Get column names
+        print("\n📋 Step 3: Getting column names...")
+        # column_names = df.iloc[header_row].tolist()
+        column_names = df.columns.tolist()
+        print(f"📊 Total columns: {len(column_names)}")
+        print(f"📋 Column names: {column_names[:10]}...")  # Show first 10 columns
+        
+        # Step 4: Define target columns
+        print("\n🎯 Step 4: Finding target columns...")
+        
+        # Step 5: Find columns with correct data types
+        print("\n🎯 Step 5: Finding columns with correct data types...")
+        
+        target_data_types = [
+            'in levels (rates)', 
+            'in levels (million PHP)', 
+            'year', 
+            'quarter', 
+            'month', 
+            'id', 
+            'x'
+        ]
+        
+        # Find the data type row dynamically
+        data_type_row = None
+        for idx, row in df.iterrows():
+            # can you just check if on colum year this target_data_types exists
+            if pd.notna(row.iloc[0]) and any(target_type.lower() in str(row.iloc[0]).lower() for target_type in target_data_types):
+                data_type_row = idx
+                continue
+        
+        if data_type_row is None:
+            print("❌ Error: Could not find data type row")
+            return None
+        
+        print(f"✅ Found data type row at line {data_type_row + 1}")
+        data_types = df.iloc[data_type_row].tolist()
+        
+        # Find indices of target columns that have correct data types
+        target_indices = []
+        found_columns = []
+        
+        for i, col_name in enumerate(column_names):
+            if col_name in target_columns:
+                data_type = data_types[i] if i < len(data_types) else "Unknown"
+                
+                # Check if data type matches any of the target data types
+                is_valid = any(target_type.lower() in data_type.lower() for target_type in target_data_types)
+                
+                if is_valid:
+                    target_indices.append(i)
+                    found_columns.append(col_name)
+                    print(f"   ✅ Found: {col_name} with data type: {data_type}")
+                else:
+                    print(f"   ❌ Skipped: {col_name} with data type: {data_type}")
+        
+        print(f"\n📊 Found {len(found_columns)} valid columns out of {len(target_columns)}")
+
+        print(found_columns)
+        
+        if len(found_columns) == 0:
+            print("❌ Error: No valid columns found")
+            return None
+        
+        # Step 6: Extract data using column indices
+        print("\n🔄 Step 6: Extracting data...")
+        df_extracted = df.iloc[:, target_indices].copy()
+        df_extracted.columns = found_columns
+        
+        print(f"✅ Extracted dataframe shape: {df_extracted.shape}")
+        
+        # Step 7: Clean the data
+        print("\n🧹 Step 7: Cleaning extracted data...")
+        
+        # Remove rows where all values are empty or NaN
+        df_extracted = df_extracted.dropna(how='all')
+        
+        return df_extracted
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return None
+
 def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
     """
     Process quarterly data and generate monthly interpolated data with proper x-based start date
     """
+    target_columns = [
+        'year', 'quarter', 'month', 'id', 'x', 'gdp', 'gni', 'household_cons', 
+        'government_cons', 'gross_cap_form', 'fix_cap_form', 'exports', 'imports', 
+        'gni_gdp_industry', 'gni_gdp_mining', 'gni_gdp_manufacturing', 
+        'gni_gdp_elec_steam_gas', 'gni_gdp_constr', 'gni_gdp_services', 
+        'gni_gdp_wholesale_ret', 'gni_gdp_transpo_stor', 'gni_gdp_real_est', 'unemp_rate'
+    ]
+
     # Month names mapping for dynamic date handling
     month_names = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
                   7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'}
@@ -19,7 +122,7 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
     print("="*60)
     
     # File paths
-    input_file = "data/ecl/development/New Microsoft Excel Worksheet.csv"
+    input_file = "server/data/ecl/development/input/overlay/development/quarterly_historical_mev.csv"
     output_dir = "data/ecl/development"
     
     # Check if input file exists
@@ -30,13 +133,17 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
     try:
         # Step 1: Load and clean the data
         print("\n📁 Step 1: Loading and cleaning quarterly data...")
-        
 
         df = quarterly_hist_mev_df.copy()
         df.columns = df.columns.str.strip().str.lower()
-        
+
         # Step 2: Clean the data
         print("\n🧹 Step 2: Cleaning quarterly data...")
+
+        df = extract_data(df, target_columns)
+
+        df.to_csv("data/ecl/development/input/overlay/development/quarterly_historical_mev_extracted.csv", index=False)
+        print(df)
         
         # Store rows where Year is not numeric to add back later
         initial_rows = len(df)
@@ -261,7 +368,7 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         csv_growth = os.path.join(output_dir, f"monthly_interpolated_data_with_growth_proper_{timestamp}.csv")
         excel_growth = os.path.join(output_dir, f"monthly_interpolated_data_with_growth_proper_{timestamp}.xlsx")
         
-        # monthly_with_growth.to_csv(csv_growth, index=False)
+        monthly_with_growth.to_csv(csv_growth, index=False)
         # monthly_with_growth.to_excel(excel_growth, index=False, sheet_name='Monthly_Data_With_Growth')
         
         print(f"✅ Files saved:")
