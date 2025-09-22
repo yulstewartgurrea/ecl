@@ -431,10 +431,13 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             print(f"\n🔄 Adding back {len(non_numeric_rows)} non-numeric year rows...")
             
             # Convert non_numeric_rows to the same format as monthly data
-            # Add missing columns with default values
+            # Add missing columns with default values, but preserve original values where they exist
             for col in monthly_df_clean.columns:
                 if col not in non_numeric_rows.columns:
                     non_numeric_rows[col] = 0  # Default value for missing columns
+                else:
+                    # Preserve original values from non_numeric_rows, only fill NaN with 0
+                    non_numeric_rows[col] = non_numeric_rows[col].fillna(0)
             
             # Reorder columns to match monthly_df_clean
             non_numeric_rows = non_numeric_rows[monthly_df_clean.columns]
@@ -444,9 +447,46 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             
             # For monthly_with_growth_clean, add the same rows but with growth columns set to 0
             non_numeric_rows_growth = non_numeric_rows.copy()
-            for col in monthly_with_growth_clean.columns:
-                if col not in non_numeric_rows_growth.columns:
-                    non_numeric_rows_growth[col] = 0  # Default value for missing columns
+            
+            # Process each row individually to handle row 3 (data type row) correctly
+            for row_idx in non_numeric_rows_growth.index:
+                # Check if this row contains data type information (like "in levels (rates)", "in levels (million PHP)")
+                row_values = non_numeric_rows_growth.loc[row_idx].astype(str).tolist()
+                is_data_type_row = any('in levels' in str(val).lower() for val in row_values)
+                
+                for col in monthly_with_growth_clean.columns:
+                    if col not in non_numeric_rows_growth.columns:
+                        if col.endswith('_growth_12m'):
+                            # For growth columns, check if this is the data type row
+                            if is_data_type_row:
+                                # This is the data type row, use "in growth rates"
+                                non_numeric_rows_growth.loc[row_idx, col] = "in growth rates"
+                            else:
+                                # For other rows, try to get the definition from the base column
+                                base_col = col.replace('_growth_12m', '')
+                                if base_col in non_numeric_rows_growth.columns:
+                                    non_numeric_rows_growth.loc[row_idx, col] = non_numeric_rows_growth.loc[row_idx, base_col]
+                                else:
+                                    non_numeric_rows_growth.loc[row_idx, col] = 0
+                        else:
+                            # For other missing columns, set to 0
+                            non_numeric_rows_growth.loc[row_idx, col] = 0
+                    elif col.endswith('_growth_12m'):
+                        # For existing growth columns, check if this is the data type row
+                        if is_data_type_row:
+                            # This is the data type row, use "in growth rates"
+                            non_numeric_rows_growth.loc[row_idx, col] = "in growth rates"
+                        else:
+                            # For other rows, try to get the definition from the base column
+                            base_col = col.replace('_growth_12m', '')
+                            if base_col in non_numeric_rows_growth.columns:
+                                non_numeric_rows_growth.loc[row_idx, col] = non_numeric_rows_growth.loc[row_idx, base_col]
+                            else:
+                                non_numeric_rows_growth.loc[row_idx, col] = 0
+                    else:
+                        # For non-growth columns, preserve original values, only fill NaN with 0
+                        if pd.isna(non_numeric_rows_growth.loc[row_idx, col]):
+                            non_numeric_rows_growth.loc[row_idx, col] = 0
             
             # Reorder columns to match monthly_with_growth_clean
             non_numeric_rows_growth = non_numeric_rows_growth[monthly_with_growth_clean.columns]
@@ -454,11 +494,11 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             # Prepend to monthly_with_growth_clean (add at the top)
             monthly_with_growth_clean = pd.concat([non_numeric_rows_growth, monthly_with_growth_clean], ignore_index=True)
 
-            monthly_with_growth_clean.to_csv("data/ecl/overlay/output/development/data_interpolation_output.csv", index=False)
-            
             print(f"✅ Added back {len(non_numeric_rows)} rows to final output")
             print(f"📊 Final monthly_df_clean shape: {monthly_df_clean.shape}")
             print(f"📊 Final monthly_with_growth_clean shape: {monthly_with_growth_clean.shape}")
+
+        monthly_with_growth_clean.to_csv("data/ecl/overlay/output/development/data_interpolation_output.csv", index=False)
 
         return {
             'monthly_data': monthly_df_clean.to_dict(orient='records'),
