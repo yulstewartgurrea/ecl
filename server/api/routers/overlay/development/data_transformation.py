@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 import pandas as pd
 import os
 from typing import List, Dict, Any
 from helpers.file_utils import find_and_read_data_file, get_root_folder
+from data_processing.overlay.development.data_transformation import process_data_transformation
 
 router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development"])
 
@@ -49,3 +51,39 @@ async def get_data_transformation():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading data tranformation file: {str(e)}")
 
+@router.post("/data_transformation")
+async def calculate_data_transformation():
+    """
+        Calculate data transformation
+    """
+    try:
+        root_folder = get_root_folder()
+        monthly_historical_mev_df = find_and_read_data_file(
+            root_folder=root_folder,
+            subfolder_path="server/data/ecl/overlay/input/development",
+            filename_base=f"monthly_historical_mev"
+        )
+        data_interpolation_df = find_and_read_data_file(
+            root_folder=root_folder,
+            subfolder_path="server/data/ecl/overlay/output/development",
+            filename_base=f"data_interpolation_output"
+        )
+        
+        process_data_transformation_res = process_data_transformation(monthly_historical_mev_df, 
+                                                                      data_interpolation_df)
+
+        res = {
+            'code': 1,
+            'success': True,
+            'msg': 'Success',
+            'data': process_data_transformation_res.to_dict(orient='records')
+        }
+
+        return JSONResponse(status_code=200, content=res)
+    except Exception as e:
+        res = {
+            'code': -1,
+            'msg': f'Something went wrong. {e}',
+            'success': False
+        }
+        return JSONResponse(status_code=500, content=res)
