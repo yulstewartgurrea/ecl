@@ -1,0 +1,10 @@
+{
+    "data": {
+        "module": "overlay",
+        "document_types": [
+            "OVERLAY_MONTHLY_HISTORICAL_MEV",
+            "OVERLAY_QUARTERLY_HISTORICAL_MEV",
+            "OVERLAY_HISTORICAL_DEFAULT_RATE"
+        ]
+    }
+}
