@@ -355,24 +355,24 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Save basic monthly data
-        csv_basic = os.path.join(output_dir, f"monthly_interpolated_data_proper_{timestamp}.csv")
-        excel_basic = os.path.join(output_dir, f"monthly_interpolated_data_proper_{timestamp}.xlsx")
+        # csv_basic = os.path.join(output_dir, f"monthly_interpolated_data_proper_{timestamp}.csv")
+        # excel_basic = os.path.join(output_dir, f"monthly_interpolated_data_proper_{timestamp}.xlsx")
         
         # monthly_df.to_csv(csv_basic, index=False)
         # monthly_df.to_excel(excel_basic, index=False, sheet_name='Monthly_Data')
         
         # Save data with growth rates
-        csv_growth = os.path.join(output_dir, f"monthly_interpolated_data_with_growth_proper_{timestamp}.csv")
-        excel_growth = os.path.join(output_dir, f"monthly_interpolated_data_with_growth_proper_{timestamp}.xlsx")
+        # csv_growth = os.path.join(output_dir, f"monthly_interpolated_data_with_growth_proper_{timestamp}.csv")
+        # excel_growth = os.path.join(output_dir, f"monthly_interpolated_data_with_growth_proper_{timestamp}.xlsx")
         
         # monthly_with_growth.to_csv(excel_growth, index=False)
         # monthly_with_growth.to_excel(excel_growth, index=False, sheet_name='Monthly_Data_With_Growth')
         
         print(f"✅ Files saved:")
-        print(f"   📄 Basic data (CSV): {csv_basic}")
-        print(f"   📊 Basic data (Excel): {excel_basic}")
-        print(f"   📄 With growth (CSV): {csv_growth}")
-        print(f"   📊 With growth (Excel): {excel_growth}")
+        # print(f"   📄 Basic data (CSV): {csv_basic}")
+        # print(f"   📊 Basic data (Excel): {excel_basic}")
+        # print(f"   📄 With growth (CSV): {csv_growth}")
+        # print(f"   📊 With growth (Excel): {excel_growth}")
         
         # Step 9: Generate summary
         print("\n📋 Step 9: Summary Report")
@@ -498,18 +498,9 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             print(f"📊 Final monthly_df_clean shape: {monthly_df_clean.shape}")
             print(f"📊 Final monthly_with_growth_clean shape: {monthly_with_growth_clean.shape}")
 
-        monthly_with_growth_clean.to_csv("data/ecl/overlay/output/development/data_interpolation_output.csv", index=False)
+        # monthly_with_growth_clean.to_csv("data/ecl/overlay/output/development/data_interpolation_output.csv", index=False)
 
-        return {
-            'monthly_data': monthly_df_clean.to_dict(orient='records'),
-            'monthly_with_growth': monthly_with_growth_clean.to_dict(orient='records'),
-            'output_files': {
-                'csv_basic': csv_basic,
-                'excel_basic': excel_basic,
-                'csv_growth': csv_growth,
-                'excel_growth': excel_growth
-            }
-        }
+        return monthly_with_growth_clean
         
     except Exception as e:
         print(f"❌ Error during processing: {str(e)}")
