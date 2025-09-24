@@ -31,24 +31,24 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str) -> D
     try:
         # Define document-specific validation rules
         document_rules = {
-            "monthly_mev": {
-                "expected_columns": ["year", "month (int)", "month", "id", "inflation"],
-                "percentage_columns": ["inflation", "sav_depo_rate", "bank_ave_lend_rate", "lend_rates_hi", "lend_rates_lo", "t_bill_91", "rrp_rate"],
-                "numeric_columns": ["year", "month (int)"]
-            },
-            "quarterly_mev": {
-                "expected_columns": ["year", "quarter", "id", "gdp", "inflation"],
-                "percentage_columns": ["inflation"],
-                "numeric_columns": ["year"]
-            },
-            "historical_default_rates": {
-                "expected_columns": ["time", "odr"],
-                "percentage_columns": ["odr"],
-                "numeric_columns": []
-            },
             "general": {
                 "expected_columns": [],
                 "percentage_columns": [],
+                "numeric_columns": []
+            },
+            "OVERLAY_DEVELOPMENT_MONTHLY_HISTORICAL_MEV": {
+                "expected_columns": ["year", "month", "id", "x", "inflation"],
+                "percentage_columns": ["inflation"],
+                "numeric_columns": ["year", "month"]
+            },
+            "OVERLAY_DEVELOPMENT_QUARTERLY_HISTORICAL_MEV": {
+                "expected_columns": ["year", "quarter", "id", "x", "inflation"],
+                "percentage_columns": ["inflation"],
+                "numeric_columns": ["year", "quarter"]
+            },
+            "OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE": {
+                "expected_columns": ["time", "odr"],
+                "percentage_columns": ["odr"],
                 "numeric_columns": []
             }
         }

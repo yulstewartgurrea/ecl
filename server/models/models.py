@@ -49,6 +49,7 @@ class Workflow(Base):
     )
 
     user = relationship("User", back_populates="workflows")
+    documents = relationship("Document", back_populates="workflow", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Workflow id={self.id} name={self.workflow_name!r}>"
@@ -104,8 +105,10 @@ class Document(Base):
         onupdate=datetime.utcnow,
     )
     document_type = Column(String, nullable=False)
+    workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
 
     user = relationship("User", back_populates="documents")
+    workflow = relationship("Workflow", back_populates="documents")
 
     def __repr__(self):
         return f"<Document id={self.id} filename={self.filename!r}>"
