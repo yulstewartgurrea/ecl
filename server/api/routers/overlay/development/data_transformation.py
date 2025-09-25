@@ -137,6 +137,7 @@ async def get_data_transformation(
 
 @router.post("/data_transformation")
 async def calculate_data_transformation(workflow_id: int = Form(...), 
+                                        lag: int = Form(...),
                                         user_id: User = Depends(get_current_user)):
     """
         Calculate data transformation
@@ -237,7 +238,8 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
 
         process_data_transformation_res = process_data_transformation(monthly_historical_mev_df, 
                                                                       data_interpolation_df,
-                                                                      historical_default_rates_df)
+                                                                      historical_default_rates_df,
+                                                                      lag)
 
         # Clean each DataFrame individually and convert to dict
         try:

@@ -96,7 +96,8 @@ def process_historical_default_rates(historical_default_rates_df: pd.DataFrame):
 
 def process_data_transformation(monthly_historical_mev_df: pd.DataFrame, 
                                 data_interpolation_df: pd.DataFrame,
-                                historical_default_rates_df: pd.DataFrame):
+                                historical_default_rates_df: pd.DataFrame,
+                                lag: int):
     """
     Combine data_interpolation_output.csv and monthly_historical_mev.csv
     """
@@ -105,7 +106,7 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
     try:
         df_combined = combine_monthly_mew_data_interpolation(monthly_historical_mev_df, data_interpolation_df)
 
-        lag_tranformation = process_lag_information(df_combined, 3)
+        lag_tranformation = process_lag_information(df_combined, lag)
 
         historical_default_rate = process_historical_default_rates(historical_default_rates_df)
 
