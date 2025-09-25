@@ -1,11 +1,24 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Form, Query
 from fastapi.responses import JSONResponse
 import pandas as pd
 import numpy as np
 import os
-from typing import List, Dict, Any
+import json
+from typing import List, Dict, Any, Optional
 from helpers.file_utils import find_and_read_data_file, get_root_folder
 from data_processing.overlay.development.data_transformation import process_data_transformation
+
+from database import SessionLocal
+
+from core.security import get_current_user
+
+from models.models import User
+from models.overlay.development import (
+    OverlayDevelopmentMonthlyHistoricalMevInput,
+    OverlayDevelopmentDataInterpolationOutput,
+    OverlayDevelopmentHistoricalDefaultRateInput,
+    OverlayDevelopmentDataTransformationOutput
+)
 
 def clean_dataframe_for_json(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -65,72 +78,121 @@ def clean_response_data(data_dict):
 router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development"])
 
 @router.get("/data_transformation")
-async def get_data_transformation():
+async def get_data_transformation(
+    workflow_id: int = Query(..., description="Workflow ID to get data transformation for"),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Get quarterly data transformation data from CSV file
+    Get data transformation data from OverlayDevelopmentDataTransformationOutput table
     """
     try:
-        # get root folder
-        root_folder = get_root_folder()
+        db = SessionLocal()
+        try:
+            # Query the database for data transformation output
+            transformation_record = db.query(OverlayDevelopmentDataTransformationOutput).filter(
+                OverlayDevelopmentDataTransformationOutput.workflow_id == workflow_id,
+                OverlayDevelopmentDataTransformationOutput.user_id == current_user.id
+            ).first()
 
-        # Use reusable function to find and read the file
-        df = find_and_read_data_file(
-            root_folder=root_folder,
-            subfolder_path="server/data/ecl/development",
-            filename_base="data_transformation_consolidated_monthly_mev"
-        )
+            if not transformation_record:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "No data transformation output found for this workflow",
+                        "data": None
+                    }
+                )
+            
+            # Parse the JSON data from the record
+            data = json.loads(transformation_record.json_data) if transformation_record.json_data else []
+            
+            return {
+                "code": 1, 
+                "success": True,
+                "data": data,
+            }
+            
+        finally:
+            db.close()
         
-        # Convert DataFrame to JSON
-        # Drop fully empty cols/rows
-        df_cleaned = df.dropna(how="all", axis=1)
-        df_cleaned = df_cleaned.dropna(how="all", axis=0)
-        
-        # Forward fill row 0 across columns (axis=0 means left to right along the row)
-        # forward fill row 1 (index=1) across columns
-        df_cleaned.iloc[0] = df_cleaned.iloc[0].ffill(axis=0)
-
-        df_cleaned = df_cleaned.fillna('')
-        
-        # Convert to dictionary format
-        data = df_cleaned.to_dict(orient='records')
-
-        return {
-            "code": 1, 
-            "success": True,
-            "data": data,
-        }
-        
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Data tranformation file not found")
-    except pd.errors.EmptyDataError:
-        raise HTTPException(status_code=400, detail="Data tranformation file is empty")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading data tranformation file: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Error retrieving data transformation: {str(e)}",
+                "data": None
+            }
+        )
 
 @router.post("/data_transformation")
-async def calculate_data_transformation():
+async def calculate_data_transformation(workflow_id: int = Form(...), 
+                                        user_id: User = Depends(get_current_user)):
     """
         Calculate data transformation
     """
     try:
-        root_folder = get_root_folder()
-        monthly_historical_mev_df = find_and_read_data_file(
-            root_folder=root_folder,
-            subfolder_path="server/data/ecl/overlay/input/development",
-            filename_base=f"monthly_historical_mev"
-        )
-        data_interpolation_df = find_and_read_data_file(
-            root_folder=root_folder,
-            subfolder_path="server/data/ecl/overlay/output/development",
-            filename_base=f"data_interpolation_output"
-        )
+        db = SessionLocal()
+        try:
+            monthly_historical_mev = db.query(OverlayDevelopmentMonthlyHistoricalMevInput).filter(
+                OverlayDevelopmentMonthlyHistoricalMevInput.workflow_id == workflow_id
+            ).first()
 
-        historical_default_rates_df = find_and_read_data_file(
-            root_folder=root_folder,
-            subfolder_path="server/data/ecl/overlay/input/development",
-            filename_base=f"historical_default_rates"
-        )
-        
+            data_interpolation = db.query(OverlayDevelopmentDataInterpolationOutput).filter(
+                OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id
+            ).first()
+
+            historical_default_rates = db.query(OverlayDevelopmentHistoricalDefaultRateInput).filter(
+                OverlayDevelopmentHistoricalDefaultRateInput.workflow_id == workflow_id
+            ).first()
+
+            if not monthly_historical_mev:
+                return JSONResponse(
+                    status_code=404,
+                    content= {
+                        "code": -1,
+                        "success": False,
+                        "msg": "No monthly historical mev data found for this workflow",
+                        "data": None
+                    }
+                )
+            
+            if not data_interpolation:
+                return JSONResponse(
+                    status_code=404,
+                    content= {
+                        "code": -1,
+                        "success": False,
+                        "msg": "No data interpolation data found for this workflow",
+                        "data": None
+                    }
+                )
+
+            if not historical_default_rates:
+                return JSONResponse(
+                    status_code=404,
+                    content= {
+                        "code": -1,
+                        "success": False,
+                        "msg": "No historical default rates data found for this workflow",
+                        "data": None
+                    }
+                )
+        finally:
+            db.close()
+
+        # Parse the JSON data from the record
+        monthly_historical_mev_data = json.loads(monthly_historical_mev.json_data) if monthly_historical_mev.json_data else []
+        data_interpolation_data = json.loads(data_interpolation.json_data) if data_interpolation.json_data else []
+        historical_default_rates_data = json.loads(historical_default_rates.json_data) if historical_default_rates.json_data else []
+
+        monthly_historical_mev_df = pd.DataFrame(monthly_historical_mev_data)
+        data_interpolation_df = pd.DataFrame(data_interpolation_data)
+        historical_default_rates_df = pd.DataFrame(historical_default_rates_data)
+
         process_data_transformation_res = process_data_transformation(monthly_historical_mev_df, 
                                                                       data_interpolation_df,
                                                                       historical_default_rates_df)
