@@ -9,6 +9,8 @@ from database import get_db
 from helpers.workflow import get_workflows, create_workflow, get_latest_workflow, get_workflow_by_id, update_workflow, delete_workflow
 from core.security import get_current_user
 
+from helpers.make_json_serializable import make_json_serializable
+
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
 @router.get("/", response_model=List[WorkflowResponse])
@@ -20,11 +22,17 @@ def read_workflows(
 ):  
     try:
         workflows = get_workflows(db, user_id=current_user.id, skip=skip, limit=limit)
-        return {
+        print('workflows', workflows)
+        
+        # Convert SQLAlchemy objects to Pydantic models and then to dictionaries
+        workflows_data = [WorkflowResponse.model_validate(workflow).model_dump() for workflow in workflows]
+        
+        res = {
             "code": 1, 
             "success": True,
-            "data": workflows,
+            "data": workflows_data,
         }
+        return JSONResponse(status_code=200, content=res) 
     except Exception as e:
         res = {
             'code': -1,
@@ -41,11 +49,12 @@ def create_user_workflow(
 ):
     try:
         workflow = create_workflow(db=db, workflow=workflow, user_id=current_user.id)
-        return {
+        res = {
             "code": 1, 
             "success": True,
-            "data": workflow,
+            "data": workflow.model_dump(),
         }
+        return JSONResponse(status_code=200, content=res) 
     except Exception as e:
         res = {
             'code': -1,
@@ -61,11 +70,26 @@ def get_latest_user_workflow(
 ):
     try:
         workflow = get_latest_workflow(db, user_id=current_user.id)
-        return {
+        if not workflow:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": -1,
+                    "success": False,
+                    "msg": "No workflows found for user",
+                    "data": None
+                }
+            )
+        
+        # Convert SQLAlchemy object to Pydantic model and then to dictionary
+        workflow_data = WorkflowResponse.model_validate(workflow).model_dump()
+        
+        res = {
             "code": 1, 
             "success": True,
-            "data": workflow,
+            "data": workflow_data,
         }
+        return JSONResponse(status_code=200, content=res) 
     except Exception as e:
         res = {
             'code': -1,
@@ -93,11 +117,15 @@ def get_workflow_by_id_endpoint(
                 }
             )
         
-        return {
+        # Convert SQLAlchemy object to Pydantic model and then to dictionary
+        workflow_data = WorkflowResponse.model_validate(workflow).model_dump()
+        
+        res = {
             "code": 1,
             "success": True,
-            "data": WorkflowResponse.model_validate(workflow),
+            "data": workflow_data,
         }
+        return JSONResponse(status_code=200, content=res) 
     except Exception as e:
         res = {
             'code': -1,
@@ -126,11 +154,12 @@ def update_workflow_endpoint(
                 }
             )
         
-        return {
+        res = {
             "code": 1,
             "success": True,
-            "data": updated_workflow,
+            "data": updated_workflow.model_dump(),
         }
+        return JSONResponse(status_code=200, content=res) 
     except Exception as e:
         res = {
             'code': -1,
@@ -158,12 +187,13 @@ def delete_workflow_endpoint(
                 }
             )
         
-        return {
+        res = {
             "code": 1,
             "success": True,
             "msg": "Workflow deleted successfully",
             "data": None
         }
+        return JSONResponse(status_code=200, content=res) 
     except Exception as e:
         res = {
             'code': -1,
