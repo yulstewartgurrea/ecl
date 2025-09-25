@@ -87,9 +87,6 @@ async def calculate_data_interpolation(
         Calculate data interpolation
     """
     try:
-        root_folder = get_root_folder()
-        print(root_folder)
-
         # Query the database for quarterly historical MEV data
         db = SessionLocal()
         try:
@@ -176,7 +173,7 @@ async def calculate_data_interpolation(
             new_document = Document(
                 filename=filename,
                 json_data=json.dumps(process_data_interpolation_res.to_dict(orient='records')),
-                document_type=f"OVERLAY_DATA_INTERPOLATION_OUTPUT",
+                document_type=f"OVERLAY_DEVELOPMENT_DATA_INTERPOLATION_OUTPUT",
                 user_id=user_id.id,
                 workflow_id=workflow_id,
                 workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
