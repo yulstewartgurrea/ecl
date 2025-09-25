@@ -75,7 +75,7 @@ def process_lag_information(df_combined: pd.DataFrame, lag: int):
     # Calculate inflation difference with 12-month lag (year-over-year difference)
     df[f"inflation_diff"] = inflation_numeric.diff(12)
 
-    df.to_csv('test_lag.csv')
+    # df.to_csv('test_lag.csv')
     return df
 
 def process_historical_default_rates(historical_default_rates_df: pd.DataFrame):
