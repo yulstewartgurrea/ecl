@@ -36,7 +36,7 @@ const Login = () => {
   };
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center relative">
+    <div className="flex h-screen w-screen items-center justify-center relative bg-white">
       <BackgroundComponent />
       {status !== "loading" && (
         <div className="w-1/2 overflow-hidden rounded-3xl shadow-md shadow-[#ccc] relative">
@@ -69,7 +69,7 @@ const Login = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoFocus
-                className="mt-1 block w-full rounded-md border-2 border-yellow-500 focus:border-yellow-500 focus:ring-yellow-500 px-3 py-4"
+                className="mt-1 block w-full rounded-md border-2 border-[#EA8024]/30 focus:border-[#EA8024] focus:ring-[#EA8024]/20 px-3 py-4 transition-colors duration-200"
               />
             </div>
             <div className="mt-6">
@@ -80,15 +80,15 @@ const Login = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full rounded-md border-2 border-yellow-500 focus:border-yellow-500 focus:ring-yellow-500 px-3 py-4"
+                className="mt-1 block w-full rounded-md border-2 border-[#EA8024]/30 focus:border-[#EA8024] focus:ring-[#EA8024]/20 px-3 py-4 transition-colors duration-200"
               />
             </div>
             <div className="my-10">
               {status === "error" && message && <p className="text-red-500">{message}</p>}
-              <button
-                type="submit"
-                className="bg-[#762627] text-lg text-white font-bold py-6 w-full rounded-2xl flex items-center justify-center cursor-pointer gap-2"
-              >
+               <button
+                 type="submit"
+                 className="bg-gradient-to-r from-[#EA8024] to-[#FFBB00] hover:from-[#FFBB00] hover:to-[#EA8024] text-lg text-white font-bold py-6 w-full rounded-2xl flex items-center justify-center cursor-pointer gap-2 transition-all duration-300 shadow-lg hover:shadow-xl"
+               >
                 {status !== "idle" ? "Logging in..." : "Log In"}
                 <ArrowRightStartOnRectangleIcon className="h-6 w-6" />
               </button>
