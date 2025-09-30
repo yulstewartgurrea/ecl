@@ -38,7 +38,7 @@ const FlowrateApproachPage = () => {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Flowrate Approach</h1>
             <p className="text-xs text-gray-600">
-              Input data, calculate flowrate, and generate output results.
+              A structured and dynamic framework for estimating credit losses.
             </p>
           </div>
         </div>
