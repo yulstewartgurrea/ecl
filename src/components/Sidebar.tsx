@@ -281,11 +281,11 @@ const Sidebar = () => {
         </div>
 
         {isSidebarOpen && (
-          <div className="flex min-h-[50px] bg-[#ffbe0b]">
+          <div className="flex min-h-[50px] bg-gradient-to-r from-[#EA8024] to-[#FFBB00]">
             <button
               type="button"
               onClick={handleLogout}
-              className="flex h-[48px] w-full items-center justify-center gap-2 text-gray-600 text-sm font-medium px-2 hover:bg-yellow-500 cursor-pointer"
+              className="flex h-[48px] w-full items-center justify-center gap-2 text-white text-sm font-medium px-2 hover:from-[#FFBB00] hover:to-[#EA8024] cursor-pointer transition-all duration-200"
             >
               <PowerIcon className="w-5" />
               <span className="font-semibold whitespace-nowrap">LOGOUT</span>
