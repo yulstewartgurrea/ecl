@@ -13,6 +13,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import PdLandingPage from "./pages/PdLandingPage";
 import EclLandingPage from "./pages/EclLandingPage";
 import OverlayLandingPage from "./pages/overlay/Overlay";
+import FlowrateApproachPage from "./pages/flowrate_approach/FlowrateApproach";
 import { login as loginAction } from "./redux_toolkit/features/general/auth";
 import { useEffect } from "react";
 
@@ -37,6 +38,7 @@ function App() {
         element={isLoggedIn ? <Sidebar /> : <Navigate to="/login" />}
       >
         <Route index element={<EclLandingPage />} />
+        <Route path="flowrate" element={<FlowrateApproachPage />} />
         <Route path="pd_landing" element={<PdLandingPage />} />
         <Route path="overlay" element={<OverlayLandingPage />} />
         <Route path="settings" element={<Settings />} />

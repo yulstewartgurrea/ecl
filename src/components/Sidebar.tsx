@@ -28,6 +28,7 @@ import { resetPdTransitionMatrixWfHelperData } from "../redux_toolkit/features/p
 
 // ----- Sidebar items (unchanged except for added tabs) -----
 const sidebarOptions: any[] = [
+  { tabName: "Flowrate Approach", icon: ChartBarIcon, subTabs: [] },
   {
     tabName: "Probability of Default (PD)",
     icon: PercentBadgeIcon,
@@ -49,6 +50,7 @@ const sidebarOptions: any[] = [
 const TAB_TO_ROUTE: Record<string, string> = {
   "Probability of Default (PD)": "/pd_landing",
   "Overlay": "/overlay",
+  "Flowrate Approach": "/flowrate",
   "Loss Given Default (LGD)": "/lgd",
   "Exposure at Default (EAD)": "/ead",
   "Expected Credit Loss (ECL)": "/ecl",
