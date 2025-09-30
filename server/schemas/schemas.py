@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, Union
+from datetime import datetime
 # User Schemas
 class UserBase(BaseModel):
     username: str
@@ -61,6 +62,44 @@ class JsonCreate(JsonBase):
 class JsonResponse(JsonBase):
     id: int
     user_id: int
+
+    class Config:
+        from_attributes = True
+
+# Entity Schemas
+class EntityBase(BaseModel):
+    name: str
+
+class EntityCreate(EntityBase):
+    pass
+
+class EntityUpdate(BaseModel):
+    name: Optional[str] = None
+
+class EntityResponse(EntityBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# LoanProduct Schemas
+class LoanProductBase(BaseModel):
+    name: str
+    entity_id: int
+
+class LoanProductCreate(LoanProductBase):
+    pass
+
+class LoanProductUpdate(BaseModel):
+    name: Optional[str] = None
+    entity_id: Optional[int] = None
+
+class LoanProductResponse(LoanProductBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True

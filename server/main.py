@@ -7,9 +7,17 @@ from database import engine, Base, SessionLocal
 
 import models  # noqa: F401
 from models import User, Workflow, Document, JsonData
+from models.overlay import development  # noqa: F401
 
 # Routers and helpers
-from api.routers import users, workflows, documents, auth, login
+from api.routers import (users, 
+                        workflows, 
+                        documents,
+                        auth,
+                        login,
+                        entity,
+                        loan_product,
+                        upload)
 from api.routers.overlay.development import data_interpolation, data_transformation
 
 
@@ -95,5 +103,9 @@ app.include_router(users.router)
 app.include_router(workflows.router)
 app.include_router(documents.router)
 app.include_router(login.router)
+app.include_router(entity.router)
+app.include_router(loan_product.router)
 app.include_router(data_interpolation.router)
 app.include_router(data_transformation.router)
+app.include_router(upload.router)
+
