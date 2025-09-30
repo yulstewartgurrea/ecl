@@ -43,7 +43,7 @@ const Login = () => {
           <div className="bg-white flex flex-row items-center justify-center px-2 py-4 pt-6 text-center sm:px-16 text-black relative">
             <div className="flex flex-col items-center mr-8">
               <img
-                src="/SGVLogoLight.png"
+                src="/ASALogo.png"
                 alt="Logo"
                 height={80}
                 width={80}

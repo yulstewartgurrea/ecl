@@ -201,7 +201,7 @@ const Sidebar = () => {
           })}
         >
           <div className="w-full flex justify-center px-4 mb-12">
-            <img src="/SGVLogoLight.png" alt="Logo" className="h-16 object-contain" />
+            <img src="/ASALogo.png" alt="Logo" className="h-16 object-contain" />
           </div>
 
           <nav className="flex flex-col space-y-1 text-gray-700 px-2">
