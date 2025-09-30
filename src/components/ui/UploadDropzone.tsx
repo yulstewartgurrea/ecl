@@ -30,6 +30,8 @@ export type UploadDropzoneProps = {
   variant?: "card" | "compact";
   /** show a subtle success chip when non-empty */
   showCountBadge?: boolean;
+  /** hide the file list display */
+  hideFileList?: boolean;
 };
 
 function formatBytes(bytes: number) {
@@ -57,6 +59,7 @@ export default function UploadDropzone({
   emptyHint,
   variant = "card",
   showCountBadge = true,
+  hideFileList = false,
 }: UploadDropzoneProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -222,40 +225,42 @@ export default function UploadDropzone({
       )}
 
       {/* File list */}
-      <div className={listPad}>
-        {hasFiles ? (
-          <ul className="space-y-2">
-            {value.map((file, i) => (
-              <li
-                key={fileKey(file)}
-                className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <DocumentIcon className="h-5 w-5 text-gray-400" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-gray-900">{file.name}</p>
-                    <p className="text-xs text-gray-500">{formatBytes(file.size)}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeAt(i);
-                  }}
-                  className="inline-flex items-center rounded-lg p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                  aria-label={`Remove ${file.name}`}
+      {!hideFileList && (
+        <div className={listPad}>
+          {hasFiles ? (
+            <ul className="space-y-2">
+              {value.map((file, i) => (
+                <li
+                  key={fileKey(file)}
+                  className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2"
                 >
-                  <XMarkIcon className="h-5 w-5" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="text-xs text-gray-500">
-            {emptyHint ?? "No files uploaded yet."}
-          </div>
-        )}
-      </div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <DocumentIcon className="h-5 w-5 text-gray-400" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-900">{file.name}</p>
+                      <p className="text-xs text-gray-500">{formatBytes(file.size)}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeAt(i);
+                    }}
+                    className="inline-flex items-center rounded-lg p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                    aria-label={`Remove ${file.name}`}
+                  >
+                    <XMarkIcon className="h-5 w-5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-xs text-gray-500">
+              {emptyHint ?? "No files uploaded yet."}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
