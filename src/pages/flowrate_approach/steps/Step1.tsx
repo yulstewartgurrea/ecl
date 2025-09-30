@@ -108,7 +108,7 @@ export default function Step1() {
 
   return (
     <div className="mx-auto max-w-8xl">
-      <div className="rounded-3xl border border-gray-200 bg-white/80 backdrop-blur shadow-sm">
+      <div className="rounded-3xl border border-gray-200 bg-white/80 backdrop-blur shadow-sm relative">
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <div>
             <h3 className="text-lg font-bold tracking-tight text-gray-900">Input Files</h3>
@@ -133,7 +133,7 @@ export default function Step1() {
         <div className="flex p-5 gap-5">
           {/* File Viewer Box - Left Side */}
           <div className="flex-1">
-            <div className="rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-6 min-h-[500px]">
+            <div className="sticky top-20 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-6 min-h-[500px] max-h-[calc(100vh-8rem)] overflow-y-auto">
               <div className="text-center">
                 <DocumentIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
