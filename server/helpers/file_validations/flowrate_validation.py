@@ -590,7 +590,18 @@ def validate_mis_data(df: pd.DataFrame, document_type: str, file_name: str) -> D
     
     try:
         # Required columns
-        required_columns = ["account_id"]
+        required_columns = ["branch", 
+                            "branch name",
+                            "loan bal. (wsc)",
+                            "loan bal. principal",
+                            "pd#",
+                            "pd amount principal",
+                            "net risk",
+                            "july release principal",
+                            "tda person",
+                            "tda cbu",
+                            "tda lcbu",
+                            "unclaimed"]
         missing_required = [col for col in required_columns if col not in df.columns]
         if missing_required:
             validation_results["validation_status"] = "failed"
@@ -600,36 +611,38 @@ def validate_mis_data(df: pd.DataFrame, document_type: str, file_name: str) -> D
                 "message": f"Missing required columns for MIS Data: {', '.join(missing_required)}"
             })
         
-        # Expected columns
-        expected_columns = ["product_type", "balance", "status"]
-        missing_expected = [col for col in expected_columns if col not in df.columns]
-        if missing_expected:
-            validation_results["issues"].append({
-                "type": "missing_expected_columns",
-                "columns": missing_expected,
-                "message": f"Missing expected columns for MIS Data: {', '.join(missing_expected)}"
-            })
+        numeric_columns = ["loan bal. (wsc)",
+                          "loan bal. principal", 
+                          "pd amount principal", 
+                          "net risk", 
+                          "tda cbu",
+                          "tda lcbu",
+                          "unclaimed"]
+        for col in numeric_columns:
+            if col in df.columns:
+                # Remove commas and convert to numeric
+                df[col] = df[col].astype(str).str.replace(',', '').astype(float, errors='ignore')
         
-        # Validate balance column
-        if "balance" in df.columns:
-            if not pd.api.types.is_numeric_dtype(df["balance"]):
-                validation_results["issues"].append({
-                    "type": "data_type_issue",
-                    "column": "balance",
-                    "expected": "numeric",
-                    "actual": str(df["balance"].dtype),
-                    "message": "Balance should be numeric"
-                })
-        
-        # Validate status column (if present)
-        if "status" in df.columns:
-            unique_statuses = df["status"].unique()
-            validation_results["issues"].append({
-                "type": "data_summary",
-                "column": "status",
-                "message": f"Found {len(unique_statuses)} unique status values: {', '.join(map(str, unique_statuses))}"
-            })
-        
+        # Validate numeric columns
+        for col in numeric_columns:
+            if col in df.columns:
+                if not pd.api.types.is_numeric_dtype(df[col]):
+                    validation_results["issues"].append({
+                        "type": "data_type_issue",
+                        "column": col,
+                        "expected": "numeric",
+                        "actual": str(df[col].dtype),
+                        "message": f"Column '{col}' should be numeric for Write Off Accounts"
+                    })
+                else:
+                    # Check for negative amounts (might be invalid)
+                    negative_count = (df[col] < 0).sum()
+                    if negative_count > 0:
+                        validation_results["issues"].append({
+                            "type": "data_validation",
+                            "column": col,
+                            "message": f"Column '{col}' has {negative_count} negative values - verify if this is correct"
+                        })
         return validation_results
         
     except Exception as e:
