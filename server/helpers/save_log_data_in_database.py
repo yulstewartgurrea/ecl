@@ -2,6 +2,7 @@ import json
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models.overlay.development import OverlayLogs
+from models.flowrate_approach import FlowRateApproachLogs
 from helpers.make_json_serializable import make_json_serializable
 
 import traceback
@@ -34,6 +35,7 @@ def save_log_data_in_database(
         
         # Map modules to their corresponding log model classes
         module_mapping = {
+            "FLOWRATE_APPROACH": FlowRateApproachLogs,
             "OVERLAY": OverlayLogs
         }
         

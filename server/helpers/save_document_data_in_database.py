@@ -13,6 +13,17 @@ from models.overlay.development import (
     OverlayDevelopmentFinalModelOutput
 )
 
+from models.flowrate_approach import (
+    FlowRateApproachLogs,
+    FlowRateApproachWriteOffAccounts,
+    FlowRateApproachAgingReport,
+    FlowRateApproachCollectionRate,
+    FlowRateApproachDetailedByProduct,
+    FlowRateApproachFsCurrentBalance,
+    FlowRateApproachMisData,
+    FlowRateApproachReportsGeneratedExtractedCams
+)
+
 def save_document_data_in_database(
     document_type: str, 
     document_data: dict, 
@@ -39,6 +50,17 @@ def save_document_data_in_database(
         
         # Map document types to their corresponding model classes
         document_type_mapping = {
+
+            # FLOWRATE APPROACH
+            "FLOWRATE_APPROACH_WRITE_OFF_ACCOUNTS": FlowRateApproachWriteOffAccounts,
+            "FLOWRATE_APPROACH_AGING_REPORT": FlowRateApproachAgingReport,
+            "FLOWRATE_APPROACH_COLLECTION_RATE": FlowRateApproachCollectionRate,
+            "FLOWRATE_APPROACH_DETAILED_BY_PRODUCT": FlowRateApproachDetailedByProduct,
+            "FLOWRATE_APPROACH_FS_CURRENT_BALANCE": FlowRateApproachFsCurrentBalance,
+            "FLOWRATE_APPROACH_MIS_DATA": FlowRateApproachMisData,
+            "FLOWRATE_APPROACH_REPORTS_GENERATED_EXTRACTED_CAMS": FlowRateApproachReportsGeneratedExtractedCams,
+
+            # OVERLAY DEVELOPMENT
             "OVERLAY_DEVELOPMENT_MONTHLY_HISTORICAL_MEV": OverlayDevelopmentMonthlyHistoricalMevInput,
             "OVERLAY_DEVELOPMENT_QUARTERLY_HISTORICAL_MEV": OverlayDevelopmentQuarterlyHistoricalMevInput,
             "OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE": OverlayDevelopmentHistoricalDefaultRateInput,
@@ -47,7 +69,9 @@ def save_document_data_in_database(
             "OVERLAY_DEVELOPMENT_MULTI_FACTOR_ANALYSIS_OUTPUT": OverlayDevelopmentMultiFactorAnalysisOutput,
             "OVERLAY_DEVELOPMENT_FILTERING_OF_MODELS_OUTPUT": OverlayDevelopmenFilteringOfModelsOutput,
             "OVERLAY_DEVELOPMENT_CANDIDATE_MODELS_OUTPUT": OverlayDevelopmenCandidateModelsOutput,
-            "OVERLAY_DEVELOPMENT_FINAL_MODEL_OUTPUT": OverlayDevelopmentFinalModelOutput,
+            "OVERLAY_DEVELOPMENT_FINAL_MODEL_OUTPUT": OverlayDevelopmentFinalModelOutput
+
+            # OVERLAY EXECUTION
         }
         
         # Get the appropriate model class
