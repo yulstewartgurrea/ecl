@@ -4,7 +4,8 @@ import pandas as pd
 import os
 from typing import Dict, Any
 import json
-from helpers.validate import validate_document
+from helpers.file_validations.validate import validate_document
+from helpers.file_validations.flowrate_validation import validate_collection_rate_multiple_sheets
 from helpers.save_document_data_in_database import save_document_data_in_database
 from helpers.save_log_data_in_database import save_log_data_in_database
 from models.models import Document, User
@@ -117,12 +118,24 @@ async def upload_file(
             # Read file based on extension
             if file.filename.lower().endswith('.csv'):
                 df = pd.read_csv(temp_path)
+                df.columns = df.columns.str.strip().str.lower()
+                validation_results = validate_document(df, document_type, file.filename)
             else:
-                df = pd.read_excel(temp_path)
-            
-            # Validate the document
-            df.columns = df.columns.str.strip().str.lower()
-            validation_results = validate_document(df, document_type, file.filename)
+                # For Excel files, read all sheets
+                with pd.ExcelFile(temp_path) as excel_file:
+                    sheet_names = excel_file.sheet_names
+                    
+                    # If it's a collection rate document with multiple sheets, handle specially
+                    if len(sheet_names) > 1:
+                        validation_results = validate_collection_rate_multiple_sheets(excel_file, document_type, file.filename)
+                        # For multi-sheet files, we'll use the first sheet for database storage
+                        df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
+                        df.columns = df.columns.str.strip().str.lower()
+                    else:
+                        # For other documents or single sheet Excel files, use first sheet
+                        df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
+                        df.columns = df.columns.str.strip().str.lower()
+                        validation_results = validate_document(df, document_type, file.filename)
 
             if not override:
                 response_data = {
