@@ -77,8 +77,8 @@ async def upload_file(
     current_user: User = Depends(get_current_user),
     override: bool = Form(False),
     module: str = Form(...),
-    submodule: str = Form('')
-    
+    submodule: str = Form(''),
+    chunk_size: int = Form(10000)  # Configurable chunk size, default 10k rows
 ):
     """
     Upload and save a file to the database
@@ -90,6 +90,7 @@ async def upload_file(
         workflow_id: ID of the workflow this document belongs to
         current_user: Current authenticated user
         override: Whether to override existing files (default: False)
+        chunk_size: Number of rows to process at a time (default: 10000)
     
     Returns:
         Upload results including validation and database save status
@@ -115,27 +116,105 @@ async def upload_file(
             buffer.write(content)
         
         try:
-            # Read file based on extension
+            # Read file based on extension with chunking for large files
+            CHUNK_SIZE = chunk_size  # Use configurable chunk size
+            
             if file.filename.lower().endswith('.csv'):
-                df = pd.read_csv(temp_path)
-                df.columns = df.columns.str.strip().str.lower()
-                validation_results = validate_document(df, document_type, file.filename)
+                # Read CSV in chunks
+                df_chunks = []
+                validation_results = {"errors": [], "warnings": [], "is_valid": True}
+                total_rows_processed = 0
+                
+                print(f"Processing CSV file in chunks of {CHUNK_SIZE} rows...")
+                
+                for chunk_num, chunk in enumerate(pd.read_csv(temp_path, chunksize=CHUNK_SIZE)):
+                    chunk.columns = chunk.columns.str.strip().str.lower()
+                    df_chunks.append(chunk)
+                    total_rows_processed += len(chunk)
+                    
+                    print(f"Processed chunk {chunk_num + 1}: {len(chunk)} rows (Total: {total_rows_processed})")
+                    
+                    # Validate each chunk
+                    chunk_validation = validate_document(chunk, document_type, file.filename)
+                    if not chunk_validation.get("is_valid", True):
+                        validation_results["is_valid"] = False
+                        validation_results["errors"].extend(chunk_validation.get("errors", []))
+                    validation_results["warnings"].extend(chunk_validation.get("warnings", []))
+                    
+                    # Clear chunk from memory after processing
+                    del chunk
+                
+                print(f"Combining {len(df_chunks)} chunks...")
+                # Combine all chunks
+                df = pd.concat(df_chunks, ignore_index=True)
+                
+                # Clear chunks from memory
+                del df_chunks
+                
             else:
-                # For Excel files, read all sheets
+                # For Excel files, read all sheets with chunking
                 with pd.ExcelFile(temp_path) as excel_file:
                     sheet_names = excel_file.sheet_names
                     
                     # If it's a collection rate document with multiple sheets, handle specially
                     if len(sheet_names) > 1:
-                        validation_results = validate_collection_rate_multiple_sheets(excel_file, document_type, file.filename)
+                        validation_results = validate_document(excel_file, document_type, file.filename)
                         # For multi-sheet files, we'll use the first sheet for database storage
                         df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
                         df.columns = df.columns.str.strip().str.lower()
                     else:
-                        # For other documents or single sheet Excel files, use first sheet
-                        df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
-                        df.columns = df.columns.str.strip().str.lower()
-                        validation_results = validate_document(df, document_type, file.filename)
+                        # For other documents or single sheet Excel files, use first sheet with chunking
+                        df_chunks = []
+                        validation_results = {"errors": [], "warnings": [], "is_valid": True}
+                        
+                        # Read Excel in chunks (Excel doesn't support native chunking, so we'll read in batches)
+                        try:
+                            print(f"Processing Excel file in chunks of {CHUNK_SIZE} rows...")
+                            
+                            # First, get the total number of rows
+                            total_rows = len(pd.read_excel(excel_file, sheet_name=sheet_names[0], nrows=0))
+                            print(f"Total rows in Excel file: {total_rows}")
+                            
+                            # Read in chunks
+                            for start_row in range(0, total_rows, CHUNK_SIZE):
+                                chunk = pd.read_excel(
+                                    excel_file, 
+                                    sheet_name=sheet_names[0], 
+                                    skiprows=start_row, 
+                                    nrows=CHUNK_SIZE
+                                )
+                                
+                                if chunk.empty:
+                                    break
+                                    
+                                chunk.columns = chunk.columns.str.strip().str.lower()
+                                df_chunks.append(chunk)
+                                
+                                print(f"Processed Excel chunk starting at row {start_row}: {len(chunk)} rows")
+                                
+                                # Validate each chunk
+                                chunk_validation = validate_document(chunk, document_type, file.filename)
+                                if not chunk_validation.get("is_valid", True):
+                                    validation_results["is_valid"] = False
+                                    validation_results["errors"].extend(chunk_validation.get("errors", []))
+                                validation_results["warnings"].extend(chunk_validation.get("warnings", []))
+                                
+                                # Clear chunk from memory after processing
+                                del chunk
+                            
+                            print(f"Combining {len(df_chunks)} Excel chunks...")
+                            # Combine all chunks
+                            df = pd.concat(df_chunks, ignore_index=True)
+                            
+                            # Clear chunks from memory
+                            del df_chunks
+                            
+                        except Exception as e:
+                            # Fallback to reading entire file if chunking fails
+                            print(f"Chunking failed, reading entire file: {e}")
+                            df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
+                            df.columns = df.columns.str.strip().str.lower()
+                            validation_results = validate_document(df, document_type, file.filename)
 
             if not override:
                 response_data = {
@@ -152,11 +231,19 @@ async def upload_file(
                     content=response_data
                 )
             
+            print(f"Final DataFrame shape: {df.shape}")
+            print(f"Memory usage: {df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB")
+            
             # Convert DataFrame to JSON for storage
+            print("Converting DataFrame to JSON...")
             file_data_json = df.to_json(orient='records')
             
             # Convert DataFrame to dictionary for overlay table storage
+            print("Converting DataFrame to dictionary...")
             document_data_dict = df.to_dict(orient='records')
+            
+            # Clear DataFrame from memory after conversion
+            del df
             
             # Save file to files folder
             saved_file_path = save_file_to_files_folder(
