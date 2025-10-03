@@ -105,7 +105,7 @@ class Document(Base):
         onupdate=datetime.utcnow,
     )
     document_type = Column(String, nullable=True)
-    workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
+    workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=True)
 
     user = relationship("User", back_populates="documents")
     workflow = relationship("Workflow", back_populates="documents")
