@@ -1,1 +1,106 @@
-Generic single-database configuration.
+# Alembic Database Migration Guide
+
+This directory contains Alembic database migration scripts for the ECL Flowrate Approach project.
+
+## Quick Start
+
+### 1. Create a new migration
+```bash
+# Auto-generate migration based on model changes
+alembic revision --autogenerate -m "description of changes"
+
+# Create empty migration for manual changes
+alembic revision -m "description of changes"
+```
+
+### 2. Apply migrations
+```bash
+# Apply all pending migrations
+alembic upgrade head
+
+# Apply specific migration
+alembic upgrade <revision_id>
+
+# Apply one migration at a time
+alembic upgrade +1
+```
+
+### 3. Check migration status
+```bash
+# Check current migration
+alembic current
+
+# View migration history
+alembic history
+
+# Show pending migrations
+alembic show <revision_id>
+```
+
+## Common Commands
+
+### Migration Management
+```bash
+# Create migration for model changes
+alembic revision --autogenerate -m "add new table"
+
+# Apply migrations
+alembic upgrade head
+
+# Rollback migrations
+alembic downgrade -1
+alembic downgrade <revision_id>
+
+# Mark database as current (if schema already matches)
+alembic stamp head
+```
+
+### Troubleshooting
+```bash
+# Check what tables exist in database
+python -c "from database import engine; from sqlalchemy import inspect; inspector = inspect(engine); print('Tables:', inspector.get_table_names())"
+
+# Verify models are imported correctly
+python -c "import models; print('Models loaded:', len(models.Base.metadata.tables))"
+```
+
+## Project Structure
+
+- `alembic.ini` - Alembic configuration
+- `env.py` - Migration environment setup
+- `versions/` - Migration script files
+- `script.py.mako` - Migration template
+
+## Important Notes
+
+1. **Always run from server directory**: `cd ecl/server`
+2. **Activate virtual environment**: Ensure `venv` is activated
+3. **Model imports**: All models must be imported in `models/__init__.py`
+4. **SQLite limitations**: Some ALTER operations may not be supported
+5. **Review migrations**: Always check auto-generated migrations before applying
+
+## Migration Workflow
+
+1. **Modify models** in `models/` directory
+2. **Generate migration**: `alembic revision --autogenerate -m "description"`
+3. **Review migration** file in `versions/`
+4. **Apply migration**: `alembic upgrade head`
+5. **Test changes** in your application
+
+## Error Solutions
+
+### "Target database is not up to date"
+```bash
+alembic upgrade head
+```
+
+### "alembic command not found"
+```bash
+pip install alembic
+# or use: python -m alembic
+```
+
+### Empty migration generated
+- Check if tables already exist in database
+- Verify models are properly imported
+- Ensure models inherit from `Base`
