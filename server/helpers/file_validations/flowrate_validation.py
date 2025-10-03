@@ -3,6 +3,8 @@ from typing import Dict, Any
 
 from .validate_generic_document import validate_generic_document
 
+import traceback
+
 
 def validate_flowrate_document(df: pd.DataFrame, document_type: str, file_name: str, temp_path = None ) -> Dict[str, Any]:
     """
@@ -29,7 +31,7 @@ def validate_flowrate_document(df: pd.DataFrame, document_type: str, file_name: 
         return validate_collection_rate_multiple_sheets(temp_path, document_type, file_name)
     elif document_type == "FLOWRATE_APPROACH_DETAILED_BY_PRODUCT":
         print("Flowrate Approach Detailed by Product")
-        return validate_detailed_by_product(df, document_type, file_name)
+        return validate_detailed_by_product_multiple_sheets(temp_path, document_type, file_name)
     elif document_type == "FLOWRATE_APPROACH_FS_CURRENT_BALANCE":
         print("Flowrate Approach FS Current Balance")
         return validate_fs_current_balance(df, document_type, file_name)
@@ -432,7 +434,7 @@ def validate_collection_rate_multiple_sheets(excel_file: pd.ExcelFile, document_
         return validation_results
 
 
-def validate_detailed_by_product(df: pd.DataFrame, document_type: str, file_name: str) -> Dict[str, Any]:
+def validate_detailed_by_product_multiple_sheets(excel_file: pd.ExcelFile, document_type: str, file_name: str) -> Dict[str, Any]:
     """
     Specialized validation for Detailed by Product documents
     
@@ -442,62 +444,80 @@ def validate_detailed_by_product(df: pd.DataFrame, document_type: str, file_name
     validation_results = _get_base_validation_results(file_name, document_type)
     
     try:
-        # Required columns
-        required_columns = ["product_code"]
-        missing_required = [col for col in required_columns if col not in df.columns]
-        if missing_required:
-            validation_results["validation_status"] = "failed"
-            validation_results["issues"].append({
-                "type": "missing_required_columns",
-                "columns": missing_required,
-                "message": f"Missing required columns for Detailed by Product: {', '.join(missing_required)}"
-            })
+        # Get sheet names from the already opened Excel file
+        sheet_names = excel_file.sheet_names
+        # make sheet names lower case
+        sheet_names = [sheet_name for sheet_name in sheet_names]
+        checker_sheet_names = [sheet_name.lower() for sheet_name in sheet_names]
         
-        # Expected columns
-        expected_columns = ["product_name", "balance", "count"]
-        missing_expected = [col for col in expected_columns if col not in df.columns]
-        if missing_expected:
-            validation_results["issues"].append({
-                "type": "missing_expected_columns",
-                "columns": missing_expected,
-                "message": f"Missing expected columns for Detailed by Product: {', '.join(missing_expected)}"
-            })
+        validation_results["sheet_results"] = {}
+        validation_results["total_sheets"] = len(sheet_names)
         
-        # Validate numeric columns
-        numeric_columns = ["balance", "count"]
-        for col in numeric_columns:
-            if col in df.columns:
-                if not pd.api.types.is_numeric_dtype(df[col]):
-                    validation_results["issues"].append({
-                        "type": "data_type_issue",
-                        "column": col,
-                        "expected": "numeric",
-                        "actual": str(df[col].dtype),
-                        "message": f"Column '{col}' should be numeric"
-                    })
-                else:
-                    # Check for negative values
-                    negative_count = (df[col] < 0).sum()
-                    if negative_count > 0:
-                        validation_results["issues"].append({
-                            "type": "data_validation",
-                            "column": col,
-                            "message": f"Column '{col}' has {negative_count} negative values"
-                        })
-        
-        # Check for duplicate product codes
-        if "product_code" in df.columns:
-            duplicate_products = df["product_code"].duplicated().sum()
-            if duplicate_products > 0:
+        overall_status = "passed"
+
+        all_sheets_data = {}
+        for sheet_name in sheet_names:
+            all_sheets_data[sheet_name] = pd.read_excel(excel_file, sheet_name=sheet_name)
+
+        for sheet_name in sheet_names:
+            if sheet_name == "AtGlance&Performance":
+                continue
+
+            print(f"Processing sheet: {sheet_name}")
+
+            df = all_sheets_data[sheet_name]
+
+            # find row number that has a branch name
+            branch_row = df[df.apply(lambda row: any(str(row).lower().__contains__(name) for name in ['branch']), axis=1)].index[0]
+
+            # ffill branch_row with same values to the right
+            df.iloc[branch_row] = df.iloc[branch_row].ffill(axis=0)
+
+            # combine rows branch_row and row after it
+            branch_row_after = branch_row + 1
+            df.iloc[branch_row_after] = df.iloc[branch_row_after].ffill(axis=0)
+
+            # fillna('') branch_row + 1
+            df.iloc[branch_row_after] = df.iloc[branch_row_after].fillna('')
+            df.iloc[branch_row] = df.iloc[branch_row].str.cat(df.iloc[branch_row_after], sep=' ')
+
+            # drop branch_row_after 
+            df = df.drop(branch_row_after).reset_index(drop=True)
+
+            df.iloc[branch_row_after] = df.iloc[branch_row_after].fillna('')
+            df.iloc[branch_row] = df.iloc[branch_row].str.cat(df.iloc[branch_row_after], sep=' ')
+            # drop branch_row_after
+            df = df.drop(branch_row_after).reset_index(drop=True)
+
+            # set branch_row as column header
+            df.columns = df.iloc[branch_row].values
+
+            # drop rows up to branch_row
+            df = df.drop(range(branch_row+1)).reset_index(drop=True)
+
+            # drop rows where *every* cell is NaN
+            df = df.dropna(how='all').reset_index(drop=True)
+
+            
+            # check for duplicate columns in datagrame
+            duplicate_columns = df.columns[df.columns.duplicated()].tolist()
+            if duplicate_columns:
                 validation_results["issues"].append({
-                    "type": "duplicate_products",
-                    "count": int(duplicate_products),
-                    "message": f"Found {duplicate_products} duplicate product codes"
+                    "type": "duplicate_columns",
+                    "columns": duplicate_columns,
+                    # add sheet name where there is duplicate columns
+                    "message": f"Duplicate columns found: {', '.join(duplicate_columns)} in sheet '{sheet_name}'"
                 })
+
+            # check numeric columns
+            # check if there are negative values
+
+            # check for required columns
         
         return validation_results
         
     except Exception as e:
+        traceback.print_exc()
         validation_results["validation_status"] = "error"
         validation_results["issues"].append({
             "type": "validation_error",
