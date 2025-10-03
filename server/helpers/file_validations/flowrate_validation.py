@@ -26,7 +26,7 @@ def validate_flowrate_document(df: pd.DataFrame, document_type: str, file_name: 
         return validate_aging_report(df, document_type, file_name)
     elif document_type == "FLOWRATE_APPROACH_COLLECTION_RATE":
         print("Flowrate Approach Collection Rate")
-        return validate_collection_rate(temp_path, document_type, file_name)
+        return validate_collection_rate_multiple_sheets(temp_path, document_type, file_name)
     elif document_type == "FLOWRATE_APPROACH_DETAILED_BY_PRODUCT":
         print("Flowrate Approach Detailed by Product")
         return validate_detailed_by_product(df, document_type, file_name)
@@ -516,58 +516,28 @@ def validate_fs_current_balance(df: pd.DataFrame, document_type: str, file_name:
     validation_results = _get_base_validation_results(file_name, document_type)
     
     try:
-        # Required columns
-        required_columns = ["account_id", "current_balance"]
-        missing_required = [col for col in required_columns if col not in df.columns]
-        if missing_required:
-            validation_results["validation_status"] = "failed"
+
+        # drop columns that are unnamed 
+        df = df.loc[:, ~df.columns.str.contains('unnamed', case=False, na=False)]
+
+        # check if there are duplicate columns and add to validateion['result]
+        duplicate_columns = df.columns[df.columns.duplicated()].tolist()
+        if duplicate_columns:
             validation_results["issues"].append({
-                "type": "missing_required_columns",
-                "columns": missing_required,
-                "message": f"Missing required columns for FS Current Balance: {', '.join(missing_required)}"
+                "type": "duplicate_columns",
+                "columns": duplicate_columns,
+                "message": f"Duplicate columns found: {', '.join(duplicate_columns)}"
             })
         
-        # Expected columns
-        expected_columns = ["as_of_date"]
-        missing_expected = [col for col in expected_columns if col not in df.columns]
-        if missing_expected:
-            validation_results["issues"].append({
-                "type": "missing_expected_columns",
-                "columns": missing_expected,
-                "message": f"Missing expected columns for FS Current Balance: {', '.join(missing_expected)}"
-            })
-        
-        # Validate current balance
-        if "current_balance" in df.columns:
-            if not pd.api.types.is_numeric_dtype(df["current_balance"]):
+        # check if a column has nan, empty values and return it to validate_results['issues']
+        for col in df.columns:
+            if df[col].isna().any() or df[col].isnull().any() or df[col].empty:
                 validation_results["issues"].append({
-                    "type": "data_type_issue",
-                    "column": "current_balance",
-                    "expected": "numeric",
-                    "actual": str(df["current_balance"].dtype),
-                    "message": "Current balance should be numeric"
+                    "type": "empty_values",
+                    "column": col,
+                    "message": f"Column '{col}' has empty values"
                 })
-            else:
-                # Check for zero balances
-                zero_balance_count = (df["current_balance"] == 0).sum()
-                if zero_balance_count > 0:
-                    validation_results["issues"].append({
-                        "type": "data_validation",
-                        "column": "current_balance",
-                        "message": f"Found {zero_balance_count} accounts with zero current balance"
-                    })
-        
-        # Validate date column
-        if "as_of_date" in df.columns:
-            try:
-                pd.to_datetime(df["as_of_date"], errors='raise')
-            except:
-                validation_results["issues"].append({
-                    "type": "date_format",
-                    "column": "as_of_date",
-                    "message": "Column 'as_of_date' contains invalid date formats"
-                })
-        
+
         return validation_results
         
     except Exception as e:
