@@ -55,6 +55,23 @@ alembic downgrade <revision_id>
 alembic stamp head
 ```
 
+### Apply changes on existing table
+# 1. Check what migrations are pending
+alembic current
+alembic history
+
+# 2. Apply all pending migrations
+alembic upgrade head
+
+# 3. Verify database is up to date
+alembic current
+
+# 4. Now create your new migration
+alembic revision --autogenerate -m "updated document document_type to nullable"
+
+# 5. Apply the new migration
+alembic upgrade head
+
 ### Troubleshooting
 ```bash
 # Check what tables exist in database
