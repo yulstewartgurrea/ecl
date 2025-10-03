@@ -158,7 +158,7 @@ async def upload_file(
                     
                     # If it's a collection rate document with multiple sheets, handle specially
                     if len(sheet_names) > 1:
-                        validation_results = validate_document(excel_file, document_type, file.filename)
+                        validation_results = validate_document(None, document_type, file.filename, excel_file)
                         # For multi-sheet files, we'll use the first sheet for database storage
                         df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
                         df.columns = df.columns.str.strip().str.lower()

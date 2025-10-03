@@ -5,7 +5,7 @@ from typing import Dict, List, Any
 from .flowrate_validation import validate_flowrate_document
 from .validate_generic_document import validate_generic_document
 
-def validate_document(df: pd.DataFrame, document_type: str, file_name: str) -> Dict[str, Any]:
+def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp_path = None) -> Dict[str, Any]:
     """
     Main validation function that routes to appropriate validator based on document type
     
@@ -13,6 +13,7 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str) -> D
         df: DataFrame to validate
         document_type: Type of document (determines which validation function to use)
         file_name: Name of the file being validated
+        temp_path: Excel file
     
     Returns:
         Dict containing validation results
@@ -43,7 +44,7 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str) -> D
     
     # Route to appropriate validation function
     if validation_type == "flowrate":
-        return validate_flowrate_document(df, document_type, file_name)
+        return validate_flowrate_document(df, document_type, file_name, temp_path)
     else:
         return validate_generic_document(df, document_type, file_name)
 
