@@ -68,9 +68,12 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
     validation_results = _get_base_validation_results(file_name, document_type)
     
     try:
+        # Normalize column names for comparison (lowercase, strip spaces)
+        df_columns_normalized = [col.strip().lower() for col in df.columns]
+        
         # Required columns - validation fails if missing
         required_columns = ["id",
-                            "branchNo",
+                            "branchno",
                             "bad_debts",
                             "savings",
                             "net_risk",
@@ -80,7 +83,8 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
                             "slot",
                             "group_id",
                             "status"]
-        missing_required = [col for col in required_columns if col.lower() not in df.columns]
+        
+        missing_required = [col for col in required_columns if col not in df_columns_normalized]
         if missing_required:
             validation_results["validation_status"] = "failed"
             validation_results["issues"].append({
@@ -89,19 +93,9 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
                 "message": f"Missing required columns for Write Off Accounts: {', '.join(missing_required)}"
             })
         
-        # Expected columns - warnings if missing
-        expected_columns = ["id",
-                            "branchNo",
-                            "bad_debts",
-                            "savings",
-                            "net_risk",
-                            "date_closed",
-                            "is_paid",
-                            "date_paid",
-                            "slot",
-                            "group_id",
-                            "status"]
-        missing_expected = [col for col in expected_columns if col.lower() not in df.columns]
+        # Expected columns - warnings if missing (subset of required for additional validation)
+        expected_columns = ["id", "branchno", "bad_debts", "net_risk"]
+        missing_expected = [col for col in expected_columns if col not in df_columns_normalized]
         if missing_expected:
             validation_results["issues"].append({
                 "type": "missing_expected_columns",
@@ -112,36 +106,45 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
         # Validate numeric columns
         numeric_columns = ["bad_debts", "savings", "net_risk"]
         for col in numeric_columns:
-            if col in df.columns:
-                if not pd.api.types.is_numeric_dtype(df[col]):
+            if col in df_columns_normalized:
+                # Find the actual column name in the DataFrame
+                actual_col_name = df.columns[df_columns_normalized.index(col)]
+                
+                if not pd.api.types.is_numeric_dtype(df[actual_col_name]):
+                    validation_results["validation_status"] = "failed"
                     validation_results["issues"].append({
                         "type": "data_type_issue",
-                        "column": col,
+                        "column": actual_col_name,
                         "expected": "numeric",
-                        "actual": str(df[col].dtype),
-                        "message": f"Column '{col}' should be numeric for Write Off Accounts"
+                        "actual": str(df[actual_col_name].dtype),
+                        "message": f"Column '{actual_col_name}' should be numeric for Write Off Accounts"
                     })
                 else:
                     # Check for negative amounts (might be invalid)
-                    negative_count = (df[col] < 0).sum()
+                    negative_count = (df[actual_col_name] < 0).sum()
                     if negative_count > 0:
+                        validation_results["validation_status"] = "failed"
                         validation_results["issues"].append({
                             "type": "data_validation",
-                            "column": col,
-                            "message": f"Column '{col}' has {negative_count} negative values - verify if this is correct"
+                            "column": actual_col_name,
+                            "message": f"Column '{actual_col_name}' has {negative_count} negative values - verify if this is correct"
                         })
         
         # Validate date columns
         date_columns = ["date_closed"]
         for col in date_columns:
-            if col in df.columns:
+            if col in df_columns_normalized:
+                # Find the actual column name in the DataFrame
+                actual_col_name = df.columns[df_columns_normalized.index(col)]
+                
                 try:
-                    pd.to_datetime(df[col], errors='raise')
+                    pd.to_datetime(df[actual_col_name], errors='raise')
                 except:
+                    validation_results["validation_status"] = "failed"
                     validation_results["issues"].append({
                         "type": "date_format",
-                        "column": col,
-                        "message": f"Column '{col}' contains invalid date formats for Write Off Accounts"
+                        "column": actual_col_name,
+                        "message": f"Column '{actual_col_name}' contains invalid date formats for Write Off Accounts"
                     })
         
         # Add other validations
