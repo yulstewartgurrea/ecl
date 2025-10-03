@@ -104,7 +104,7 @@ class Document(Base):
         server_default=sql_text("CURRENT_TIMESTAMP"),
         onupdate=datetime.utcnow,
     )
-    document_type = Column(String, nullable=False)
+    document_type = Column(String, nullable=True)
     workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
 
     user = relationship("User", back_populates="documents")
