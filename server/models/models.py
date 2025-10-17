@@ -35,7 +35,9 @@ class User(Base):
 
 class Workflow(Base):
     __tablename__ = "workflows"
-
+    __table_args__ = (
+        UniqueConstraint("user_id", "workflow_name", name="uq_user_workflow_name"),
+    )
     id = Column(Integer, primary_key=True, index=True)
     entity = Column(String, nullable=False)
     workflow_name = Column(String, nullable=False)

@@ -78,182 +78,113 @@ async def upload_file(
     override: bool = Form(False),
     module: str = Form(...),
     submodule: str = Form(''),
-    chunk_size: int = Form(10000)  # Configurable chunk size, default 10k rows
+    chunk_size: int = Form(10000)
 ):
     """
     Upload and save a file to the database
-    
-    Args:
-        file: The uploaded file (CSV or Excel)
-        document_type: Type of document for validation rules
-        workflow_path: Path to the workflow directory
-        workflow_id: ID of the workflow this document belongs to
-        current_user: Current authenticated user
-        override: Whether to override existing files (default: False)
-        chunk_size: Number of rows to process at a time (default: 10000)
-    
-    Returns:
-        Upload results including validation and database save status
     """
     db = SessionLocal()
+
+    # --- helper to normalize validation status ---
+    def is_validation_ok(vr: Dict[str, Any]) -> bool:
+        if not isinstance(vr, dict):
+            return True
+        # support both shapes: {"is_valid": bool} OR {"validation_status": "passed"/"failed"/"error"}
+        if "is_valid" in vr:
+            try:
+                return bool(vr["is_valid"])
+            except Exception:
+                pass
+        status = str(vr.get("validation_status", "passed")).lower()
+        return status == "passed"
+
     try:
-        # Check file extension
+        # extension guard
         if not file.filename.lower().endswith(('.csv', '.xlsx', '.xls')):
             return JSONResponse(
                 status_code=400,
-                content={
-                    "code": -1,
-                    "success": False,
-                    "msg": "File must be CSV or Excel format",
-                    "data": None
-                }
+                content={"code": -1, "success": False, "msg": "File must be CSV or Excel format", "data": None}
             )
-        
-        # Save temporary file to read with pandas
+
+        # write temp file
         temp_path = f"temp_{file.filename}"
         with open(temp_path, "wb") as buffer:
             content = await file.read()
             buffer.write(content)
-        
+
         try:
-            # Read file based on extension with chunking for large files
-            CHUNK_SIZE = chunk_size  # Use configurable chunk size
-            
-            if file.filename.lower().endswith('.csv'):
-                # Read CSV in chunks
+            CHUNK_SIZE = chunk_size
+            df = None
+            validation_results: Dict[str, Any] = {"is_valid": True, "errors": [], "warnings": []}
+
+            if file.filename.lower().endswith(".csv"):
+                # ---- CSV with chunking ----
                 df_chunks = []
-                validation_results = {"errors": [], "warnings": [], "is_valid": True}
                 total_rows_processed = 0
-                
-                print(f"Processing CSV file in chunks of {CHUNK_SIZE} rows...")
-                
                 for chunk_num, chunk in enumerate(pd.read_csv(temp_path, chunksize=CHUNK_SIZE)):
                     chunk.columns = chunk.columns.str.strip().str.lower()
                     df_chunks.append(chunk)
                     total_rows_processed += len(chunk)
-                    
-                    print(f"Processed chunk {chunk_num + 1}: {len(chunk)} rows (Total: {total_rows_processed})")
-                    
-                    # Validate each chunk
+
+                    # validate per-chunk
                     chunk_validation = validate_document(chunk, document_type, file.filename)
-                    if not chunk_validation.get("is_valid", True):
+                    if not is_validation_ok(chunk_validation):
                         validation_results["is_valid"] = False
-                        validation_results["errors"].extend(chunk_validation.get("errors", []))
-                    validation_results["warnings"].extend(chunk_validation.get("warnings", []))
-                    
-                    # Clear chunk from memory after processing
-                    del chunk
-                
-                print(f"Combining {len(df_chunks)} chunks...")
-                # Combine all chunks
-                df = pd.concat(df_chunks, ignore_index=True)
-                
-                # Clear chunks from memory
-                del df_chunks
-                
+                    # merge child results if present
+                    if isinstance(chunk_validation, dict):
+                        validation_results.setdefault("errors", []).extend(chunk_validation.get("errors", []))
+                        validation_results.setdefault("warnings", []).extend(chunk_validation.get("warnings", []))
+
+                # combine chunks for persistence
+                df = pd.concat(df_chunks, ignore_index=True) if df_chunks else pd.DataFrame()
+
             else:
-                # For Excel files, read all sheets with chunking
+                # ---- Excel ----
+                # NOTE: Excel chunking is tricky/expensive. Read fully and validate once for reliability.
                 with pd.ExcelFile(temp_path) as excel_file:
                     sheet_names = excel_file.sheet_names
-                    
-                    # If it's a collection rate document with multiple sheets, handle specially
+
+                    # If multi-sheet doc (e.g., Collection Rate / Detailed by Product), let validator handle it.
                     if len(sheet_names) > 1:
                         validation_results = validate_document(None, document_type, file.filename, excel_file)
-                        # For multi-sheet files, we'll use the first sheet for database storage
+                        # still pick first sheet to persist into overlay (same as your original intent)
                         df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
                         df.columns = df.columns.str.strip().str.lower()
                     else:
-                        # For other documents or single sheet Excel files, use first sheet with chunking
-                        df_chunks = []
-                        validation_results = {"errors": [], "warnings": [], "is_valid": True}
-                        
-                        # Read Excel in chunks (Excel doesn't support native chunking, so we'll read in batches)
-                        try:
-                            print(f"Processing Excel file in chunks of {CHUNK_SIZE} rows...")
-                            
-                            # First, get the total number of rows
-                            total_rows = len(pd.read_excel(excel_file, sheet_name=sheet_names[0], nrows=0))
-                            print(f"Total rows in Excel file: {total_rows}")
-                            
-                            # Read in chunks
-                            for start_row in range(0, total_rows, CHUNK_SIZE):
-                                chunk = pd.read_excel(
-                                    excel_file, 
-                                    sheet_name=sheet_names[0], 
-                                    skiprows=start_row, 
-                                    nrows=CHUNK_SIZE
-                                )
-                                
-                                if chunk.empty:
-                                    break
-                                    
-                                chunk.columns = chunk.columns.str.strip().str.lower()
-                                df_chunks.append(chunk)
-                                
-                                print(f"Processed Excel chunk starting at row {start_row}: {len(chunk)} rows")
-                                
-                                # Validate each chunk
-                                chunk_validation = validate_document(chunk, document_type, file.filename)
-                                if not chunk_validation.get("is_valid", True):
-                                    validation_results["is_valid"] = False
-                                    validation_results["errors"].extend(chunk_validation.get("errors", []))
-                                validation_results["warnings"].extend(chunk_validation.get("warnings", []))
-                                
-                                # Clear chunk from memory after processing
-                                del chunk
-                            
-                            print(f"Combining {len(df_chunks)} Excel chunks...")
-                            # Combine all chunks
-                            df = pd.concat(df_chunks, ignore_index=True)
-                            
-                            # Clear chunks from memory
-                            del df_chunks
-                            
-                        except Exception as e:
-                            # Fallback to reading entire file if chunking fails
-                            print(f"Chunking failed, reading entire file: {e}")
-                            df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
-                            df.columns = df.columns.str.strip().str.lower()
-                            validation_results = validate_document(df, document_type, file.filename)
+                        df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
+                        df.columns = df.columns.str.strip().str.lower()
+                        validation_results = validate_document(df, document_type, file.filename)
 
-            if not override:
+            # --- gate on validation & override ---
+            if (not is_validation_ok(validation_results)) and (not override):
                 response_data = {
                     "code": -1,
                     "success": False,
                     "msg": "Found errors on file.",
-                    "data": {
-                        "validation_results": validation_results
-                    }
+                    "data": {"validation_results": validation_results}
                 }
                 response_data = make_json_serializable(response_data)
-                return JSONResponse(
-                    status_code=400,
-                    content=response_data
-                )
-            
-            print(f"Final DataFrame shape: {df.shape}")
-            print(f"Memory usage: {df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB")
-            
-            # Convert DataFrame to JSON for storage
-            print("Converting DataFrame to JSON...")
-            file_data_json = df.to_json(orient='records')
-            
-            # Convert DataFrame to dictionary for overlay table storage
-            print("Converting DataFrame to dictionary...")
-            document_data_dict = df.to_dict(orient='records')
-            
-            # Clear DataFrame from memory after conversion
-            del df
-            
-            # Save file to files folder
+                return JSONResponse(status_code=400, content=response_data)
+
+            # --- persist (file + db) ---
+            print(f"Final DataFrame shape: {None if df is None else df.shape}")
+            if df is None:
+                # Some multi-sheet flows may not need a single-sheet df; keep a harmless empty json
+                file_data_json = "[]"
+                document_data_dict = []
+            else:
+                file_data_json = df.to_json(orient='records')
+                document_data_dict = df.to_dict(orient='records')
+                del df
+
             saved_file_path = save_file_to_files_folder(
                 file_content=content,
                 filename=file.filename,
                 workflow_path=workflow_path,
                 create_subdirectories=True
             )
-            
-            # Save log data first
+
+            # logs table
             log_record_id = None
             try:
                 log_record_id = save_log_data_in_database(
@@ -270,10 +201,8 @@ async def upload_file(
                 )
             except Exception as e:
                 print(f"Warning: Could not save to log table: {e}")
-                # Continue with document creation even if log save fails
-            
-            print("log_record_id", log_record_id)
-            # Save document data in appropriate overlay table
+
+            # overlay table
             overlay_record_id = None
             try:
                 overlay_record_id = save_document_data_in_database(
@@ -285,9 +214,8 @@ async def upload_file(
                 )
             except Exception as e:
                 print(f"Warning: Could not save to overlay table: {e}")
-                # Continue with document creation even if overlay save fails
-            
-            # Create new document
+
+            # documents table
             new_document = Document(
                 filename=file.filename,
                 workflow_path=workflow_path,
@@ -295,59 +223,42 @@ async def upload_file(
                 json_data=file_data_json,
                 document_type=document_type,
                 version=1,
-                workflow_id=workflow_id or 0  # Default to 0 if not provided
+                workflow_id=workflow_id or 0
             )
-            
             db.add(new_document)
             db.commit()
             db.refresh(new_document)
-            
-            document_id = new_document.id
-            action = "created"
-            
-            
+
             response_data = {
                 "code": 1,
                 "success": True,
-                "msg": f"File {action} successfully",
+                "msg": "File created successfully",
                 "data": {
-                    "document_id": document_id,
+                    "document_id": new_document.id,
                     "filename": file.filename,
                     "workflow_path": workflow_path,
                     "document_type": document_type,
                     "version": 1,
-                    "action": action,
+                    "action": "created",
                     "saved_file_path": saved_file_path,
                     "log_record_id": log_record_id,
                     "overlay_record_id": overlay_record_id,
                     "validation_results": validation_results
                 }
             }
-            
-            # Make the response JSON serializable
             response_data = make_json_serializable(response_data)
-            
-            return JSONResponse(
-                status_code=200,
-                content=response_data
-            )
-            
+            return JSONResponse(status_code=200, content=response_data)
+
         finally:
-            # Clean up temp file
             if os.path.exists(temp_path):
                 os.remove(temp_path)
-        
+
     except Exception as e:
         db.rollback()
         traceback.print_exc()
         return JSONResponse(
             status_code=500,
-            content={
-                "code": -1,
-                "success": False,
-                "msg": f"Error uploading file: {str(e)}",
-                "data": None
-            }
+            content={"code": -1, "success": False, "msg": f"Error uploading file: {str(e)}", "data": None}
         )
     finally:
         db.close()

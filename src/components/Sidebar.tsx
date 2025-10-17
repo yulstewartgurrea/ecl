@@ -29,32 +29,32 @@ import { resetPdTransitionMatrixWfHelperData } from "../redux_toolkit/features/p
 // ----- Sidebar items (unchanged except for added tabs) -----
 const sidebarOptions: any[] = [
   { tabName: "Flowrate Approach", icon: ChartBarIcon, subTabs: [] },
-  {
-    tabName: "Probability of Default (PD)",
-    icon: PercentBadgeIcon,
-    subTabs: [
-      { subTabName: "Transition Matrix Approach" },
-      { subTabName: "Approach 2" },
-      { subTabName: "Approach 3" },
-    ],
-  },
-  { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
-  { tabName: "Loss Given Default (LGD)", icon: ArrowTrendingDownIcon, subTabs: [] },
-  { tabName: "Exposure at Default (EAD)", icon: ChartPieIcon, subTabs: [] },
-  { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
-  { tabName: "ECL Configuration", icon: AdjustmentsHorizontalIcon, subTabs: [] },
+  // {
+  //   tabName: "Probability of Default (PD)",
+  //   icon: PercentBadgeIcon,
+  //   subTabs: [
+  //     { subTabName: "Transition Matrix Approach" },
+  //     { subTabName: "Approach 2" },
+  //     { subTabName: "Approach 3" },
+  //   ],
+  // },
+  // { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
+  // { tabName: "Loss Given Default (LGD)", icon: ArrowTrendingDownIcon, subTabs: [] },
+  // { tabName: "Exposure at Default (EAD)", icon: ChartPieIcon, subTabs: [] },
+  // { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
+  { tabName: "Configuration", icon: AdjustmentsHorizontalIcon, subTabs: [] },
   { tabName: "General Settings", icon: Cog6ToothIcon, subTabs: [] },
 ];
 
 // ----- Route maps (tab -> route, subtab -> route) -----
 const TAB_TO_ROUTE: Record<string, string> = {
-  "Probability of Default (PD)": "/pd_landing",
-  "Overlay": "/overlay",
+  // "Probability of Default (PD)": "/pd_landing",
+  // "Overlay": "/overlay",
   "Flowrate Approach": "/flowrate",
-  "Loss Given Default (LGD)": "/lgd",
-  "Exposure at Default (EAD)": "/ead",
-  "Expected Credit Loss (ECL)": "/ecl",
-  "ECL Configuration": "/ecl_configuration", // <- keep consistent with your router
+  // "Loss Given Default (LGD)": "/lgd",
+  // "Exposure at Default (EAD)": "/ead",
+  // "Expected Credit Loss (ECL)": "/ecl",
+  "Configuration": "/ecl_configuration", // <- keep consistent with your router
   "General Settings": "/settings",
 };
 

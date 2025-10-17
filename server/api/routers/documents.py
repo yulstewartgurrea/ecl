@@ -63,7 +63,7 @@ def check_workflow_exists(
 ):
     # Build the workflow_path string
     workflow_path = f"/{entity}/{reporting_period}/{workflow_name}"
-
+    
     # Query the document table for that path and user_id (optional: filter by current user)
     doc = db.query(Document).filter(
         Document.workflow_path == workflow_path,

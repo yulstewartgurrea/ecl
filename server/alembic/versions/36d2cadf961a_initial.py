@@ -1,8 +1,8 @@
-"""add all missing models
+"""initial
 
-Revision ID: 7a45ea8707d3
+Revision ID: 36d2cadf961a
 Revises: 
-Create Date: 2025-10-03 14:19:08.060913
+Create Date: 2025-10-17 08:48:40.148310
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '7a45ea8707d3'
+revision: str = '36d2cadf961a'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -82,7 +82,8 @@ def upgrade() -> None:
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('user_id', 'workflow_name', name='uq_user_workflow_name')
     )
     with op.batch_alter_table('workflows', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_workflows_id'), ['id'], unique=False)
@@ -96,8 +97,8 @@ def upgrade() -> None:
     sa.Column('version', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('updated_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-    sa.Column('document_type', sa.String(), nullable=False),
-    sa.Column('workflow_id', sa.Integer(), nullable=False),
+    sa.Column('document_type', sa.String(), nullable=True),
+    sa.Column('workflow_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['workflow_id'], ['workflows.id'], ),
     sa.PrimaryKeyConstraint('id')

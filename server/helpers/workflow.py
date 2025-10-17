@@ -6,13 +6,15 @@ from typing import Optional
 def get_workflows(db: Session, user_id: int, skip: int = 0, limit: int = 100):
     return db.query(Workflow).filter(Workflow.user_id == user_id).offset(skip).limit(limit).all()
 
-def create_workflow(db: Session, workflow: WorkflowCreate, user_id: int):
-    print('test')
-    db_workflow = Workflow(**workflow.model_dump(), user_id=user_id)
+def create_workflow(db: Session, wf_in: WorkflowCreate, user_id: int) -> Workflow:
+    # Coerced already by Pydantic: wf_in.baseline_year is int here
+    db_workflow = Workflow(**wf_in.model_dump(), user_id=user_id)
     db.add(db_workflow)
     db.commit()
     db.refresh(db_workflow)
-    return WorkflowResponse.model_validate(db_workflow)
+    return db_workflow
+
+
 
 def get_latest_workflow(db: Session, user_id: int):
     return db.query(Workflow).filter(Workflow.user_id == user_id).order_by(Workflow.created_at.desc()).first()
