@@ -600,37 +600,7 @@ export default function MultiCategoryUploader({
             role="region"
             aria-label="Upload categories"
           >
-            <div className="sticky top-0 z-10 -mt-5 -mx-5 px-5 py-3 bg-white/85 backdrop-blur border-b border-gray-100">
-              <div className="flex items-center gap-2 justify-end">
-                <button
-                  onClick={clearAll}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-yellow-400 border border-yellow-400 text-gray-900 hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-yellow-300 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={uploading}
-                  title="Remove all selected files"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                  Clear All
-                </button>
-                <button
-                  onClick={validate}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-yellow-400 border border-yellow-400 text-gray-900 hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-yellow-300 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={uploading}
-                  title="Check required categories"
-                >
-                  <CheckCircleIcon className="h-4 w-4" />
-                  Validate
-                </button>
-                <button
-                  onClick={uploadAll}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-yellow-400 border border-yellow-400 text-gray-900 hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-yellow-300 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={uploading}
-                  title="Upload all selected files"
-                >
-                  <ArrowUpTrayIcon className={`h-4 w-4 ${uploading ? "animate-pulse" : ""}`} />
-                  Upload All
-                </button>
-              </div>
-            </div>
+          
 
             {categories.map((c) => {
               const count = filesByKey[c.key]?.length ?? 0;
