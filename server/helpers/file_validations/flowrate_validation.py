@@ -3,6 +3,8 @@ from typing import Dict, Any
 
 from .validate_generic_document import validate_generic_document
 
+from ..clean_up.clean_up import clean_document
+
 import traceback
 
 
@@ -25,7 +27,7 @@ def validate_flowrate_document(df: pd.DataFrame, document_type: str, file_name: 
         return validate_write_off_accounts(df, document_type, file_name)
     elif document_type == "FLOWRATE_APPROACH_AGING_REPORT":
         print("Flowrate Approach Aging Report")
-        return validate_aging_report(df, document_type, file_name)
+        return validate_aging_report(df, document_type, file_name, temp_path)
     elif document_type == "FLOWRATE_APPROACH_COLLECTION_RATE":
         print("Flowrate Approach Collection Rate")
         return validate_collection_rate_multiple_sheets(temp_path, document_type, file_name)
@@ -152,6 +154,7 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
         return validation_results
         
     except Exception as e:
+        traceback.print_exc()
         validation_results["validation_status"] = "error"
         validation_results["issues"].append({
             "type": "validation_error",
@@ -160,18 +163,78 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
         return validation_results
 
 
-def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str) -> Dict[str, Any]:
+def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, temp_path: str) -> Dict[str, Any]:
     """
     Specialized validation for Aging Report documents
     
     Expected columns: account_id, current, 1-30_days, 31-60_days, 61-90_days, over_90_days
     Required columns: account_id
     """
-    validation_results = _get_base_validation_results(file_name, document_type)
     
+    validation_results = _get_base_validation_results(file_name, document_type)
+
     try:
+
+        cleaned_data = clean_document(df, document_type, file_name, temp_path)
+        # print("validate_aging_report \n", df)
+
+        # Check if required fields exist and are not None or empty
+        required_fields = {
+            "report_date": "Report date",
+            "total_borrowers": "Total borrowers", 
+            "number_of_delinquents": "Number of delinquents",
+            "total_loan_portfolio": "Total loan portfolio",
+            "products": "Products"
+        }
+        
+        for field_key, field_name in required_fields.items():
+            if field_key not in cleaned_data:
+                validation_results["validation_status"] = "failed"
+                validation_results["issues"].append({
+                    "type": "missing_required_field",
+                    "field": field_key,
+                    "message": f"Missing required field '{field_name}' in aging report"
+                })
+            elif cleaned_data[field_key] is None:
+                validation_results["validation_status"] = "failed"
+                validation_results["issues"].append({
+                    "type": "null_required_field",
+                    "field": field_key,
+                    "message": f"Required field '{field_name}' is null in aging report"
+                })
+            elif field_key == "products" and isinstance(cleaned_data[field_key], list) and len(cleaned_data[field_key]) == 0:
+                validation_results["validation_status"] = "failed"
+                validation_results["issues"].append({
+                    "type": "empty_required_field",
+                    "field": field_key,
+                    "message": f"Required field '{field_name}' is empty (no products found) in aging report"
+                })
+            elif field_key != "products" and cleaned_data[field_key] == "":
+                validation_results["validation_status"] = "failed"
+                validation_results["issues"].append({
+                    "type": "empty_required_field",
+                    "field": field_key,
+                    "message": f"Required field '{field_name}' is empty in aging report"
+                })
+        
+        prod_arr = []
+        for i in cleaned_data["products"]:
+            print(i['data'])
+            prod_arr.append(i["data"][0])
+        
+        df = pd.DataFrame(prod_arr)
+
         # Required columns
-        required_columns = ["account_id"]
+        required_columns = [
+            "Aging Category", 
+            "Product Counts", 
+            "Loan Balance w/ CP", 
+            "Loan Balance Principal", 
+            "NET PAR Amount Loan Balance w/ CP", 
+            "NET PAR Amount Loan Balance Principal", 
+            "NET PAR % (Gross PAR/TLP)", 
+            "Repayment Rate", 
+            "GROSS PAR % (Gross PAR/TLP)"]
         missing_required = [col for col in required_columns if col not in df.columns]
         if missing_required:
             validation_results["validation_status"] = "failed"
@@ -181,18 +244,21 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str) 
                 "message": f"Missing required columns for Aging Report: {', '.join(missing_required)}"
             })
         
-        # Expected aging bucket columns
-        aging_columns = ["current", "1-30_days", "31-60_days", "61-90_days", "over_90_days"]
-        missing_aging = [col for col in aging_columns if col not in df.columns]
-        if missing_aging:
-            validation_results["issues"].append({
-                "type": "missing_aging_buckets",
-                "columns": missing_aging,
-                "message": f"Missing aging bucket columns: {', '.join(missing_aging)}"
-            })
+        numeric_columns = ["Product Counts",
+                          "Loan Balance w/ CP", 
+                          "Loan Balance Principal", 
+                          "NET PAR Amount Loan Balance w/ CP", 
+                          "NET PAR Amount Loan Balance Principal",
+                          "Total CBU + LCBU",
+                          "NET PAR Amount Loan Balance w/ CP", 
+                          "NET PAR Amount Loan Balance Principal"]
+        for col in numeric_columns:
+            if col in df.columns:
+                # Remove commas and convert to numeric
+                df[col] = df[col].astype(str).str.replace(',', '').astype(float, errors='ignore')
         
-        # Validate numeric columns for aging buckets
-        for col in aging_columns:
+        # Validate numeric columns
+        for col in numeric_columns:
             if col in df.columns:
                 if not pd.api.types.is_numeric_dtype(df[col]):
                     validation_results["issues"].append({
@@ -200,36 +266,48 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str) 
                         "column": col,
                         "expected": "numeric",
                         "actual": str(df[col].dtype),
-                        "message": f"Aging bucket column '{col}' should be numeric"
+                        "message": f"Column '{col}' should be numeric for Write Off Accounts"
                     })
                 else:
-                    # Check for negative values in aging buckets
+                    # Check for negative amounts (might be invalid)
                     negative_count = (df[col] < 0).sum()
                     if negative_count > 0:
                         validation_results["issues"].append({
                             "type": "data_validation",
                             "column": col,
-                            "message": f"Aging bucket '{col}' has {negative_count} negative values - verify if this is correct"
+                            "message": f"Column '{col}' has {negative_count} negative values - verify if this is correct"
                         })
+
+        # Check for duplicate columns
+        duplicate_columns = df.columns[df.columns.duplicated()].tolist()
+        if duplicate_columns:
+            validation_results["validation_status"] = "failed"
+            validation_results["duplicate_columns"] = duplicate_columns
+            validation_results["issues"].append({
+                "type": "duplicate_columns",
+                "columns": duplicate_columns,
+                "message": f"Duplicate columns found: {', '.join(duplicate_columns)}"
+            })
         
-        # Validate that aging buckets sum correctly (if all present)
-        present_aging_cols = [col for col in aging_columns if col in df.columns]
-        if len(present_aging_cols) >= 2:
-            # Calculate total aging amount
-            df_temp = df[present_aging_cols].fillna(0)
-            total_aging = df_temp.sum(axis=1)
+        # Check for missing data in each column
+        missing_data = {}
+        for column in df.columns:
+            missing_count = df[column].isnull().sum()
+            missing_percentage = (missing_count / len(df)) * 100
             
-            # Check for accounts with zero total aging
-            zero_total_count = (total_aging == 0).sum()
-            if zero_total_count > 0:
-                validation_results["issues"].append({
-                    "type": "data_validation",
-                    "message": f"Found {zero_total_count} accounts with zero total aging amount"
-                })
+            if missing_count > 0:
+                missing_data[column] = {
+                    "missing_count": int(missing_count),
+                    "missing_percentage": round(missing_percentage, 2),
+                    "total_rows": len(df)
+                }
+        
+        validation_results["missing_data"] = missing_data
         
         return validation_results
         
     except Exception as e:
+        traceback.print_exc()
         validation_results["validation_status"] = "error"
         validation_results["issues"].append({
             "type": "validation_error",

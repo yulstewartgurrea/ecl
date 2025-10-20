@@ -7,6 +7,7 @@ import csv
 import json
 import re
 import math
+import os
 from typing import Dict, List, Any
 from datetime import datetime
 
@@ -53,17 +54,31 @@ def format_report_date(date_string: str) -> str:
 
 
 def aging_report_clean_up(file_path: str) -> Dict[str, Any]:
-    """Parse the aging report CSV file and return structured data.
+    """Parse the aging report CSV or Excel file and return structured data.
     Reads using pandas with header=None to avoid header inference.
     """
-    df = pd.read_csv(
-        file_path,
-        header=None,
-        dtype=str,
-        encoding="utf-8-sig",
-        keep_default_na=False,
-        na_filter=False
-    )
+    # Determine file type and read accordingly
+    file_ext = os.path.splitext(file_path)[1].lower()
+    
+    if file_ext == '.csv':
+        df = pd.read_csv(
+            file_path,
+            header=None,
+            dtype=str,
+            encoding="utf-8-sig",
+            keep_default_na=False,
+            na_filter=False
+        )
+    elif file_ext in ['.xlsx', '.xls']:
+        df = pd.read_excel(
+            file_path,
+            header=None,
+            dtype=str,
+            keep_default_na=False,
+            na_filter=False
+        )
+    else:
+        raise ValueError(f"Unsupported file type: {file_ext}")
 
     rows = [[str(c).strip() if not isinstance(c, float) else ("" if math.isnan(c) else str(c).strip())
              for c in row] for row in df.values.tolist()]
