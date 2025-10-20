@@ -1,6 +1,6 @@
 // ==========================
 // components/uploader/MultiCategoryUploader.tsx
-// (explicit validate -> proceed -> upload flow + per-category Force Upload + all-files view)
+// (explicit validate -> proceed -> upload flow + force upload + all-files view + sequential error modals)
 // ==========================
 import React, {
   useCallback,
@@ -19,7 +19,7 @@ import {
   EyeIcon,
   TrashIcon,
   InformationCircleIcon,
-  BoltIcon, // optional: used for force upload button
+  BoltIcon,
 } from "@heroicons/react/24/outline";
 
 import UploadDropzone from "../ui/UploadDropzone";
@@ -121,6 +121,30 @@ function Pill({
   );
 }
 
+/* ---------- Status helpers (read validation_status from server payload) ---------- */
+type ValidationStatus = "failed" | "error" | string;
+
+const getValidationStatus = (r: FileUploadResult): ValidationStatus | null => {
+  const vr = (r as any)?.data?.validation_results;
+  const v1 = vr?.validation_status;
+  const v2 = (r as any)?.data?.validation_status;
+  return (v1 ?? v2) ?? null;
+};
+
+const hasErrorStatus = (rs: FileUploadResult[]) =>
+  rs.some((r) => !r.success && getValidationStatus(r) === "error");
+
+const hasFailedStatus = (rs: FileUploadResult[]) =>
+  rs.some((r) => !r.success && getValidationStatus(r) === "failed");
+
+const canForceUploadForKey = (
+  key: string,
+  uploadResults: UploadResultsByCategory
+) => {
+  const rs = uploadResults[key] ?? [];
+  return rs.length > 0 && hasFailedStatus(rs) && !hasErrorStatus(rs);
+};
+
 /* ===================== Component ===================== */
 export default function MultiCategoryUploader({
   categories,
@@ -156,13 +180,11 @@ export default function MultiCategoryUploader({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showProceedModal, setShowProceedModal] = useState(false);
 
-  // server-side failures (upload)
+  // Sequential error modals (queue per-category)
+  const [errorQueue, setErrorQueue] = useState<
+    { categoryKey: string; categoryName: string; results: FileUploadResult[] }[]
+  >([]);
   const [showErrorModal, setShowErrorModal] = useState(false);
-  const [errorData, setErrorData] = useState<{
-    categoryKey: string;
-    categoryName: string;
-    results: FileUploadResult[];
-  } | null>(null);
 
   // bulk / picking
   const [dragOver, setDragOver] = useState(false);
@@ -322,6 +344,27 @@ export default function MultiCategoryUploader({
     cache.set(cacheKey, { filesByKey: {}, uploadResults: {}, selectedKey, lastAssignments: [] });
   }, [cacheKey, selectedKey]);
 
+  /* ---------- error modal queue helpers ---------- */
+  const enqueueError = useCallback(
+    (payload: { categoryKey: string; categoryName: string; results: FileUploadResult[] }) => {
+      setErrorQueue((prev) => [...prev, payload]);
+      setShowErrorModal(true);
+    },
+    []
+  );
+
+  const popError = useCallback(() => {
+    setErrorQueue((prev) => {
+      const [, ...rest] = prev;
+      if (rest.length === 0) {
+        setShowErrorModal(false);
+      }
+      return rest;
+    });
+  }, []);
+
+  const currentError = errorQueue.length ? errorQueue[0] : null;
+
   /* ---------- upload (single category) ---------- */
   const uploadSingleCategory = useCallback(
     async (key: string, files: File[], override = false) => {
@@ -373,14 +416,13 @@ export default function MultiCategoryUploader({
           return merged;
         });
 
-        // Keep behavior: when overriding, don't pop the modal automatically.
+        // When not overriding, push this category's failures into the modal queue.
         if (!override && results.some((r) => !r.success)) {
-          setErrorData({
+          enqueueError({
             categoryKey: key,
             categoryName: getCategoryLabel(key),
             results,
           });
-          setShowErrorModal(true);
         }
       } finally {
         setUploading(false);
@@ -396,6 +438,7 @@ export default function MultiCategoryUploader({
       tokenGetter,
       workflowId,
       getCategoryLabel,
+      enqueueError,
     ]
   );
 
@@ -416,7 +459,7 @@ export default function MultiCategoryUploader({
     async (key: string) => {
       const fs = filesByKey[key] ?? [];
       if (!fs.length || uploading) return;
-      await uploadSingleCategory(key, fs, true); // override=true
+      await uploadSingleCategory(key, fs, true); // override = true
     },
     [filesByKey, uploading, uploadSingleCategory]
   );
@@ -439,7 +482,7 @@ export default function MultiCategoryUploader({
       e.preventDefault();
       e.stopPropagation();
       try {
-        e.dataTransfer.dropEffect = "copy";
+        (e.dataTransfer as any).dropEffect = "copy";
       } catch {}
     },
     [bulk?.enabled, uploading]
@@ -527,7 +570,7 @@ export default function MultiCategoryUploader({
     [bulk?.enabled, uploading, assignFiles]
   );
 
-  /* ---------- derived UI ---------- */
+  /* ---------- All-files / failed collectors ---------- */
   const summary = useMemo(() => {
     const parts: string[] = [];
     for (const c of categories) {
@@ -539,7 +582,6 @@ export default function MultiCategoryUploader({
 
   const selectedFiles = filesByKey[selectedKey] ?? [];
 
-  // Flattened "all files" view grouped by category
   const allFiles = useMemo(() => {
     return categories.map((c) => ({
       key: c.key,
@@ -548,36 +590,38 @@ export default function MultiCategoryUploader({
     }));
   }, [categories, filesByKey]);
 
-  // collect all failed files across categories
-const collectFailedFilesByCategory = useCallback(() => {
-  const map = new Map<string, File[]>();
-  for (const key of Object.keys(uploadResults)) {
-    const failedNames = new Set(
-      (uploadResults[key] ?? []).filter(r => !r.success).map(r => r.filename)
-    );
-    if (failedNames.size === 0) continue;
-    const originals = filesByKey[key] ?? [];
-    const failedFiles = originals.filter(f => failedNames.has(f.name));
-    if (failedFiles.length) map.set(key, failedFiles);
-  }
-  return map;
-}, [uploadResults, filesByKey]);
+  // collect only 'failed' (not 'error') across categories
+  const collectFailedFilesByCategory = useCallback(() => {
+    const map = new Map<string, File[]>();
+    for (const key of Object.keys(uploadResults)) {
+      const failedNames = new Set(
+        (uploadResults[key] ?? [])
+          .filter((r) => !r.success && getValidationStatus(r) === "failed")
+          .map((r) => r.filename)
+      );
+      if (failedNames.size === 0) continue;
+      const originals = filesByKey[key] ?? [];
+      const failedFiles = originals.filter((f) => failedNames.has(f.name));
+      if (failedFiles.length) map.set(key, failedFiles);
+    }
+    return map;
+  }, [uploadResults, filesByKey]);
 
-// retry ALL failed (override=true), regardless of which modal triggered it
-const retryAllFailed = useCallback(async () => {
-  const map = collectFailedFilesByCategory();
-  for (const [key, files] of map) {
-    await uploadSingleCategory(key, files, true); // <-- force override
-  }
-}, [collectFailedFilesByCategory, uploadSingleCategory]);
+  // retry ALL failed (override=true), regardless of which modal triggered it
+  const retryAllFailed = useCallback(async () => {
+    const map = collectFailedFilesByCategory();
+    for (const [key, files] of map) {
+      await uploadSingleCategory(key, files, true); // force override
+    }
+  }, [collectFailedFilesByCategory, uploadSingleCategory]);
 
   /* ---------- Render ---------- */
   return (
     <div
-      className={`mx-auto max-w-10xl p-4 sm:p-6 ${uploading ? "cursor-progress" : "cursor-auto"}`}
+      className={`mx-auto p-4 sm:p-6 ${uploading ? "cursor-progress" : "cursor-auto"}`}
       aria-busy={uploading}
     >
-      <div className="rounded-2xl border border-slate-200 bg-white/70 backdrop-blur-md shadow-sm relative overflow-hidden">
+      <div className="rounded-3xl border border-slate-200 bg-white/70 backdrop-blur-md shadow-sm relative overflow-hidden">
         {/* Sticky top actions */}
         <div className="sticky top-0 z-10 bg-white/70 backdrop-blur-md border-b border-slate-200">
           <div className="flex items-center justify-between px-5 py-3">
@@ -603,7 +647,7 @@ const retryAllFailed = useCallback(async () => {
                 type="button"
                 onClick={validateNow}
                 disabled={uploading}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60  cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
               >
                 <InformationCircleIcon className="h-4 w-4" />
                 Validate
@@ -615,7 +659,7 @@ const retryAllFailed = useCallback(async () => {
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold ${
                   !canUpload || uploading
                     ? "bg-amber-300/60 text-slate-700 cursor-not-allowed"
-                    : "bg-amber-400 text-slate-900 hover:brightness-95  cursor-pointer"
+                    : "bg-amber-400 text-slate-900 hover:brightness-95 cursor-pointer"
                 }`}
                 title={!canUpload ? "Validate and proceed first" : "Upload all files"}
               >
@@ -626,7 +670,7 @@ const retryAllFailed = useCallback(async () => {
                 type="button"
                 onClick={clearAll}
                 disabled={uploading}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60  cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
               >
                 <TrashIcon className="h-4 w-4" />
                 Clear
@@ -663,7 +707,9 @@ const retryAllFailed = useCallback(async () => {
 
             {/* Drop area (assign only) */}
             <div
-              className={`relative rounded-2xl ring-1 ring-inset ring-slate-200 bg-gradient-to-b from-slate-50 to-white p-6 min-h-[360px] ${uploading ? "cursor-progress" : "cursor-pointer"}`}
+              className={`relative rounded-2xl ring-1 ring-inset ring-slate-200 bg-gradient-to-b from-slate-50 to-white p-6 min-h-[360px] ${
+                uploading ? "cursor-progress" : "cursor-pointer"
+              }`}
               onDragEnter={onDragEnter}
               onDragOver={onDragOverHandler}
               onDragLeave={onDragLeaveHandler}
@@ -709,7 +755,9 @@ const retryAllFailed = useCallback(async () => {
                         e.stopPropagation();
                         fileInputRef.current?.click();
                       }}
-                      className={`underline decoration-amber-400 underline-offset-2 ${uploading ? "cursor-not-allowed text-slate-400" : "cursor-pointer"}`}
+                      className={`underline decoration-amber-400 underline-offset-2 ${
+                        uploading ? "cursor-not-allowed text-slate-400" : "cursor-pointer"
+                      }`}
                       disabled={uploading}
                     >
                       browse
@@ -755,7 +803,7 @@ const retryAllFailed = useCallback(async () => {
               </div>
             </div>
 
-            {/* NEW: All uploaded files (across ALL categories) */}
+            {/* All uploaded files (across ALL categories) */}
             <div className="rounded-2xl ring-1 ring-inset ring-slate-200 bg-white p-4">
               <div className="text-sm font-semibold text-slate-900 mb-2">All uploaded files</div>
               {allFiles.every((g) => g.files.length === 0) ? (
@@ -776,19 +824,21 @@ const retryAllFailed = useCallback(async () => {
                           <div className="flex gap-2">
                             <button
                               onClick={() => setSelectedKey(group.key)}
-                              className="text-xs rounded-md px-2 py-1 ring-1 ring-slate-200 hover:bg-slate-50  cursor-pointer"
+                              className="text-xs rounded-md px-2 py-1 ring-1 ring-slate-200 hover:bg-slate-50 cursor-pointer"
                             >
                               Focus
                             </button>
-                            <button
-                              onClick={() => forceUploadCategory(group.key)}
-                              className="text-xs inline-flex items-center gap-1 rounded-md px-2 py-1 ring-1 ring-slate-200 hover:bg-slate-50  cursor-pointer"
-                              title="Force upload this input (override=true)"
-                              disabled={uploading || (filesByKey[group.key]?.length ?? 0) === 0}
-                            >
-                              <BoltIcon className="h-4 w-4" />
-                              Force upload
-                            </button>
+                            {canForceUploadForKey(group.key, uploadResults) && (
+                              <button
+                                onClick={() => forceUploadCategory(group.key)}
+                                className="text-xs inline-flex items-center gap-1 rounded-md px-2 py-1 ring-1 ring-slate-200 hover:bg-slate-50 cursor-pointer"
+                                title="Force upload this input (override=true)"
+                                disabled={uploading}
+                              >
+                                <BoltIcon className="h-4 w-4" />
+                                Force upload
+                              </button>
+                            )}
                           </div>
                         </div>
                         <ul className="flex flex-wrap gap-2">
@@ -812,7 +862,7 @@ const retryAllFailed = useCallback(async () => {
                                   onClick={() => removeFile(group.key, file)}
                                   aria-label={`Remove ${file.name}`}
                                   disabled={uploading}
-                                  className="ml-1 rounded-lg p-1 text-slate-500 hover:text-slate-700 hover:bg-white/70 ring-1 ring-transparent hover:ring-slate-200 disabled:opacity-60  cursor-pointer"
+                                  className="ml-1 rounded-lg p-1 text-slate-500 hover:text-slate-700 hover:bg-white/70 ring-1 ring-transparent hover:ring-slate-200 disabled:opacity-60 cursor-pointer"
                                 >
                                   <XMarkIcon className="h-4 w-4" />
                                 </button>
@@ -851,8 +901,9 @@ const retryAllFailed = useCallback(async () => {
           >
             {categories.map((c) => {
               const count = filesByKey[c.key]?.length ?? 0;
-              const failures = (uploadResults[c.key] ?? []).filter((r) => !r.success);
-              const succCount = (uploadResults[c.key] ?? []).filter((r) => r.success).length;
+              const rs = uploadResults[c.key] ?? [];
+              const failures = rs.filter((r) => !r.success);
+              const succCount = rs.filter((r) => r.success).length;
               const isActive = selectedKey === c.key;
 
               if (rightCardsMode === "status-only") {
@@ -891,7 +942,7 @@ const retryAllFailed = useCallback(async () => {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => setSelectedKey(c.key)}
-                          className="rounded-md p-1.5 bg-white ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60  cursor-pointer"
+                          className="rounded-md p-1.5 bg-white ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
                           title="Set active"
                           disabled={uploading}
                         >
@@ -901,7 +952,7 @@ const retryAllFailed = useCallback(async () => {
                         {count > 0 && (
                           <button
                             onClick={() => clearCategory(c.key)}
-                            className="rounded-md p-1.5 bg-white ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60  cursor-pointer  cursor-pointer"
+                            className="rounded-md p-1.5 bg-white ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
                             title="Clear files"
                             disabled={uploading}
                           >
@@ -909,13 +960,12 @@ const retryAllFailed = useCallback(async () => {
                           </button>
                         )}
 
-                        {/* NEW: Force upload button (override=true). Show when there are errors or simply files present (choose one). */}
-                        {(failures.length > 0 || count > 0) && (
+                        {canForceUploadForKey(c.key, uploadResults) && (
                           <button
                             onClick={() => forceUploadCategory(c.key)}
-                            className="rounded-md p-1.5 bg-white ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60  cursor-pointer"
+                            className="rounded-md p-1.5 bg-white ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
                             title="Force upload this input (override=true)"
-                            disabled={uploading || count === 0}
+                            disabled={uploading}
                           >
                             <BoltIcon className="h-4 w-4" />
                           </button>
@@ -999,7 +1049,7 @@ const retryAllFailed = useCallback(async () => {
             <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-200">
               <button
                 onClick={() => setShowProceedModal(false)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-50  cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 cursor-pointer"
               >
                 <XMarkIcon className="h-4 w-4" />
                 Cancel
@@ -1009,7 +1059,7 @@ const retryAllFailed = useCallback(async () => {
                   setCanUpload(true);
                   setShowProceedModal(false);
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-amber-400 text-slate-900 hover:brightness-95  cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-amber-400 text-slate-900 hover:brightness-95 cursor-pointer"
               >
                 Enable Upload
               </button>
@@ -1018,8 +1068,8 @@ const retryAllFailed = useCallback(async () => {
         </div>
       )}
 
-      {/* Upload Error Modal (server failures) */}
-      {showErrorModal && errorData && (
+      {/* Upload Error Modal (SEQUENTIAL — shows one category at a time) */}
+      {showErrorModal && currentError && (
         <div className="fixed inset-0 z-50 bg-black/10 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-xl shadow-xl ring-1 ring-slate-200">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
@@ -1031,11 +1081,11 @@ const retryAllFailed = useCallback(async () => {
                   <h3 className="text-base font-semibold text-slate-900">
                     Some files failed to upload
                   </h3>
-                  <p className="text-xs text-slate-600">{errorData.categoryName}</p>
+                  <p className="text-xs text-slate-600">{currentError.categoryName}</p>
                 </div>
               </div>
               <button
-                onClick={() => setShowErrorModal(false)}
+                onClick={popError}
                 className="text-slate-500 hover:text-slate-700 transition-colors p-2 cursor-pointer"
                 aria-label="Close"
               >
@@ -1045,7 +1095,7 @@ const retryAllFailed = useCallback(async () => {
 
             <div className="max-h-[55vh] overflow-y-auto px-5 py-4">
               <ul className="space-y-2">
-                {errorData.results
+                {currentError.results
                   .filter((r) => !r.success)
                   .map((res, idx) => (
                     <li
@@ -1086,25 +1136,36 @@ const retryAllFailed = useCallback(async () => {
               </ul>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-200">
-              <button
-                onClick={() => setShowErrorModal(false)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-50  cursor-pointer"
-              >
-                <XMarkIcon className="h-4 w-4" />
-                Close
-              </button>
-              <button
-                onClick={async () => {
-                  setShowErrorModal(false);
-                  await retryAllFailed(); // <-- re-upload ALL failed across categories, override=true
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-amber-400 text-slate-900 hover:brightness-95 cursor-pointer"
-              >
-                <ArrowUpTrayIcon className="h-4 w-4" />
-                Proceed anyway
-              </button>
-            </div>
+            {/* Footer: Proceed anyway shows ONLY for 'failed' (no 'error'). Also re-uploads ALL failed across categories. */}
+            {(() => {
+              const canProceedAnyway =
+                hasFailedStatus(currentError.results) && !hasErrorStatus(currentError.results);
+              return (
+                <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-200">
+                  <button
+                    onClick={popError}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 cursor-pointer"
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                    Close
+                  </button>
+
+                  {canProceedAnyway && (
+                    <button
+                      onClick={async () => {
+                        // Close this modal and trigger global retry of ALL 'failed' files (override=true)
+                        popError();
+                        await retryAllFailed();
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-amber-400 text-slate-900 hover:brightness-95 cursor-pointer"
+                    >
+                      <ArrowUpTrayIcon className="h-4 w-4" />
+                      Proceed anyway
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
