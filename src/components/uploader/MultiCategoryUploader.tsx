@@ -1,6 +1,6 @@
 // ==========================
 // components/uploader/MultiCategoryUploader.tsx
-// (explicit validate -> proceed -> upload flow + force upload + all-files view + sequential error modals)
+// (validate -> proceed -> upload; sequential error modals; proceed = force current + continue)
 // ==========================
 import React, {
   useCallback,
@@ -186,6 +186,9 @@ export default function MultiCategoryUploader({
   >([]);
   const [showErrorModal, setShowErrorModal] = useState(false);
 
+  // remember where Upload All halted
+  const [haltedAtKey, setHaltedAtKey] = useState<string | null>(null);
+
   // bulk / picking
   const [dragOver, setDragOver] = useState(false);
   const dragDepthRef = useRef(0);
@@ -235,6 +238,11 @@ export default function MultiCategoryUploader({
 
   const getCategoryLabel = useCallback(
     (key: string) => categories.find((c) => c.key === key)?.label ?? key,
+    [categories]
+  );
+
+  const indexOfKey = useCallback(
+    (key: string) => categories.findIndex((c) => c.key === key),
     [categories]
   );
 
@@ -367,8 +375,8 @@ export default function MultiCategoryUploader({
 
   /* ---------- upload (single category) ---------- */
   const uploadSingleCategory = useCallback(
-    async (key: string, files: File[], override = false) => {
-      if (!files.length) return;
+    async (key: string, files: File[], override = false): Promise<boolean> => {
+      if (!files.length) return true; // nothing to do = success
       const token = tokenGetter?.() ?? undefined;
       setUploading(true);
 
@@ -416,14 +424,18 @@ export default function MultiCategoryUploader({
           return merged;
         });
 
+        const allSuccess = results.every((r) => r.success);
+
         // When not overriding, push this category's failures into the modal queue.
-        if (!override && results.some((r) => !r.success)) {
+        if (!override && !allSuccess) {
           enqueueError({
             categoryKey: key,
             categoryName: getCategoryLabel(key),
             results,
           });
         }
+
+        return allSuccess;
       } finally {
         setUploading(false);
       }
@@ -442,17 +454,66 @@ export default function MultiCategoryUploader({
     ]
   );
 
+  /* ---------- continue after a pause (force current then proceed) ---------- */
+  const collectFailedFilesForKey = useCallback(
+    (key: string): File[] => {
+      const failedSet = new Set(
+        (uploadResults[key] ?? [])
+          .filter((r) => !r.success && getValidationStatus(r) === "failed")
+          .map((r) => r.filename)
+      );
+      const originals = filesByKey[key] ?? [];
+      const subset = originals.filter((f) => failedSet.has(f.name));
+      return subset.length ? subset : originals; // fallback: all files
+    },
+    [uploadResults, filesByKey]
+  );
+
+  const continueFromKey = useCallback(
+    async (currentKey: string) => {
+      setHaltedAtKey(null);
+      const start = indexOfKey(currentKey);
+      for (let i = start + 1; i < categories.length; i++) {
+        const key = categories[i].key;
+        const fs = filesByKey[key];
+        if (!fs?.length) continue;
+        const ok = await uploadSingleCategory(key, fs);
+        if (!ok) {
+          setHaltedAtKey(key);
+          break;
+        }
+      }
+    },
+    [categories, filesByKey, indexOfKey, uploadSingleCategory]
+  );
+
+  /* ---------- Upload All (HALTS at first unsuccessful category) ---------- */
   const uploadAll = useCallback(async () => {
     if (!canUpload) return;
+    setHaltedAtKey(null);
+
     if (validated !== "ok" || validationErrors.length > 0) {
       setValidated("error");
       return;
     }
     for (const c of categories) {
       const fs = filesByKey[c.key];
-      if (fs?.length) await uploadSingleCategory(c.key, fs);
+      if (!fs?.length) continue;
+
+      const ok = await uploadSingleCategory(c.key, fs);
+      if (!ok) {
+        setHaltedAtKey(c.key); // stop here until user fixes/forces this category
+        break;
+      }
     }
-  }, [canUpload, validated, validationErrors.length, categories, filesByKey, uploadSingleCategory]);
+  }, [
+    canUpload,
+    validated,
+    validationErrors.length,
+    categories,
+    filesByKey,
+    uploadSingleCategory,
+  ]);
 
   /* ---------- Force upload (per category, override=true) ---------- */
   const forceUploadCategory = useCallback(
@@ -590,31 +651,6 @@ export default function MultiCategoryUploader({
     }));
   }, [categories, filesByKey]);
 
-  // collect only 'failed' (not 'error') across categories
-  const collectFailedFilesByCategory = useCallback(() => {
-    const map = new Map<string, File[]>();
-    for (const key of Object.keys(uploadResults)) {
-      const failedNames = new Set(
-        (uploadResults[key] ?? [])
-          .filter((r) => !r.success && getValidationStatus(r) === "failed")
-          .map((r) => r.filename)
-      );
-      if (failedNames.size === 0) continue;
-      const originals = filesByKey[key] ?? [];
-      const failedFiles = originals.filter((f) => failedNames.has(f.name));
-      if (failedFiles.length) map.set(key, failedFiles);
-    }
-    return map;
-  }, [uploadResults, filesByKey]);
-
-  // retry ALL failed (override=true), regardless of which modal triggered it
-  const retryAllFailed = useCallback(async () => {
-    const map = collectFailedFilesByCategory();
-    for (const [key, files] of map) {
-      await uploadSingleCategory(key, files, true); // force override
-    }
-  }, [collectFailedFilesByCategory, uploadSingleCategory]);
-
   /* ---------- Render ---------- */
   return (
     <div
@@ -639,6 +675,13 @@ export default function MultiCategoryUploader({
               )}
               {!!summary && (
                 <p className="mt-0.5 text-[11px] text-slate-500 line-clamp-1">Selected: {summary}</p>
+              )}
+              {haltedAtKey && !uploading && (
+                <div className="mt-1">
+                  <Pill tone="orange" title="Upload All paused until this input succeeds">
+                    Halted at {getCategoryLabel(haltedAtKey)}
+                  </Pill>
+                </div>
               )}
             </div>
 
@@ -1136,7 +1179,7 @@ export default function MultiCategoryUploader({
               </ul>
             </div>
 
-            {/* Footer: Proceed anyway shows ONLY for 'failed' (no 'error'). Also re-uploads ALL failed across categories. */}
+            {/* Footer: Proceed anyway shown ONLY if there's 'failed' and NO 'error'. */}
             {(() => {
               const canProceedAnyway =
                 hasFailedStatus(currentError.results) && !hasErrorStatus(currentError.results);
@@ -1153,9 +1196,16 @@ export default function MultiCategoryUploader({
                   {canProceedAnyway && (
                     <button
                       onClick={async () => {
-                        // Close this modal and trigger global retry of ALL 'failed' files (override=true)
+                        // 1) dismiss this modal entry
+                        const key = currentError.categoryKey;
                         popError();
-                        await retryAllFailed();
+
+                        // 2) force-upload ONLY the current category (override=true)
+                        const failedFiles = collectFailedFilesForKey(key);
+                        await uploadSingleCategory(key, failedFiles, true);
+
+                        // 3) continue uploading from the next category onward
+                        await continueFromKey(key);
                       }}
                       className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-amber-400 text-slate-900 hover:brightness-95 cursor-pointer"
                     >
