@@ -16,6 +16,7 @@ import traceback
 import numpy as np
 
 from helpers.make_json_serializable import make_json_serializable
+from helpers.clean_up.clean_up import clean_document
 
 router = APIRouter(
     prefix="/api/document",
@@ -121,7 +122,7 @@ async def upload_file(
                 # ---- CSV with chunking ----
                 df_chunks = []
                 total_rows_processed = 0
-                for chunk_num, chunk in enumerate(pd.read_csv(temp_path, chunksize=CHUNK_SIZE)):
+                for chunk_num, chunk in enumerate(pd.read_csv(temp_path, chunksize=CHUNK_SIZE, encoding="utf-8-sig")):
                     chunk.columns = chunk.columns.str.strip().str.lower()
                     df_chunks.append(chunk)
                     total_rows_processed += len(chunk)
@@ -173,9 +174,14 @@ async def upload_file(
                 file_data_json = "[]"
                 document_data_dict = []
             else:
-                file_data_json = df.to_json(orient='records')
-                document_data_dict = df.to_dict(orient='records')
-                del df
+                cleaned_data = clean_document(df, document_type, file.filename, temp_path)
+                # check if cleaned_df is dataframe or dict
+                if isinstance(cleaned_data, dict):
+                    file_data_json = json.dumps(cleaned_data, ensure_ascii=False, indent=2)
+                    document_data_dict = cleaned_data  # Store as dict, not JSON string
+                else:
+                    file_data_json = cleaned_data.to_json(orient='records')
+                    document_data_dict = cleaned_data.to_dict(orient='records')
 
             saved_file_path = save_file_to_files_folder(
                 file_content=content,
