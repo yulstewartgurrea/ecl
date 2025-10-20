@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import {
@@ -17,7 +16,12 @@ import {
   setPdTransitionMatrixSelectedEntity,
   setPdTransitionMatrixSelectedReportingPeriod,
   setPdTransitionMatrixWfName,
+  setPdTransitionMatrixWorkflowId,
+  // NEW actions
+  setPdTransitionMatrixSelectedLoanProduct,
+  setPdTransitionMatrixReportDateStart,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
+import { useState } from "react";
 
 const TransitionMatrixLanding = () => {
   const navigate = useNavigate();
@@ -29,11 +33,14 @@ const TransitionMatrixLanding = () => {
     selectedPdTransitionMatrixEntity,
     selectedPdTransitionMatrixReportingPeriod,
     pdTransitionMatrixWfName,
+    currentPdTransitionMatrixWorkflowId,
+    // NEW from Redux
+    selectedPdTransitionMatrixLoanProduct,
+    selectedPdTransitionMatrixReportDateStart,
   } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
 
-  // NEW: local UI state for extra fields
-  const [loanProduct, setLoanProduct] = useState<string>("");
-  const [reportDateStart, setReportDateStart] = useState<string>("");
+  // Entities saved in Redux
+  const entities = useAppSelector((state: any) => state.eclEntitiesReducer.items);
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -44,6 +51,9 @@ const TransitionMatrixLanding = () => {
   const [apiStatus, setApiStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState("");
 
+  // Debug
+  console.log("Transition Matrix - Current workflow ID:", currentPdTransitionMatrixWorkflowId);
+
   const handleWorkflowSelect = (
     entity: string,
     reportingPeriod: string,
@@ -52,6 +62,7 @@ const TransitionMatrixLanding = () => {
     dispatch(setPdTransitionMatrixSelectedEntity({ entity }));
     dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: reportingPeriod }));
     dispatch(setPdTransitionMatrixWfName({ workflow_name: workflowName }));
+    console.log("Current workflow ID:", currentPdTransitionMatrixWorkflowId);
   };
 
   const handleStartCalculation = async () => {
@@ -72,7 +83,7 @@ const TransitionMatrixLanding = () => {
           )}&workflow_name=${encodeURIComponent(pdTransitionMatrixWfName)}`,
           { headers: { Authorization: `Bearer ${authToken}` } }
         );
-        console.log('checkResponse: ', checkResponse)
+
         if (!checkResponse.ok) {
           throw new Error(`Error: ${checkResponse.statusText}`);
         }
@@ -89,60 +100,63 @@ const TransitionMatrixLanding = () => {
         }
 
         setApiStatus("loading");
-      setStatusMessage("Creating workflow...");
+        setStatusMessage("Creating workflow...");
 
-      const payload = {
-        entity: selectedPdTransitionMatrixEntity,
-        workflow_name: pdTransitionMatrixWfName,
-        reporting_period: selectedPdTransitionMatrixReportingPeriod,
-        baseline_year: "2023",
-        workflow_type: "asa",
-      };
+        const payload = {
+          entity: selectedPdTransitionMatrixEntity,
+          workflow_name: pdTransitionMatrixWfName,
+          reporting_period: selectedPdTransitionMatrixReportingPeriod,
+          baseline_year: "2023",
+          loan_product: selectedPdTransitionMatrixLoanProduct || undefined,
+          // Enable only if backend supports:
+          report_date_start: selectedPdTransitionMatrixReportDateStart || undefined,
+          workflow_type: 'asa'
+        };
 
-      const workflowResponse = await fetch("http://127.0.0.1:8000/workflows/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
+        const workflowResponse = await fetch("http://127.0.0.1:8000/workflows/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify(payload),
+        });
 
-      if (!workflowResponse.ok) {
-        const errorData = await workflowResponse.json();
-        throw new Error(errorData.detail || "Failed to create workflow");
-      }
+        if (!workflowResponse.ok) {
+          const errorData = await workflowResponse.json();
+          throw new Error(errorData.detail || "Failed to create workflow");
+        }
 
-      // <-- use the response so we can pass the id to the next page
-      const created = await workflowResponse.json(); // matches WorkflowResponse
+        const workflowData = await workflowResponse.json();
 
-      setStatusMessage("Creating folder structure...");
-      await invoke("create_folder_tree", {
-        entity: selectedPdTransitionMatrixEntity,
-        period: selectedPdTransitionMatrixReportingPeriod,
-        workflowName: pdTransitionMatrixWfName,
-      });
+        if (workflowData.data && workflowData.data.id) {
+          console.log(
+            `🎯 WORKFLOW CREATED: ID=${workflowData.data.id}, Name='${workflowData.data.workflow_name}', Entity='${workflowData.data.entity}', Period='${workflowData.data.reporting_period}'`
+          );
+          dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: workflowData.data.id }));
+        }
 
-      setProceedWithUpdate(false);
-      setShowModal(false);
-      setApiStatus("success");
-      setStatusMessage("Workflow created successfully!");
+        setStatusMessage("Creating folder structure...");
 
-      // 🔑 absolute path + carry workflow info
-      navigate("/page/flowrate", {
-        replace: true,
-        state: {
-          workflowId: created.id,
+        await invoke("create_folder_tree", {
+          entity: selectedPdTransitionMatrixEntity,
+          period: selectedPdTransitionMatrixReportingPeriod,
           workflowName: pdTransitionMatrixWfName,
-        },
-      });
-    } catch (error: any) {
-      console.error("Failed to start calculation:", error);
-      setApiStatus("error");
-      setStatusMessage(error?.message || "Something went wrong");
+        });
+
+        setProceedWithUpdate(false);
+        setShowModal(false);
+        setApiStatus("success");
+        setStatusMessage("Workflow created successfully!");
+
+        navigate(`/page/flowrate`, { state: { pdTransitionMatrixWfName } });
+      } catch (error: any) {
+        console.error("Failed to start calculation:", error);
+        setApiStatus("error");
+        setStatusMessage(error?.message || "Something went wrong");
+      }
     }
-  }
-};
+  };
 
   const handleEntityChange = (e: any) => {
     dispatch(setPdTransitionMatrixSelectedEntity({ entity: e.target.value }));
@@ -152,6 +166,14 @@ const TransitionMatrixLanding = () => {
   };
   const handleReportingPeriodChange = (e: any) => {
     dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: e.target.value }));
+  };
+
+  // NEW: Redux-backed handlers
+  const handleLoanProductChange = (e: any) => {
+    dispatch(setPdTransitionMatrixSelectedLoanProduct({ loan_product: e.target.value }));
+  };
+  const handleReportDateStartChange = (e: any) => {
+    dispatch(setPdTransitionMatrixReportDateStart({ report_date_start: e.target.value }));
   };
 
   const isFormValid =
@@ -164,9 +186,7 @@ const TransitionMatrixLanding = () => {
       <div className="w-full h-full grid md:grid-cols-5 sm:grid-cols-2 space-y-2">
         <div className={clsx("md:col-span-3 w-full h-full flex flex-col items-center justify-center")}>
           <div className="text-center">
-            <h1 className="text-3xl font-semibold mb-4 text-gray-800">
-              ASA Matrix
-            </h1>
+            <h1 className="text-3xl font-semibold mb-4 text-gray-800">Transition Matrix Workflow</h1>
           </div>
 
           <div
@@ -175,12 +195,10 @@ const TransitionMatrixLanding = () => {
               { "min-w-4/5": !isSidebarOpen, "min-w-5/6": isSidebarOpen }
             )}
           >
-            {/* Entity */}
+            {/* Entity (from Redux) */}
             <div className="px-10 pt-8 text-start">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-gray-700 font-medium text-sm">
-                  Generate Report For
-                </label>
+                <label className="block text-gray-700 font-medium text-sm">Generate Report For</label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
@@ -193,19 +211,26 @@ const TransitionMatrixLanding = () => {
                   className="flex-1 text-gray-800 py-2.5 pl-2 pr-3 focus:outline-none bg-gray-50 rounded-r-xl"
                 >
                   <option value="">Select An Entity</option>
-                  <option value="Entity 1">Entity 1</option>
-                  <option value="Entity 2">Entity 2</option>
-                  <option value="Entity 3">Entity 3</option>
+                  {Array.isArray(entities) &&
+                    entities.map((row: any) => (
+                      <option key={row.id} value={row.name}>
+                        {row.name}
+                        {row.code ? ` (${row.code})` : ""}
+                      </option>
+                    ))}
                 </select>
               </div>
+              {(!entities || entities.length === 0) && (
+                <p className="text-xs text-amber-600 mt-2">
+                  No entities found. Go to <b>Configuration → Entities</b> to add one.
+                </p>
+              )}
             </div>
 
-            {/* NEW: Loan Product */}
+            {/* Loan Product (Redux) */}
             <div className="px-10 pt-6 text-start">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-gray-700 font-medium text-sm">
-                  Loan Product
-                </label>
+                <label className="block text-gray-700 font-medium text-sm">Loan Product</label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
@@ -213,14 +238,15 @@ const TransitionMatrixLanding = () => {
                 </div>
                 <select
                   id="loanProduct"
-                  value={loanProduct}
-                  onChange={(e) => setLoanProduct(e.target.value)}
+                  value={selectedPdTransitionMatrixLoanProduct || ""}
+                  onChange={handleLoanProductChange}
                   className="flex-1 text-gray-800 py-2.5 pl-2 pr-3 focus:outline-none bg-gray-50 rounded-r-xl"
                 >
                   <option value="">Select Loan Product</option>
                   <option value="Auto">Auto</option>
                   <option value="Corporate">Corporate</option>
                   <option value="Home">Home</option>
+                  <option value="Housing">Housing</option>
                   <option value="Personal">Personal</option>
                   <option value="SME">SME</option>
                 </select>
@@ -230,9 +256,7 @@ const TransitionMatrixLanding = () => {
             {/* Reporting Period (Frequency) */}
             <div className="px-10 pt-6 text-start">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-gray-700 font-medium text-sm">
-                  Reporting Period
-                </label>
+                <label className="block text-gray-700 font-medium text-sm">Reporting Period</label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
@@ -245,22 +269,18 @@ const TransitionMatrixLanding = () => {
                   className="flex-1 text-gray-800 py-2.5 pl-2 pr-3 focus:outline-none bg-gray-50 rounded-r-xl"
                 >
                   <option value="">Select Period</option>
-                  {/* NEW options added per request */}
                   <option value="Monthly">Monthly</option>
                   <option value="Semi-Annually">Semi-Annually</option>
-                  {/* existing ones kept */}
                   <option value="Quarterly">Quarterly</option>
                   <option value="Annually">Annually</option>
                 </select>
               </div>
             </div>
 
-            {/* NEW: Report Date Start */}
+            {/* Report Date Start (Redux) */}
             <div className="px-10 pt-6 text-start">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-gray-700 font-medium text-sm">
-                  Report Date Start
-                </label>
+                <label className="block text-gray-700 font-medium text-sm">Report Date Start</label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
@@ -269,8 +289,8 @@ const TransitionMatrixLanding = () => {
                 <input
                   id="reportDateStart"
                   type="date"
-                  value={reportDateStart}
-                  onChange={(e) => setReportDateStart(e.target.value)}
+                  value={selectedPdTransitionMatrixReportDateStart || ""}
+                  onChange={handleReportDateStartChange}
                   className="flex-1 text-gray-800 py-2.5 pl-2 pr-3 focus:outline-none bg-gray-50 rounded-r-xl"
                 />
               </div>
@@ -278,10 +298,8 @@ const TransitionMatrixLanding = () => {
 
             {/* Workflow Name */}
             <div className="px-10 pt-6 text-start">
-              <label className="block text-gray-700 mb-2 font-medium text-sm">
-                Workflow Name
-              </label>
-              <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
+              <label className="block text-gray-700 mb-2 font-medium text-sm">Workflow Name</label>
+              <div className="flex flex-row border border-gray-300 rounded-XL bg-white focus-within:ring-2 focus-within:ring-amber-500 rounded-xl">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
                   <FolderIcon className="w-5 h-5 text-gray-500" />
                 </div>

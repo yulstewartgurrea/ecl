@@ -38,7 +38,7 @@ const sidebarOptions: any[] = [
   //     { subTabName: "Approach 3" },
   //   ],
   // },
-  // { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
+  { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
   // { tabName: "Loss Given Default (LGD)", icon: ArrowTrendingDownIcon, subTabs: [] },
   // { tabName: "Exposure at Default (EAD)", icon: ChartPieIcon, subTabs: [] },
   // { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
@@ -49,7 +49,7 @@ const sidebarOptions: any[] = [
 // ----- Route maps (tab -> route, subtab -> route) -----
 const TAB_TO_ROUTE: Record<string, string> = {
   // "Probability of Default (PD)": "/pd_landing",
-  // "Overlay": "/overlay",
+  "Overlay": "/overlay",
   "Flowrate Approach": "/flowrate",
   // "Loss Given Default (LGD)": "/lgd",
   // "Exposure at Default (EAD)": "/ead",
