@@ -574,10 +574,10 @@ const retryAllFailed = useCallback(async () => {
   /* ---------- Render ---------- */
   return (
     <div
-      className={`mx-auto max-w-7xl p-4 sm:p-6 ${uploading ? "cursor-progress" : "cursor-auto"}`}
+      className={`mx-auto max-w-10xl p-4 sm:p-6 ${uploading ? "cursor-progress" : "cursor-auto"}`}
       aria-busy={uploading}
     >
-      <div className="rounded-2xl max-w-7xl border border-slate-200 bg-white/70 backdrop-blur-md shadow-sm relative overflow-hidden">
+      <div className="rounded-2xl border border-slate-200 bg-white/70 backdrop-blur-md shadow-sm relative overflow-hidden">
         {/* Sticky top actions */}
         <div className="sticky top-0 z-10 bg-white/70 backdrop-blur-md border-b border-slate-200">
           <div className="flex items-center justify-between px-5 py-3">
@@ -1102,7 +1102,7 @@ const retryAllFailed = useCallback(async () => {
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-amber-400 text-slate-900 hover:brightness-95 cursor-pointer"
               >
                 <ArrowUpTrayIcon className="h-4 w-4" />
-                Retry failed
+                Proceed anyway
               </button>
             </div>
           </div>
