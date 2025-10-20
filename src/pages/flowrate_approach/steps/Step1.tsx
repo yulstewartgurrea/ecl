@@ -20,7 +20,7 @@ export default function Step1() {
   const handleResults = (results: UploadResultsByCategory) => { console.log("Upload results merged:", results); };
 
   return (
-    <div className="min-h-dvh p-4">
+    <div className="min-h-dvh p-4 ">
       <MultiCategoryUploader
         title="Input Files"
         subtitle="Accepted types: .csv, .xlsx, .xls"

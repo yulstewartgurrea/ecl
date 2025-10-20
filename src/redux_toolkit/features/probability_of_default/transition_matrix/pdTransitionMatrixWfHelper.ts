@@ -8,8 +8,13 @@ interface wfHelperData {
 const initialState: wfHelperData = {
   selectedPdTransitionMatrixEntity: "",
   selectedPdTransitionMatrixReportingPeriod: "",
+  // NEW fields
+  selectedPdTransitionMatrixLoanProduct: "",
+  selectedPdTransitionMatrixReportDateStart: "",
+
   pdTransitionMatrixWfName: "",
   currentPdTransitionMatrixWfLogId: null,
+  currentPdTransitionMatrixWorkflowId: null,
   isPdTransitionMatrixWfStarted: false,
   isPdTransitionMatrixWfFinish: false,
   isPdTransitionMatrixImportedOnce: false,
@@ -24,69 +29,94 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
       state,
       action: PayloadAction<{ entity: string }>
     ) {
-      let { entity } = action.payload;
-      if (entity) {
+      const { entity } = action.payload;
+      if (entity !== undefined) {
         state.selectedPdTransitionMatrixEntity = entity;
       }
     },
+
     setPdTransitionMatrixWfName(
       state,
       action: PayloadAction<{ workflow_name: string }>
     ) {
-      let { workflow_name } = action.payload;
-      state.pdTransitionMatrixWfName = workflow_name;
+      state.pdTransitionMatrixWfName = action.payload.workflow_name;
     },
+
     setPdTransitionMatrixSelectedReportingPeriod(
       state,
       action: PayloadAction<{ period: string }>
     ) {
-      let { period } = action.payload;
-      if (period) {
+      const { period } = action.payload;
+      if (period !== undefined) {
         state.selectedPdTransitionMatrixReportingPeriod = period;
       }
     },
+
+    // NEW: save Loan Product in Redux
+    setPdTransitionMatrixSelectedLoanProduct(
+      state,
+      action: PayloadAction<{ loan_product: string }>
+    ) {
+      state.selectedPdTransitionMatrixLoanProduct = action.payload.loan_product;
+    },
+
+    // NEW: save Report Date Start in Redux (YYYY-MM-DD)
+    setPdTransitionMatrixReportDateStart(
+      state,
+      action: PayloadAction<{ report_date_start: string }>
+    ) {
+      state.selectedPdTransitionMatrixReportDateStart =
+        action.payload.report_date_start;
+    },
+
     setPdTransitionMatrixWfLogId(
       state,
       action: PayloadAction<{ workflow_id: number }>
     ) {
-      let { workflow_id } = action.payload;
-      state.currentPdTransitionMatrixWfLogId = workflow_id;
+      state.currentPdTransitionMatrixWfLogId = action.payload.workflow_id;
     },
+
     setPdTransitionMatrixIsWfStarted(
       state,
       action: PayloadAction<{ is_workflow_started: boolean }>
     ) {
-      let { is_workflow_started } = action.payload;
-      state.isPdTransitionMatrixWfStarted = is_workflow_started;
+      state.isPdTransitionMatrixWfStarted = action.payload.is_workflow_started;
     },
+
     setPdTransitionMatrixInputFilesIsImportedOnce(
       state,
       action: PayloadAction<{ is_imported_once: boolean }>
     ) {
-      let { is_imported_once } = action.payload;
-      state.isPdTransitionMatrixImportedOnce = is_imported_once;
+      state.isPdTransitionMatrixImportedOnce = action.payload.is_imported_once;
     },
+
     setPdTransitionMatrixIsWfFinish(
       state,
       action: PayloadAction<{ is_workflow_finish: boolean }>
     ) {
-      let { is_workflow_finish } = action.payload;
-      state.isPdTransitionMatrixWfFinish = is_workflow_finish;
+      state.isPdTransitionMatrixWfFinish = action.payload.is_workflow_finish;
     },
-    setPdTransitionMatrixWfData: (
-      _state,
-      action: PayloadAction<wfHelperData>
-    ) => {
+
+    setPdTransitionMatrixWfData: (_state, action: PayloadAction<wfHelperData>) => {
       return action.payload;
     },
+
     resetPdTransitionMatrixWfHelperData: () => {
       return initialState;
     },
+
     setPdTransitionMatrixCurrentStep(
       state,
       action: PayloadAction<{ step: number }>
     ) {
       state.currentStep = action.payload.step;
+    },
+
+    setPdTransitionMatrixWorkflowId(
+      state,
+      action: PayloadAction<{ workflow_id: number | null }>
+    ) {
+      state.currentPdTransitionMatrixWorkflowId = action.payload.workflow_id;
     },
   },
 });
@@ -102,5 +132,10 @@ export const {
   setPdTransitionMatrixWfData,
   resetPdTransitionMatrixWfHelperData,
   setPdTransitionMatrixCurrentStep,
+  setPdTransitionMatrixWorkflowId,
+  // NEW exports
+  setPdTransitionMatrixSelectedLoanProduct,
+  setPdTransitionMatrixReportDateStart,
 } = PdTransitionMatrixWfHelperSlice.actions;
+
 export default PdTransitionMatrixWfHelperSlice.reducer;

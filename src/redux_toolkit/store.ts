@@ -6,7 +6,15 @@ import { rootReducer } from "./rootReducer";
 const persistConfig = {
   key: "root",
   storage,
-  whitelist: ["auth", "navUIState", "pdTransitionMatrixWfHelper"],
+  // ✅ Add your ECL slices so they survive refresh:
+  whitelist: [
+    "auth",
+    "navUIState",
+    "pdTransitionMatrixWfHelper",
+    "eclEntitiesReducer",
+    "eclBaselinesReducer",
+    "eclDpdBucketsSlice",
+  ],
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

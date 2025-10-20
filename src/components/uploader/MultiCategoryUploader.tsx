@@ -1,6 +1,6 @@
 // ==========================
 // components/uploader/MultiCategoryUploader.tsx
-// (yellow theme + scrollable right column + loading cursor + disabled interactions)
+// (explicit validate -> proceed -> upload flow + per-category Force Upload + all-files view)
 // ==========================
 import React, {
   useCallback,
@@ -18,6 +18,8 @@ import {
   CloudArrowUpIcon,
   EyeIcon,
   TrashIcon,
+  InformationCircleIcon,
+  BoltIcon, // optional: used for force upload button
 } from "@heroicons/react/24/outline";
 
 import UploadDropzone from "../ui/UploadDropzone";
@@ -29,9 +31,9 @@ export type CategoryConfig = {
   description?: string;
   required?: boolean;
   submodule?: string;
-  accept?: string;
-  maxFiles?: number;
-  maxSizeMB?: number;
+  accept?: string;      // per-category accept (e.g. ".csv,.xlsx")
+  maxFiles?: number;    // per-category cap
+  maxSizeMB?: number;   // per-file cap
   emptyHint?: string;
 };
 
@@ -66,8 +68,8 @@ export type MultiCategoryUploaderProps = {
   categories: CategoryConfig[];
   title?: string;
   subtitle?: string;
-  accept?: string;
-  maxSizeMB?: number;
+  accept?: string;        // global accept fallback
+  maxSizeMB?: number;     // global per-file size fallback
   endpoint?: string;
   module: string;
   workflowId: string | number;
@@ -95,20 +97,25 @@ const formatFileSize = (bytes: number) => {
 function Pill({
   children,
   tone = "default",
+  title,
 }: {
   children: React.ReactNode;
   tone?: "default" | "green" | "red" | "blue" | "orange" | "yellow";
+  title?: string;
 }) {
   const tones: Record<string, string> = {
-    default: "bg-gray-100 text-gray-700",
+    default: "bg-slate-100 text-slate-700",
     green: "bg-emerald-50 text-emerald-700",
-    red: "bg-red-50 text-red-700",
-    blue: "bg-blue-50 text-blue-700",
+    red: "bg-rose-50 text-rose-700",
+    blue: "bg-sky-50 text-sky-700",
     orange: "bg-orange-50 text-orange-700",
-    yellow: "bg-yellow-100 text-yellow-800",
+    yellow: "bg-amber-50 text-amber-700",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${tones[tone]}`}>
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${tones[tone]} ring-1 ring-black/5`}
+      title={title}
+    >
       {children}
     </span>
   );
@@ -136,10 +143,20 @@ export default function MultiCategoryUploader({
     initialSelectedKey ?? (categories[0]?.key ?? "")
   );
   const [uploading, setUploading] = useState(false);
+
+  // files & results
   const [filesByKey, setFilesByKey] = useState<Record<string, File[]>>({});
   const [uploadResults, setUploadResults] = useState<UploadResultsByCategory>({});
-  const [validated, setValidated] = useState<null | "ok" | "error">(null);
 
+  // validation gate
+  const [validated, setValidated] = useState<null | "ok" | "error">(null);
+  const [canUpload, setCanUpload] = useState(false);
+
+  // validation UX
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [showProceedModal, setShowProceedModal] = useState(false);
+
+  // server-side failures (upload)
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorData, setErrorData] = useState<{
     categoryKey: string;
@@ -147,13 +164,13 @@ export default function MultiCategoryUploader({
     results: FileUploadResult[];
   } | null>(null);
 
-  // bulk drop state
+  // bulk / picking
   const [dragOver, setDragOver] = useState(false);
-  const dragDepthRef = useRef(0); // nested drag tracking
+  const dragDepthRef = useRef(0);
   const [lastAssignments, setLastAssignments] = useState<{ name: string; key: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  /* ---------- Global cursor: progress while uploading ---------- */
+  /* ---------- global cursor ---------- */
   useEffect(() => {
     const prev = document.body.style.cursor;
     if (uploading) {
@@ -167,12 +184,11 @@ export default function MultiCategoryUploader({
     };
   }, [uploading]);
 
-  /* ---------- Persist across remounts (session) ---------- */
+  /* ---------- in-memory cache ---------- */
   const cacheKey = useMemo(() => `mcu:${module}:${workflowId}`, [module, workflowId]);
 
-  // Hydrate state from in-memory cache on mount
   useEffect(() => {
-    const g: any = window as any;
+    const g: any = (window as any);
     const cache: Map<string, any> = g.__MCU_CACHE__ ?? (g.__MCU_CACHE__ = new Map());
     const memo = cache.get(cacheKey);
     if (memo) {
@@ -183,9 +199,8 @@ export default function MultiCategoryUploader({
     }
   }, [cacheKey]);
 
-  // Save to cache whenever these change
   useEffect(() => {
-    const g: any = window as any;
+    const g: any = (window as any);
     const cache: Map<string, any> = g.__MCU_CACHE__ ?? (g.__MCU_CACHE__ = new Map());
     cache.set(cacheKey, { filesByKey, uploadResults, selectedKey, lastAssignments });
   }, [cacheKey, filesByKey, uploadResults, selectedKey, lastAssignments]);
@@ -201,8 +216,15 @@ export default function MultiCategoryUploader({
     [categories]
   );
 
+  /* ---------- file ops ---------- */
   const setCategoryFiles = useCallback((key: string, files: File[]) => {
     setFilesByKey((prev) => ({ ...prev, [key]: files }));
+    // reset ONLY that category's results (others intact)
+    setUploadResults((prev) => {
+      const copy = { ...prev };
+      delete copy[key];
+      return copy;
+    });
   }, []);
 
   const appendCategoryFiles = useCallback((key: string, newFiles: File[]) => {
@@ -230,39 +252,72 @@ export default function MultiCategoryUploader({
     }));
   }, []);
 
-  const getSuccessfulFiles = useCallback(
-    (key: string): File[] => {
-      const allFiles = filesByKey[key] ?? [];
-      const results = uploadResults[key] ?? [];
-      if (!results.length) return [];
-      const successNames = new Set(results.filter((r) => r.success).map((r) => r.filename));
-      return allFiles.filter((f) => successNames.has(f.name));
-    },
-    [filesByKey, uploadResults]
-  );
+  // Whenever ANY category files change → disable upload until re-validated
+  useEffect(() => {
+    setValidated(null);
+    setCanUpload(false);
+    setValidationErrors([]);
+  }, [filesByKey]);
 
-  const getFailedResults = useCallback(
-    (key: string): FileUploadResult[] => {
-      const results = uploadResults[key] ?? [];
-      return results.filter((r) => !r.success);
-    },
-    [uploadResults]
-  );
+  /* ---------- validation ---------- */
+  const parseAcceptList = (acc?: string): string[] => {
+    if (!acc) return [];
+    return acc
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+  };
 
-  const validate = useCallback(() => {
-    const allOk = categories.every((c) =>
-      c.required ? (filesByKey[c.key]?.length ?? 0) > 0 : true
-    );
-    setValidated(allOk ? "ok" : "error");
-    return allOk;
-  }, [categories, filesByKey]);
+  const fileMatchesAccept = (file: File, accepts: string[]) => {
+    if (accepts.length === 0) return true;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!ext) return false;
+    return accepts.some((a) => a.startsWith(".") && a.slice(1) === ext);
+  };
 
+  const validateNow = useCallback(() => {
+    const errs: string[] = [];
+    for (const c of categories) {
+      const files = filesByKey[c.key] ?? [];
+
+      if (c.required && files.length === 0) {
+        errs.push(`“${c.label}” is required.`);
+      }
+
+      const limit = c.maxFiles ?? Infinity;
+      if (files.length > limit) {
+        errs.push(`“${c.label}” exceeds maximum of ${limit} file(s).`);
+      }
+
+      const cap = (c.maxSizeMB ?? maxSizeMB) * 1024 * 1024;
+      const accepts = parseAcceptList(c.accept ?? accept);
+
+      for (const f of files) {
+        if (f.size > cap) {
+          errs.push(`“${c.label}”: ${f.name} is larger than ${c.maxSizeMB ?? maxSizeMB} MB.`);
+        }
+        if (!fileMatchesAccept(f, accepts)) {
+          errs.push(`“${c.label}”: ${f.name} has an unsupported file type.`);
+        }
+      }
+    }
+
+    setValidationErrors(errs);
+    const ok = errs.length === 0;
+    setValidated(ok ? "ok" : "error");
+    if (ok) setShowProceedModal(true);
+    return ok;
+  }, [categories, filesByKey, maxSizeMB, accept]);
+
+  /* ---------- clear all ---------- */
   const clearAll = useCallback(() => {
     setFilesByKey({});
     setUploadResults({});
     setValidated(null);
-    // wipe cache too
-    const g: any = window as any;
+    setCanUpload(false);
+    setValidationErrors([]);
+
+    const g: any = (window as any);
     const cache: Map<string, any> = g.__MCU_CACHE__ ?? (g.__MCU_CACHE__ = new Map());
     cache.set(cacheKey, { filesByKey: {}, uploadResults: {}, selectedKey, lastAssignments: [] });
   }, [cacheKey, selectedKey]);
@@ -318,6 +373,7 @@ export default function MultiCategoryUploader({
           return merged;
         });
 
+        // Keep behavior: when overriding, don't pop the modal automatically.
         if (!override && results.some((r) => !r.success)) {
           setErrorData({
             categoryKey: key,
@@ -330,130 +386,148 @@ export default function MultiCategoryUploader({
         setUploading(false);
       }
     },
-    [categories, context, endpoint, module, onResultsChange, pathBuilder, tokenGetter, workflowId, getCategoryLabel]
+    [
+      categories,
+      context,
+      endpoint,
+      module,
+      onResultsChange,
+      pathBuilder,
+      tokenGetter,
+      workflowId,
+      getCategoryLabel,
+    ]
   );
 
   const uploadAll = useCallback(async () => {
-    if (!validate()) return;
+    if (!canUpload) return;
+    if (validated !== "ok" || validationErrors.length > 0) {
+      setValidated("error");
+      return;
+    }
     for (const c of categories) {
       const fs = filesByKey[c.key];
       if (fs?.length) await uploadSingleCategory(c.key, fs);
     }
-  }, [categories, filesByKey, uploadSingleCategory, validate]);
+  }, [canUpload, validated, validationErrors.length, categories, filesByKey, uploadSingleCategory]);
 
-  /* ---------- DnD handlers (robust) ---------- */
-  const onDragEnter = useCallback((e: React.DragEvent) => {
-    if (!bulk?.enabled || uploading) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dragDepthRef.current += 1;
-    setDragOver(true);
-  }, [bulk?.enabled, uploading]);
+  /* ---------- Force upload (per category, override=true) ---------- */
+  const forceUploadCategory = useCallback(
+    async (key: string) => {
+      const fs = filesByKey[key] ?? [];
+      if (!fs.length || uploading) return;
+      await uploadSingleCategory(key, fs, true); // override=true
+    },
+    [filesByKey, uploading, uploadSingleCategory]
+  );
 
-  const onDragOverHandler = useCallback((e: React.DragEvent) => {
-    if (!bulk?.enabled || uploading) return;
-    e.preventDefault(); // required for drop to fire
-    e.stopPropagation();
-    try { e.dataTransfer.dropEffect = "copy"; } catch {}
-  }, [bulk?.enabled, uploading]);
+  /* ---------- DnD handlers (assign only) ---------- */
+  const onDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (!bulk?.enabled || uploading) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current += 1;
+      setDragOver(true);
+    },
+    [bulk?.enabled, uploading]
+  );
 
-  const onDragLeaveHandler = useCallback((e: React.DragEvent) => {
-    if (!bulk?.enabled || uploading) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-    if (dragDepthRef.current === 0) setDragOver(false);
-  }, [bulk?.enabled, uploading]);
+  const onDragOverHandler = useCallback(
+    (e: React.DragEvent) => {
+      if (!bulk?.enabled || uploading) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        e.dataTransfer.dropEffect = "copy";
+      } catch {}
+    },
+    [bulk?.enabled, uploading]
+  );
 
-  const onDropHandler = useCallback(async (e: React.DragEvent) => {
-    if (!bulk?.enabled || uploading) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dragDepthRef.current = 0;
-    setDragOver(false);
+  const onDragLeaveHandler = useCallback(
+    (e: React.DragEvent) => {
+      if (!bulk?.enabled || uploading) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current === 0) setDragOver(false);
+    },
+    [bulk?.enabled, uploading]
+  );
 
-    const items = Array.from(e.dataTransfer.items ?? []);
-    let files: File[] = [];
-    if (items.length) {
-      files = items
-        .filter((it) => it.kind === "file")
-        .map((it) => it.getAsFile())
-        .filter((f): f is File => !!f);
-    } else {
-      files = Array.from(e.dataTransfer.files ?? []);
-    }
-
-    if (!files.length) return;
-
-    if ((bulk.assign ?? "selected") === "selected") {
-      const key = selectedKey || categories[0]?.key;
-      if (!key) return;
-      appendCategoryFiles(key, files);
-      setSelectedKey(key);
-      await uploadSingleCategory(key, files);
-      setLastAssignments(files.map((f) => ({ name: f.name, key })));
-    } else {
-      const order = categories.map((c) => c.key);
-      const strat: BulkStrategy = bulk.strategy ?? "sequential";
-      const groups = new Map<string, File[]>();
-      const assignments: { name: string; key: string }[] = [];
-      const pickKey = (i: number) =>
-        strat === "roundrobin" ? order[i % order.length] : order[i < order.length ? i : i % order.length];
-
-      files.forEach((f, i) => {
-        const key = pickKey(i);
-        const list = groups.get(key) ?? [];
-        list.push(f);
-        groups.set(key, list);
-        assignments.push({ name: f.name, key });
-      });
-
-      for (const [key, list] of groups) {
-        appendCategoryFiles(key, list);
+  const assignFiles = useCallback(
+    (files: File[]) => {
+      if ((bulk.assign ?? "selected") === "selected") {
+        const key = selectedKey || categories[0]?.key;
+        if (!key) return;
+        appendCategoryFiles(key, files);
         setSelectedKey(key);
-        await uploadSingleCategory(key, list);
+        setLastAssignments(files.map((f) => ({ name: f.name, key })));
+      } else {
+        const order = categories.map((c) => c.key);
+        const strat: BulkStrategy = bulk.strategy ?? "sequential";
+        const groups = new Map<string, File[]>();
+        const assignments: { name: string; key: string }[] = [];
+        const pickKey = (i: number) =>
+          strat === "roundrobin"
+            ? order[i % order.length]
+            : order[i < order.length ? i : i % order.length];
+
+        files.forEach((f, i) => {
+          const key = pickKey(i);
+          const list = groups.get(key) ?? [];
+          list.push(f);
+          groups.set(key, list);
+          assignments.push({ name: f.name, key });
+        });
+
+        for (const [key, list] of groups) {
+          appendCategoryFiles(key, list);
+          setSelectedKey(key);
+        }
+        setLastAssignments(assignments);
       }
-      setLastAssignments(assignments);
-    }
-  }, [appendCategoryFiles, bulk.assign, bulk.strategy, bulk?.enabled, categories, selectedKey, uploadSingleCategory, uploading]);
+    },
+    [appendCategoryFiles, bulk.assign, bulk.strategy, categories, selectedKey]
+  );
 
-  const onPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!bulk?.enabled || uploading) return;
-    const files = Array.from(e.target.files || []);
-    e.currentTarget.value = "";
-    if (!files.length) return;
+  const onDropHandler = useCallback(
+    async (e: React.DragEvent) => {
+      if (!bulk?.enabled || uploading) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current = 0;
+      setDragOver(false);
 
-    if ((bulk.assign ?? "selected") === "selected") {
-      const key = selectedKey || categories[0]?.key;
-      if (!key) return;
-      appendCategoryFiles(key, files);
-      setSelectedKey(key);
-      await uploadSingleCategory(key, files);
-      setLastAssignments(files.map((f) => ({ name: f.name, key })));
-    } else {
-      const order = categories.map((c) => c.key);
-      const strat: BulkStrategy = bulk.strategy ?? "sequential";
-      const groups = new Map<string, File[]>();
-      const assignments: { name: string; key: string }[] = [];
-      const pickKey = (i: number) =>
-        strat === "roundrobin" ? order[i % order.length] : order[i < order.length ? i : i % order.length];
-      files.forEach((f, i) => {
-        const key = pickKey(i);
-        const list = groups.get(key) ?? [];
-        list.push(f);
-        groups.set(key, list);
-        assignments.push({ name: f.name, key });
-      });
-      for (const [key, list] of groups) {
-        appendCategoryFiles(key, list);
-        setSelectedKey(key);
-        await uploadSingleCategory(key, list);
+      const items = Array.from(e.dataTransfer.items ?? []);
+      let files: File[] = [];
+      if (items.length) {
+        files = items
+          .filter((it) => it.kind === "file")
+          .map((it) => it.getAsFile())
+          .filter((f): f is File => !!f);
+      } else {
+        files = Array.from(e.dataTransfer.files ?? []);
       }
-      setLastAssignments(assignments);
-    }
-  }, [appendCategoryFiles, bulk.assign, bulk.strategy, bulk?.enabled, categories, selectedKey, uploadSingleCategory, uploading]);
+      if (!files.length) return;
+      assignFiles(files); // assign only (no auto-validate/upload)
+    },
+    [bulk?.enabled, uploading, assignFiles]
+  );
 
-  /* ---------- UI helpers ---------- */
+  const onPick = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!bulk?.enabled || uploading) return;
+      const files = Array.from(e.target.files || []);
+      e.currentTarget.value = "";
+      if (!files.length) return;
+      assignFiles(files); // assign only (no auto-validate/upload)
+    },
+    [bulk?.enabled, uploading, assignFiles]
+  );
+
+  /* ---------- derived UI ---------- */
   const summary = useMemo(() => {
     const parts: string[] = [];
     for (const c of categories) {
@@ -463,51 +537,133 @@ export default function MultiCategoryUploader({
     return parts.join(" • ");
   }, [categories, filesByKey]);
 
+  const selectedFiles = filesByKey[selectedKey] ?? [];
+
+  // Flattened "all files" view grouped by category
+  const allFiles = useMemo(() => {
+    return categories.map((c) => ({
+      key: c.key,
+      label: c.label,
+      files: filesByKey[c.key] ?? [],
+    }));
+  }, [categories, filesByKey]);
+
+  // collect all failed files across categories
+const collectFailedFilesByCategory = useCallback(() => {
+  const map = new Map<string, File[]>();
+  for (const key of Object.keys(uploadResults)) {
+    const failedNames = new Set(
+      (uploadResults[key] ?? []).filter(r => !r.success).map(r => r.filename)
+    );
+    if (failedNames.size === 0) continue;
+    const originals = filesByKey[key] ?? [];
+    const failedFiles = originals.filter(f => failedNames.has(f.name));
+    if (failedFiles.length) map.set(key, failedFiles);
+  }
+  return map;
+}, [uploadResults, filesByKey]);
+
+// retry ALL failed (override=true), regardless of which modal triggered it
+const retryAllFailed = useCallback(async () => {
+  const map = collectFailedFilesByCategory();
+  for (const [key, files] of map) {
+    await uploadSingleCategory(key, files, true); // <-- force override
+  }
+}, [collectFailedFilesByCategory, uploadSingleCategory]);
+
   /* ---------- Render ---------- */
   return (
-    <div className={`mx-auto max-w-8xl p-4 ${uploading ? "cursor-progress" : "cursor-auto"}`} aria-busy={uploading}>
-      <div className="rounded-3xl border border-gray-200 bg-white/90 backdrop-blur shadow-sm relative">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <div>
-            <h3 className="text-lg font-bold tracking-tight text-gray-900">{title}</h3>
-            {subtitle ? (
-              <p className="text-xs text-gray-700">{subtitle}</p>
-            ) : (
-              <p className="text-xs text-gray-600">
-                Upload your datasets. Accepted types: <span className="font-medium">{accept}</span>
-              </p>
-            )}
-            {!!summary && <p className="mt-1 text-xs text-gray-500">Selected: {summary}</p>}
-          </div>
+    <div
+      className={`mx-auto max-w-7xl p-4 sm:p-6 ${uploading ? "cursor-progress" : "cursor-auto"}`}
+      aria-busy={uploading}
+    >
+      <div className="rounded-2xl max-w-7xl border border-slate-200 bg-white/70 backdrop-blur-md shadow-sm relative overflow-hidden">
+        {/* Sticky top actions */}
+        <div className="sticky top-0 z-10 bg-white/70 backdrop-blur-md border-b border-slate-200">
+          <div className="flex items-center justify-between px-5 py-3">
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold tracking-tight text-slate-900">
+                {title}
+              </h3>
+              {subtitle ? (
+                <p className="text-xs text-slate-600">{subtitle}</p>
+              ) : (
+                <p className="text-xs text-slate-600">
+                  Accepted: <span className="font-medium">{accept}</span>{" "}
+                  <span className="mx-1">•</span> Max {maxSizeMB}MB/file
+                </p>
+              )}
+              {!!summary && (
+                <p className="mt-0.5 text-[11px] text-slate-500 line-clamp-1">Selected: {summary}</p>
+              )}
+            </div>
 
-          <div className="flex items-center gap-3">
-            {uploading && (
-              <Pill tone="blue">
-                <ArrowUpTrayIcon className="h-4 w-4 mr-1 animate-pulse" />
-                Uploading…
-              </Pill>
-            )}
-            {validated === "ok" && !uploading && (
-              <Pill tone="green">
-                <CheckCircleIcon className="h-4 w-4 mr-1" />
-                Ready
-              </Pill>
-            )}
-            {validated === "error" && !uploading && (
-              <Pill tone="red">
-                <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
-                Missing required files
-              </Pill>
-            )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={validateNow}
+                disabled={uploading}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60  cursor-pointer"
+              >
+                <InformationCircleIcon className="h-4 w-4" />
+                Validate
+              </button>
+              <button
+                type="button"
+                onClick={uploadAll}
+                disabled={!canUpload || uploading}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                  !canUpload || uploading
+                    ? "bg-amber-300/60 text-slate-700 cursor-not-allowed"
+                    : "bg-amber-400 text-slate-900 hover:brightness-95  cursor-pointer"
+                }`}
+                title={!canUpload ? "Validate and proceed first" : "Upload all files"}
+              >
+                <ArrowUpTrayIcon className="h-4 w-4" />
+                Upload All
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                disabled={uploading}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60  cursor-pointer"
+              >
+                <TrashIcon className="h-4 w-4" />
+                Clear
+              </button>
+
+              {/* Status chip */}
+              {uploading ? (
+                <Pill tone="blue" title="Uploading in progress">
+                  <ArrowUpTrayIcon className="h-4 w-4 mr-1 animate-pulse" />
+                  Uploading…
+                </Pill>
+              ) : validated === "ok" ? (
+                <Pill tone="green" title="Validation passed (click Proceed to enable upload)">
+                  <CheckCircleIcon className="h-4 w-4 mr-1" />
+                  Validated
+                </Pill>
+              ) : validated === "error" ? (
+                <Pill tone="red" title="Validation failed">
+                  <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+                  Fix issues
+                </Pill>
+              ) : null}
+            </div>
           </div>
         </div>
 
-        <div className="flex p-5 gap-5 min-h-0">
-          {/* LEFT: Big bulk drop area */}
-          <div className="flex-1">
+        {/* Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 p-5">
+          {/* LEFT: Work area (drop + lists) */}
+          <section aria-labelledby="work-area-title" className="space-y-4">
+            <h4 id="work-area-title" className="sr-only">
+              Work area
+            </h4>
+
+            {/* Drop area (assign only) */}
             <div
-              className={`relative rounded-2xl border-2 border-dashed border-yellow-300 bg-yellow-50 p-6 min-h-[480px] max-h-[calc(100vh-8rem)] overflow-y-auto ${uploading ? "cursor-progress" : "cursor-pointer"}`}
+              className={`relative rounded-2xl ring-1 ring-inset ring-slate-200 bg-gradient-to-b from-slate-50 to-white p-6 min-h-[360px] ${uploading ? "cursor-progress" : "cursor-pointer"}`}
               onDragEnter={onDragEnter}
               onDragOver={onDragOverHandler}
               onDragLeave={onDragLeaveHandler}
@@ -517,24 +673,33 @@ export default function MultiCategoryUploader({
                 fileInputRef.current?.click();
               }}
               role="button"
-              aria-label="Upload files"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  if (uploading) return;
+                  fileInputRef.current?.click();
+                }
+              }}
+              aria-label="Drop files here or click to upload"
               aria-disabled={uploading}
             >
               <div className="flex h-full w-full items-center justify-center text-center">
                 <div>
-                  <div className="mx-auto mb-3 w-12 h-12 rounded-full border border-yellow-300 bg-white flex items-center justify-center">
-                    <CloudArrowUpIcon className={`h-6 w-6 ${uploading ? "animate-pulse text-gray-400" : "text-gray-700"}`} />
+                  <div className="mx-auto mb-3 w-12 h-12 rounded-xl ring-1 ring-slate-200 bg-white flex items-center justify-center shadow-sm">
+                    <CloudArrowUpIcon
+                      className={`h-6 w-6 ${uploading ? "animate-pulse text-slate-400" : "text-slate-700"}`}
+                    />
                   </div>
 
-                  {/* ACTIVE TARGET INDICATOR */}
                   <div className="mb-2">
                     <Pill tone="yellow">Active: {selectedCategory?.label ?? "—"}</Pill>
-                    <span className="ml-2 text-[11px] text-gray-600">
-                      document_type: <code className="text-gray-800">{selectedKey}</code>
+                    <span className="ml-2 text-[11px] text-slate-600">
+                      <code className="text-slate-800">document_type={selectedKey}</code>
                     </span>
                   </div>
 
-                  <p className={`text-sm font-medium ${uploading ? "text-gray-500" : "text-gray-900"}`}>
+                  <p className={`text-sm font-medium ${uploading ? "text-slate-500" : "text-slate-900"}`}>
                     Drop files here or{" "}
                     <button
                       type="button"
@@ -544,30 +709,27 @@ export default function MultiCategoryUploader({
                         e.stopPropagation();
                         fileInputRef.current?.click();
                       }}
-                      className={`underline decoration-yellow-400 underline-offset-2 ${uploading ? "cursor-not-allowed text-gray-400" : "cursor-pointer"}`}
+                      className={`underline decoration-amber-400 underline-offset-2 ${uploading ? "cursor-not-allowed text-slate-400" : "cursor-pointer"}`}
                       disabled={uploading}
                     >
-                      click to upload
+                      browse
                     </button>
                   </p>
-                  <p className="text-xs text-gray-700 mt-1">
+                  <p className="text-xs text-slate-600 mt-1">
                     {bulk.assign === "selected"
-                      ? "All files will be uploaded to the active category."
+                      ? "Files will be assigned to the active category."
                       : "Files will be assigned to categories in order (1st file → 1st category, etc.)."}
-                  </p>
-                  <p className="text-[11px] text-gray-600 mt-2">
-                    Accepted: {accept} • Max {maxSizeMB}MB/file
                   </p>
 
                   {!!lastAssignments.length && (
                     <div className="mt-5 text-left">
-                      <h4 className="text-xs font-semibold text-gray-800 mb-2">Last assignment:</h4>
+                      <h4 className="text-xs font-semibold text-slate-800 mb-2">Last assignment</h4>
                       <ul className="space-y-1 max-h-40 overflow-y-auto pr-1">
                         {lastAssignments.map((a, i) => (
-                          <li key={`${a.name}-${i}`} className="text-xs text-gray-700 flex items-center gap-2">
-                            <DocumentIcon className="h-4 w-4 text-gray-500" />
+                          <li key={`${a.name}-${i}`} className="text-xs text-slate-700 flex items-center gap-2">
+                            <DocumentIcon className="h-4 w-4 text-slate-500" />
                             <span className="truncate">{a.name}</span>
-                            <span className="ml-auto inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-700">
+                            <span className="ml-auto inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-700">
                               {getCategoryLabel(a.key)}
                             </span>
                           </li>
@@ -578,7 +740,7 @@ export default function MultiCategoryUploader({
                 </div>
 
                 {dragOver && (
-                  <div className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-yellow-400/70" />
+                  <div className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-amber-400/70 bg-amber-50/40" />
                 )}
 
                 <input
@@ -592,71 +754,170 @@ export default function MultiCategoryUploader({
                 />
               </div>
             </div>
-          </div>
 
-          {/* RIGHT: actions bar + status cards (SCROLLABLE) */}
-          <div
-            className="flex flex-col gap-4 w-80 min-h-0 max-h-[calc(90vh-14rem)] overflow-y-auto overscroll-contain pb-4"
+            {/* NEW: All uploaded files (across ALL categories) */}
+            <div className="rounded-2xl ring-1 ring-inset ring-slate-200 bg-white p-4">
+              <div className="text-sm font-semibold text-slate-900 mb-2">All uploaded files</div>
+              {allFiles.every((g) => g.files.length === 0) ? (
+                <p className="text-sm text-slate-500">
+                  No files added yet. Files for every input will appear here.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {allFiles.map((group) => {
+                    if (group.files.length === 0) return null;
+                    const results = uploadResults[group.key] ?? [];
+                    return (
+                      <div key={group.key} className="border border-slate-200 rounded-xl p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <div className="text-sm font-medium text-slate-900">
+                            {getCategoryLabel(group.key)}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setSelectedKey(group.key)}
+                              className="text-xs rounded-md px-2 py-1 ring-1 ring-slate-200 hover:bg-slate-50  cursor-pointer"
+                            >
+                              Focus
+                            </button>
+                            <button
+                              onClick={() => forceUploadCategory(group.key)}
+                              className="text-xs inline-flex items-center gap-1 rounded-md px-2 py-1 ring-1 ring-slate-200 hover:bg-slate-50  cursor-pointer"
+                              title="Force upload this input (override=true)"
+                              disabled={uploading || (filesByKey[group.key]?.length ?? 0) === 0}
+                            >
+                              <BoltIcon className="h-4 w-4" />
+                              Force upload
+                            </button>
+                          </div>
+                        </div>
+                        <ul className="flex flex-wrap gap-2">
+                          {group.files.map((file, i) => {
+                            const r = results.find((x) => x.filename === file.name);
+                            const tone: "default" | "green" | "yellow" | "red" =
+                              r?.success ? "green" : r ? "red" : "default";
+                            return (
+                              <li
+                                key={`${file.name}-${file.size}-${i}`}
+                                className="group flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-800"
+                              >
+                                <DocumentIcon className="h-4 w-4 text-slate-500" />
+                                <span className="max-w-[220px] truncate">{file.name}</span>
+                                <span className="text-xs text-slate-500">{formatFileSize(file.size)}</span>
+                                <Pill tone={tone}>
+                                  {r?.success ? "Uploaded" : r ? "Failed" : "Queued"}
+                                </Pill>
+                                <button
+                                  type="button"
+                                  onClick={() => removeFile(group.key, file)}
+                                  aria-label={`Remove ${file.name}`}
+                                  disabled={uploading}
+                                  className="ml-1 rounded-lg p-1 text-slate-500 hover:text-slate-700 hover:bg-white/70 ring-1 ring-transparent hover:ring-slate-200 disabled:opacity-60  cursor-pointer"
+                                >
+                                  <XMarkIcon className="h-4 w-4" />
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Validation errors (inline) */}
+            {validated === "error" && validationErrors.length > 0 && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                <div className="font-semibold mb-1 flex items-center gap-2">
+                  <ExclamationTriangleIcon className="h-4 w-4" />
+                  Please address the following:
+                </div>
+                <ul className="list-disc pl-5 space-y-1">
+                  {validationErrors.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+
+          {/* RIGHT: categories list */}
+          <aside
+            className="flex flex-col gap-3 min-h-0 max-h-[calc(90vh-12rem)] overflow-y-auto overscroll-contain"
             role="region"
             aria-label="Upload categories"
           >
-          
-
             {categories.map((c) => {
               const count = filesByKey[c.key]?.length ?? 0;
-              const fails = getFailedResults(c.key);
+              const failures = (uploadResults[c.key] ?? []).filter((r) => !r.success);
               const succCount = (uploadResults[c.key] ?? []).filter((r) => r.success).length;
+              const isActive = selectedKey === c.key;
 
               if (rightCardsMode === "status-only") {
                 return (
                   <div
                     key={c.key}
-                    className={`rounded-xl border p-4 bg-white shadow-sm transition-all ${
-                      selectedKey === c.key ? "ring-2 ring-yellow-400 ring-opacity-60" : "border-gray-200"
+                    className={`rounded-xl ring-1 ring-inset bg-white p-4 shadow-sm transition-all ${
+                      isActive ? "ring-amber-300" : "ring-slate-200"
                     }`}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-0.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100">
-                            <DocumentIcon className="h-4 w-4 text-gray-600" />
+                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 ring-1 ring-inset ring-slate-200">
+                            <DocumentIcon className="h-4 w-4 text-slate-600" />
                           </span>
-                          <div className="font-medium text-gray-900">{c.label}</div>
+                          <div className="font-medium text-slate-900 truncate">{c.label}</div>
                         </div>
                         {c.description && (
-                          <p className="text-[11px] text-gray-600 pl-9">{c.description}</p>
+                          <p className="text-[11px] text-slate-600 pl-9">{c.description}</p>
                         )}
-                        <div className="pl-9 flex items-center gap-2 pt-1">
+                        <div className="pl-9 flex flex-wrap items-center gap-2 pt-1">
                           {c.required && count === 0 ? (
                             <Pill tone="red">Required</Pill>
                           ) : (
-                            <Pill tone={count ? "green" : "default"}>
+                            <Pill tone="default">
                               {count ? `${count} file${count > 1 ? "s" : ""}` : "No files"}
                             </Pill>
                           )}
                           {succCount > 0 && <Pill tone="green">{succCount} uploaded</Pill>}
-                          {fails.length > 0 && <Pill tone="yellow">{fails.length} failed</Pill>}
-                          {selectedKey === c.key && <Pill tone="yellow">Active</Pill>}
+                          {failures.length > 0 && <Pill tone="yellow">{failures.length} failed</Pill>}
+                          {isActive && <Pill tone="yellow">Active</Pill>}
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => setSelectedKey(c.key)}
-                          className="rounded-md p-1.5 bg-yellow-400 border border-yellow-400 text-gray-900 hover:brightness-95 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="rounded-md p-1.5 bg-white ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60  cursor-pointer"
                           title="Set active"
                           disabled={uploading}
                         >
                           <EyeIcon className="h-4 w-4" />
                         </button>
+
                         {count > 0 && (
                           <button
                             onClick={() => clearCategory(c.key)}
-                            className="rounded-md p-1.5 bg-yellow-400 border border-yellow-400 text-gray-900 hover:brightness-95 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="rounded-md p-1.5 bg-white ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60  cursor-pointer  cursor-pointer"
                             title="Clear files"
                             disabled={uploading}
                           >
                             <TrashIcon className="h-4 w-4" />
+                          </button>
+                        )}
+
+                        {/* NEW: Force upload button (override=true). Show when there are errors or simply files present (choose one). */}
+                        {(failures.length > 0 || count > 0) && (
+                          <button
+                            onClick={() => forceUploadCategory(c.key)}
+                            className="rounded-md p-1.5 bg-white ring-1 ring-inset ring-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60  cursor-pointer"
+                            title="Force upload this input (override=true)"
+                            disabled={uploading || count === 0}
+                          >
+                            <BoltIcon className="h-4 w-4" />
                           </button>
                         )}
                       </div>
@@ -665,7 +926,7 @@ export default function MultiCategoryUploader({
                 );
               }
 
-              // Fallback interactive card
+              // Interactive card (no auto-upload)
               const _accept = c.accept ?? accept;
               const _maxSizeMB = c.maxSizeMB ?? maxSizeMB;
               const _maxFiles = c.maxFiles ?? 3;
@@ -674,11 +935,11 @@ export default function MultiCategoryUploader({
                 <div
                   key={c.key}
                   className={`transition-all duration-200 rounded-xl ${
-                    selectedKey === c.key ? "ring-2 ring-yellow-400 ring-opacity-60" : ""
-                  }`}
-                  onClick={() => !uploading && setSelectedKey(c.key)}
+                    isActive ? "ring-2 ring-amber-300" : "ring-1 ring-inset ring-slate-200"
+                  } bg-white`}
                   role="button"
-                  aria-disabled={uploading}
+                  onClick={() => !uploading && setSelectedKey(c.key)}
+                  aria-current={isActive ? "true" : "false"}
                 >
                   <UploadDropzone
                     label={c.label}
@@ -690,9 +951,9 @@ export default function MultiCategoryUploader({
                     value={filesByKey[c.key] ?? []}
                     onChange={(files: File[]) => {
                       if (uploading) return;
-                      setCategoryFiles(c.key, files);
+                      setCategoryFiles(c.key, files); // replace
                       setSelectedKey(c.key);
-                      if (files.length) uploadSingleCategory(c.key, files);
+                      // No auto validate/upload
                     }}
                     emptyHint={c.emptyHint ?? `Click to upload or drag & drop`}
                     variant="card"
@@ -702,27 +963,80 @@ export default function MultiCategoryUploader({
                 </div>
               );
             })}
-          </div>
+          </aside>
         </div>
       </div>
 
-      {/* Error Modal */}
+      {/* Proceed Modal (after successful validate) */}
+      {showProceedModal && (
+        <div className="fixed inset-0 z-50 bg-black/10 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl ring-1 ring-slate-200">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center ring-1 ring-emerald-200">
+                <CheckCircleIcon className="h-5 w-5 text-emerald-700" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Validation passed</h3>
+                <p className="text-xs text-slate-600">You can now proceed to enable uploading.</p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 text-sm text-slate-800 space-y-2">
+              <p className="text-slate-700">Summary:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                {categories.map((c) => {
+                  const n = (filesByKey[c.key] ?? []).length;
+                  return (
+                    <li key={c.key}>
+                      <span className="font-medium">{c.label}:</span> {n} file{n === 1 ? "" : "s"}
+                      {c.required && n === 0 ? " (required)" : ""}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-200">
+              <button
+                onClick={() => setShowProceedModal(false)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-50  cursor-pointer"
+              >
+                <XMarkIcon className="h-4 w-4" />
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setCanUpload(true);
+                  setShowProceedModal(false);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-amber-400 text-slate-900 hover:brightness-95  cursor-pointer"
+              >
+                Enable Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Error Modal (server failures) */}
       {showErrorModal && errorData && (
         <div className="fixed inset-0 z-50 bg-black/10 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-xl shadow-xl border border-gray-100">
-            <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="bg-white rounded-2xl w-full max-w-xl shadow-xl ring-1 ring-slate-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                  <ExclamationTriangleIcon className="h-5 w-5 text-yellow-700" />
+                <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center ring-1 ring-amber-200">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-amber-700" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-gray-900">Some files failed to upload</h3>
-                  <p className="text-xs text-gray-600">{errorData.categoryName}</p>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Some files failed to upload
+                  </h3>
+                  <p className="text-xs text-slate-600">{errorData.categoryName}</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowErrorModal(false)}
-                className="text-gray-500 hover:text-gray-700 transition-colors p-2 cursor-pointer"
+                className="text-slate-500 hover:text-slate-700 transition-colors p-2 cursor-pointer"
                 aria-label="Close"
               >
                 <XMarkIcon className="h-5 w-5" />
@@ -736,31 +1050,31 @@ export default function MultiCategoryUploader({
                   .map((res, idx) => (
                     <li
                       key={`${res.filename}-${idx}`}
-                      className="rounded-lg border border-yellow-100 bg-yellow-50/60 px-3 py-2"
+                      className="rounded-lg ring-1 ring-amber-200 bg-amber-50 px-3 py-2"
                     >
                       <div className="flex items-start gap-2">
-                        <DocumentIcon className="h-4 w-4 text-yellow-700 mt-0.5" />
+                        <DocumentIcon className="h-4 w-4 text-amber-700 mt-0.5" />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-gray-900 truncate">{res.filename}</p>
+                            <p className="text-sm font-medium text-slate-900 truncate">{res.filename}</p>
                             <Pill tone="yellow">Failed</Pill>
                           </div>
                           {res.msg && (
-                            <p className="text-xs text-gray-700 mt-1">
+                            <p className="text-xs text-slate-700 mt-1">
                               <span className="font-medium">Message:</span> {res.msg}
                             </p>
                           )}
                           {res.error && (
-                            <p className="text-xs text-gray-700 mt-1">
+                            <p className="text-xs text-slate-700 mt-1">
                               <span className="font-medium">Error:</span> {res.error}
                             </p>
                           )}
                           {res.data && (
                             <details className="mt-2">
-                              <summary className="text-xs text-gray-600 cursor-pointer select-none">
+                              <summary className="text-xs text-slate-600 cursor-pointer select-none">
                                 Server response
                               </summary>
-                              <pre className="text-[11px] bg-gray-100 rounded-md p-2 mt-1 overflow-x-auto">
+                              <pre className="text-[11px] bg-slate-100 rounded-md p-2 mt-1 overflow-x-auto">
                                 {JSON.stringify(res.data, null, 2)}
                               </pre>
                             </details>
@@ -772,26 +1086,20 @@ export default function MultiCategoryUploader({
               </ul>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t">
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-200">
               <button
                 onClick={() => setShowErrorModal(false)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-yellow-400 border border-yellow-400 text-gray-900 hover:brightness-95 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-50  cursor-pointer"
               >
                 <XMarkIcon className="h-4 w-4" />
                 Close
               </button>
               <button
                 onClick={async () => {
-                  if (!errorData) return;
                   setShowErrorModal(false);
-                  const failed = new Set(
-                    errorData.results.filter((r) => !r.success).map((r) => r.filename)
-                  );
-                  const originals = filesByKey[errorData.categoryKey] ?? [];
-                  const retry = originals.filter((f) => failed.has(f.name));
-                  if (retry.length) await uploadSingleCategory(errorData.categoryKey, retry, true);
+                  await retryAllFailed(); // <-- re-upload ALL failed across categories, override=true
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-yellow-400 border border-yellow-400 text-gray-900 hover:brightness-95 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-amber-400 text-slate-900 hover:brightness-95 cursor-pointer"
               >
                 <ArrowUpTrayIcon className="h-4 w-4" />
                 Retry failed
