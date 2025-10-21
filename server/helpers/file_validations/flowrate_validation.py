@@ -1,4 +1,5 @@
 import pandas as pd
+import re
 from typing import Dict, Any
 
 from .validate_generic_document import validate_generic_document
@@ -175,66 +176,82 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
 
     try:
 
-        cleaned_data = clean_document(df, document_type, file_name, temp_path)
-        # print("validate_aging_report \n", df)
+        print(df)
+        
+        # temporarily commented until format is decided
+        # cleaned_data = clean_document(df, document_type, file_name, temp_path)
+        # # print("validate_aging_report \n", df)
 
-        # Check if required fields exist and are not None or empty
-        required_fields = {
-            "report_date": "Report date",
-            "total_borrowers": "Total borrowers", 
-            "number_of_delinquents": "Number of delinquents",
-            "total_loan_portfolio": "Total loan portfolio",
-            "products": "Products"
-        }
+        # # Check if required fields exist and are not None or empty
+        # required_fields = {
+        #     "report_date": "Report date",
+        #     "total_borrowers": "Total borrowers", 
+        #     "number_of_delinquents": "Number of delinquents",
+        #     "total_loan_portfolio": "Total loan portfolio",
+        #     "products": "Products"
+        # }
         
-        for field_key, field_name in required_fields.items():
-            if field_key not in cleaned_data:
-                validation_results["validation_status"] = "failed"
-                validation_results["issues"].append({
-                    "type": "missing_required_field",
-                    "field": field_key,
-                    "message": f"Missing required field '{field_name}' in aging report"
-                })
-            elif cleaned_data[field_key] is None:
-                validation_results["validation_status"] = "failed"
-                validation_results["issues"].append({
-                    "type": "null_required_field",
-                    "field": field_key,
-                    "message": f"Required field '{field_name}' is null in aging report"
-                })
-            elif field_key == "products" and isinstance(cleaned_data[field_key], list) and len(cleaned_data[field_key]) == 0:
-                validation_results["validation_status"] = "failed"
-                validation_results["issues"].append({
-                    "type": "empty_required_field",
-                    "field": field_key,
-                    "message": f"Required field '{field_name}' is empty (no products found) in aging report"
-                })
-            elif field_key != "products" and cleaned_data[field_key] == "":
-                validation_results["validation_status"] = "failed"
-                validation_results["issues"].append({
-                    "type": "empty_required_field",
-                    "field": field_key,
-                    "message": f"Required field '{field_name}' is empty in aging report"
-                })
+        # for field_key, field_name in required_fields.items():
+        #     if field_key not in cleaned_data:
+        #         validation_results["validation_status"] = "failed"
+        #         validation_results["issues"].append({
+        #             "type": "missing_required_field",
+        #             "field": field_key,
+        #             "message": f"Missing required field '{field_name}' in aging report"
+        #         })
+        #     elif cleaned_data[field_key] is None:
+        #         validation_results["validation_status"] = "failed"
+        #         validation_results["issues"].append({
+        #             "type": "null_required_field",
+        #             "field": field_key,
+        #             "message": f"Required field '{field_name}' is null in aging report"
+        #         })
+        #     elif field_key == "products" and isinstance(cleaned_data[field_key], list) and len(cleaned_data[field_key]) == 0:
+        #         validation_results["validation_status"] = "failed"
+        #         validation_results["issues"].append({
+        #             "type": "empty_required_field",
+        #             "field": field_key,
+        #             "message": f"Required field '{field_name}' is empty (no products found) in aging report"
+        #         })
+        #     elif field_key != "products" and cleaned_data[field_key] == "":
+        #         validation_results["validation_status"] = "failed"
+        #         validation_results["issues"].append({
+        #             "type": "empty_required_field",
+        #             "field": field_key,
+        #             "message": f"Required field '{field_name}' is empty in aging report"
+        #         })
         
-        prod_arr = []
-        for i in cleaned_data["products"]:
-            print(i['data'])
-            prod_arr.append(i["data"][0])
+        # prod_arr = []
+        # for i in cleaned_data["products"]:
+        #     print(i['data'])
+        #     prod_arr.append(i["data"][0])
         
-        df = pd.DataFrame(prod_arr)
+        # df = pd.DataFrame(prod_arr)
 
         # Required columns
         required_columns = [
-            "Aging Category", 
-            "Product Counts", 
-            "Loan Balance w/ CP", 
-            "Loan Balance Principal", 
-            "NET PAR Amount Loan Balance w/ CP", 
-            "NET PAR Amount Loan Balance Principal", 
-            "NET PAR % (Gross PAR/TLP)", 
-            "Repayment Rate", 
-            "GROSS PAR % (Gross PAR/TLP)"]
+            "Date",	
+            "Total Loan Balance with C/P",
+            "0 day",
+            "PAR 1  (1 & 30 days)",
+            "PAR 30  (31 & 60 days)",
+            "PAR 60  (61 & 90 days)",
+            "PAR 90  (91 & 120 days)",
+            "PAR 120  (121 & 180 days)",
+            "PAR 180  (181 & 240 days)",
+            "PAR 240  (241 & 360 days)",
+            "PAR 360  (361 & Up days)",
+            # "Aging Category", 
+            # "Product Counts", 
+            # "Loan Balance w/ CP", 
+            # "Loan Balance Principal", 
+            # "NET PAR Amount Loan Balance w/ CP", 
+            # "NET PAR Amount Loan Balance Principal", 
+            # "NET PAR % (Gross PAR/TLP)", 
+            # "Repayment Rate", 
+            # "GROSS PAR % (Gross PAR/TLP)"
+        ]
+        required_columns = [col.strip().lower() for col in required_columns]
         missing_required = [col for col in required_columns if col not in df.columns]
         if missing_required:
             validation_results["validation_status"] = "failed"
@@ -244,14 +261,19 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                 "message": f"Missing required columns for Aging Report: {', '.join(missing_required)}"
             })
         
-        numeric_columns = ["Product Counts",
-                          "Loan Balance w/ CP", 
-                          "Loan Balance Principal", 
-                          "NET PAR Amount Loan Balance w/ CP", 
-                          "NET PAR Amount Loan Balance Principal",
-                          "Total CBU + LCBU",
-                          "NET PAR Amount Loan Balance w/ CP", 
-                          "NET PAR Amount Loan Balance Principal"]
+        numeric_columns = [
+            "Total Loan Balance with C/P",
+            "0 day",
+            "PAR 1  (1 & 30 days)",
+            "PAR 30  (31 & 60 days)",
+            "PAR 60  (61 & 90 days)",
+            "PAR 90  (91 & 120 days)",
+            "PAR 120  (121 & 180 days)",
+            "PAR 180  (181 & 240 days)",
+            "PAR 240  (241 & 360 days)",
+            "PAR 360  (361 & Up days)",
+        ]
+        numeric_columns = [col.strip().lower() for col in numeric_columns]
         for col in numeric_columns:
             if col in df.columns:
                 # Remove commas and convert to numeric
@@ -278,6 +300,44 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                             "message": f"Column '{col}' has {negative_count} negative values - verify if this is correct"
                         })
 
+        # Validate date format (YYYY-MM-DD)
+        date_columns = ["date"]  # Add your date column names here
+        for col in date_columns:
+            if col in df.columns:
+                try:
+                    # Check if column is already datetime type
+                    if pd.api.types.is_datetime64_any_dtype(df[col]):
+                        # Convert datetime to YYYY-MM-DD string format
+                        date_strings = df[col].dt.strftime('%Y-%m-%d')
+                    else:
+                        # Convert to datetime first, then to string format
+                        date_strings = pd.to_datetime(df[col], errors='raise').dt.strftime('%Y-%m-%d')
+                    
+                    # Check for specific YYYY-MM-DD format
+                    date_pattern = r'^\d{4}-\d{2}-\d{2}$'
+                    invalid_format_count = 0
+                    
+                    for idx, value in date_strings.items():
+                        if pd.notna(value) and not re.match(date_pattern, str(value)):
+                            invalid_format_count += 1
+                    
+                    if invalid_format_count > 0:
+                        validation_results["validation_status"] = "failed"
+                        validation_results["issues"].append({
+                            "type": "date_format",
+                            "column": col,
+                            "invalid_count": invalid_format_count,
+                            "message": f"Column '{col}' has {invalid_format_count} values not in YYYY-MM-DD format"
+                        })
+                        
+                except:
+                    validation_results["validation_status"] = "failed"
+                    validation_results["issues"].append({
+                        "type": "date_format",
+                        "column": col,
+                        "message": f"Column '{col}' contains invalid date formats"
+                    })
+
         # Check for duplicate columns
         duplicate_columns = df.columns[df.columns.duplicated()].tolist()
         if duplicate_columns:
@@ -303,6 +363,49 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                 }
         
         validation_results["missing_data"] = missing_data
+
+        # Add missing data issues to validation results
+        for column, data in missing_data.items():
+            validation_results["issues"].append({
+                "type": "missing_data",
+                "column": column,
+                "missing_count": data["missing_count"],
+                "missing_percentage": data["missing_percentage"],
+                "message": f"Column '{column}' has {data['missing_count']} missing values ({data['missing_percentage']}%)"
+            })
+            
+            # Fail validation if missing data percentage is too high (>10%)
+            if data["missing_percentage"] > 10:
+                validation_results["validation_status"] = "failed"
+
+        # Check for empty columns
+        empty_columns = []
+        for column in df.columns:
+            if df[column].isnull().all():
+                empty_columns.append(column)
+                validation_results["issues"].append({
+                    "type": "empty_column",
+                    "column": column,
+                    "message": f"Column '{column}' is completely empty"
+                })
+        
+        if empty_columns:
+            validation_results["validation_status"] = "failed"
+        
+        # Check for columns with all same values
+        constant_columns = []
+        for column in df.columns:
+            if df[column].nunique() == 1 and not df[column].isnull().all():
+                constant_columns.append(column)
+                validation_results["issues"].append({
+                    "type": "constant_column",
+                    "column": column,
+                    "value": str(df[column].iloc[0]),
+                    "message": f"Column '{column}' has only one unique value: {df[column].iloc[0]}"
+                })
+                
+                # Fail validation for constant columns (they provide no useful information)
+                validation_results["validation_status"] = "failed"
         
         return validation_results
         
