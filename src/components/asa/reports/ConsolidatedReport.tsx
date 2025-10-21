@@ -1,8 +1,8 @@
 // ==========================
 // components/asa/reports/ConsolidatedReport.tsx
-// (Date-range button with dropdown + pagination inside toolbar)
+// Dynamic columns + <colgroup> alignment + auto date detection
 // ==========================
-import { useMemo, useState, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, useEffect, useRef, type ReactNode, type CSSProperties } from "react";
 import {
   ArrowDownTrayIcon,
   CalendarDaysIcon,
@@ -13,8 +13,10 @@ import {
   ChevronDoubleRightIcon,
 } from "@heroicons/react/24/outline";
 
+/* ---------- Shared types ---------- */
 type Align = "left" | "center" | "right";
 type FontScale = "normal" | "large";
+type AnyRow = Record<string, any>;
 
 export type Column<T> = {
   key: keyof T | string;
@@ -40,6 +42,7 @@ export type DataGridProps<T> = {
   onRowClick?: (row: T, rowIndex: number) => void;
 };
 
+/* ---------- Utils ---------- */
 const cls = (...p: Array<string | false | undefined>) => p.filter(Boolean).join(" ");
 const toISO = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (d: Date, n: number) => {
@@ -47,17 +50,65 @@ const addDays = (d: Date, n: number) => {
   x.setDate(x.getDate() + n);
   return x;
 };
+const titleFromKey = (k: string) =>
+  k
+    .replace(/[_\-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (s) => s.toUpperCase());
 
-function cellBox(col: Column<any>): CSSProperties {
-  const s: CSSProperties = {};
-  if (col.width) {
-    s.width = col.width;
-    s.minWidth = col.width;
-  }
-  return s;
+const isISODate = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+/** numeric or numeric-like string (e.g. "101,446,878.32") */
+const isNumLike = (v: unknown) =>
+  (typeof v === "number" && Number.isFinite(v)) ||
+  (typeof v === "string" && /^-?\d{1,3}(?:,\d{3})*(?:\.\d+)?$|^-?\d+(\.\d+)?$/.test(v.trim()));
+
+const toNumber = (v: unknown) =>
+  typeof v === "number" ? v : typeof v === "string" ? parseFloat(v.replace(/,/g, "")) : NaN;
+
+function pickUnionKeys(rows: AnyRow[]): string[] {
+  const set = new Set<string>();
+  rows.forEach((r) => Object.keys(r || {}).forEach((k) => set.add(k)));
+  return Array.from(set);
 }
 
-/* ---------- Small date-range popover button ---------- */
+/** detect which key is a date field in the given rows */
+function detectDateKey(rows: AnyRow[]): string | null {
+  if (!rows.length) return null;
+  const keys = pickUnionKeys(rows);
+
+  // name hints first
+  const hints = ["uniqueReportDate", "reportDate", "asOfDate", "date", "report_date"];
+  for (const h of hints) {
+    const found = keys.find((k) => k.toLowerCase() === h.toLowerCase());
+    if (found) return found;
+  }
+
+  // majority ISO values
+  for (const k of keys) {
+    const sample = rows.slice(0, 30).map((r) => r?.[k]);
+    const hits = sample.filter(isISODate).length;
+    if (hits >= Math.ceil(sample.length * 0.6)) return k;
+  }
+  return null;
+}
+
+function approxColWidth(header: string, values: unknown[], kind: "date" | "num" | "text") {
+  const strLens = [header.length, ...values.map((v) => String(v ?? "").length)];
+  const maxLen = Math.min(Math.max(...strLens, 6), 28);
+  const base = kind === "num" ? 9.5 : kind === "date" ? 9 : 8.2;
+  const px = Math.round(maxLen * base) + 36; // padding
+  const min = kind === "num" ? 140 : kind === "date" ? 140 : 160;
+  const max = 420;
+  return Math.max(min, Math.min(px, max));
+}
+
+const fmt = (v?: number, f = 0) =>
+  v == null ? "" : v.toLocaleString(undefined, { minimumFractionDigits: f, maximumFractionDigits: f });
+
+/* ---------- Date-range button ---------- */
 function DateRangeButton({
   from,
   to,
@@ -76,7 +127,6 @@ function DateRangeButton({
   const [tmpTo, setTmpTo] = useState(to);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // keep temporary values in sync on open
   useEffect(() => {
     if (open) {
       setTmpFrom(from);
@@ -84,7 +134,6 @@ function DateRangeButton({
     }
   }, [open, from, to]);
 
-  // close on outside click
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (!rootRef.current) return;
@@ -94,7 +143,6 @@ function DateRangeButton({
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
 
-  // close on Esc
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     if (open) document.addEventListener("keydown", onKey);
@@ -102,13 +150,7 @@ function DateRangeButton({
   }, [open]);
 
   const label =
-    from && to
-      ? `${from} → ${to}`
-      : from
-      ? `From ${from}`
-      : to
-      ? `To ${to}`
-      : "Date range";
+    from && to ? `${from} → ${to}` : from ? `From ${from}` : to ? `To ${to}` : "Date range";
 
   const quick = {
     thisMonth: () => {
@@ -155,8 +197,10 @@ function DateRangeButton({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-2 w-[360px] rounded-xl border border-gray-200 bg-white shadow-xl"
-             style={{ left: 0 }}>
+        <div
+          className="absolute z-50 mt-2 w-[360px] rounded-xl border border-gray-200 bg-white shadow-xl"
+          style={{ left: 0 }}
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b bg-yellow-50 rounded-t-xl">
             <div className="text-sm font-semibold text-gray-800">Filter by date range</div>
             <button
@@ -170,7 +214,6 @@ function DateRangeButton({
           </div>
 
           <div className="p-4 space-y-3">
-            {/* Dates */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-gray-600 mb-1">From</label>
@@ -192,7 +235,6 @@ function DateRangeButton({
               </div>
             </div>
 
-            {/* Quick presets */}
             <div className="flex flex-wrap gap-2">
               <button onClick={quick.thisMonth} className="text-xs rounded-md border px-2 py-1 hover:bg-gray-50">
                 This month
@@ -211,13 +253,11 @@ function DateRangeButton({
               </button>
             </div>
 
-            {/* Actions */}
             <div className="flex items-center justify-between pt-1">
               <button
                 type="button"
                 onClick={() => {
                   onClear();
-                  setOpen(false);
                 }}
                 className="rounded-lg border border-yellow-400 bg-yellow-400 px-3 py-1.5 text-sm text-gray-900 hover:brightness-95"
               >
@@ -227,7 +267,6 @@ function DateRangeButton({
                 type="button"
                 onClick={() => {
                   onApply(tmpFrom, tmpTo);
-                  setOpen(false);
                 }}
                 className="rounded-lg bg-yellow-400 border border-yellow-400 px-3 py-1.5 text-sm font-medium text-gray-900 hover:brightness-95"
               >
@@ -241,7 +280,7 @@ function DateRangeButton({
   );
 }
 
-/* ---------- DataGrid ---------- */
+/* ---------- DataGrid with <colgroup> for perfect alignment ---------- */
 export function DataGrid<T>({
   title,
   columns,
@@ -258,13 +297,12 @@ export function DataGrid<T>({
 }: DataGridProps<T>) {
   const textBase = fontScale === "large" ? "text-base" : "text-sm";
   const padY = fontScale === "large" ? "py-3" : "py-2";
-  const minTableWidth = useMemo(
-    () => (horizontalScroll ? columns.reduce((sum, c) => sum + (c.width ?? 160), 0) : undefined),
-    [columns, horizontalScroll]
-  );
 
   const theadClass = headerTone === "brand" ? "bg-yellow-500" : headerTone === "neutral" ? "bg-gray-50" : "";
-  const theadStyle = headerTone || !headerColorHex ? undefined : ({ backgroundColor: headerColorHex } as CSSProperties);
+  const theadStyle: CSSProperties | undefined =
+    headerTone || !headerColorHex ? undefined : ({ backgroundColor: headerColorHex } as CSSProperties);
+
+  const minW = horizontalScroll ? columns.reduce((sum, c) => sum + (c.width ?? 160), 0) : undefined;
 
   return (
     <section className={cls("rounded-2xl ring-1 ring-gray-200 bg-white shadow-sm", className)}>
@@ -279,12 +317,19 @@ export function DataGrid<T>({
         <table
           className={cls(
             "w-full border-collapse",
-            horizontalScroll ? "table-fixed" : "table-auto",
+            "table-auto", // important for colgroup widths
             "font-normal [font-variant-numeric:tabular-nums]",
             textBase
           )}
-          style={minTableWidth ? { minWidth: minTableWidth } : undefined}
+          style={minW ? { minWidth: minW } : undefined}
         >
+          {/* lock column widths so <th> and <td> always align */}
+          <colgroup>
+            {columns.map((c, i) => (
+              <col key={i} style={c.width ? { width: c.width } : undefined} />
+            ))}
+          </colgroup>
+
           <thead className={cls(stickyHeader && "sticky top-0 z-10", "text-slate-900", theadClass)} style={theadStyle}>
             <tr>
               {columns.map((c, i) => (
@@ -295,9 +340,8 @@ export function DataGrid<T>({
                     "border-b border-gray-300 px-3 font-semibold leading-tight h-12",
                     "whitespace-nowrap overflow-hidden text-ellipsis",
                     c.align === "center" && "text-center",
-                    c.align === "right" && "text-right"
+                    c.align === "left" && "text-left"
                   )}
-                  style={cellBox(c)}
                 >
                   <span className="block min-w-0">{c.header}</span>
                 </th>
@@ -328,7 +372,7 @@ export function DataGrid<T>({
                     )}
                   >
                     {columns.map((c, cIdx) => {
-                      const content = c.render ? c.render(row, rIdx) : (row as any)[c.key as string];
+                      const content = c.render ? c.render(row as any, rIdx) : (row as any)[c.key as string];
                       return (
                         <td
                           key={cIdx}
@@ -339,7 +383,6 @@ export function DataGrid<T>({
                             c.align === "center" && "text-center",
                             c.align === "right" && "text-right"
                           )}
-                          style={cellBox(c)}
                         >
                           {content ?? ""}
                         </td>
@@ -356,39 +399,106 @@ export function DataGrid<T>({
   );
 }
 
-/* ---------- Types ---------- */
-export type SummaryRow = { uniqueReportDate: string; uniqueProduct: string; index: number };
-export type ConsolidatedRow = {
-  reportDate: string;
-  agingCategory: string;
-  numberOfDelinquents?: number;
-  loanBalancePrincipal?: number;
-  netParAmount_LB_withCP?: number;
-  netParAmount_LB_Principal?: number;
-  netParPercent?: number;
-  repaymentRate?: number;
+/* ---------- Column inference (dynamic) ---------- */
+type Inferred = {
+  columns: Column<AnyRow>[];
+  formatForCsv: (r: AnyRow) => (string | number)[];
 };
 
-const fmt = (v?: number, f = 0) =>
-  v == null ? "" : v.toLocaleString(undefined, { minimumFractionDigits: f, maximumFractionDigits: f });
+function inferColumnsFromRows(rows: AnyRow[]): Inferred {
+  const keys = pickUnionKeys(rows);
+  if (keys.length === 0) return { columns: [], formatForCsv: () => [] };
 
-/* ---------- CSV helpers ---------- */
-const toCSV = (headers: string[], rows: (string | number)[][]) => {
-  const esc = (s: string | number) => `"${String(s).replace(/"/g, '""')}"`;
-  return [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n");
-};
+  const sample = rows.slice(0, 50);
 
-function download(filename: string, text: string) {
-  const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  type Info = {
+    k: string;
+    header: string;
+    width: number;
+    align: Align;
+    kind: "num" | "date" | "text";
+    percentLike: boolean;
+    percentScale: number;
+    decimals: number;
+    render?: (row: AnyRow) => ReactNode;
+    toCsv: (row: AnyRow) => string | number;
+  };
+
+  const infos: Info[] = keys.map((k) => {
+    const vals = sample.map((r) => r?.[k]).filter((v) => v !== undefined);
+    const numVals = vals.filter(isNumLike).map(toNumber);
+    const hasNums = numVals.length > 0;
+    const hasDates = vals.some(isISODate);
+    const header = titleFromKey(k);
+
+    // detect percent-like
+    const percentLike = /percent|rate|ratio|pct|%/i.test(k);
+    let percentScale = 1;
+    if (percentLike && numVals.length > 0) {
+      const max = Math.max(...numVals.map((n) => Math.abs(n)));
+      if (max <= 1.5) percentScale = 100; // treat 0..1 as %
+    }
+
+    const kind: "num" | "date" | "text" = hasDates ? "date" : hasNums ? "num" : "text";
+    const width = approxColWidth(header, vals, kind);
+    const align: Align = kind === "num" ? "right" : "left";
+
+    const hasFraction = numVals.some((n) => Math.abs(n % 1) > 1e-6);
+    const decimals = percentLike ? 2 : hasFraction ? 2 : 0;
+
+    const render =
+      kind === "num"
+        ? (row: AnyRow) => {
+            const raw = row[k];
+            const n = toNumber(raw);
+            if (!Number.isFinite(n)) return "";
+            if (percentLike) return `${fmt(n * percentScale, 2)}%`;
+            return fmt(n, decimals);
+          }
+        : undefined;
+
+    const toCsv = (row: AnyRow) => {
+      const v = row[k];
+      if (v == null) return "";
+      if (kind === "num") {
+        const n = toNumber(v);
+        if (!Number.isFinite(n)) return "";
+        return percentLike ? `${(n * percentScale).toFixed(2)}%` : n;
+      }
+      return String(v);
+    };
+
+    return { k, header, width, align, kind, percentLike, percentScale, decimals, render, toCsv };
+  });
+
+  // Order: date columns first (prefer those containing "report"), then texts, then numbers
+  const byReportFirst = (a: Info, b: Info) =>
+    a.k.toLowerCase().includes("report") ? -1 : b.k.toLowerCase().includes("report") ? 1 : 0;
+
+  const dates = infos.filter((i) => i.kind === "date").sort(byReportFirst);
+  const texts = infos.filter((i) => i.kind === "text");
+  const nums = infos.filter((i) => i.kind === "num");
+
+  const ordered = [...dates, ...texts, ...nums];
+
+  const columns: Column<AnyRow>[] = ordered.map((i) => ({
+    key: i.k,
+    header: i.header,
+    width: i.width,
+    align: i.align,
+    render: i.render,
+  }));
+
+  const formatForCsv = (r: AnyRow) => ordered.map((i) => i.toCsv(r));
+
+  return { columns, formatForCsv };
 }
 
-/* ---------- Report (pagination + date button in toolbar) ---------- */
+/* ---------- Public (dynamic) API for callers ---------- */
+export type SummaryRow = { [k: string]: any };
+export type ConsolidatedRow = { [k: string]: any };
+
+/* ---------- Report (dynamic) ---------- */
 export default function ConsolidatedReport({
   summaryRows,
   consolidatedRows,
@@ -399,11 +509,14 @@ export default function ConsolidatedReport({
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
 
-  // Pagination
-  const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(25);
+  // Auto-detect date keys
+  const summaryDateKey = useMemo(() => detectDateKey(summaryRows) ?? "", [summaryRows]);
+  const consolidatedDateKey = useMemo(() => detectDateKey(consolidatedRows) ?? "", [consolidatedRows]);
 
-  const inRange = (d: string) => {
+  const inRangeRow = (row: AnyRow, dateKey: string) => {
+    if (!dateKey) return true;
+    const d = row?.[dateKey];
+    if (!isISODate(d)) return true;
     if (!fromDate && !toDate) return true;
     if (fromDate && d < fromDate) return false;
     if (toDate && d > toDate) return false;
@@ -411,17 +524,27 @@ export default function ConsolidatedReport({
   };
 
   const filteredSummary = useMemo(
-    () => summaryRows.filter((r) => inRange(r.uniqueReportDate)),
-    [summaryRows, fromDate, toDate]
+    () => summaryRows.filter((r) => inRangeRow(r, summaryDateKey)),
+    [summaryRows, fromDate, toDate, summaryDateKey]
   );
   const filteredConsolidated = useMemo(
-    () => consolidatedRows.filter((r) => inRange(r.reportDate)),
-    [consolidatedRows, fromDate, toDate]
+    () => consolidatedRows.filter((r) => inRangeRow(r, consolidatedDateKey)),
+    [consolidatedRows, fromDate, toDate, consolidatedDateKey]
   );
 
-  // Clamp / reset page
+  // Dynamic columns
+  const { columns: summaryCols } = useMemo(() => inferColumnsFromRows(summaryRows), [summaryRows]);
+  const { columns: consolidatedCols, formatForCsv } = useMemo(
+    () => inferColumnsFromRows(consolidatedRows),
+    [consolidatedRows]
+  );
+
+  // Pagination
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
   const totalRows = filteredConsolidated.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+
   useEffect(() => {
     setPage((p) => Math.min(Math.max(1, p), totalPages));
   }, [totalPages]);
@@ -438,48 +561,27 @@ export default function ConsolidatedReport({
     setToDate("");
   };
 
+  /* ---------- CSV helpers ---------- */
+  const toCSV = (headers: string[], rows: (string | number)[][]) => {
+    const esc = (s: string | number) => `"${String(s).replace(/"/g, '""')}"`;
+    return [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n");
+  };
+  function download(filename: string, text: string) {
+    const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   const exportConsolidated = () => {
-    const headers = [
-      "Report Date",
-      "Aging Category",
-      "No. of Delinquents",
-      "Loan Bal. Principal",
-      "NET PAR Amt (LB w/ CP)",
-      "NET PAR Amt (LB Principal)",
-      "NET PAR %",
-      "Repayment Rate",
-    ];
-    const rows = filteredConsolidated.map((r) => [
-      r.reportDate,
-      r.agingCategory,
-      r.numberOfDelinquents ?? "",
-      r.loanBalancePrincipal ?? "",
-      r.netParAmount_LB_withCP ?? "",
-      r.netParAmount_LB_Principal ?? "",
-      r.netParPercent ?? "",
-      r.repaymentRate ?? "",
-    ]);
+    const headers = consolidatedCols.map((c) => c.header);
+    const rows = filteredConsolidated.map((r) => formatForCsv(r));
     download("consolidated_data.csv", toCSV(headers, rows));
   };
 
-  const summaryCols: Column<SummaryRow>[] = [
-    { key: "uniqueReportDate", header: "Unique Report Date" },
-    { key: "uniqueProduct", header: "Unique Product" },
-    { key: "index", header: "Index", align: "right" },
-  ];
-
-  const consolidatedCols: Column<ConsolidatedRow>[] = [
-    { key: "reportDate", header: "Report Date", width: 140 },
-    { key: "agingCategory", header: "Aging Category", width: 300 },
-    { key: "numberOfDelinquents", header: "No. of Delinquents", align: "right", width: 190, render: (r) => fmt(r.numberOfDelinquents) },
-    { key: "loanBalancePrincipal", header: "Loan Bal. Principal", align: "right", width: 210, render: (r) => fmt(r.loanBalancePrincipal) },
-    { key: "netParAmount_LB_withCP", header: "NET PAR Amt (LB w/ CP)", align: "right", width: 240, render: (r) => fmt(r.netParAmount_LB_withCP) },
-    { key: "netParAmount_LB_Principal", header: "NET PAR Amt (LB Principal)", align: "right", width: 260, render: (r) => fmt(r.netParAmount_LB_Principal) },
-    { key: "netParPercent", header: "NET PAR %", align: "right", width: 140, render: (r) => (r.netParPercent == null ? "" : `${fmt(r.netParPercent, 2)}%`) },
-    { key: "repaymentRate", header: "Repayment Rate", align: "right", width: 160, render: (r) => (r.repaymentRate == null ? "" : `${fmt(r.repaymentRate, 2)}%`) },
-  ];
-
-  /* ---- Toolbar: Date button + rows/page + pager + export ---- */
+  /* ---- Toolbar ---- */
   const FilterBar = (
     <div className="flex flex-wrap items-center gap-2 text-sm w-full">
       <DateRangeButton
@@ -579,24 +681,33 @@ export default function ConsolidatedReport({
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b bg-yellow-500">
             <h3 className="text-sm font-semibold text-gray-900">Data Summary</h3>
-            <p className="text-xs text-gray-800 -mt-0.5">Click a date to set the range</p>
+            <p className="text-xs text-gray-800 -mt-0.5">
+              {summaryDateKey ? "Click a date to set the range" : "No date field detected"}
+            </p>
           </div>
 
-          <DataGrid<SummaryRow>
+          <DataGrid<AnyRow>
             columns={summaryCols}
             rows={filteredSummary}
             headerTone="neutral"
             stickyHeader
-            horizontalScroll={false}
-            onRowClick={(row) => {
-              setFromDate(row.uniqueReportDate);
-              setToDate(row.uniqueReportDate);
-            }}
-            rowClassName={(row) =>
-              row.uniqueReportDate >= fromDate && (!!toDate ? row.uniqueReportDate <= toDate : true)
-                ? "ring-1 ring-yellow-300"
-                : ""
+            horizontalScroll={summaryCols.reduce((w, c) => w + (c.width ?? 0), 0) > 460}
+            onRowClick={
+              summaryDateKey
+                ? (row) => {
+                    const d = row?.[summaryDateKey];
+                    if (isISODate(d)) {
+                      setFromDate(d);
+                      setToDate(d);
+                    }
+                  }
+                : undefined
             }
+            rowClassName={(row) => {
+              if (!summaryDateKey) return "";
+              const d = row?.[summaryDateKey];
+              return isISODate(d) && d >= fromDate && (!!toDate ? d <= toDate : true) ? "ring-1 ring-yellow-300" : "";
+            }}
           />
         </div>
       </div>
@@ -608,7 +719,7 @@ export default function ConsolidatedReport({
             <h3 className="text-sm font-semibold text-gray-900">Consolidated Data</h3>
           </div>
 
-          <DataGrid<ConsolidatedRow>
+          <DataGrid<AnyRow>
             columns={consolidatedCols}
             rows={pageRows}
             headerTone="neutral"
