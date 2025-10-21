@@ -1,6 +1,7 @@
 import os
 import json
 import pandas as pd
+import numpy as np
 import traceback
 
 from fastapi import Depends, Form, Query
@@ -17,10 +18,82 @@ from helpers.timestamp_converter import timestamp_to_yyyy_mm_dd
 from helpers.make_json_serializable import make_json_serializable
 from helpers.get_time_date import get_time_date
 from helpers.save_file.save_file import save_csv_data_in_folder
+from helpers.get_root_folder import get_root_folder
 
 from data_processing.flowrate_approach.flowrate_approach import flow_rate_main
 
 router = APIRouter(prefix="/api/flowrate_approach", tags=["flowrate-approach-processed-flow-rate-approach"])
+
+def parse_flow_file(path: str):
+    titles = [
+        "Flow of Loan Balance Principal Matrix",
+        "Flow of Loan Balance Principal Matrix (Distribution)",
+        "Flow Rate Calculation",
+    ]
+
+    # Determine file type and read accordingly
+    file_extension = os.path.splitext(path)[1].lower()
+    
+    if file_extension in ['.xlsx', '.xls']:
+        # Read Excel file
+        df = pd.read_excel(path, header=None, engine="openpyxl", dtype=str, keep_default_na=False)
+    elif file_extension == '.csv':
+        # Read CSV file
+        df = pd.read_csv(path, header=None, engine="python", dtype=str, keep_default_na=False)
+    else:
+        raise ValueError(f"Unsupported file format: {file_extension}")
+    
+    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x).replace({"": np.nan})
+
+    # Locate section titles (first non-null cell equals a title)
+    title_rows = [(i, next((df.iat[i, j] for j in range(df.shape[1]) if pd.notna(df.iat[i, j])), None))
+                  for i in range(len(df))]
+    title_rows = [(i, t) for i, t in title_rows if t in titles]
+    title_indices = {i for i, _ in title_rows}
+
+    out = {}
+    for i, title in title_rows:
+        # header row = first non-empty after title
+        j = i + 1
+        while j < len(df) and (df.iloc[j].isna().all() or (df.iloc[j].fillna("").astype(str).str.strip() == "").all()):
+            j += 1
+        if j >= len(df): 
+            out[title] = []
+            continue
+
+        # data start
+        header = [str(x).strip() if pd.notna(x) else "" for x in df.iloc[j].tolist()]
+        while header and (header[-1] == "" or header[-1].lower() == "nan"):  # drop trailing empties
+            header.pop()
+        data_start = j + 1
+
+        # end = next blank row or next title
+        k = data_start
+        while k < len(df) and k not in title_indices:
+            row = df.iloc[k]
+            if row.isna().all() or (row.fillna("").astype(str).str.strip() == "").all():
+                break
+            k += 1
+
+        block = df.iloc[data_start:k, :len(header)].copy()
+        block.columns = header
+
+        # drop all-NaN columns (often trailing commas)
+        block = block.dropna(axis=1, how="all")
+
+        # strip strings and convert non-date cols to numeric
+        for c in block.columns:
+            block[c] = block[c].apply(lambda x: x.strip() if isinstance(x, str) else x)
+            if c.lower() != "date":
+                block[c] = pd.to_numeric(block[c], errors="coerce")
+
+        # drop fully empty rows
+        block = block.dropna(how="all")
+
+        # NaN -> None for JSON
+        out[title] = json.loads(block.where(pd.notna(block), None).to_json(orient="records"))
+
+    return out
 
 @router.get("/flow_rate")
 async def get_processed_flow_rate_approach(
@@ -29,587 +102,50 @@ async def get_processed_flow_rate_approach(
 ):
 
     try:
-        # Sample flow_of_balance_principal_matrix
-        flow_of_balance_principal_matrix = [
-            {
-                "Product": "AgriFin",
-                "Date": "2025-08-31",
-                "Total Loan Balance with C/P": "22,774,500.00",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "528,200.00",
-                "PAR 30  (31 & 60 days)": "2,199,100.00",
-                "PAR 60  (61 & 90 days)": "2,439,250.00",
-                "PAR 90  (91 & 120 days)": "2,962,250.00",
-                "PAR 120  (121 & 180 days)": "5,347,400.00",
-                "PAR 180  (181 & 240 days)": "9,259,400.00",
-                "PAR 240  (241 & 360 days)": "38,900.00",
-                "PAR 360  (361 & Up days)": "-"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-07-31",
-                "Total Loan Balance with C/P": "24,105,400.00",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "663,750.00",
-                "PAR 30  (31 & 60 days)": "2,427,150.00",
-                "PAR 60  (61 & 90 days)": "2,595,200.00",
-                "PAR 90  (91 & 120 days)": "3,095,650.00",
-                "PAR 120  (121 & 180 days)": "5,667,050.00",
-                "PAR 180  (181 & 240 days)": "9,601,200.00",
-                "PAR 240  (241 & 360 days)": "55,400.00",
-                "PAR 360  (361 & Up days)": "-"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-06-30",
-                "Total Loan Balance with C/P": "26,444,400.00",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "856,500.00",
-                "PAR 30  (31 & 60 days)": "2,879,100.00",
-                "PAR 60  (61 & 90 days)": "2,932,100.00",
-                "PAR 90  (91 & 120 days)": "3,360,450.00",
-                "PAR 120  (121 & 180 days)": "6,215,650.00",
-                "PAR 180  (181 & 240 days)": "10,131,400.00",
-                "PAR 240  (241 & 360 days)": "69,200.00",
-                "PAR 360  (361 & Up days)": "-"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-05-31",
-                "Total Loan Balance with C/P": "41,347,500.00",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "1,458,000.00",
-                "PAR 30  (31 & 60 days)": "3,620,900.00",
-                "PAR 60  (61 & 90 days)": "3,398,650.00",
-                "PAR 90  (91 & 120 days)": "3,715,400.00",
-                "PAR 120  (121 & 180 days)": "6,945,100.00",
-                "PAR 180  (181 & 240 days)": "11,233,700.00",
-                "PAR 240  (241 & 360 days)": "10,949,000.00",
-                "PAR 360  (361 & Up days)": "26,750.00"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-04-30",
-                "Total Loan Balance with C/P": "42,133,250.00",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "1,860,950.00",
-                "PAR 30  (31 & 60 days)": "4,804,950.00",
-                "PAR 60  (61 & 90 days)": "3,644,250.00",
-                "PAR 90  (91 & 120 days)": "4,269,100.00",
-                "PAR 120  (121 & 180 days)": "8,608,900.00",
-                "PAR 180  (181 & 240 days)": "13,808,250.00",
-                "PAR 240  (241 & 360 days)": "5,110,100.00",
-                "PAR 360  (361 & Up days)": "26,750.00"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-03-31",
-                "Total Loan Balance with C/P": "40,627,200.00",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "1,951,700.00",
-                "PAR 30  (31 & 60 days)": "4,534,100.00",
-                "PAR 60  (61 & 90 days)": "3,942,000.00",
-                "PAR 90  (91 & 120 days)": "5,238,500.00",
-                "PAR 120  (121 & 180 days)": "10,718,450.00",
-                "PAR 180  (181 & 240 days)": "13,957,400.00",
-                "PAR 240  (241 & 360 days)": "258,300.00",
-                "PAR 360  (361 & Up days)": "26,750.00"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-02-28",
-                "Total Loan Balance with C/P": "-",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "-",
-                "PAR 30  (31 & 60 days)": "-",
-                "PAR 60  (61 & 90 days)": "-",
-                "PAR 90  (91 & 120 days)": "-",
-                "PAR 120  (121 & 180 days)": "-",
-                "PAR 180  (181 & 240 days)": "-",
-                "PAR 240  (241 & 360 days)": "-",
-                "PAR 360  (361 & Up days)": "-"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-01-31",
-                "Total Loan Balance with C/P": "-",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "-",
-                "PAR 30  (31 & 60 days)": "-",
-                "PAR 60  (61 & 90 days)": "-",
-                "PAR 90  (91 & 120 days)": "-",
-                "PAR 120  (121 & 180 days)": "-",
-                "PAR 180  (181 & 240 days)": "-",
-                "PAR 240  (241 & 360 days)": "-",
-                "PAR 360  (361 & Up days)": "-"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-12-31",
-                "Total Loan Balance with C/P": "-",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "-",
-                "PAR 30  (31 & 60 days)": "-",
-                "PAR 60  (61 & 90 days)": "-",
-                "PAR 90  (91 & 120 days)": "-",
-                "PAR 120  (121 & 180 days)": "-",
-                "PAR 180  (181 & 240 days)": "-",
-                "PAR 240  (241 & 360 days)": "-",
-                "PAR 360  (361 & Up days)": "-"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-11-30",
-                "Total Loan Balance with C/P": "-",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "-",
-                "PAR 30  (31 & 60 days)": "-",
-                "PAR 60  (61 & 90 days)": "-",
-                "PAR 90  (91 & 120 days)": "-",
-                "PAR 120  (121 & 180 days)": "-",
-                "PAR 180  (181 & 240 days)": "-",
-                "PAR 240  (241 & 360 days)": "-",
-                "PAR 360  (361 & Up days)": "-"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-10-31",
-                "Total Loan Balance with C/P": "-",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "-",
-                "PAR 30  (31 & 60 days)": "-",
-                "PAR 60  (61 & 90 days)": "-",
-                "PAR 90  (91 & 120 days)": "-",
-                "PAR 120  (121 & 180 days)": "-",
-                "PAR 180  (181 & 240 days)": "-",
-                "PAR 240  (241 & 360 days)": "-",
-                "PAR 360  (361 & Up days)": "-"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-09-30",
-                "Total Loan Balance with C/P": "-",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "-",
-                "PAR 30  (31 & 60 days)": "-",
-                "PAR 60  (61 & 90 days)": "-",
-                "PAR 90  (91 & 120 days)": "-",
-                "PAR 120  (121 & 180 days)": "-",
-                "PAR 180  (181 & 240 days)": "-",
-                "PAR 240  (241 & 360 days)": "-",
-                "PAR 360  (361 & Up days)": "-"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-08-31",
-                "Total Loan Balance with C/P": "-",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "-",
-                "PAR 30  (31 & 60 days)": "-",
-                "PAR 60  (61 & 90 days)": "-",
-                "PAR 90  (91 & 120 days)": "-",
-                "PAR 120  (121 & 180 days)": "-",
-                "PAR 180  (181 & 240 days)": "-",
-                "PAR 240  (241 & 360 days)": "-",
-                "PAR 360  (361 & Up days)": "-"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-07-31",
-                "Total Loan Balance with C/P": "-",
-                "0 day": "",
-                "PAR 1  (1 & 30 days)": "",
-                "PAR 30  (31 & 60 days)": "",
-                "PAR 60  (61 & 90 days)": "",
-                "PAR 90  (91 & 120 days)": "",
-                "PAR 120  (121 & 180 days)": "",
-                "PAR 180  (181 & 240 days)": "",
-                "PAR 240  (241 & 360 days)": "",
-                "PAR 360  (361 & Up days)": ""
-            }
-        ]
+        db = SessionLocal()
+        workflow = db.query(Workflow).filter(
+            Workflow.id == workflow_id,
+            Workflow.user_id == current_user.id
+        ).first()
+        if not workflow:
+            return JSONResponse(status_code=404, content={
+                'code': -1,
+                'success': False,
+                'msg': 'Workflow not found'
+            })
+
+        # get document by document_type and workflow_id
+        document = db.query(Document).filter(
+            Document.document_type == "FLOWRATE_APPROACH_FLOWRATE_OUTPUT",
+            Document.workflow_id == workflow_id,
+            Document.user_id == current_user.id
+        ).order_by(Document.id.desc()).first()
+        if not document:
+            return JSONResponse(status_code=404, content={
+                'code': -1,
+                'success': False,
+                'msg': 'Document not found'
+            })
+
+        # get document file path
+        document_file_path = os.path.join(get_root_folder(), 'files', document.workflow_path, 'output/flowrate_approach/', workflow.loan_product, 'flow_rate', document.filename)
+        print(f"Reading file: {document_file_path}")
         
-        # Sample flow_of_balance_principal_matrix (distribution)
-        flow_of_balance_principal_matrix_distribution = [
-            {
-                "Product": "AgriFin",
-                "Date": "2025-08-31",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "2.32%",
-                "PAR 30  (31 & 60 days)": "9.66%",
-                "PAR 60  (61 & 90 days)": "10.71%",
-                "PAR 90  (91 & 120 days)": "13.01%",
-                "PAR 120  (121 & 180 days)": "23.48%",
-                "PAR 180  (181 & 240 days)": "40.66%",
-                "PAR 240  (241 & 360 days)": "0.17%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-07-31",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "2.75%",
-                "PAR 30  (31 & 60 days)": "10.07%",
-                "PAR 60  (61 & 90 days)": "10.77%",
-                "PAR 90  (91 & 120 days)": "12.84%",
-                "PAR 120  (121 & 180 days)": "23.51%",
-                "PAR 180  (181 & 240 days)": "39.83%",
-                "PAR 240  (241 & 360 days)": "0.23%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-06-30",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "3.24%",
-                "PAR 30  (31 & 60 days)": "10.89%",
-                "PAR 60  (61 & 90 days)": "11.09%",
-                "PAR 90  (91 & 120 days)": "12.71%",
-                "PAR 120  (121 & 180 days)": "23.50%",
-                "PAR 180  (181 & 240 days)": "38.31%",
-                "PAR 240  (241 & 360 days)": "0.26%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-05-31",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "3.53%",
-                "PAR 30  (31 & 60 days)": "8.76%",
-                "PAR 60  (61 & 90 days)": "8.22%",
-                "PAR 90  (91 & 120 days)": "8.99%",
-                "PAR 120  (121 & 180 days)": "16.80%",
-                "PAR 180  (181 & 240 days)": "27.17%",
-                "PAR 240  (241 & 360 days)": "26.48%",
-                "PAR 360  (361 & Up days)": "0.06%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-04-30",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "4.42%",
-                "PAR 30  (31 & 60 days)": "11.40%",
-                "PAR 60  (61 & 90 days)": "8.65%",
-                "PAR 90  (91 & 120 days)": "10.13%",
-                "PAR 120  (121 & 180 days)": "20.43%",
-                "PAR 180  (181 & 240 days)": "32.77%",
-                "PAR 240  (241 & 360 days)": "12.13%",
-                "PAR 360  (361 & Up days)": "0.06%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-03-31",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "4.80%",
-                "PAR 30  (31 & 60 days)": "11.16%",
-                "PAR 60  (61 & 90 days)": "9.70%",
-                "PAR 90  (91 & 120 days)": "12.89%",
-                "PAR 120  (121 & 180 days)": "26.38%",
-                "PAR 180  (181 & 240 days)": "34.35%",
-                "PAR 240  (241 & 360 days)": "0.64%",
-                "PAR 360  (361 & Up days)": "0.07%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-02-28",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "0.00%",
-                "PAR 30  (31 & 60 days)": "0.00%",
-                "PAR 60  (61 & 90 days)": "0.00%",
-                "PAR 90  (91 & 120 days)": "0.00%",
-                "PAR 120  (121 & 180 days)": "0.00%",
-                "PAR 180  (181 & 240 days)": "0.00%",
-                "PAR 240  (241 & 360 days)": "0.00%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-01-31",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "0.00%",
-                "PAR 30  (31 & 60 days)": "0.00%",
-                "PAR 60  (61 & 90 days)": "0.00%",
-                "PAR 90  (91 & 120 days)": "0.00%",
-                "PAR 120  (121 & 180 days)": "0.00%",
-                "PAR 180  (181 & 240 days)": "0.00%",
-                "PAR 240  (241 & 360 days)": "0.00%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-12-31",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "0.00%",
-                "PAR 30  (31 & 60 days)": "0.00%",
-                "PAR 60  (61 & 90 days)": "0.00%",
-                "PAR 90  (91 & 120 days)": "0.00%",
-                "PAR 120  (121 & 180 days)": "0.00%",
-                "PAR 180  (181 & 240 days)": "0.00%",
-                "PAR 240  (241 & 360 days)": "0.00%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-11-30",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "0.00%",
-                "PAR 30  (31 & 60 days)": "0.00%",
-                "PAR 60  (61 & 90 days)": "0.00%",
-                "PAR 90  (91 & 120 days)": "0.00%",
-                "PAR 120  (121 & 180 days)": "0.00%",
-                "PAR 180  (181 & 240 days)": "0.00%",
-                "PAR 240  (241 & 360 days)": "0.00%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-10-31",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "0.00%",
-                "PAR 30  (31 & 60 days)": "0.00%",
-                "PAR 60  (61 & 90 days)": "0.00%",
-                "PAR 90  (91 & 120 days)": "0.00%",
-                "PAR 120  (121 & 180 days)": "0.00%",
-                "PAR 180  (181 & 240 days)": "0.00%",
-                "PAR 240  (241 & 360 days)": "0.00%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-09-30",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "0.00%",
-                "PAR 30  (31 & 60 days)": "0.00%",
-                "PAR 60  (61 & 90 days)": "0.00%",
-                "PAR 90  (91 & 120 days)": "0.00%",
-                "PAR 120  (121 & 180 days)": "0.00%",
-                "PAR 180  (181 & 240 days)": "0.00%",
-                "PAR 240  (241 & 360 days)": "0.00%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-08-31",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "0.00%",
-                "PAR 30  (31 & 60 days)": "0.00%",
-                "PAR 60  (61 & 90 days)": "0.00%",
-                "PAR 90  (91 & 120 days)": "0.00%",
-                "PAR 120  (121 & 180 days)": "0.00%",
-                "PAR 180  (181 & 240 days)": "0.00%",
-                "PAR 240  (241 & 360 days)": "0.00%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-07-31",
-                "0 day": "0.00%",
-                "PAR 1  (1 & 30 days)": "0.00%",
-                "PAR 30  (31 & 60 days)": "0.00%",
-                "PAR 60  (61 & 90 days)": "0.00%",
-                "PAR 90  (91 & 120 days)": "0.00%",
-                "PAR 120  (121 & 180 days)": "0.00%",
-                "PAR 180  (181 & 240 days)": "0.00%",
-                "PAR 240  (241 & 360 days)": "0.00%",
-                "PAR 360  (361 & Up days)": "0.00%"
-            }
-        ]
-        
-        # Sample flow_rate_calculation
-        flow_rate_calculation = [
-            {
-                "Product": "AgriFin",
-                "Date": "2025-08-31",
-                "0 Day to PAR 1": "",
-                "PAR 1 to PAR 30": "",
-                "PAR 30 to PAR 60": "",
-                "PAR 60 to PAR 90": "",
-                "PAR 90 to PAR 120": "",
-                "PAR 120 to PAR 180": "",
-                "PAR 180 to PAR 240": "",
-                "PAR 240 to PAR 360": "",
-                "PAR 360 above": ""
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-07-31",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "331.31%",
-                "PAR 30 to PAR 60": "100.50%",
-                "PAR 60 to PAR 90": "114.14%",
-                "PAR 90 to PAR 120": "172.74%",
-                "PAR 120 to PAR 180": "163.39%",
-                "PAR 180 to PAR 240": "0.41%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-06-30",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "283.38%",
-                "PAR 30 to PAR 60": "90.14%",
-                "PAR 60 to PAR 90": "105.58%",
-                "PAR 90 to PAR 120": "168.64%",
-                "PAR 120 to PAR 180": "154.47%",
-                "PAR 180 to PAR 240": "0.55%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-05-31",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "197.47%",
-                "PAR 30 to PAR 60": "80.98%",
-                "PAR 60 to PAR 90": "98.88%",
-                "PAR 90 to PAR 120": "167.29%",
-                "PAR 120 to PAR 180": "145.88%",
-                "PAR 180 to PAR 240": "0.62%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-04-30",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "194.57%",
-                "PAR 30 to PAR 60": "70.73%",
-                "PAR 60 to PAR 90": "101.95%",
-                "PAR 90 to PAR 120": "162.68%",
-                "PAR 120 to PAR 180": "130.49%",
-                "PAR 180 to PAR 240": "79.29%",
-                "PAR 240 to PAR 360": "0.52%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-03-31",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "246.19%",
-                "PAR 30 to PAR 60": "80.37%",
-                "PAR 60 to PAR 90": "108.30%",
-                "PAR 90 to PAR 120": "164.34%",
-                "PAR 120 to PAR 180": "128.83%",
-                "PAR 180 to PAR 240": "36.61%",
-                "PAR 240 to PAR 360": "10.36%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-02-28",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "0.00%",
-                "PAR 30 to PAR 60": "0.00%",
-                "PAR 60 to PAR 90": "0.00%",
-                "PAR 90 to PAR 120": "0.00%",
-                "PAR 120 to PAR 180": "0.00%",
-                "PAR 180 to PAR 240": "0.00%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2025-01-31",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "0.00%",
-                "PAR 30 to PAR 60": "0.00%",
-                "PAR 60 to PAR 90": "0.00%",
-                "PAR 90 to PAR 120": "0.00%",
-                "PAR 120 to PAR 180": "0.00%",
-                "PAR 180 to PAR 240": "0.00%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-12-31",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "0.00%",
-                "PAR 30 to PAR 60": "0.00%",
-                "PAR 60 to PAR 90": "0.00%",
-                "PAR 90 to PAR 120": "0.00%",
-                "PAR 120 to PAR 180": "0.00%",
-                "PAR 180 to PAR 240": "0.00%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-11-30",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "0.00%",
-                "PAR 30 to PAR 60": "0.00%",
-                "PAR 60 to PAR 90": "0.00%",
-                "PAR 90 to PAR 120": "0.00%",
-                "PAR 120 to PAR 180": "0.00%",
-                "PAR 180 to PAR 240": "0.00%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-10-31",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "0.00%",
-                "PAR 30 to PAR 60": "0.00%",
-                "PAR 60 to PAR 90": "0.00%",
-                "PAR 90 to PAR 120": "0.00%",
-                "PAR 120 to PAR 180": "0.00%",
-                "PAR 180 to PAR 240": "0.00%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-09-30",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "0.00%",
-                "PAR 30 to PAR 60": "0.00%",
-                "PAR 60 to PAR 90": "0.00%",
-                "PAR 90 to PAR 120": "0.00%",
-                "PAR 120 to PAR 180": "0.00%",
-                "PAR 180 to PAR 240": "0.00%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-09-30",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "0.00%",
-                "PAR 30 to PAR 60": "0.00%",
-                "PAR 60 to PAR 90": "0.00%",
-                "PAR 90 to PAR 120": "0.00%",
-                "PAR 120 to PAR 180": "0.00%",
-                "PAR 180 to PAR 240": "0.00%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            },
-            {
-                "Product": "AgriFin",
-                "Date": "2024-09-30",
-                "0 Day to PAR 1": "0.00%",
-                "PAR 1 to PAR 30": "0.00%",
-                "PAR 30 to PAR 60": "0.00%",
-                "PAR 60 to PAR 90": "0.00%",
-                "PAR 90 to PAR 120": "0.00%",
-                "PAR 120 to PAR 180": "0.00%",
-                "PAR 180 to PAR 240": "0.00%",
-                "PAR 240 to PAR 360": "0.00%",
-                "PAR 360 above": "100.00%"
-            }
-        ]
+        # Check if file exists
+        if not os.path.exists(document_file_path):
+            return JSONResponse(status_code=404, content={
+                'code': -1,
+                'success': False,
+                'msg': 'Flowrate output file does not exist. Pls. run flowrate first.'
+            })
+
+        parsed_data = parse_flow_file(document_file_path)
         
         res = {
             'code': 1,
             'success': True,
             'msg': 'Success',
-            'data': {
-                'flow_of_balance_principal_matrix': flow_of_balance_principal_matrix,
-                'flow_of_balance_principal_matrix (distribution)': flow_of_balance_principal_matrix_distribution,
-                'flow_rate_calculation': flow_rate_calculation
-            }
+            'data': parsed_data
         }
         
         return JSONResponse(status_code=200, content=res)
