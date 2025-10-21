@@ -49,9 +49,10 @@ class Workflow(Base):
     created_at = Column(
         DateTime, nullable=False, server_default=sql_text("CURRENT_TIMESTAMP")
     )
-
     user = relationship("User", back_populates="workflows")
     documents = relationship("Document", back_populates="workflow", cascade="all, delete-orphan")
+    # portfolio
+    loan_product = Column(String, nullable=True)
 
     def __repr__(self):
         return f"<Workflow id={self.id} name={self.workflow_name!r}>"
