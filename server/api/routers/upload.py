@@ -84,8 +84,6 @@ async def upload_file(
     """
     Upload and save a file to the database
     """
-    db = SessionLocal()
-
     # --- helper to normalize validation status ---
     def is_validation_ok(vr: Dict[str, Any]) -> bool:
         if not isinstance(vr, dict):
@@ -181,7 +179,7 @@ async def upload_file(
                     document_data_dict = cleaned_data  # Store as dict, not JSON string
                 else:
                     file_data_json = cleaned_data.to_json(orient='records')
-                    document_data_dict = cleaned_data.to_dict(orient='records')
+                    document_data_dict = cleaned_data.to_json(orient='records')
 
             saved_file_path = save_file_to_files_folder(
                 file_content=content,
@@ -190,50 +188,59 @@ async def upload_file(
                 create_subdirectories=True
             )
 
-            # logs table
-            log_record_id = None
+            # Create database connection only when needed
+            db = SessionLocal()
             try:
-                log_record_id = save_log_data_in_database(
-                    module=module,
-                    submodule=submodule,
-                    workflow_id=workflow_id,
-                    user_id=current_user.id,
-                    log_data={
-                        "filename": file.filename,
-                        "document_type": document_type,
-                        "workflow_path": workflow_path,
-                        "validation_results": validation_results
-                    }
-                )
-            except Exception as e:
-                print(f"Warning: Could not save to log table: {e}")
+                # logs table
+                log_record_id = None
+                try:
+                    log_record_id = save_log_data_in_database(
+                        module=module,
+                        submodule=submodule,
+                        workflow_id=workflow_id,
+                        user_id=current_user.id,
+                        log_data={
+                            "filename": file.filename,
+                            "document_type": document_type,
+                            "workflow_path": workflow_path,
+                            "validation_results": validation_results
+                        }
+                    )
+                except Exception as e:
+                    print(f"Warning: Could not save to log table: {e}")
 
-            # overlay table
-            overlay_record_id = None
-            try:
-                overlay_record_id = save_document_data_in_database(
+                # overlay table
+                record_id = None
+                try:
+                    record_id = save_document_data_in_database(
+                        document_type=document_type,
+                        document_data=document_data_dict,
+                        workflow_id=workflow_id,
+                        user_id=current_user.id,
+                        log_id=log_record_id
+                    )
+                except Exception as e:
+                    print(f"Warning: Could not save to table: {e}")
+
+                # documents table
+                new_document = Document(
+                    filename=file.filename,
+                    workflow_path=workflow_path,
+                    user_id=current_user.id,
+                    json_data=file_data_json,
                     document_type=document_type,
-                    document_data=document_data_dict,
-                    workflow_id=workflow_id,
-                    user_id=current_user.id,
-                    log_id=log_record_id
+                    version=1,
+                    workflow_id=workflow_id or 0
                 )
+                db.add(new_document)
+                db.commit()
+                db.refresh(new_document)
+                
             except Exception as e:
-                print(f"Warning: Could not save to overlay table: {e}")
-
-            # documents table
-            new_document = Document(
-                filename=file.filename,
-                workflow_path=workflow_path,
-                user_id=current_user.id,
-                json_data=file_data_json,
-                document_type=document_type,
-                version=1,
-                workflow_id=workflow_id or 0
-            )
-            db.add(new_document)
-            db.commit()
-            db.refresh(new_document)
+                db.rollback()
+                raise
+            finally:
+                db.close()
 
             response_data = {
                 "code": 1,
@@ -248,7 +255,7 @@ async def upload_file(
                     "action": "created",
                     "saved_file_path": saved_file_path,
                     "log_record_id": log_record_id,
-                    "overlay_record_id": overlay_record_id,
+                    "record_id": record_id,
                     "validation_results": validation_results
                 }
             }
@@ -260,14 +267,11 @@ async def upload_file(
                 os.remove(temp_path)
 
     except Exception as e:
-        db.rollback()
         traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"code": -1, "success": False, "msg": f"Error uploading file: {str(e)}", "data": None}
         )
-    finally:
-        db.close()
 
 # @router.get("/documents")
 # async def get_documents(

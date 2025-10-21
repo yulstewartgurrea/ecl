@@ -31,14 +31,15 @@ def clean_document(df: pd.DataFrame, document_type: str, file_name: str, temp_pa
         "FLOWRATE_APPROACH_COLLECTION_RATE",
         "FLOWRATE_APPROACH_FS_CURRENT_BALANCE",
         "FLOWRATE_APPROACH_MIS_DATA",
-        "FLOWRATE_APPROACH_REPORTS_GENERATED_EXTRACTED_CAMS"
+        "FLOWRATE_APPROACH_REPORTS_GENERATED_EXTRACTED_CAMS",
+        "FLOWRATE_APPROACH_AGING_REPORT"
     ]
     
     # FLOWRATE
     if document_type in no_need_formatting_document_types:
         return df
-    if document_type == "FLOWRATE_APPROACH_AGING_REPORT":
-        return aging_report_clean_up(temp_path)
+    # if document_type == "FLOWRATE_APPROACH_AGING_REPORT":
+    #     return aging_report_clean_up(temp_path)
     elif document_type == "FLOWRATE_APPROACH_DETAILED_BY_PRODUCT":
         return detailed_by_product_clean_up(temp_path)
     else:

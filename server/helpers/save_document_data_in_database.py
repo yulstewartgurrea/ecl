@@ -46,7 +46,10 @@ def save_document_data_in_database(
     db = SessionLocal()
     try:
         # Convert document_data to JSON string
-        json_data = json.dumps(document_data)
+
+        # temporarily changed
+        # json_data = json.dumps(document_data)
+        json_data = document_data
         
         # Map document types to their corresponding model classes
         document_type_mapping = {
