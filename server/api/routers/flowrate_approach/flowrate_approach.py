@@ -1,18 +1,28 @@
 import os
 import json
 import pandas as pd
+import traceback
 
 from fastapi import Depends, Form, Query
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from models.models import User, Workflow
+from models.models import User, Workflow, Document
+from models.flowrate_approach import FlowRateApproachAgingReport
 
 from core.security import get_current_user
+from database import SessionLocal
+
+from helpers.timestamp_converter import timestamp_to_yyyy_mm_dd
+from helpers.make_json_serializable import make_json_serializable
+from helpers.get_time_date import get_time_date
+from helpers.save_file.save_file import save_csv_data_in_folder
+
+from data_processing.flowrate_approach.flowrate_approach import flow_rate_main
 
 router = APIRouter(prefix="/api/flowrate_approach", tags=["flowrate-approach-processed-flow-rate-approach"])
 
-@router.get("/processed_flow_rate_approach")
+@router.get("/flow_rate")
 async def get_processed_flow_rate_approach(
     workflow_id: int = Query(..., description="Workflow ID to get data processed_flow_rate_approach"),
     current_user: User = Depends(get_current_user)
@@ -611,4 +621,75 @@ async def get_processed_flow_rate_approach(
         }
         return JSONResponse(status_code=500, content=res)
 
+@router.post("/flow_rate")
+async def flow_rate_approach(
+    workflow_id: int = Form(..., description="Workflow ID to get flowrate approach for"),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        db = SessionLocal()
+        workflow = db.query(Workflow).filter(
+            Workflow.id == workflow_id,
+            Workflow.user_id == current_user.id
+        ).first()
+        if not workflow:
+            return JSONResponse(status_code=404, content={
+                'code': -1,
+                'success': False,
+                'msg': 'Workflow not found'
+            })
 
+        aging_report = db.query(FlowRateApproachAgingReport).filter(
+            FlowRateApproachAgingReport.workflow_id == workflow_id,
+            FlowRateApproachAgingReport.user_id == current_user.id
+        ).order_by(FlowRateApproachAgingReport.id.desc()).first()
+
+        process_flow_rate_res = flow_rate_main(aging_report)
+
+        filename = f"flow_rate_output_{get_time_date()}.xlsx"
+        output_folder = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/flowrate_approach/{workflow.loan_product}/flow_rate"
+        document_type = "FLOWRATE_APPROACH_FLOWRATE_OUTPUT"
+
+        # Save data in documents models
+        db = SessionLocal()
+        try:
+            # Create Document record
+            new_document = Document(
+                filename=filename,
+                json_data=None,
+                document_type=document_type,
+                user_id=current_user.id,
+                workflow_id=workflow_id,
+                workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
+            )
+            db.add(new_document)
+            db.commit()
+            db.refresh(new_document)
+
+        finally:
+            db.close()
+
+        save_csv_data_in_folder(
+            workflow_path=output_folder,
+            document_type=document_type,
+            # csv_data is a daraframe
+            csv_data=process_flow_rate_res,
+            filename=filename
+        )
+
+        res = {
+            'code': 1,
+            'success': True,
+            'msg': 'Succes',
+            'data': make_json_serializable(process_flow_rate_res)
+        }
+        return JSONResponse(status_code=200, content=res)
+
+    except Exception as e:
+        traceback.print_exc()
+        res = {
+            'code': -1,
+            'success': False,
+            'msg': f'Something went wrong. {e}'
+        }
+        return JSONResponse(status_code=500, content=res)
