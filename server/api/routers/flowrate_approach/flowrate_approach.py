@@ -182,7 +182,7 @@ async def flow_rate_approach(
 
         process_flow_rate_res = flow_rate_main(aging_report)
 
-        filename = f"flow_rate_output_{get_time_date()}.xlsx"
+        filename = f"{workflow.loan_product}_flow_rate_output_{get_time_date()}.xlsx"
         output_folder = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/flowrate_approach/{workflow.loan_product}/flow_rate"
         document_type = "FLOWRATE_APPROACH_FLOWRATE_OUTPUT"
 
