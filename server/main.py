@@ -21,9 +21,7 @@ from api.routers import (users,
 from api.routers.overlay.development import data_interpolation, data_transformation
 from api.routers.flowrate_approach import (
     flowrate_approach,
-    data_consolidation,
-    pivoting,
-    credit_loss_calculation
+    creditloss_rate_calculation
 )
 
 
@@ -115,7 +113,4 @@ app.include_router(data_interpolation.router)
 app.include_router(data_transformation.router)
 app.include_router(upload.router)
 app.include_router(flowrate_approach.router)
-app.include_router(data_consolidation.router)
-app.include_router(pivoting.router)
-app.include_router(credit_loss_calculation.router)
-
+app.include_router(creditloss_rate_calculation.router)
