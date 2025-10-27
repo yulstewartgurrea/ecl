@@ -43,6 +43,7 @@ def calculate_flow_of_loan_balance_principal_matrix_dist(loan_balance_matrix_df)
         df[i] = loan_balance_matrix_df_copy[i] / loan_balance_matrix_df_copy['total loan balance with c/p']
 
     df['total loan balance with c/p'] = df[[col for col in df.columns if col not in ['date', 'total loan balance with c/p']]].sum(axis=1)
+    df.columns = df.columns.str.replace('  ', ' ')
     return df
     
 def calculate_flow_rate(flow_of_loan_balance_principal_matrix_dist_df):
