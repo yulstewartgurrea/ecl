@@ -48,7 +48,7 @@ async def get_credit_loss_calculation(
 
         # get document by document_type and workflow_id
         document = db.query(Document).filter(
-            Document.document_type == "FLOWRATE_APPROACH_CREDIT_LOSS_CALCULATION_OUTPUT",
+            Document.document_type == "FLOWRATE_APPROACH_CREDITLOSS_RATE_OUTPUT",
             Document.workflow_id == workflow_id,
             Document.user_id == current_user.id
         ).order_by(Document.id.desc()).first()
@@ -78,13 +78,14 @@ async def get_credit_loss_calculation(
                 'msg': 'Creditloss rate output file does not exist. Pls. run creditloss rate first.'
             })
 
-        parsed_data = parse_flow_file(document_file_path)
+        df = pd.read_excel(document_file_path)
         
+        print(document_file_path)
         res = {
             'code': 1,
             'success': True,
             'msg': 'Success',
-            'data': parsed_data
+            'data': make_json_serializable(df.to_dict(orient='records'))
         }
         
         return JSONResponse(status_code=200, content=res)
