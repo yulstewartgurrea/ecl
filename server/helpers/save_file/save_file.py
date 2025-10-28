@@ -5,6 +5,7 @@ from database import SessionLocal
 
 from helpers.get_time_date import get_time_date
 from .flowrate_approach.flowrate import save_flowrate_output
+from .flowrate_approach.creditloss_rate import save_creditloss_rate_output
 
 def save_csv_data_in_folder(
     workflow_path: str,
@@ -30,6 +31,7 @@ def save_csv_data_in_folder(
         # Map document types to their corresponding model classes
         document_type_mapping = {
             "FLOWRATE_APPROACH_FLOWRATE_OUTPUT": save_flowrate_output,
+            "FLOWRATE_APPROACH_CREDITLOSS_RATE_OUTPUT": save_creditloss_rate_output,
         }
         
         # Get the appropriate model class
