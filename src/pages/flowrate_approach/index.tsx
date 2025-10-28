@@ -186,7 +186,7 @@ const TransitionMatrixLanding = () => {
       <div className="w-full h-full grid md:grid-cols-5 sm:grid-cols-2 space-y-2">
         <div className={clsx("md:col-span-3 w-full h-full flex flex-col items-center justify-center")}>
           <div className="text-center">
-            <h1 className="text-3xl font-semibold mb-4 text-gray-800">Transition Matrix Workflow</h1>
+            <h1 className="text-3xl font-semibold mb-4 text-gray-800">Flowrate Approach Workflow</h1>
           </div>
 
           <div

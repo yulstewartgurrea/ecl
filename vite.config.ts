@@ -18,7 +18,15 @@ export default defineConfig({
   clearScreen: false,
   // Tauri expects a fixed port, fail if that port is not available
   server: {
-    strictPort: true,
+    watch: {
+      // anymatch globs; forward slashes work on all OSes
+      ignored: [
+        '**/server/**',  // ignore the whole server folder
+        '**/*.py',       // or ignore all .py files (optional)
+      ],
+    },
+    // optional if you proxy to the python API
+    proxy: { '/api': 'http://127.0.0.1:8000' },
   },
   // to access the Tauri environment variables set by the CLI with information about the current target
   envPrefix: ['VITE_', 'TAURI_PLATFORM', 'TAURI_ARCH', 'TAURI_FAMILY', 'TAURI_PLATFORM_VERSION', 'TAURI_PLATFORM_TYPE', 'TAURI_DEBUG'],

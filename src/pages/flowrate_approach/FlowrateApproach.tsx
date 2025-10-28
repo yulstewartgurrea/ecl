@@ -4,8 +4,6 @@
 import { useState } from "react";
 import Stepper from "../../components/stepper/Stepper";
 import Step1 from "./steps/Step1";
-import Step2 from "./steps/Step2";
-import Step3 from "./steps/Step3";
 import Step4 from "./steps/Step4";
 import Step5 from "./steps/Step5";
 
@@ -14,8 +12,6 @@ const FlowrateApproachPage = () => {
 
   const developmentSteps = [
     { label: "Inputs", completed: false },
-    { label: "Data Consolidation", completed: false },
-    { label: "Pivoting", completed: false },
     { label: "Flowrate Approach", completed: false },
     { label: "Credit Loss Rate Approach", completed: false },
     { label: "Output", completed: false },
@@ -26,10 +22,8 @@ const FlowrateApproachPage = () => {
   const renderSubStepContent = () => {
     switch (activeSubStep) {
       case 0: return <Step1 />;
-      case 1: return <Step2 />;
-      case 2: return <Step3 />;
-      case 3: return <Step4 />;
-      case 4: return <Step5 />;
+      case 1: return <Step4 />;
+      case 2: return <Step5 />;
       default: return null;
     }
   };
