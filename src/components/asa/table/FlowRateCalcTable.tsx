@@ -38,7 +38,7 @@ function toFlowRow(r: AgingRow): FlowRow {
 }
 
 const cols: Column<FlowRow>[] = [
-  { key: "product", header: "Product", width: 140, sticky: true },
+  // { key: "product", header: "Product", width: 140, sticky: true },
   { key: "date", header: "Date", width: 140, formatter: (v) => fmtDate(v as any) },
   { key: "zero_to_1", header: "0 Day to PAR 1", width: 150, align: "right", formatter: (v) => fmtPct(v as number) },
   { key: "one_to_30", header: "PAR 1 to PAR 30", width: 150, align: "right", formatter: (v) => fmtPct(v as number) },

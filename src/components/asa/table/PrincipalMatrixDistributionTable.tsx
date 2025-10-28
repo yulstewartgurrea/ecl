@@ -17,7 +17,7 @@ function toDistributionRow(r: AgingRow) {
 }
 
 const cols: Column<DistRow>[] = [
-  { key: "product", header: "Product", width: 140, sticky: true },
+  // { key: "product", header: "Product", width: 140, sticky: true },
   { key: "date", header: "Date", width: 140, formatter: (v) => fmtDate(v as any) },
   ...BUCKET_KEYS.map<Column<DistRow>>((k) => ({
     key: k,

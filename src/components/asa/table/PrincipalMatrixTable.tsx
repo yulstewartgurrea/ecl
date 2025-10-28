@@ -5,7 +5,7 @@ import type { AgingRow } from "./aging.types";
 import { fmtDate, fmtNum } from "./aging.types";
 
 const cols: Column<AgingRow>[] = [
-  { key: "product", header: "Product", width: 140, sticky: true },
+  // { key: "product", header: "Product", width: 140, sticky: true },
   { key: "date", header: "Date", width: 140, formatter: (v) => fmtDate(v as any) },
   {
     key: "total_loan_balance_with_cp",
