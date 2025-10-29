@@ -3,7 +3,7 @@ import numpy as np
 from typing import Dict, List, Any
 
 from .flowrate.aging_report import aging_report_clean_up
-from .flowrate.detailed_by_product import detailed_by_product_clean_up
+# from .flowrate.detailed_by_product import detailed_by_product_clean_up
 
 def clean_document(df: pd.DataFrame, document_type: str, file_name: str, temp_path = None) -> Dict[str, Any]:
     """
@@ -40,8 +40,8 @@ def clean_document(df: pd.DataFrame, document_type: str, file_name: str, temp_pa
         return df
     # if document_type == "FLOWRATE_APPROACH_AGING_REPORT":
     #     return aging_report_clean_up(temp_path)
-    elif document_type == "FLOWRATE_APPROACH_DETAILED_BY_PRODUCT":
-        return detailed_by_product_clean_up(temp_path)
+    # elif document_type == "FLOWRATE_APPROACH_DETAILED_BY_PRODUCT":
+    #     return detailed_by_product_clean_up(temp_path)
     else:
         return None
 
