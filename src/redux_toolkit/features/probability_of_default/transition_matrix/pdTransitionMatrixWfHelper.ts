@@ -15,6 +15,7 @@ const initialState: wfHelperData = {
   pdTransitionMatrixWfName: "",
   currentPdTransitionMatrixWfLogId: null,
   currentPdTransitionMatrixWorkflowId: null,
+  currentPdTransitionMatrixWorkflowData: null, // Store full workflow data
   isPdTransitionMatrixWfStarted: false,
   isPdTransitionMatrixWfFinish: false,
   isPdTransitionMatrixImportedOnce: false,
@@ -118,6 +119,13 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
     ) {
       state.currentPdTransitionMatrixWorkflowId = action.payload.workflow_id;
     },
+
+    setPdTransitionMatrixWorkflowData(
+      state,
+      action: PayloadAction<{ workflow_data: any }>
+    ) {
+      state.currentPdTransitionMatrixWorkflowData = action.payload.workflow_data;
+    },
   },
 });
 
@@ -133,6 +141,7 @@ export const {
   resetPdTransitionMatrixWfHelperData,
   setPdTransitionMatrixCurrentStep,
   setPdTransitionMatrixWorkflowId,
+  setPdTransitionMatrixWorkflowData, // NEW export
   // NEW exports
   setPdTransitionMatrixSelectedLoanProduct,
   setPdTransitionMatrixReportDateStart,
