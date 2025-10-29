@@ -7,6 +7,7 @@ import {
   ChartBarIcon,
   ArrowTrendingUpIcon,
   PlayIcon,
+  ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 
 import PrincipalMatrixTable from "../../../components/asa/table/PrincipalMatrixTable";
@@ -159,6 +160,7 @@ export default function Step4() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [toasterStatus, setToasterStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [toasterMessage, setToasterMessage] = useState<string>("");
 
@@ -278,6 +280,71 @@ export default function Step4() {
     }
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    setError(null);
+    setToasterStatus("loading");
+    setToasterMessage("Exporting file...");
+    
+    try {
+      const headers: Record<string, string> = {};
+      
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const response = await fetch(`http://localhost:8000/api/flowrate_approach/flow_rate/export?workflow_id=${workflowId}`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        // Try to parse error response
+        let errorMsg = `API error: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.msg || errorMsg;
+        } catch {
+          // If response is not JSON, use default message
+        }
+        throw new Error(errorMsg);
+      }
+
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'flow_rate_output.xlsx';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // Create blob and download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      // Show success toaster
+      setToasterStatus("success");
+      setToasterMessage("File exported successfully!");
+    } catch (e: any) {
+      console.error('Export error:', e);
+      const errorMsg = e?.message || 'Failed to export file.';
+      setToasterStatus("error");
+      setToasterMessage(errorMsg);
+      setError(errorMsg);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <>
       <ApiStatusIndicator
@@ -295,15 +362,27 @@ export default function Step4() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleRun}
-          disabled={running}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
-        >
-          <PlayIcon className="h-5 w-5" />
-          {running ? 'Running...' : 'Run'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRun}
+            disabled={running}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
+          >
+            <PlayIcon className="h-5 w-5" />
+            {running ? 'Running...' : 'Run'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting || running || !apiData}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
+          >
+            <ArrowDownTrayIcon className="h-5 w-5" />
+            {exporting ? 'Exporting...' : 'Export'}
+          </button>
+        </div>
       </div>
 
       {/* Segmented View Switch */}

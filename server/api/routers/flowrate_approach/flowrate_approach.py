@@ -6,7 +6,7 @@ import traceback
 
 from fastapi import Depends, Form, Query
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 
 from models.models import User, Workflow, Document
 from models.flowrate_approach import FlowRateApproachAgingReport
@@ -81,6 +81,71 @@ async def get_processed_flow_rate_approach(
         }
         
         return JSONResponse(status_code=200, content=res)
+    except Exception as e:
+        res = {
+            'code': -1,
+            'success': False,
+            'msg': f'Something went wrong. {e}'
+        }
+        return JSONResponse(status_code=500, content=res)
+
+@router.get("/flow_rate/export")
+async def export_processed_flow_rate_approach(
+    workflow_id: int = Query(..., description="Workflow ID to export flowrate output file"),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        db = SessionLocal()
+        workflow = db.query(Workflow).filter(
+            Workflow.id == workflow_id,
+            Workflow.user_id == current_user.id
+        ).first()
+        if not workflow:
+            return JSONResponse(status_code=404, content={
+                'code': -1,
+                'success': False,
+                'msg': 'Workflow not found'
+            })
+
+        # get document by document_type and workflow_id
+        document = db.query(Document).filter(
+            Document.document_type == "FLOWRATE_APPROACH_FLOWRATE_OUTPUT",
+            Document.workflow_id == workflow_id,
+            Document.user_id == current_user.id
+        ).order_by(Document.id.desc()).first()
+        if not document:
+            return JSONResponse(status_code=404, content={
+                'code': -1,
+                'success': False,
+                'msg': 'Document not found'
+            })
+
+        # get document file path
+        document_file_path = os.path.join(get_root_folder(), 'files', document.workflow_path, 'output/flowrate_approach/', workflow.loan_product, 'flow_rate', document.filename)
+        print(f"Exporting file: {document_file_path}")
+        
+        # Check if file exists
+        if not os.path.exists(document_file_path):
+            return JSONResponse(status_code=404, content={
+                'code': -1,
+                'success': False,
+                'msg': 'Flowrate output file does not exist. Pls. run flowrate first.'
+            })
+
+        # Determine media type based on file extension
+        file_ext = os.path.splitext(document.filename)[1].lower()
+        if file_ext == '.xlsx':
+            media_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        elif file_ext == '.csv':
+            media_type = 'text/csv'
+        else:
+            media_type = 'application/octet-stream'
+
+        return FileResponse(
+            path=document_file_path,
+            filename=document.filename,
+            media_type=media_type
+        )
     except Exception as e:
         res = {
             'code': -1,
