@@ -17,6 +17,7 @@ import {
   setPdTransitionMatrixSelectedReportingPeriod,
   setPdTransitionMatrixWfName,
   setPdTransitionMatrixWorkflowId,
+  setPdTransitionMatrixWorkflowData,
   // NEW actions
   setPdTransitionMatrixSelectedLoanProduct,
   setPdTransitionMatrixReportDateStart,
@@ -128,12 +129,26 @@ const TransitionMatrixLanding = () => {
         }
 
         const workflowData = await workflowResponse.json();
+        console.log('Full workflow response:', workflowData);
 
-        if (workflowData.data && workflowData.data.id) {
+        if (workflowData) {
+          const workflowId = workflowData.id;
+          console.log('Workflow ID:', workflowId);
           console.log(
-            `🎯 WORKFLOW CREATED: ID=${workflowData.data.id}, Name='${workflowData.data.workflow_name}', Entity='${workflowData.data.entity}', Period='${workflowData.data.reporting_period}'`
+            `🎯 WORKFLOW CREATED: ID=${workflowId}, Name='${workflowData.workflow_name}', Entity='${workflowData.entity}', Period='${workflowData.reporting_period}'`
           );
-          dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: workflowData.data.id }));
+          
+          // Save workflow ID
+          console.log('Dispatching workflow_id to Redux:', workflowId);
+          dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: workflowId }));
+          
+          // Save full workflow data
+          console.log('Dispatching full workflow data to Redux:', workflowData);
+          dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: workflowData }));
+          
+          console.log('Workflow data should now be in Redux');
+        } else {
+          console.error('No workflow ID in response:', workflowData);
         }
 
         setStatusMessage("Creating folder structure...");
