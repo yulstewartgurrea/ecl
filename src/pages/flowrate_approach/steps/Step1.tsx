@@ -2,6 +2,7 @@
 // pages/flowrate/steps/Step1.tsx (WRAPPED with yellow background)
 // ==========================
 import MultiCategoryUploader, { type CategoryConfig, type PathBuilderContext, type UploadResultsByCategory } from "../../../components/uploader/MultiCategoryUploader";
+import { useAppSelector } from "../../../redux_toolkit/hooks";
 
 const categories: CategoryConfig[] = [
 
@@ -12,7 +13,23 @@ const categories: CategoryConfig[] = [
 const pathBuilder = ({ entity, cadence, wf, subdir }: PathBuilderContext) => [entity, cadence, String(wf), subdir].filter(Boolean).join("/");
 
 export default function Step1() {
-  const context = { entity: "Entity 1", cadence: "Monthly", wf: "wf3", subdir: "input/flowrate_approach" };
+  // Get workflow data from Redux
+  const currentPdTransitionMatrixWorkflowId = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowId);
+  const currentPdTransitionMatrixWorkflowData = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowData);
+  
+  console.log('Step1 - Workflow ID:', currentPdTransitionMatrixWorkflowId);
+  console.log('Step1 - Workflow Data:', currentPdTransitionMatrixWorkflowData);
+  
+  // Use the workflow ID from Redux, or fallback to "1"
+  const workflowId = currentPdTransitionMatrixWorkflowId ? String(currentPdTransitionMatrixWorkflowId) : "1";
+  
+  const context = { 
+    entity: currentPdTransitionMatrixWorkflowData?.entity || "Entity 1", 
+    cadence: currentPdTransitionMatrixWorkflowData?.reporting_period || "Monthly", 
+    wf: currentPdTransitionMatrixWorkflowData?.workflow_name || "wf3", 
+    subdir: "input/flowrate_approach" 
+  };
+  
   const handleResults = (results: UploadResultsByCategory) => { console.log("Upload results merged:", results); };
 
   return (
@@ -25,7 +42,7 @@ export default function Step1() {
         maxSizeMB={20}
         endpoint="http://localhost:8000/api/document/upload"
         module="FLOWRATE_APPROACH"
-        workflowId="1"
+        workflowId={workflowId}
         context={context}
         pathBuilder={pathBuilder}
         initialSelectedKey="FLOWRATE_APPROACH_AGING_REPORT"
