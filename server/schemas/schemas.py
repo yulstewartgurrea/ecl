@@ -32,6 +32,7 @@ class WorkflowCreate(BaseModel):
     baseline_year: int | str
     workflow_type: str
     json_data: Optional[str] = "default"
+    loan_product: str
     @field_validator("baseline_year", mode="before")
     @classmethod
     def _coerce_year(cls, v):
