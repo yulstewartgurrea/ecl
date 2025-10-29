@@ -24,6 +24,8 @@ export type AgingCategory = { key: AgingKey; label: string };
 export type MonthRow = {
   date: string;                  // display label for the row
   cols: Record<AgingKey, number>;// decimals (0.075 → 7.5%)
+  monotonic?: boolean;           // optional: monotonic value from API
+  weighted?: number;              // optional: weighted credit loss rate from API
 };
 
 export type RatesColumnSet = {
@@ -225,20 +227,34 @@ const Badge: React.FC<
 const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
   title = "Credit Loss Rate Approach",
   subtitle = "Historical credit loss rates, distribution, and weighted loss computation.",
-  categories = DEFAULT_CATEGORIES,
-  rows = DEFAULT_ROWS,
-  historicalRateSets = DEFAULT_RATESETS,
-  distribution = DEFAULT_DISTRIBUTION,
+  categories,
+  rows,
+  historicalRateSets,
+  distribution,
   defaultRateSetIndex = 0,
   showNotes = true,
   onExportCsv,
   className = "",
 }) => {
-  const [rateSetIndex, setRateSetIndex] = useState(defaultRateSetIndex);
+  // Show "no data available" if critical props are missing
+  if (!categories || !rows || rows.length === 0 || !historicalRateSets || historicalRateSets.length === 0) {
+    return (
+      <div className={`w-full ${className}`}>
+        <Card title={title} subtitle={subtitle}>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center w-full">
+            <p className="text-sm text-gray-600">No data available</p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const [rateSetIndex, setRateSetIndex] = useState(defaultRateSetIndex || 0);
   const activeRates = historicalRateSets[rateSetIndex]?.values ?? {};
-  const hasPerMonthDist = distribution.type === "perMonth";
+  const hasPerMonthDist = distribution?.type === "perMonth";
 
   const overallWeighted = useMemo(() => {
+    if (!distribution) return 0;
     if (distribution.type === "asOf") return computeWeighted(distribution.values, activeRates);
     const per = Object.values(distribution.valuesByRow);
     if (!per.length) return 0;
@@ -247,13 +263,33 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
 
   const tableRows = useMemo(() => {
     return rows.map((r, i) => {
-      const ordered = categories.map((c) => r.cols[c.key] ?? 0);
-      const monotonic = isMonotonicNonDecreasing(ordered);
-      const dist =
-        distribution.type === "perMonth"
-          ? distribution.valuesByRow[i] ?? r.cols
-          : distribution.values;
-      return { ...r, monotonic, weighted: computeWeighted(dist, activeRates) };
+      // Use API-provided values if available, otherwise recalculate
+      let monotonic: boolean;
+      let weighted: number;
+      
+      if (r.monotonic !== undefined) {
+        // Use API-provided monotonic value
+        monotonic = r.monotonic;
+      } else {
+        // Fallback: calculate from columns
+        const ordered = categories.map((c) => r.cols[c.key] ?? 0);
+        monotonic = isMonotonicNonDecreasing(ordered);
+      }
+      
+      if (r.weighted !== undefined) {
+        // Use API-provided weighted value
+        weighted = r.weighted;
+      } else {
+        // Fallback: calculate from distribution and rates
+        const dist = distribution
+          ? (distribution.type === "perMonth"
+              ? distribution.valuesByRow[i] ?? r.cols
+              : distribution.values)
+          : r.cols;
+        weighted = computeWeighted(dist, activeRates);
+      }
+      
+      return { ...r, monotonic, weighted };
     });
   }, [rows, categories, distribution, activeRates]);
 
@@ -276,7 +312,7 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
   };
 
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5 ${className}`}>
+    <div className={`w-full ${className}`}>
       {/* LEFT */}
       <Card title={title} subtitle={subtitle}>
         <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
@@ -315,8 +351,8 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
-          <table className="min-w-[980px] w-full text-xs">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 w-full">
+          <table className="w-full text-xs">
             <thead className="bg-gray-50 sticky top-0">
               <tr className="text-gray-700">
                 <th className="px-3 py-2 text-left font-semibold border-b">Date</th>
@@ -363,105 +399,6 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
         </div>
       </Card>
 
-      {/* RIGHT */}
-      <div className="flex flex-col gap-5">
-        <Card title="Assumptions" subtitle="Active historical loss rates and balance distribution">
-          <div className="space-y-4">
-            {/* Rate set */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold text-gray-900">Historical Credit Loss Rate</h4>
-                <Badge>{historicalRateSets[rateSetIndex]?.name ?? "—"}</Badge>
-              </div>
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="min-w-[420px] w-full text-xs">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-semibold border-b">Aging Category</th>
-                      <th className="px-3 py-2 text-right font-semibold border-b">Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {categories.map((c) => (
-                      <tr key={c.key} className="odd:bg-white even:bg-gray-50/50">
-                        <td className="px-3 py-1.5 border-b">{c.label}</td>
-                        <td className="px-3 py-1.5 border-b text-right tabular-nums">
-                          {pct(activeRates[c.key] ?? 0, 3)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Distribution */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold text-gray-900">
-                  {distribution.type === "asOf"
-                    ? `Distribution of balances ${distribution.asOfLabel}`
-                    : "Distribution of balances (per-month)"}
-                </h4>
-                <Badge tone="gray">{hasPerMonthDist ? "per month" : "as-of"}</Badge>
-              </div>
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="min-w-[420px] w-full text-xs">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-semibold border-b">Aging Category</th>
-                      <th className="px-3 py-2 text-right font-semibold border-b">Share</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {categories.map((c) => {
-                      const share =
-                        distribution.type === "asOf"
-                          ? distribution.values[c.key] ?? 0
-                          : distribution.valuesByRow?.[0]?.[c.key] ?? 0; // sample month
-                      return (
-                        <tr key={c.key} className="odd:bg-white even:bg-gray-50/50">
-                          <td className="px-3 py-1.5 border-b">{c.label}</td>
-                          <td className="px-3 py-1.5 border-b text-right tabular-nums">
-                            {pct(share, 3)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Overall */}
-            <div className="mt-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-600">Overall weighted credit loss rate</p>
-                  <p className="text-[11px] text-gray-500">
-                    Computed from the selected rate set × distribution.
-                  </p>
-                </div>
-                <div className="px-3 py-2 rounded-lg bg-yellow-50 border border-yellow-200 text-gray-900 font-semibold tabular-nums">
-                  {pct(overallWeighted, 4)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {showNotes && (
-          <Card title="Notes">
-            <ul className="list-disc ml-4 text-xs text-gray-600 space-y-1">
-              <li>Inputs are decimals; UI shows percentages.</li>
-              <li>“Monotonic?” checks non-decreasing across aging buckets per row.</li>
-              <li>
-                Right-panel “Overall weighted” uses the selected rate set and the current distribution.
-              </li>
-            </ul>
-          </Card>
-        )}
-      </div>
     </div>
   );
 };

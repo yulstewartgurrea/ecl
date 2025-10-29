@@ -149,13 +149,13 @@ export function createAsaApi(token?: string, options?: { base?: string; scheme?:
   const scheme = options?.scheme ?? "Bearer";
   return {
     getStep2Data: (workflowId: number) =>
-      fetchJson(base, `data_consolidation?workflow_id=${workflowId}`, token, scheme),
+      fetchJson(base, `data_consolidation/?workflow_id=${workflowId}`, token, scheme),
     getStep3Data: (workflowId: number) =>
-      fetchJson(base, `flow_rate?workflow_id=${workflowId}`, token, scheme),
+      fetchJson(base, `flow_rate/?workflow_id=${workflowId}`, token, scheme),
     getStep4Data: (workflowId: number) =>
-      fetchJson(base, `flow_rate?workflow_id=${workflowId}`, token, scheme),
+      fetchJson(base, `flow_rate/?workflow_id=${workflowId}`, token, scheme),
     getStep5Data: (workflowId: number) =>
-      fetchJson(base, `credit_loss_calculation?workflow_id=${workflowId}`, token, scheme),
+      fetchJson(base, `credit_loss_calculation/?workflow_id=${workflowId}`, token, scheme),
   };
 }
 

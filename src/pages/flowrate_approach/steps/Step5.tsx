@@ -2,6 +2,7 @@
 // pages/flowrate/steps/Step5.tsx (API-DRIVEN)
 // ==========================
 import React, { useEffect, useMemo, useState } from "react";
+import { PlayIcon } from "@heroicons/react/24/outline";
 import CreditLossRateMatrix, {
   type AgingCategory,
   type MonthRow,
@@ -10,6 +11,8 @@ import CreditLossRateMatrix, {
 } from "../../../components/asa/credit/CreditLossRateMatrix";
 import { useAsaApi } from "../../../lib/asaApi";
 import { useLocation, useSearchParams } from "react-router-dom";
+import { useAppSelector } from "../../../redux_toolkit/hooks";
+import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 
 /* -------- workflow id helpers (URL ?workflow_id=, route state, or localStorage) -------- */
 function useWorkflowId(): number {
@@ -100,8 +103,8 @@ function coerceRowsFromStep5(payload: any): MonthRow[] {
   const block =
     payload?.data?.flow_rate_calculation ??
     payload?.data?.["flow_rate_calculation"] ??
+    payload?.data ??  // Direct data array from credit loss calculation
     payload?.rows ??
-    payload?.data ??
     payload;
   const arr: any[] = Array.isArray(block) ? block : [];
   return arr.map((r) => {
@@ -117,7 +120,20 @@ function coerceRowsFromStep5(payload: any): MonthRow[] {
       par240_360: pctToDecimal(pick(r, FLOW_KEYS.par240_360)),
       par360p: pctToDecimal(pick(r, FLOW_KEYS.par360p)),
     };
-    return { date, cols };
+    
+    // Extract Monotonic? and Weighted Credit Loss Rate per Month from API
+    const monotonicStr = pick(r, ["Monotonic?", "Monotonic", "monotonic"]);
+    // Handle various formats: "Yes"/"yes"/true → true, "No"/"no"/false → false
+    let monotonic: boolean | undefined = undefined;
+    if (monotonicStr !== undefined && monotonicStr !== null && monotonicStr !== "") {
+      const str = String(monotonicStr).toLowerCase().trim();
+      monotonic = str === "yes" || monotonicStr === true;
+    }
+    
+    const weightedRate = pick(r, ["Weighted Credit Loss Rate per Month", "Weighted credit loss rate / month", "weighted_credit_loss_rate"]);
+    const weighted = weightedRate != null && weightedRate !== "" ? pctToDecimal(weightedRate) : undefined;
+    
+    return { date, cols, monotonic, weighted };
   });
 }
 
@@ -229,7 +245,10 @@ function coerceDistribution(step5: any, step3?: any): DistributionBy | undefined
 
 /* ---------------- page ---------------- */
 const Step5: React.FC = () => {
-  const workflowId = useWorkflowId();
+  // Get workflow ID from Redux
+  const currentPdTransitionMatrixWorkflowId = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowId);
+  const workflowId = currentPdTransitionMatrixWorkflowId || useWorkflowId();
+  const authToken = useAppSelector((s) => s.auth.token);
   const { getStep5Data, getStep3Data } = useAsaApi();
 
   const [categories, setCategories] = useState<AgingCategory[] | undefined>(undefined);
@@ -239,6 +258,9 @@ const Step5: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const [toasterStatus, setToasterStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [toasterMessage, setToasterMessage] = useState<string>("");
 
   useEffect(() => {
     let mounted = true;
@@ -252,23 +274,38 @@ const Step5: React.FC = () => {
         const step5 = s5.status === "fulfilled" ? s5.value : undefined;
         const step3 = s3.status === "fulfilled" ? s3.value : undefined;
 
-        const r = step5 ? coerceRowsFromStep5(step5) : [];
-        const rs = coerceRateSets(step5, r);
-        const dist = coerceDistribution(step5, step3);
+        // Check if data exists in the response
+        const data = step5?.data;
+        const hasData = data && (
+          (Array.isArray(data) && data.length > 0) ||  // Direct array format from credit loss calculation
+          (typeof data === 'object' && (data.flow_rate_calculation || data['flow_rate_calculation']))
+        );
 
-        setCategories(CATS);
-        setRows(r.length ? r : undefined);           // undefined -> component uses its defaults
-        setRateSets(rs.length ? rs : undefined);
-        setDistribution(dist);
+        if (hasData) {
+          const r = step5 ? coerceRowsFromStep5(step5) : [];
+          const rs = coerceRateSets(step5, r);
+          const dist = coerceDistribution(step5, step3);
 
-        if (!r.length) {
-          setError("No credit loss calculation rows found.");
+          setCategories(CATS);
+          setRows(r.length ? r : undefined);
+          setRateSets(rs.length ? rs : undefined);
+          setDistribution(dist);
+        } else {
+          // No data exists, don't set defaults
+          setCategories(undefined);
+          setRows(undefined);
+          setRateSets(undefined);
+          setDistribution(undefined);
         }
       })
       .catch((e: any) => {
         if (!mounted) return;
-        console.error("Step5 API error:", e);
-        setError(e?.message || "Failed to load Step 5 data.");
+        // Don't show error, just set no data
+        console.log("No existing data found for Step5");
+        setCategories(undefined);
+        setRows(undefined);
+        setRateSets(undefined);
+        setDistribution(undefined);
       })
       .finally(() => mounted && setLoading(false));
 
@@ -276,6 +313,75 @@ const Step5: React.FC = () => {
       mounted = false;
     };
   }, [workflowId, getStep5Data, getStep3Data]);
+
+  const handleRun = async () => {
+    setRunning(true);
+    setError(null);
+    setToasterStatus("loading");
+    setToasterMessage("Running credit loss calculation...");
+    
+    try {
+      const formData = new FormData();
+      formData.append('workflow_id', String(workflowId));
+
+      const headers: Record<string, string> = {};
+      
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const response = await fetch('http://localhost:8000/api/flowrate_approach/credit_loss_calculation/', {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Run result:', result);
+      
+      // If successful, fetch the updated data using the API helper
+      if (result.success || result.code === 1) {
+        const getResult = await getStep5Data(workflowId);
+        console.log('Updated data:', getResult);
+
+        // Update state with new data
+        const step5 = getResult;
+        const step3Result = await getStep3Data(workflowId);
+        const step3 = step3Result;
+
+        const r = step5 ? coerceRowsFromStep5(step5) : [];
+        const rs = coerceRateSets(step5, r);
+        const dist = coerceDistribution(step5, step3);
+
+        setCategories(CATS);
+        setRows(r.length ? r : undefined);
+        setRateSets(rs.length ? rs : undefined);
+        setDistribution(dist);
+
+        // Show success toaster
+        setToasterStatus("success");
+        setToasterMessage("Credit loss calculation completed successfully!");
+      } else {
+        // Show error if result is not successful
+        const errorMsg = result.msg || 'Credit loss calculation failed.';
+        setToasterStatus("error");
+        setToasterMessage(errorMsg);
+        setError(errorMsg);
+      }
+    } catch (e: any) {
+      console.error('Run error:', e);
+      const errorMsg = e?.message || 'Failed to run credit loss calculation.';
+      setToasterStatus("error");
+      setToasterMessage(errorMsg);
+      setError(errorMsg);
+    } finally {
+      setRunning(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -287,27 +393,49 @@ const Step5: React.FC = () => {
     );
   }
 
-  if (error && !rows) {
-    return (
-      <div className="min-h-dvh p-6">
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          {error}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-dvh p-6">
-      <CreditLossRateMatrix
-        categories={categories}
-        rows={rows}
-        historicalRateSets={rateSets}
-        distribution={distribution}
-        defaultRateSetIndex={0}
-        showNotes
+    <>
+      <ApiStatusIndicator
+        status={toasterStatus}
+        message={toasterMessage}
+        onHide={() => setToasterStatus("idle")}
       />
+      <div className="min-h-dvh p-6 space-y-6">
+        {/* Top heading + Run button */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Credit Loss Rate — Step 3</h2>
+            <p className="text-xs text-gray-700">
+              Explore credit loss rate calculations.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleRun}
+            disabled={running}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
+          >
+            <PlayIcon className="h-5 w-5" />
+            {running ? 'Running...' : 'Run'}
+          </button>
+        </div>
+
+      {loading ? (
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">
+          Loading…
+        </div>
+      ) : (
+        <CreditLossRateMatrix
+          categories={categories}
+          rows={rows}
+          historicalRateSets={rateSets}
+          distribution={distribution}
+          showNotes
+        />
+      )}
     </div>
+    </>
   );
 };
 
