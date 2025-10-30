@@ -6,6 +6,7 @@ import Stepper from "../../components/stepper/Stepper";
 import Step1 from "./steps/Step1";
 import Step4 from "./steps/Step4";
 import Step5 from "./steps/Step5";
+import Step6 from "./steps/Step6";
 
 const FlowrateApproachPage = () => {
   const [activeSubStep, setActiveSubStep] = useState(0);
@@ -24,6 +25,7 @@ const FlowrateApproachPage = () => {
       case 0: return <Step1 />;
       case 1: return <Step4 />;
       case 2: return <Step5 />;
+      case 3: return <Step6 />;
       default: return null;
     }
   };
