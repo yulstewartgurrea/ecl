@@ -265,7 +265,7 @@ export default function CreditLossRateCharts({
   className = "",
   enableExport = false,
 }: Props) {
-  const [tab, setTab] = useState<"weighted" | "bucket" | "heatmap">("weighted");
+  const [tab, setTab] = useState<"weighted" | "bucket" >("weighted");
   const [bucketKey, setBucketKey] = useState<BucketKey>("par_90_120");
   const [visibleBuckets, setVisibleBuckets] = useState<string[]>([
     "par_30_60",
@@ -362,7 +362,7 @@ export default function CreditLossRateCharts({
         </div>
 
         <div className="flex items-center gap-2">
-          {tab !== "heatmap" && (
+          {/* {tab !== "heatmap" && (
             <button
               type="button"
               onClick={() => setShowExplainer((s) => !s)}
@@ -371,7 +371,7 @@ export default function CreditLossRateCharts({
             >
               {showExplainer ? "Hide" : "Explain"}
             </button>
-          )}
+          )} */}
 
           <label className="text-sm ml-2">Rate set:</label>
           <select
@@ -438,8 +438,7 @@ export default function CreditLossRateCharts({
           <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1">
             {[
               { id: "weighted", label: "Weighted" },
-              { id: "bucket", label: "Bucket trend" },
-              { id: "heatmap", label: "Heatmap" },
+              { id: "bucket", label: "Bucket trend" }
             ].map((t) => (
               <button
                 key={t.id}
@@ -564,70 +563,7 @@ export default function CreditLossRateCharts({
                 </div>
               )}
 
-              {tab === "heatmap" && (
-                <div className="w-full overflow-x-auto">
-                  <div className="min-w-[860px]">
-                    {/* Legend */}
-                    <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
-                      <span>Low</span>
-                      <div className="h-2 w-28 bg-gradient-to-r from-blue-600 to-red-600 rounded" />
-                      <span>High</span>
-                      <span className="ml-3 text-gray-400">(% per bucket)</span>
-                    </div>
-
-                    {/* Grid header */}
-                    <div
-                      className="grid"
-                      style={{
-                        gridTemplateColumns: `140px repeat(${BUCKETS.length}, minmax(80px, 1fr))`,
-                      }}
-                    >
-                      <div className="text-xs font-medium text-gray-600 py-1 px-2 sticky left-0 bg-white z-10 border-b border-gray-100">
-                        Date
-                      </div>
-                      {BUCKETS.map((b) => (
-                        <div
-                          key={b.key}
-                          className="text-xs font-medium text-gray-600 py-1 px-2 border-b border-gray-100 text-center"
-                        >
-                          {b.label}
-                        </div>
-                      ))}
-
-                      {/* Rows */}
-                      {rows.map((r) => {
-                        const mono = isMonotoneNonDecreasing(r);
-                        return (
-                          <React.Fragment key={r.date}>
-                            <div className="text-xs py-1.5 px-2 sticky left-0 bg-white z-10 border-b border-gray-50 flex items-center gap-2">
-                              <span className="font-medium">{r.date}</span>
-                              {!mono && (
-                                <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-700">
-                                  non-monotone
-                                </span>
-                              )}
-                            </div>
-                            {BUCKETS.map((b) => {
-                              const v = toPct((r as any)[b.key]);
-                              const bg = colorFor(v, heatmapMinMax.min, heatmapMinMax.max);
-                              return (
-                                <div
-                                  key={`${r.date}-${b.key}`}
-                                  className="h-9 border-b border-gray-50 flex items-center justify-center text-[11px] text-white/90"
-                                  style={{ background: bg }}
-                                  title={`${b.label} • ${fmtPct(v)}`}
-                                >
-                                  {fmtPct(v, 3)}
-                                </div>
-                              );
-                            })}
-                          </React.Fragment>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
+            
             </div>
           )}
         </div>
