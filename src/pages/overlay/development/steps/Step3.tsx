@@ -1,111 +1,167 @@
-import { useMemo, useState } from "react";
-import ExeTable from "../../../../components/overlay/data_transformation/table/ExeTable";
-import type { Frequency, ViewMode } from "../../../../components/overlay/data_transformation/table/columns";
+// src/pages/overlay/development/.../OverlayDevelpmentPage3.tsx
+import { useState, useRef, useEffect, useCallback } from "react";
+import ExeTable from "../../../../components/overlay/development/data_transformation/table/ExeTable";
+import type {
+  Frequency,
+  ViewMode,
+} from "../../../../components/overlay/development/data_transformation/table/columns";
+import type { ColumnNode } from "../../../../components/overlay/development/data_transformation/table/MacroTable";
+import { useAppSelector } from "../../../../redux_toolkit/hooks";
+import { useSelector } from "react-redux";
+import type { RootState } from "../../../../redux_toolkit/store";
+import { PlayCircleIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import {
+  runDataTransformation,
+  type ApiEnvelope,
+  type DataTransformationResults,
+} from "../../../../services/dataTransformation";
+
+// 👉 Add this import (adjust relative path if needed)
+import { PollIsendNotifier } from "../../../../components/PollIsendNotifier";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+
+type Row = Record<string, any>;
 
 export default function OverlayDevelpmentPage3() {
   const [frequency] = useState<Frequency>("monthly");
-  const [view, setView] = useState<ViewMode>("consolidated");
+  const [view] = useState<ViewMode>("transformations");
 
-  // --- consolidated sample rows (keep your existing demo or real data) ---
-  const consolidatedData = useMemo(
-    () =>
-      Array.from({ length: 18 }).map((_, i) => {
-        const year = 2024;
-        const monthNo = (i % 12) + 1;
-        const monthName = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][i % 12];
-        return {
-          year,
-          month_no: monthNo,
-          month: monthName,
-          period_id: `${year}-${String(monthNo).padStart(2, "0")}`,
-          inflation: 3 + (i % 4) * 0.1,
-          inf_food: 2.5 + (i % 5) * 0.1,
-          inf_alc_bev_tob: 4 + (i % 5) * 0.2,
-          inf_cloth_footw: 2 + (i % 5) * 0.1,
-          inf_hous_water_elec: 4.5 + (i % 6) * 0.1,
-          inf_furn_house_equip: 3 + (i % 5) * 0.1,
-          inf_health: 3.4 + (i % 5) * 0.1,
-          inf_transport: 5 + (i % 5) * 0.2,
-          inf_info_comm: 0.6 + (i % 5) * 0.05,
-          inf_rec_sports_cul: 3.5 + (i % 5) * 0.2,
-          inf_educ: 5 + (i % 5) * 0.2,
-          inf_rest_accoms: 4 + (i % 5) * 0.2,
-          inf_pers_misc: 2.8 + (i % 5) * 0.1,
-          core_inflation: 3.6 + (i % 5) * 0.1,
-          exch_rate_index_real_yoy: 0.01 * (i % 10),
-          exch_rate_index_nom_yoy: 0.01 * ((i + 2) % 10),
-          usd_php_eop: 42 + i * 0.1,
-          time_depo_rate: 2.5 + (i % 5) * 0.1,
-          sav_depo_rate: 1.2 + (i % 5) * 0.1,
-          bank_ave_lend_rate: 5.8 + (i % 5) * 0.1,
-          lend_rates_hi: 7.6 + (i % 5) * 0.1,
-          lend_rates_lo: 5.5 + (i % 5) * 0.1,
-          t_bill_91: 1.6 + (i % 5) * 0.1,
-          unemp_rate: (6.9 - i * 0.03).toFixed(2) + "%",
-          gdp_gr: 0.25 + (i % 5) * 0.01,
-          gni_gr: 0.18 + (i % 5) * 0.01,
-          household_cons_gr: 0.12 + (i % 5) * 0.01,
-          government_cons_gr: 0.05 + (i % 5) * 0.005,
-          gross_cap_form_gr: 0.09 + (i % 5) * 0.005,
-          fix_cap_form_gr: 0.07 + (i % 5) * 0.005,
-          exports_gr: 0.14 + (i % 5) * 0.01,
-          imports_gr: 0.11 + (i % 5) * 0.01,
-          gni_gdp_industry_gr: 0.13 + (i % 5) * 0.01,
-          gni_gdp_mining_gr: 0.02 + (i % 5) * 0.005,
-          gni_gdp_manufacturing_gr: 0.10 + (i % 5) * 0.01,
-          gni_gdp_elec_steam_g_gr: 0.03 + (i % 5) * 0.005,
-          gni_gdp_const_gr: 0.04 + (i % 5) * 0.005,
-          gni_gdp_services_gr: 0.12 + (i % 5) * 0.01,
-          gni_gdp_wholesale_retl_gr: 0.08 + (i % 5) * 0.01,
-          gni_gdp_transpo_stor_gr: 0.06 + (i % 5) * 0.01,
-          gni_gdp_real_est_gr: 0.05 + (i % 5) * 0.01,
-        };
-      }),
-    []
+  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } = useSelector(
+    (s: RootState) => (s.pdTransitionMatrixWfHelper as any)
   );
 
-  // --- transformations data: two datasets (LEFT + RIGHT tables) ---
-  const { mevData, defaultData } = useMemo(() => {
-    const N = 36;
-    const startYear = 2012;
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
 
-    const infPct = Array.from({ length: N }, (_, i) => 3 + (i % 12) * 0.1); // %
-    const defRate = Array.from({ length: N }, (_, i) => 0.012 + (i % 10) * 0.001); // fraction
+  const [busy, setBusy] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
 
-    const mev = Array.from({ length: N }, (_, i) => {
-      const y = startYear + Math.floor(i / 12);
-      const m = (i % 12) + 1;
-      const lag3 = i >= 3 ? infPct[i - 3] : null;
-      const yoy = i >= 12 ? infPct[i] - infPct[i - 12] : null;
-      const infLn = Math.log(Math.max(1e-9, infPct[i] / 100));
-      return {
-        date_label: `${y}-${months[m - 1]}`,
-        period_id: `${y}-${String(m).padStart(2, "0")}`,
-        inflation_lag3: lag3 == null ? "" : `${lag3.toFixed(2)}%`,
-        inflation_ln: isFinite(infLn) ? infLn.toFixed(4) : "",
-        inflation_diff: yoy == null ? "" : `${yoy.toFixed(2)}%`,
-      };
-    });
+  const [mevRows, setMevRows] = useState<Row[]>([]);
+  const [defRows, setDefRows] = useState<Row[]>([]);
+  const [mevCols, setMevCols] = useState<ColumnNode[]>([]);
+  const [defCols, setDefCols] = useState<ColumnNode[]>([]);
 
-    // make 24 rows of default data (Jan 2021 .. Dec 2022)
-    const def: Array<Record<string, any>> = [];
-    for (let y = 2021; y <= 2022; y++) {
-      for (let m = 1; m <= 12; m++) {
-        const i = (y - 2021) * 12 + (m - 1);
-        const ln = Math.log(Math.max(1e-9, defRate[i % defRate.length]));
-        const mm = String(m).padStart(2, "0");
-        const lastDay = new Date(y, m, 0).getDate(); // end-of-month
-        def.push({
-          date_eom: `${mm}/${lastDay}/${y}`, // 01/31/2021 style
-          default_rate_ln: ln.toFixed(4),
-        });
+  // Export states
+  const [exporting, setExporting] = useState(false);
+  const [exportErr, setExportErr] = useState<string | null>(null);
+  const [exportReady, setExportReady] = useState(false); // enabled after GET success
+
+  const abortRef = useRef<AbortController | null>(null);
+
+  // ---- Core loader (POST+poll or GET-only) ----
+  const loadTransformation = useCallback(
+    async (params: { poll: boolean; skipPost: boolean }) => {
+      const { poll, skipPost } = params;
+      setErrMsg(null);
+      if (!selectedWorkflowId && selectedWorkflowId !== 0) {
+        setErrMsg("Please select a workflow on Step 1 before running the transformation.");
+        return;
       }
-    }
-    return { mevData: mev, defaultData: def };
-  }, []);
 
-  const data = consolidatedData;
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+
+      setBusy(true);
+      try {
+        const shaped = await runDataTransformation({
+          apiBase: API_BASE,
+          token,
+          workflowId: Number(selectedWorkflowId),
+          poll, // controls poll vs single GET
+          skipPost, // explicit
+          includeAllIndependent: false,
+          signal: abortRef.current.signal,
+        });
+
+        setMevRows(shaped.independentRows);
+        setDefRows(shaped.dependentRows);
+        setMevCols(shaped.independentColumns);
+        setDefCols(shaped.dependentColumns);
+      } catch (err: any) {
+        setErrMsg(err?.message || "Failed to run data transformation");
+        setMevRows([]);
+        setDefRows([]);
+        setMevCols([]);
+        setDefCols([]);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [API_BASE, token, selectedWorkflowId]
+  );
+
+  const onRun = () => loadTransformation({ poll: true, skipPost: false }); // POST + poll
+  const onRefresh = () => loadTransformation({ poll: false, skipPost: true }); // GET-only
+
+  // ---- Enable export ONLY after GET data is present ----
+  useEffect(() => {
+    const hasData = (mevRows?.length ?? 0) > 0 || (defRows?.length ?? 0) > 0;
+    const hasWorkflow = selectedWorkflowId !== null && selectedWorkflowId !== undefined;
+    setExportReady(Boolean(hasWorkflow && hasData && !busy));
+  }, [mevRows, defRows, busy, selectedWorkflowId]);
+
+  // ---- Export CSV handler ----
+  // Endpoint: /api/overlay/development/data_transformation_results/export/?workflow_id=<id>
+  const exportCsv = useCallback(async () => {
+    if (!selectedWorkflowId && selectedWorkflowId !== 0) return;
+
+    setExportErr(null);
+    setExporting(true);
+    try {
+      const url = `${API_BASE}/api/overlay/development/data_transformation_results/export/?workflow_id=${encodeURIComponent(
+        String(selectedWorkflowId)
+      )}`;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (!res.ok) {
+        let msg = `Export failed: HTTP ${res.status}`;
+        try {
+          const t = await res.text();
+          if (t) msg = `${msg} – ${t}`;
+        } catch {}
+        throw new Error(msg);
+      }
+
+      const blob = await res.blob();
+
+      // Attempt to derive filename from Content-Disposition
+      const cd = res.headers.get("content-disposition") || "";
+      const match =
+        cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i) ||
+        cd.match(/filename=["']?([^"']+)["']?/i);
+      const fallback = `data_transformation_results_${selectedWorkflowId}.csv`;
+      const filename = (match && decodeURIComponent(match[1])) || fallback;
+
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+    } catch (e: any) {
+      setExportErr(e?.message || "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }, [API_BASE, selectedWorkflowId, token]);
+
+  const caption = view === "consolidated" ? "Consolidated monthly MEVs" : undefined;
+
+  // ---- GET-only status URL for the polling notifier ----
+  const statusUrl =
+    selectedWorkflowId || selectedWorkflowId === 0
+      ? `${API_BASE}/api/overlay/development/data_transformation_results?workflow_id=${encodeURIComponent(
+          String(selectedWorkflowId)
+        )}`
+      : "";
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
@@ -116,47 +172,98 @@ export default function OverlayDevelpmentPage3() {
               Consolidate all monthly MEVs
             </h1>
             <p className="text-sm text-gray-600">
-              Apply appropriate data transformations—such as lagging, logarithmic scaling, differencing, and other transformations—to MEVs and apply logarithmic scaling to default rate data
+              Apply lag/log/diff transformations to MEVs and take log of default rate data
             </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Run (POST + internal poll) */}
+            <button
+              onClick={onRun}
+              disabled={busy || (!selectedWorkflowId && selectedWorkflowId !== 0)}
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
+              title={!selectedWorkflowId ? "Pick a workflow on Step 1" : ""}
+            >
+              <PlayCircleIcon className="h-4 w-4" />
+              {busy ? "Processing…" : "Run Data Transform"}
+            </button>
+
+            {/* Refresh (GET-only) */}
+            <button
+              onClick={onRefresh}
+              disabled={busy || (!selectedWorkflowId && selectedWorkflowId !== 0)}
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+              title={!selectedWorkflowId ? "Pick a workflow on Step 1" : "Fetch latest results once"}
+            >
+              <ArrowPathIcon className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+              {busy ? "Refreshing…" : "Refresh"}
+            </button>
+
+            {/* Export CSV */}
+            <button
+              onClick={exportCsv}
+              disabled={!exportReady || exporting || (!selectedWorkflowId && selectedWorkflowId !== 0)}
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+              title={
+                !selectedWorkflowId
+                  ? "Pick a workflow on Step 1"
+                  : !exportReady
+                  ? "Load data first (Run or Refresh)"
+                  : "Download CSV"
+              }
+            >
+              {exporting ? "Exporting…" : "Export CSV"}
+            </button>
+
+            {/* Auto-checker (GET-only, every 10 mins) */}
+            {(selectedWorkflowId || selectedWorkflowId === 0) && (
+              <PollIsendNotifier<ApiEnvelope<DataTransformationResults>>
+                url={statusUrl}
+                everyMinutes={10}
+                requestInit={{
+                  headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    Accept: "application/json",
+                  },
+                }}
+                // Consider it done when backend marks success and any rows exist.
+                parseDone={(env) =>
+                  Boolean(
+                    env?.success &&
+                      ((env?.data?.independent_data?.length ?? 0) > 0 ||
+                        (env?.data?.dependent_data?.length ?? 0) > 0)
+                  )
+                }
+                // When done, immediately load the data into the table.
+                onDone={() => onRefresh()}
+              />
+            )}
           </div>
         </div>
       </header>
 
-      {/* view buttons */}
-      <div className="mx-auto px-4 py-4">
-        <div className="inline-flex rounded-2xl bg-gray-100 p-1 shadow-inner">
-          <button
-            onClick={() => setView("consolidated")}
-            className={[
-              "px-4 py-2 text-sm font-medium rounded-xl transition",
-              view === "consolidated" ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
-            ].join(" ")}
-          >
-            Consolidated Monthly MEV
-          </button>
-          <button
-            onClick={() => setView("transformations")}
-            className={[
-              "px-4 py-2 text-sm font-medium rounded-xl transition",
-              view === "transformations" ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
-            ].join(" ")}
-          >
-            Transformations
-          </button>
-        </div>
-      </div>
-
-      {/* table(s) */}
       <main className="mx-auto px-4 pb-8">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3">
+          {errMsg && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              {errMsg}
+            </div>
+          )}
+          {exportErr && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              {exportErr}
+            </div>
+          )}
+
           <ExeTable
             frequency={frequency}
-            view={view}
-            data={data}
-            mevData={mevData}
-            defaultData={defaultData}
-            caption={view === "consolidated" ? "Consolidated monthly MEVs" : undefined}
-            growthSuffix="_gr"
+            view="transformations"
+            data={[]} // not used in this view
+            mevData={mevRows}
+            defaultData={defRows}
+            mevColumns={mevCols}
+            defaultColumns={defCols}
+            caption={caption}
           />
         </div>
       </main>

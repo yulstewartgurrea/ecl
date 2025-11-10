@@ -13,7 +13,6 @@ const unitRow = (label: string, children: ColumnNode[]): ColumnNode => ({
   children,
 });
 
-// ---------- DO NOT REMOVE: your constants ----------
 export const BASE_METRICS: Array<{ top: string; key: string }> = [
   { top: "Gross domestic product - at constant 2018 prices", key: "gdp" },
   { top: "Gross national income - at constant 2018 prices", key: "gni" },

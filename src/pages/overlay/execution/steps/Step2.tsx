@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import ExeTable from "../../../../components/overlay/interpolation/table/ExeTable";
-import type { Frequency } from "../../../../components/overlay/interpolation/table/Columns";
+import ExeTable from "../../../../components/overlay/execution/interpolation/table/ExeTable";
+import type { Frequency } from "../../../../components/overlay/execution/interpolation/table/Columns";
 import { ProcessModal } from "../../../../components/ProcessModal";
 
 export default function OverlayExecutionPage2() {

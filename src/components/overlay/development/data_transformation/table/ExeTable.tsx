@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import MacroTable from "./MacroTable";
+import type { ColumnNode } from "./MacroTable";
 import {
   buildConsolidatedMonthlyColumns,
   buildTransformMEVColumns,
@@ -15,6 +16,11 @@ export type ExeTableProps = {
   defaultData?: Array<Record<string, any>>;
   caption?: string;
   growthSuffix?: string;
+
+  /** NEW: allow dynamic columns from the API-normalized shape */
+  mevColumns?: ColumnNode[];
+  defaultColumns?: ColumnNode[];
+  consolidatedColumns?: ColumnNode[];
 };
 
 export default function ExeTable({
@@ -25,14 +31,31 @@ export default function ExeTable({
   defaultData,
   caption,
   growthSuffix,
+
+  // NEW optional dynamic columns
+  mevColumns,
+  defaultColumns,
+  consolidatedColumns,
 }: ExeTableProps) {
-  // ❗ ALWAYS call hooks in the same order, regardless of `view`
-  const consCols = useMemo(
+  // keep builder fallbacks
+  const consColsBuilt = useMemo(
     () => buildConsolidatedMonthlyColumns({ growthSuffix }),
     [growthSuffix]
   );
-  const mevCols = useMemo(() => buildTransformMEVColumns(), []);
-  const defCols = useMemo(() => buildTransformDefaultColumns(), []);
+  const mevColsBuilt = useMemo(() => buildTransformMEVColumns(), []);
+  const defColsBuilt = useMemo(() => buildTransformDefaultColumns(), []);
+
+  // prefer dynamic (from API) if provided
+  const consCols = consolidatedColumns ?? consColsBuilt;
+  const mevCols  = mevColumns ?? mevColsBuilt;
+  const defCols  = defaultColumns ?? defColsBuilt;
+
+  // unified row id getter that works with the new payload
+  const getMEVRowId = (r: Record<string, any>, i: number) =>
+    r.time ?? r.period_id ?? r.id ?? r.date_label ?? i;
+
+  const getDefRowId = (r: Record<string, any>, i: number) =>
+    r.time ?? r.date_eom ?? i;
 
   if (view === "transformations") {
     return (
@@ -41,13 +64,13 @@ export default function ExeTable({
           caption="MEVS – Lag / Log / YoY Differencing"
           columns={mevCols}
           rows={mevData ?? []}
-          getRowId={(r, i) => (r as any).period_id ?? (r as any).date_label ?? i}
+          getRowId={getMEVRowId}
         />
         <MacroTable
           caption="Observed Default Rate – Log Transformation"
           columns={defCols}
           rows={defaultData ?? []}
-          getRowId={(r, i) => (r as any).date_eom ?? i}
+          getRowId={getDefRowId}
         />
       </div>
     );
@@ -59,7 +82,7 @@ export default function ExeTable({
       caption={caption}
       columns={consCols}
       rows={data}
-      getRowId={(r, i) => (r as any).period_id ?? i}
+      getRowId={(r, i) => (r as any).time ?? (r as any).period_id ?? (r as any).id ?? i}
       numberFormat={(v) =>
         typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 4 }) : v ?? ""
       }

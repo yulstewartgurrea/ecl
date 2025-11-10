@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import ExeTable from "../../../../components/overlay/data_transformation/table/ExeTable";
-import type { Frequency, ViewMode } from "../../../../components/overlay/data_transformation/table/columns";
+import ExeTable from "../../../../components/overlay/development/data_transformation/table/ExeTable";
+import type { Frequency, ViewMode } from "../../../../components/overlay/development/data_transformation/table/columns";
 
 export default function OverlayExecutionPage3() {
   const [frequency] = useState<Frequency>("monthly");

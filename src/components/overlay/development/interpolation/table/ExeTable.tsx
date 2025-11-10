@@ -16,7 +16,6 @@ export type ExeTableProps = {
 export function ExeTable({
   frequency,
   data,
-  caption,
   includeQuarterInMonthly,
   growthSuffix,
 }: ExeTableProps) {
@@ -31,7 +30,6 @@ export function ExeTable({
 
   return (
     <MacroTable
-      caption={caption}
       columns={columns}
       rows={data}
       getRowId={(r) => (r as any).period_id ?? Math.random().toString(36)}
