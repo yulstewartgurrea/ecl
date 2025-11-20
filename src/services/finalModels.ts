@@ -58,7 +58,7 @@ export async function postFinalModel(opts: {
   if (!Number.isFinite(workflowId)) throw new Error("workflowId must be a finite number");
 
   const url = `${base(apiBase)}/api/overlay/development/final_models`;
-  const value = model.metrics
+  const value = [model]
 
   // multipart/form-data
   const form = new FormData();

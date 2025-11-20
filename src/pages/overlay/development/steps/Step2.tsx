@@ -7,29 +7,38 @@ import type { RootState } from "../../../../redux_toolkit/store";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 
 import {
-  getInterpolationData,
+  getInterpolationDataGET,
+  runInterpolationPOST,
   sanitizeInterpolationRows,
   type InterpolationRow,
-} from "../../../../services/interpolation.ts";
+  type Mode,
+} from "../../../../services/interpolation";
+
+import {
+  EyeIcon,
+  PlayCircleIcon,
+  ArrowDownTrayIcon,
+  ArrowPathIcon,
+} from "@heroicons/react/24/outline";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-/** Flag key written by Step 1 (POST) once it succeeds */
-const postDoneKey = (workflowId: number | string) =>
-  `overlay:interpolation:posted:${workflowId}`;
-
 export default function OverlayDevelopmentPage2() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [frequency, setFrequency] = useState<Frequency>("monthly");
+  const MODE: Mode = "development";
 
   // read workflow_id from Redux
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
     useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
 
-  const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
+  const token = useAppSelector(
+    (s) => (s as any)?.auth?.token
+  ) as string | null;
 
   const [rows, setRows] = useState<InterpolationRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // GET state
+  const [posting, setPosting] = useState(false); // POST state
   const [err, setErr] = useState<string | null>(null);
 
   // Export state
@@ -37,7 +46,7 @@ export default function OverlayDevelopmentPage2() {
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false); // enabled after GET success
 
-  // Optional: when workflow changes, clear current table but DON'T fetch.
+  // Clear on workflow change
   useEffect(() => {
     setRows([]);
     setErr(null);
@@ -45,7 +54,7 @@ export default function OverlayDevelopmentPage2() {
     setExportReady(false);
   }, [selectedWorkflowId]);
 
-  // Manual trigger (Refresh buttons call this)
+  // ----- GET (read) -----
   const fetchInterpolation = useCallback(async () => {
     if (!selectedWorkflowId) {
       setRows([]);
@@ -57,55 +66,72 @@ export default function OverlayDevelopmentPage2() {
     setExportErr(null);
     setLoading(true);
     try {
-      const resp = await getInterpolationData({
+      const resp = await getInterpolationDataGET({
         apiBase: API_BASE,
         token,
-        workflowId: selectedWorkflowId,
-        frequency, // if backend ignores this, it’s fine
+        workflowId: Number(selectedWorkflowId),
+        frequency, // if backend ignores this, ok
+        mode: MODE, // "development" | "execution"
       });
-      const cleaned = sanitizeInterpolationRows(resp.data);
+
+      const cleaned = sanitizeInterpolationRows(resp.data || []);
       setRows(cleaned);
-      // Mark export as ready once GET succeeded and we have any rows
       setExportReady(Array.isArray(cleaned) && cleaned.length > 0);
     } catch (e: any) {
-      setErr(e?.message || "Failed to load interpolated data");
+      // If GET fails (e.g., 404 / empty), we keep table empty and let the user POST via button
+      setErr(
+        e?.message || 'No data yet. Click "Run Interpolation" to generate.'
+      );
       setRows([]);
       setExportReady(false);
     } finally {
       setLoading(false);
     }
-  }, [API_BASE, token, selectedWorkflowId, frequency]);
+  }, [API_BASE, token, selectedWorkflowId, frequency, MODE]);
 
-  /**
-   * NEW: Auto-run GET once Step 1 POST has completed.
-   * Step 1 should set localStorage flag postDoneKey(workflowId) after POST succeeds.
-   * We check it on mount / workflow change, and then clear it after fetching (one-shot).
-   */
+  // Initial: try GET first
   useEffect(() => {
     if (!selectedWorkflowId) return;
-
-    fetchInterpolation()
+    fetchInterpolation();
   }, [selectedWorkflowId, fetchInterpolation]);
 
-  // Also ensure exportReady toggles properly whenever rows change via other triggers
+  // Keep export flag accurate
   useEffect(() => {
-    
     setExportReady(!!selectedWorkflowId && rows.length > 0 && !loading);
   }, [rows, loading, selectedWorkflowId]);
+
+  // POST then GET
+  const runInterpolation = useCallback(async () => {
+    if (!selectedWorkflowId) return;
+    setErr(null);
+    setPosting(true);
+    try {
+      await runInterpolationPOST({
+        apiBase: API_BASE,
+        token,
+        workflowId: Number(selectedWorkflowId),
+        frequency, // optional
+        mode: MODE,
+      });
+      // after POST, read results
+      await fetchInterpolation();
+    } catch (e: any) {
+      setErr(e?.message || "Failed to run interpolation.");
+    } finally {
+      setPosting(false);
+    }
+  }, [API_BASE, token, selectedWorkflowId, frequency, MODE, fetchInterpolation]);
 
   // Table data
   const data = useMemo(() => rows, [rows]);
 
   // ===== Export CSV =====
-  // Endpoint example required by you:
-  // http://localhost:8000/api/overlay/development/data_interpolation/export/?workflow_id=22
-  // We will use selectedWorkflowId to fill the query param.
   const exportCsv = useCallback(async () => {
     if (!selectedWorkflowId) return;
     setExportErr(null);
     setExporting(true);
     try {
-      const url = `${API_BASE}/api/overlay/development/data_interpolation/export/?workflow_id=${encodeURIComponent(
+      const url = `${API_BASE}/api/overlay/${MODE}/data_interpolation/export/?workflow_id=${encodeURIComponent(
         String(selectedWorkflowId)
       )}`;
 
@@ -117,7 +143,6 @@ export default function OverlayDevelopmentPage2() {
       });
 
       if (!res.ok) {
-        // Try to parse text error to show a useful message
         let msg = `Export failed: HTTP ${res.status}`;
         try {
           const t = await res.text();
@@ -127,7 +152,6 @@ export default function OverlayDevelopmentPage2() {
       }
 
       const blob = await res.blob();
-      // Best-effort filename from Content-Disposition, else fallback
       const cd = res.headers.get("content-disposition") || "";
       const match =
         cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i) ||
@@ -148,7 +172,7 @@ export default function OverlayDevelopmentPage2() {
     } finally {
       setExporting(false);
     }
-  }, [API_BASE, selectedWorkflowId, token]);
+  }, [API_BASE, selectedWorkflowId, token, MODE]);
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
@@ -160,42 +184,51 @@ export default function OverlayDevelopmentPage2() {
               Expected Credit Loss Automation
             </h1>
             <p className="text-sm text-gray-600">
-              Interpolate quarterly MEVs (Quarterly Historical Mevs) into monthly data to match default rate frequency
+              Interpolate quarterly MEVs (Quarterly Historical Mevs) into
+              monthly data to match default rate frequency
             </p>
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            {/* View Process */}
             <button
               onClick={() => setOpen(true)}
-              className="cursor-pointer rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50"
+              className="cursor-pointer rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50 flex items-center gap-1.5"
             >
-              View Process
+              <EyeIcon className="h-4 w-4" />
+              <span>View Process</span>
             </button>
 
-            {/* Refresh (GET) */}
+            {/* Run (POST) */}
             <button
-              onClick={fetchInterpolation}
-              disabled={loading || !selectedWorkflowId}
-              className="cursor-pointer rounded-xl bg-gray-900 text-white px-3 py-2 text-sm font-medium hover:bg-black disabled:opacity-50"
-              title={!selectedWorkflowId ? "Select a workflow on Step 1 first" : "Refresh data"}
+              onClick={runInterpolation}
+              disabled={posting || !selectedWorkflowId}
+              className="cursor-pointer rounded-xl bg-gray-900 text-white px-3 py-2 text-sm font-medium hover:bg-black disabled:opacity-50 flex items-center gap-1.5"
+              title={
+                !selectedWorkflowId
+                  ? "Select a workflow on Step 1 first"
+                  : "Run interpolation job"
+              }
             >
-              {loading ? "Loading…" : "Run Interpolation"}
+              <PlayCircleIcon className="h-4 w-4" />
+              <span>{posting ? "Running…" : "Run Interpolation"}</span>
             </button>
 
             {/* Export CSV */}
             <button
               onClick={exportCsv}
               disabled={!exportReady || exporting || !selectedWorkflowId}
-              className="cursor-pointer rounded-xl bg-white border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+              className="cursor-pointer rounded-xl bg-white border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
               title={
                 !selectedWorkflowId
                   ? "Select a workflow on Step 1 first"
                   : !exportReady
-                  ? "Load data first (Run Interpolation)"
+                  ? "Load data first (GET)"
                   : "Download CSV"
               }
             >
-              {exporting ? "Exporting…" : "Export CSV"}
+              <ArrowDownTrayIcon className="h-4 w-4" />
+              <span>{exporting ? "Exporting…" : "Export CSV"}</span>
             </button>
           </div>
         </div>
@@ -208,7 +241,8 @@ export default function OverlayDevelopmentPage2() {
             <div className="text-sm text-gray-600">
               {selectedWorkflowId ? (
                 <>
-                  Showing <span className="font-medium">{frequency}</span> dataset •{" "}
+                  Showing{" "}
+                  <span className="font-medium">{frequency}</span> dataset •{" "}
                   {loading ? "Loading…" : `${data.length.toLocaleString()} rows`}
                 </>
               ) : (
@@ -221,26 +255,19 @@ export default function OverlayDevelopmentPage2() {
               <button
                 onClick={fetchInterpolation}
                 disabled={loading || !selectedWorkflowId}
-                className="cursor-pointer rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
-                title={!selectedWorkflowId ? "Select a workflow on Step 1 first" : "Refresh data"}
-              >
-                {loading ? "Refreshing…" : "Refresh"}
-              </button>
-              <button
-                onClick={exportCsv}
-                disabled={!exportReady || exporting || !selectedWorkflowId}
-                className="cursor-pointer rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
+                className="cursor-pointer rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
                 title={
                   !selectedWorkflowId
                     ? "Select a workflow on Step 1 first"
-                    : !exportReady
-                    ? "Load data first (Run Interpolation)"
-                    : "Download CSV"
+                    : "Refresh (GET)"
                 }
               >
-                {exporting ? "Exporting…" : "Export"}
+                <ArrowPathIcon className="h-4 w-4" />
+                <span>{loading ? "Refreshing…" : "Refresh"}</span>
               </button>
-              <div className="text-xs text-gray-500">Sticky header • Scroll horizontally</div>
+              <div className="text-xs text-gray-500">
+                Sticky header • Scroll horizontally
+              </div>
             </div>
           </div>
 
@@ -259,9 +286,11 @@ export default function OverlayDevelopmentPage2() {
             <ExeTable
               frequency={frequency}
               data={data}
-              caption={frequency === "monthly" ? "Monthly Data" : "Quarterly Data"}
+              caption={
+                frequency === "monthly" ? "Monthly Data" : "Quarterly Data"
+              }
               includeQuarterInMonthly={false}
-              growthSuffix="_growth_12m"
+              growthSuffix=" growth_rate" // <-- matches your API
             />
           </div>
         </div>
@@ -270,7 +299,7 @@ export default function OverlayDevelopmentPage2() {
       <ProcessModal
         open={open}
         onClose={() => setOpen(false)}
-        heading="OVERLAY MODEL DEVELOPMENT"
+        heading={"OVERLAY MODEL DEVELOPMENT"}
         steps={[
           "Interpolate quarterly MEVs into monthly data to match default rate frequency",
           "Apply statistical transformations: lagging, logarithmic scaling, differencing, etc.",

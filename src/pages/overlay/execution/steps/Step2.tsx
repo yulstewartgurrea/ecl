@@ -1,188 +1,301 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import ExeTable from "../../../../components/overlay/execution/interpolation/table/ExeTable";
 import type { Frequency } from "../../../../components/overlay/execution/interpolation/table/Columns";
 import { ProcessModal } from "../../../../components/ProcessModal";
+import { useSelector } from "react-redux";
+import type { RootState } from "../../../../redux_toolkit/store";
+import { useAppSelector } from "../../../../redux_toolkit/hooks";
 
-export default function OverlayExecutionPage2() {
-  const [open, setOpen] = useState(true);
+import {
+  getInterpolationDataGET,
+  runInterpolationPOST,
+  sanitizeInterpolationRows,
+  type InterpolationRow,
+  type Mode,
+} from "../../../../services/interpolation";
+
+import {
+  InformationCircleIcon,
+  PlayCircleIcon,
+  ArrowDownTrayIcon,
+  ArrowPathIcon,
+} from "@heroicons/react/24/outline";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+
+export default function OverlayDevelopmentPage2() {
+  const [open, setOpen] = useState(false);
   const [frequency, setFrequency] = useState<Frequency>("monthly");
+  const MODE = "execution";
 
-  // === SAMPLE DATA (replace with API data) ===
+  // read workflow_id from Redux
+  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
+    useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
 
-  const monthlyData = useMemo(
-    () =>
-      Array.from({ length: 24 }).map((_, i) => {
-        const year = 2024 + Math.floor(i / 12);
-        const monthName = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][i % 12];
-        const base = 3_100_000 + i * 2_500;
+  const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
 
-        const row: Record<string, any> = {
-          year,
-          month: monthName,
-          period_id: `${year}-${String((i % 12) + 1).padStart(2, "0")}`,
-          x: (i + 1) / 12,
+  const [rows, setRows] = useState<InterpolationRow[]>([]);
+  const [loading, setLoading] = useState(false); // GET state
+  const [posting, setPosting] = useState(false); // POST state
+  const [err, setErr] = useState<string | null>(null);
 
-          // levels
-          gdp: base,
-          gni: base + 300_000,
-          household_cons: base - 800_000,
-          government_cons: 360_000 + i * 300,
-          gross_cap_form: 480_000 + i * 280,
-          fix_cap_form: 545_000 + i * 250,
-          exports: 780_000 + i * 600,
-          imports: 990_000 + i * 650,
-          gni_gdp_industry: 890_000 + i * 700,
-          gni_gdp_mining: 34_000 + i * 20,
-          gni_gdp_manufacturing: 620_000 + i * 500,
-          gni_gdp_elec_steam_g: 93_000 + i * 40,
-          gni_gdp_const: 138_000 + i * 55,
-          gni_gdp_services: 1_640_000 + i * 900,
-          gni_gdp_wholesale_retl: 472_000 + i * 300,
-          gni_gdp_transpo_stor: 103_000 + i * 200,
-          gni_gdp_real_est: 196_000 + i * 150,
-          unemp_rate: (6.9 - i * 0.03).toFixed(2) + "%",
+  // Export state
+  const [exporting, setExporting] = useState(false);
+  const [exportErr, setExportErr] = useState<string | null>(null);
+  const [exportReady, setExportReady] = useState(false); // enabled after GET success
 
-          // growth (monthly extras) — MoM placeholders
-          gdp_gr: 0.2 + (i % 5) * 0.01,
-          gni_gr: 0.18 + (i % 5) * 0.01,
-          household_cons_gr: 0.12 + (i % 5) * 0.01,
-          government_cons_gr: 0.05 + (i % 5) * 0.005,
-          gross_cap_form_gr: 0.09 + (i % 5) * 0.005,
-          fix_cap_form_gr: 0.07 + (i % 5) * 0.005,
-          exports_gr: 0.14 + (i % 5) * 0.01,
-          imports_gr: 0.11 + (i % 5) * 0.01,
-          gni_gdp_industry_gr: 0.13 + (i % 5) * 0.01,
-          gni_gdp_mining_gr: 0.02 + (i % 5) * 0.005,
-          gni_gdp_manufacturing_gr: 0.10 + (i % 5) * 0.01,
-          gni_gdp_elec_steam_g_gr: 0.03 + (i % 5) * 0.005,
-          gni_gdp_const_gr: 0.04 + (i % 5) * 0.005,
-          gni_gdp_services_gr: 0.12 + (i % 5) * 0.01,
-          gni_gdp_wholesale_retl_gr: 0.08 + (i % 5) * 0.01,
-          gni_gdp_transpo_stor_gr: 0.06 + (i % 5) * 0.01,
-          gni_gdp_real_est_gr: 0.05 + (i % 5) * 0.01,
-        };
+  // Clear on workflow change
+  useEffect(() => {
+    setRows([]);
+    setErr(null);
+    setFrequency("monthly");
+    setExportReady(false);
+  }, [selectedWorkflowId]);
 
-        return row;
-      }),
-    []
+  // ----- GET (read) -----
+  const fetchInterpolation = useCallback(async () => {
+    if (!selectedWorkflowId) {
+      setRows([]);
+      setErr("Select a workflow on Step 1 first.");
+      setExportReady(false);
+      return;
+    }
+    setErr(null);
+    setExportErr(null);
+    setLoading(true);
+    try {
+      const resp = await getInterpolationDataGET({
+        apiBase: API_BASE,
+        token,
+        workflowId: Number(selectedWorkflowId),
+        frequency, // if backend ignores this, ok
+        mode: MODE, // "development" | "execution"
+      });
+
+      const cleaned = sanitizeInterpolationRows(resp.data || []);
+      setRows(cleaned);
+      setExportReady(Array.isArray(cleaned) && cleaned.length > 0);
+    } catch (e: any) {
+      // If GET fails (e.g., 404 / empty), we keep table empty and let the user POST via button
+      setErr(
+        e?.message || "No data yet. Click “Run Interpolation” to generate."
+      );
+      setRows([]);
+      setExportReady(false);
+    } finally {
+      setLoading(false);
+    }
+  }, [API_BASE, token, selectedWorkflowId, frequency, MODE]);
+
+  // Initial: try GET first
+  useEffect(() => {
+    if (!selectedWorkflowId) return;
+    fetchInterpolation();
+  }, [selectedWorkflowId, fetchInterpolation]);
+
+  // Keep export flag accurate
+  useEffect(() => {
+    setExportReady(!!selectedWorkflowId && rows.length > 0 && !loading);
+  }, [rows, loading, selectedWorkflowId]);
+
+  // POST then GET
+  const runInterpolation = useCallback(
+    async () => {
+      if (!selectedWorkflowId) return;
+      setErr(null);
+      setPosting(true);
+      try {
+        await runInterpolationPOST({
+          apiBase: API_BASE,
+          token,
+          workflowId: Number(selectedWorkflowId),
+          frequency, // optional
+          mode: MODE,
+        });
+        // after POST, read results
+        await fetchInterpolation();
+      } catch (e: any) {
+        setErr(e?.message || "Failed to run interpolation.");
+      } finally {
+        setPosting(false);
+      }
+    },
+    [API_BASE, token, selectedWorkflowId, frequency, MODE, fetchInterpolation]
   );
 
-  const quarterlyData = useMemo(
-    () =>
-      Array.from({ length: 12 }).map((_, i) => ({
-        year: 2022 + Math.floor(i / 4),
-        quarter: (i % 4) + 1,
-        month: ["Mar", "Jun", "Sep", "Dec"][i % 4],
-        period_id: `${2022 + Math.floor(i / 4)}-${["Mar","Jun","Sep","Dec"][i % 4]}`,
-        x: (i + 1) / 10,
+  // Table data
+  const data = useMemo(() => rows, [rows]);
 
-        // levels (same fields as monthly levels)
-        gdp: 2_908_989.08 + i * 10_000,
-        gni: 3_220_989.43 + i * 9_500,
-        household_cons: 2_168_389.99 + i * 7_300,
-        government_cons: 352_314.62 + i * 1_200,
-        gross_cap_form: 471_104.52 + i * 1_100,
-        fix_cap_form: 536_233.39 + i * 1_050,
-        exports: 773_802.18 + i * 2_000,
-        imports: 995_463.98 + i * 2_200,
-        gni_gdp_industry: 879_304.91 + i * 3_100,
-        gni_gdp_mining: 33_678.77 + i * 200,
-        gni_gdp_manufacturing: 610_336.02 + i * 2_000,
-        gni_gdp_elec_steam_g: 92_765.41 + i * 150,
-        gni_gdp_const: 135_960.73 + i * 300,
-        gni_gdp_services: 1_636_802.9 + i * 4_500,
-        gni_gdp_wholesale_retl: 469_777.18 + i * 1_200,
-        gni_gdp_transpo_stor: 102_129.41 + i * 900,
-        gni_gdp_real_est: 194_821.93 + i * 700,
-        unemp_rate: (7.2 - i * 0.1).toFixed(2) + "%",
-      })),
-    []
+  // ===== Export CSV =====
+  const exportCsv = useCallback(
+    async () => {
+      if (!selectedWorkflowId) return;
+      setExportErr(null);
+      setExporting(true);
+      try {
+        const url = `${API_BASE}/api/overlay/${MODE}/data_interpolation/export/?workflow_id=${encodeURIComponent(
+          String(selectedWorkflowId)
+        )}`;
+
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+
+        if (!res.ok) {
+          let msg = `Export failed: HTTP ${res.status}`;
+          try {
+            const t = await res.text();
+            if (t) msg = `${msg} – ${t}`;
+          } catch {}
+          throw new Error(msg);
+        }
+
+        const blob = await res.blob();
+        const cd = res.headers.get("content-disposition") || "";
+        const match =
+          cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i) ||
+          cd.match(/filename=["']?([^"']+)["']?/i);
+        const fallback = `interpolation_export_${selectedWorkflowId}.csv`;
+        const filename = (match && decodeURIComponent(match[1])) || fallback;
+
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(href);
+      } catch (e: any) {
+        setExportErr(e?.message || "Export failed");
+      } finally {
+        setExporting(false);
+      }
+    },
+    [API_BASE, selectedWorkflowId, token, MODE]
   );
-
-
-  const data: Array<Record<string, any>> =
-    frequency === "monthly" ? monthlyData : quarterlyData;
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
       {/* Header */}
-      <header className=" backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white border-b">
+      <header className="backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white">
         <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-              Expected Credit Loss Automation
+              Expected Credit Loss Automation{" "}
+              {MODE === "execution" ? "exe" : "dev"}
             </h1>
             <p className="text-sm text-gray-600">
-              Interpolate quarterly MEVs (Quarterly Historical Mevs) into monthly data to match default rate frequency
+              Interpolate quarterly MEVs (Quarterly Historical Mevs) into
+              monthly data to match default rate frequency
             </p>
           </div>
+
           <div className="hidden md:flex items-center gap-3">
             <button
               onClick={() => setOpen(true)}
-              className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50"
+              className="cursor-pointer rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50 flex items-center gap-1.5"
             >
-              View Process
+              <InformationCircleIcon className="h-4 w-4" />
+              <span>View Process</span>
             </button>
-            <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
-              className="rounded-xl bg-gray-900 text-white px-3 py-2 text-sm font-medium hover:bg-black"
+
+            {/* Run (POST) */}
+            <button
+              onClick={runInterpolation}
+              disabled={posting || !selectedWorkflowId}
+              className="cursor-pointer rounded-xl bg-gray-900 text-white px-3 py-2 text-sm font-medium hover:bg-black disabled:opacity-50 flex items-center gap-1.5"
+              title={
+                !selectedWorkflowId
+                  ? "Select a workflow on Step 1 first"
+                  : "Run interpolation job"
+              }
             >
-              Export CSV
-            </a>
+              <PlayCircleIcon className="h-4 w-4" />
+              <span>{posting ? "Running…" : "Run Interpolation"}</span>
+            </button>
+
+            {/* Export CSV */}
+            <button
+              onClick={exportCsv}
+              disabled={!exportReady || exporting || !selectedWorkflowId}
+              className="cursor-pointer rounded-xl bg-white border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
+              title={
+                !selectedWorkflowId
+                  ? "Select a workflow on Step 1 first"
+                  : !exportReady
+                  ? "Load data first (GET)"
+                  : "Download CSV"
+              }
+            >
+              <ArrowDownTrayIcon className="h-4 w-4" />
+              <span>{exporting ? "Exporting…" : "Export CSV"}</span>
+            </button>
           </div>
         </div>
       </header>
-
-      {/* Toolbar */}
-      <div className="mx-auto px-4 py-4">
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          {/* Segmented control */}
-          <div className="inline-flex rounded-2xl bg-gray-100 p-1 shadow-inner w-fit">
-            {(["monthly", "quarterly"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFrequency(f)}
-                className={[
-                  "px-4 py-2 text-sm font-medium rounded-xl transition",
-                  frequency === f
-                    ? "bg-white shadow-sm text-gray-900"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
-                ].join(" ")}
-                aria-pressed={frequency === f}
-              >
-                {f === "monthly" ? "Monthly" : "Quarterly"}
-              </button>
-            ))}
-          </div>
-
-          {/* <div className="md:ml-auto flex items-center gap-2">
-            <input
-              type="search"
-              placeholder="Quick filter…"
-              className="h-10 w-56 rounded-xl border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
-              //onChange={() => { }
-            />
-          </div> */}
-        </div>
-      </div>
 
       {/* Data card */}
       <main className="mx-auto px-4 pb-8">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <div className="text-sm text-gray-600">
-              Showing <span className="font-medium">{frequency}</span> dataset • {data.length.toLocaleString()} rows
+              {selectedWorkflowId ? (
+                <>
+                  Showing <span className="font-medium">{frequency}</span>{" "}
+                  dataset •{" "}
+                  {loading
+                    ? "Loading…"
+                    : `${data.length.toLocaleString()} rows`}
+                </>
+              ) : (
+                <>No workflow selected</>
+              )}
             </div>
-            <div className="text-xs text-gray-500">Sticky header • Scroll horizontally</div>
+
+            {/* Inline actions */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={fetchInterpolation}
+                disabled={loading || !selectedWorkflowId}
+                className="cursor-pointer rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
+                title={
+                  !selectedWorkflowId
+                    ? "Select a workflow on Step 1 first"
+                    : "Refresh (GET)"
+                }
+              >
+                <ArrowPathIcon className="h-3.5 w-3.5" />
+                <span>{loading ? "Refreshing…" : "Refresh"}</span>
+              </button>
+
+              <div className="text-xs text-gray-500">
+                Sticky header • Scroll horizontally
+              </div>
+            </div>
           </div>
+
+          {err && (
+            <div className="px-4 py-3 text-sm text-red-700 bg-red-50 border-b border-red-200">
+              {err}
+            </div>
+          )}
+          {exportErr && (
+            <div className="px-4 py-3 text-sm text-red-700 bg-red-50 border-b border-red-200">
+              {exportErr}
+            </div>
+          )}
+
           <div className="p-3">
             <ExeTable
               frequency={frequency}
               data={data}
               caption={frequency === "monthly" ? "Monthly Data" : "Quarterly Data"}
               includeQuarterInMonthly={false}
-              // growthSuffix="_growth_rate" // uncomment if your keys use a different suffix
+              growthSuffix=" growth_rate" // <-- matches your API
             />
           </div>
         </div>
@@ -191,13 +304,17 @@ export default function OverlayExecutionPage2() {
       <ProcessModal
         open={open}
         onClose={() => setOpen(false)}
-        heading="OVERLAY EXECUTION PROCESS"
+        heading={
+          MODE === "execution"
+            ? "OVERLAY MODEL EXECUTION"
+            : "OVERLAY MODEL DEVELOPMENT"
+        }
         steps={[
           "Interpolate quarterly MEVs into monthly data to match default rate frequency",
           "Apply statistical transformations: lagging, logarithmic scaling, differencing, etc.",
           "Generate forecasts of economic variables using ARIMA or other time series models.",
-          "Apply manual adjustments or expert overrides to forecasted MEVs based on judgment or emerging information.",
-          "Calibrate TTC PD by linking forecasted MEVs to historical default data and model parameters.",
+          "Narrow down models based on statistical performance, business relevance, and logical relationship with default.",
+          "Select a model for validation and endorsement to committee and management.",
         ]}
       />
     </div>

@@ -4,13 +4,35 @@ import { getFilteringModels, postFilteringModels } from "../../../../services/fi
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
-import { ArrowPathIcon, PlayCircleIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  PlayCircleIcon,
+  Cog6ToothIcon,
+  ArrowDownTrayIcon, // ✅ added
+} from "@heroicons/react/24/outline";
 
 import FilteringConfigModal from "../../../../components/overlay/development/multi_factor/FilteringConfigModal";
 import { loadHeaders, loadFilters, type FilterRule } from "../../../../components/overlay/development/multi_factor/headersStorage";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
+/* ------------------------- Required columns (Step 5) ------------------------- */
+const REQUIRED_COLUMNS = ["Y", "X1", "X2", "R_Squared", "Adj_R_Squared", "MAPE"];
+const norm = (s: string) => String(s || "").trim().toLowerCase();
+const uniqCaseInsensitive = (arr: string[]) => {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const h of arr) {
+    const k = norm(h);
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(h);
+    }
+  }
+  return out;
+};
+
+/* ---------- Types ---------- */
 type Step5Props = {
   title?: string;
   description?: string;
@@ -21,7 +43,6 @@ const EXCLUDE_KEYS = new Set(["id", "index", "__rowid__", "_rowIndex"]);
 
 // helper: build the backend payload from headers + selected
 function buildPayload(headers: string[], selected: FilterRule[]): FilterRule[] {
-  const norm = (s: string) => String(s || "").trim().toLowerCase();
   const selectedMap = new Map<string, string>();
   for (const r of selected) {
     if (!r?.column) continue;
@@ -63,7 +84,7 @@ const Step5: React.FC<Step5Props> = ({
   description = "Trigger filtering, then review the filtered model list. Use column filters to narrow by variables, lags, and stats."
 }) => {
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
-    useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
+    useSelector((s: RootState) => (s as any).pdTransitionMatrixWfHelper);
 
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
 
@@ -75,7 +96,7 @@ const Step5: React.FC<Step5Props> = ({
   const [filtered, setFiltered] = useState<Row[]>([]);
   const [total, setTotal] = useState<number | undefined>(undefined);
 
-  // NEW: split selected vs payload
+  // split selected vs payload
   const [headers, setHeaders] = useState<string[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<FilterRule[]>([]);
   const [payloadFilters, setPayloadFilters] = useState<FilterRule[]>([]);
@@ -113,7 +134,7 @@ const Step5: React.FC<Step5Props> = ({
     }
   }, [selectedWorkflowId, token]);
 
-  // Load headers + selected on workflow change; derive payload for initial render
+  // Load headers + selected on workflow change; ensure REQUIRED present; derive payload for initial render
   useEffect(() => {
     if (!Number.isFinite(selectedWorkflowId)) {
       setHeaders([]);
@@ -122,21 +143,25 @@ const Step5: React.FC<Step5Props> = ({
       return;
     }
     const wf = Number(selectedWorkflowId);
-    const h = loadHeaders(wf);
-    const sel = loadFilters(wf); // only explicit selections saved by the modal
-    setHeaders(h);
+
+    // Load captured headers from Step 4, then ensure REQUIRED are present.
+    const captured = loadHeaders(wf);
+    const merged = uniqCaseInsensitive([...captured, ...REQUIRED_COLUMNS]);
+
+    const sel = loadFilters(wf); // only explicit selections saved by the modal (REQUIRED will be saved after first Apply)
+    setHeaders(merged);
     setSelectedFilters(sel);
-    setPayloadFilters(buildPayload(h, sel));
+    setPayloadFilters(buildPayload(merged, sel));
   }, [selectedWorkflowId]);
 
-  // ✅ Auto-fetch results on mount & whenever the workflow changes
+  // Auto-fetch results on mount & whenever the workflow changes
   useEffect(() => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
     fetchResults();
   }, [selectedWorkflowId, fetchResults]);
 
-  // ✅ Optional: re-fetch when the tab gains focus (e.g., after running Step 4)
+  // Optional: re-fetch when tab gains focus
   useEffect(() => {
     const onFocus = () => {
       const wf = Number(selectedWorkflowId);
@@ -147,13 +172,13 @@ const Step5: React.FC<Step5Props> = ({
     return () => window.removeEventListener("focus", onFocus);
   }, [selectedWorkflowId, fetchResults]);
 
-  // ✅ When modal applies filters, reflect them locally and pull current results (no heavy POST)
+  // When modal applies filters, reflect them locally and pull current results (no heavy POST)
   function handleApplyFilters(finalRules: FilterRule[]) {
-    setPayloadFilters(finalRules); // use for POST
+    // finalRules includes selected + defaults (0) for all headers
+    setPayloadFilters(finalRules);
     if (Number.isFinite(selectedWorkflowId)) {
-      setSelectedFilters(loadFilters(Number(selectedWorkflowId)));
+      setSelectedFilters(loadFilters(Number(selectedWorkflowId))); // reads back selected (now includes REQUIRED)
     }
-    // Just fetch what's currently available (user can still click "Run Analysis" to recompute)
     fetchResults();
   }
 
@@ -169,14 +194,13 @@ const Step5: React.FC<Step5Props> = ({
     setPosting(true);
     setErrMsg(null);
     try {
-      // IMPORTANT: if backend expects filters in body, include payloadFilters here.
+      // If backend expects filters in body, pass payloadFilters here (kept commented if your API ignores body)
       await postFilteringModels({
         apiBase: API_BASE,
         token,
         workflowId: Number(selectedWorkflowId),
         // filters: payloadFilters.map((f) => ({ column: f.column, value: f.value })),
       });
-      // After triggering compute, pull fresh results
       await fetchResults();
     } catch (e: any) {
       setErrMsg(e?.message || "Failed to start filtering.");
@@ -230,7 +254,6 @@ const Step5: React.FC<Step5Props> = ({
       const fallback = `filtering_models_${selectedWorkflowId}.csv`;
 
       if (ct.includes("csv") || ct.startsWith("text/csv")) {
-        // Server already returns CSV
         const blob = await res.blob();
         const filename = (nameMatch && decodeURIComponent(nameMatch[1])) || fallback;
         const href = URL.createObjectURL(blob);
@@ -242,7 +265,6 @@ const Step5: React.FC<Step5Props> = ({
         a.remove();
         URL.revokeObjectURL(href);
       } else {
-        // Server returned JSON → convert to CSV client-side
         const json = await res.json();
         const jsonRows: Row[] = Array.isArray(json?.rows) ? json.rows : Array.isArray(json) ? json : [];
         const headers = deriveCsvHeaders(jsonRows);
@@ -300,7 +322,7 @@ const Step5: React.FC<Step5Props> = ({
           {loading ? "Refreshing…" : "Refresh"}
         </button>
 
-        {/* NEW: Export */}
+        {/* Export */}
         <button
           onClick={exportCsv}
           disabled={!exportReady || exporting || !Number.isFinite(selectedWorkflowId)}
@@ -313,6 +335,7 @@ const Step5: React.FC<Step5Props> = ({
               : "Download CSV"
           }
         >
+          <ArrowDownTrayIcon className="h-4 w-4" />
           {exporting ? "Exporting…" : "Export"}
         </button>
       </div>

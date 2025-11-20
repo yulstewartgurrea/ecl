@@ -41,7 +41,7 @@ type ServerList =
       items?: ServerModel[];
       results?: ServerModel[];
       rows?: ServerModel[];
-      data?: ServerModel[];   // some APIs nest again
+      data?: ServerModel[]; // some APIs nest again
       total?: number;
       count?: number;
       pages?: number;
@@ -81,26 +81,39 @@ function extractListAndMeta(payload: any): {
   return { list, total, pages };
 }
 
+/**
+ * Normalize a server record into the ModelSpec your UI expects.
+ * - Preserves the original server record at `raw` (Step7 posts this).
+ * - Adds convenient top-level fields: Y, X1, X2, index, R_Squared, Adj_R_Squared, MAPE.
+ * - Keeps metrics limited to the ModelMetrics shape (no excess props that TS would complain about).
+ * - Ensures VIF is exposed as `vif_X1` for the grid.
+ */
 function shapeOne(server: ServerModel, idx: number): ModelSpec {
-  // Always use "Candidate Model N"
   const title = `Candidate Model ${idx + 1}`;
-
   const previewUrl = pick<string>(server, ["previewUrl", "preview_url", "thumb", "thumbnail_url"]);
 
-  // ----- metrics -----
-  const metricsSrc = (server as any).metrics ?? (server as any).fit ?? server;
-  const metrics = {
-    index: (pick(metricsSrc, ["Index", "index", "INDEX"]) as number | string | undefined),
-    Y: (pick(metricsSrc, ["Y", "y"]) as number | string | undefined),
-    X1: (pick(metricsSrc, ["X1", "x1"]) as number | string | undefined),
-    X2: (pick(metricsSrc, ["X2", "x2"]) as number | string | undefined),
-    Adj_R_Squared:
-      coerceNum(pick(metricsSrc, ["Adj_R_Squared", "adjR2", "adj_r2", "adjusted_r2", "r2_adj"])) ??
-      coerceNum(pick(metricsSrc, ["R_Squared", "r2"])),
-    RMSE: coerceNum(pick(metricsSrc, ["RMSE", "rmse", "root_mse"])),
-    MAPE: (pick(metricsSrc, ["MAPE", "mape", "mape_pct"]) as number | string | undefined),
-    R_Squared: (pick(metricsSrc, ["R_Squared"]) as number | string | undefined)
-  };
+  // Source of metric-like fields can be nested or flat
+  const metricsSrc: any = (server as any).metrics ?? (server as any).fit ?? server;
+
+  const indexVal = pick<number | string>(metricsSrc, ["index", "Index", "INDEX"]);
+  const yVal = pick<string | number>(metricsSrc, ["Y", "y"]) ?? (server as any)?.Y;
+  const x1Name =
+    pick<string | number>(metricsSrc, ["X1", "x1"]) ??
+    (server as any)?.X1 ??
+    (server as any)?.x1;
+  const x2Name =
+    pick<string | number>(metricsSrc, ["X2", "x2"]) ??
+    (server as any)?.X2 ??
+    (server as any)?.x2;
+
+  const r2 =
+    coerceNum(pick(metricsSrc, ["R_Squared", "r2"])) ?? undefined;
+  const adjR2 =
+    coerceNum(
+      pick(metricsSrc, ["Adj_R_Squared", "adjR2", "adj_r2", "adjusted_r2", "r2_adj"])
+    ) ?? undefined;
+  const rmse = coerceNum(pick(metricsSrc, ["RMSE", "rmse", "root_mse"]));
+  const mapeRaw = pick<number | string>(metricsSrc, ["MAPE", "mape", "mape_pct"]);
 
   // ----- variables -----
   const varsRaw =
@@ -111,19 +124,21 @@ function shapeOne(server: ServerModel, idx: number): ModelSpec {
     (server as any).terms ??
     null;
 
-  let variables: Array<{
+  type VarRow = {
     name: string;
     coeff_X1: number;
     "p-value_X1": number | string;
-    vif?: number | string;
-  }> = [];
+    vif_X1?: number | string;
+  };
+
+  let variables: VarRow[] = [];
 
   if (Array.isArray(varsRaw) && varsRaw.length) {
     variables = varsRaw.map((v: any) => {
       const nameRaw = pick(v, ["name", "variable", "term", "feature", "param", "x"]);
       const coefRaw = pick(v, ["coeff_X1", "coefficient", "coef", "beta", "value", "estimate"]);
-      const pRaw    = pick(v, ["p-value_X1", "pValue", "p_value", "p", "prob", "pval"]);
-      const vifRaw  = pick(v, ["vif", "VIF", "vif_X1"]);
+      const pRaw = pick(v, ["p-value_X1", "pValue", "p_value", "p", "prob", "pval"]);
+      const vifRaw = pick(v, ["vif", "VIF", "vif_X1"]);
 
       const name =
         typeof nameRaw === "string" && nameRaw.trim() !== "" ? nameRaw : String(nameRaw ?? "var");
@@ -131,8 +146,9 @@ function shapeOne(server: ServerModel, idx: number): ModelSpec {
       return {
         name,
         coeff_X1: coerceNum(coefRaw) ?? 0,
-        "p-value_X1": (typeof pRaw === "number" || typeof pRaw === "string") ? pRaw : "—",
-        vif: (typeof vifRaw === "number" || typeof vifRaw === "string") ? vifRaw : undefined,
+        "p-value_X1": typeof pRaw === "number" || typeof pRaw === "string" ? pRaw : "—",
+        // IMPORTANT: expose as vif_X1 so UI reads it
+        vif_X1: typeof vifRaw === "number" || typeof vifRaw === "string" ? vifRaw : undefined,
       };
     });
   } else {
@@ -141,16 +157,17 @@ function shapeOne(server: ServerModel, idx: number): ModelSpec {
     // Intercept
     const intCoef = coerceNum(s.intercept ?? s.coeff_intercept ?? s.coef_intercept);
     if (intCoef != null) {
-      const intP = s["p-value_intercept"] ?? s.p_value_intercept ?? s.p_intercept ?? s.pval_intercept;
+      const intP =
+        s["p-value_intercept"] ?? s.p_value_intercept ?? s.p_intercept ?? s.pval_intercept;
       variables.push({
         name: "Intercept",
         coeff_X1: intCoef,
-        "p-value_X1": (typeof intP === "number" || typeof intP === "string") ? intP : "—",
-        vif: "—",
+        "p-value_X1": typeof intP === "number" || typeof intP === "string" ? intP : "—",
+        vif_X1: "—",
       });
     }
 
-    // X1..Xn
+    // X1..Xn (names come from X1/X2, etc.; coefficients from coeff_X1, etc.)
     const idxs = Object.keys(s)
       .map((k) => /^X(\d+)$/.exec(k))
       .filter(Boolean)
@@ -161,22 +178,45 @@ function shapeOne(server: ServerModel, idx: number): ModelSpec {
       const name = s[`X${n}`];
       const coef = coerceNum(s[`coeff_X${n}`] ?? s[`coef_X${n}`]);
       const pval = s[`p-value_X${n}`] ?? s[`p_value_X${n}`] ?? s[`pX${n}`];
-      const vif  = s[`vif_X${n}`] ?? s[`VIF_X${n}`];
+      const vif = s[`vif_X${n}`] ?? s[`VIF_X${n}`];
 
       if (name != null || coef != null || pval != null || vif != null) {
         variables.push({
           name: String(name ?? `X${n}`),
           coeff_X1: coef ?? 0,
-          "p-value_X1": (typeof pval === "number" || typeof pval === "string") ? pval : "—",
-          vif: (typeof vif === "number" || typeof vif === "string") ? vif : undefined,
+          "p-value_X1": typeof pval === "number" || typeof pval === "string" ? pval : "—",
+          vif_X1: typeof vif === "number" || typeof vif === "string" ? vif : undefined,
         });
       }
     }
   }
 
-  return { title, variables, metrics, previewUrl };
-}
+  // Keep metrics strictly within ModelMetrics keys (avoid excess property TS errors)
+  const metrics: ModelSpec["metrics"] = {
+    R_Squared: r2,
+    Adj_R_Squared: adjR2,
+    RMSE: rmse,
+    MAPE: mapeRaw,
+  };
 
+  // Return normalized model
+  return {
+    title,
+    previewUrl,
+    variables,
+    metrics,
+
+    // Extras used by Step6 UI tiles & Step7 payload convenience
+    raw: server,
+    index: coerceNum(indexVal) ?? (typeof indexVal === "string" ? Number(indexVal) : undefined),
+    Y: yVal != null ? String(yVal) : undefined,
+    X1: x1Name != null ? String(x1Name) : undefined,
+    X2: x2Name != null ? String(x2Name) : undefined,
+    R_Squared: r2,
+    Adj_R_Squared: adjR2,
+    MAPE: mapeRaw,
+  };
+}
 
 /* ---------- API: POST then GET (paged) ---------- */
 
@@ -207,7 +247,6 @@ export async function postCandidateModels(opts: {
   if (!json?.success) throw new Error(json?.msg || "Candidate models POST failed");
   return json;
 }
-
 
 // GET: /api/overlay/development/candidate_models/?workflow_id=22&page=2&page_size=10
 export async function getCandidateModels(opts: {

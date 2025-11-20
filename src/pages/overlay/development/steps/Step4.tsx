@@ -5,7 +5,12 @@ import { getMultiFactorResults, postMultiFactorTrigger } from "../../../../servi
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
-import { ArrowPathIcon, PlayCircleIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  PlayCircleIcon,
+  ArrowDownTrayIcon,   // ✅ NEW
+  ChevronLeftIcon,     // ✅ NEW (for Prev)
+} from "@heroicons/react/24/outline";
 
 // NEW: headers storage helper
 import { saveHeaders } from "../../../../components/overlay/development/multi_factor/headersStorage";
@@ -279,6 +284,7 @@ const Step4: React.FC<Step4Props> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Run */}
           <button
             onClick={runAnalysis}
             disabled={posting || loading || !Number.isFinite(selectedWorkflowId)}
@@ -289,6 +295,7 @@ const Step4: React.FC<Step4Props> = ({
             {posting ? "Running…" : "Run Analysis"}
           </button>
 
+          {/* Refresh */}
           <button
             onClick={() => fetchPage()}
             disabled={loading || !Number.isFinite(selectedWorkflowId)}
@@ -299,21 +306,7 @@ const Step4: React.FC<Step4Props> = ({
             {loading ? "Refreshing…" : "Refresh"}
           </button>
 
-          {/* NEW: Export current page */}
-          <button
-            onClick={exportCurrentPage}
-            disabled={!exportReady || exporting || !Number.isFinite(selectedWorkflowId)}
-            className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
-            title={
-              !Number.isFinite(selectedWorkflowId)
-                ? "Pick a workflow on Step 1"
-                : !exportReady
-                ? "Load results first"
-                : "Download CSV"
-            }
-          >
-            {exporting ? "Exporting…" : "Export"}
-          </button>
+
 
           {/* ✅ Auto-checker (GET-only, every 10 mins) */}
           {Number.isFinite(selectedWorkflowId) && (
@@ -355,10 +348,11 @@ const Step4: React.FC<Step4Props> = ({
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <button
-            className="cursor-pointer rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:opacity-50"
+            className="cursor-pointer inline-flex items-center gap-1 rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:opacity-50"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={!hasTriggered || loading || !canPrev}
           >
+            <ChevronLeftIcon className="h-4 w-4" />
             ← Prev
           </button>
         </div>
@@ -378,6 +372,7 @@ const Step4: React.FC<Step4Props> = ({
             disabled={!hasTriggered || loading}
           />
           <span>/ {totalPages ?? "?"}</span>
+          
         </div>
 
         <div className="ml-auto flex items-center gap-2 text-sm">
@@ -398,6 +393,22 @@ const Step4: React.FC<Step4Props> = ({
               </option>
             ))}
           </select>
+                    {/* Export */}
+          <button
+            onClick={exportCurrentPage}
+            disabled={!exportReady || exporting || !Number.isFinite(selectedWorkflowId)}
+            className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+            title={
+              !Number.isFinite(selectedWorkflowId)
+                ? "Pick a workflow on Step 1"
+                : !exportReady
+                ? "Load results first"
+                : "Download CSV"
+            }
+          >
+            <ArrowDownTrayIcon className="h-4 w-4" />
+            {exporting ? "Exporting…" : "Export"}
+          </button>
         </div>
       </div>
 

@@ -5,7 +5,8 @@ import type { ModelSpec } from "../../../../components/overlay/development/candi
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
-import { postFinalModel } from "../../../../services/finalModels";   // ← NEW
+import { postFinalModel } from "../../../../services/finalModels";   // ← uses your existing service
+
 const LS_KEY = "ecl:selectedModel";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -16,9 +17,8 @@ const Step7: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // get workflow id + token like other steps
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
-    useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
+    useSelector((s: RootState) => (s as any).pdTransitionMatrixWfHelper);
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
 
   useEffect(() => {
@@ -26,6 +26,7 @@ const Step7: React.FC = () => {
     if (!raw) return;
     try {
       const parsed = JSON.parse(raw);
+      console.log('parsed',parsed)
       setModel(parsed?.model ?? null);
     } catch {
       setModel(null);
@@ -42,21 +43,32 @@ const Step7: React.FC = () => {
       setErr("Missing or invalid workflow id. Please select a workflow in Step 1.");
       return;
     }
-    
+
+    // Prefer the raw record (exact shape you showed) if present:
+    // [
+    //   {
+    //     "index": 23041,
+    //     "Y": "odr.logit",
+    //     "X1": "rrp_rate",
+    //     "X2": "gni_growth_12m",
+    //     ...
+    //   }
+    // ]
+    const rawPayload = (model as any)?.raw ?? model; // fallback to model if raw missing
+
     setSaving(true);
+    console.log('rawPayload: ', rawPayload)
     try {
-      // By default: { workflow_id, final_models: [model] } as JSON
       await postFinalModel({
         apiBase: API_BASE,
         token,
         workflowId: Number(selectedWorkflowId),
-        model,
-        payloadKey: "final_models",   // or "selected_model" if your backend requires
-        asArray: true,                // send as array [model]; set false for single object
-        // useFormData: true,         // uncomment if your backend insists on multipart
+        model: rawPayload,        // single object
+        payloadKey: "final_models",
+        asArray: true,            // send as array [rawPayload]
+        // useFormData: true,      // enable only if backend needs multipart
       });
 
-      // clean up local cache and show the modal
       localStorage.removeItem(LS_KEY);
       setShowModal(true);
     } catch (e: any) {
@@ -74,7 +86,7 @@ const Step7: React.FC = () => {
           Please go back to Step 6 and choose a model to proceed.
         </p>
         <button
-          onClick={() => navigate("/overlay?tab=development&sub=5")}
+          onClick={() => navigate("/overlay?tab=development&sub=6")}
           className="mt-4 rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-800"
         >
           ← Back to Step 6
@@ -142,18 +154,18 @@ const Step7: React.FC = () => {
           </table>
         </div>
 
-        {/* Key metrics */}
+        {/* Key metrics (keep consistent with Step 6) */}
         <div className="grid gap-4 md:grid-cols-3">
-          <StatTile label="Adj. R²" value={fmtPercent(model.metrics.Adj_R_Squared)} />
-          <StatTile label="RMSE" value={fmtNumber(model.metrics.RMSE)} />
-          <StatTile label="MAPE" value={fmtPctOrVal(model.metrics.MAPE)} />
+          <StatTile label="R²" value={fmtPercent((model.metrics as any)?.R_Squared ?? (model as any)?.R_Squared)} />
+          <StatTile label="Adj. R²" value={fmtPercent(model.metrics?.Adj_R_Squared ?? (model as any)?.Adj_R_Squared)} />
+          <StatTile label="MAPE" value={fmtPctOrVal(model.metrics?.MAPE ?? (model as any)?.MAPE)} />
         </div>
 
         {/* Actions */}
         <div className="mt-2 flex flex-wrap items-center justify-end gap-3">
           <button
             onClick={() => {
-              // TODO: implement exporting your model/summary
+              // optional export
             }}
             className="cursor-pointer rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-800"
           >

@@ -48,6 +48,10 @@ function modelSignature(m: ModelSpec): string {
       p: (v as any)["p-value_X1"],
       vif: (v as any).vif_X1 ?? (v as any).vif,
     })),
+    // If raw exists, include a stable subset to improve matching
+    raw_Y: (m as any)?.raw?.Y,
+    raw_X1: (m as any)?.raw?.X1,
+    raw_X2: (m as any)?.raw?.X2,
   });
 }
 
@@ -63,7 +67,7 @@ function loadSelectedRowsFromStep5(workflowId: number): any[] {
   }
 }
 
-/* ---------- Shortlist (optional favorites / multi) ---------- */
+/* ---------- Shortlist ---------- */
 function loadShortlist(workflowId: number): ModelSpec[] {
   try {
     const raw = localStorage.getItem(shortlistKeyFor(workflowId));
@@ -104,10 +108,16 @@ function saveSingleSelection(workflowId: number, idx: number, model: ModelSpec) 
   };
   localStorage.setItem(singleKeyFor(workflowId), JSON.stringify(payload));
 
-  // Keep legacy key for Step 7 compatibility (if your Step 7 still reads it)
+  // Keep legacy key for Step 7 compatibility (Step 7 reads this)
+  // We include model.raw if present so Step 7 can post the exact raw row.
   localStorage.setItem(
     LEGACY_SELECTED_KEY,
-    JSON.stringify({ index: idx, model, workflowId, savedAt: payload.savedAt })
+    JSON.stringify({
+      index: idx,
+      model,           // contains .raw if provided by backend
+      workflowId,
+      savedAt: payload.savedAt,
+    })
   );
 }
 function loadSingleSelection(
@@ -176,7 +186,7 @@ const Step6: React.FC = () => {
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
 
-  /** Stable fetcher: pass page & pageSize explicitly; don't close over them. */
+  /** Stable fetcher */
   const fetchPage = useCallback(
     async (nextPage: number, nextPageSize: number) => {
       const wfId = Number(selectedWorkflowId);
@@ -209,7 +219,7 @@ const Step6: React.FC = () => {
         const { model: savedOne } = loadSingleSelection(wfId);
         if (savedOne) {
           const sig = modelSignature(savedOne);
-          const idxHere = list.findIndex((m) => modelSignature(m) === sig);
+          const idxHere = list.findIndex((m: ModelSpec) => modelSignature(m) === sig);
           setChosenIdx(idxHere >= 0 ? idxHere : null);
         } else {
           // fallback to legacy if needed
@@ -220,7 +230,7 @@ const Step6: React.FC = () => {
               const savedModel = parsed?.model as ModelSpec | undefined;
               if (savedModel) {
                 const sig = modelSignature(savedModel);
-                const idxHere = list.findIndex((m) => modelSignature(m) === sig);
+                const idxHere = list.findIndex((m: ModelSpec) => modelSignature(m) === sig);
                 setChosenIdx(idxHere >= 0 ? idxHere : null);
               } else {
                 setChosenIdx(null);
@@ -252,7 +262,7 @@ const Step6: React.FC = () => {
   useEffect(() => {
     const wfId = Number(selectedWorkflowId);
     if (!Number.isFinite(wfId)) return;
-    setPage(1); // reset to first page on workflow change
+    setPage(1);
     fetchPage(1, pageSize);
   }, [selectedWorkflowId, pageSize, fetchPage]);
 
@@ -267,7 +277,7 @@ const Step6: React.FC = () => {
     return () => window.removeEventListener("focus", onFocus);
   }, [selectedWorkflowId, pageSize, fetchPage]);
 
-  /** Optional: react to Step 5 selection being updated elsewhere (localStorage event) */
+  /** Optional: react to Step 5 updates (localStorage event) */
   useEffect(() => {
     const wfId = Number(selectedWorkflowId);
     if (!Number.isFinite(wfId)) return;
@@ -277,7 +287,6 @@ const Step6: React.FC = () => {
       if (e.key === key) {
         const hasSel = loadSelectedRowsFromStep5(wfId).length > 0;
         setHasStep5Selection(hasSel);
-        // Always fetch latest list—no manual refresh needed
         fetchPage(1, pageSize);
       }
     };
@@ -305,7 +314,6 @@ const Step6: React.FC = () => {
         );
       }
 
-      // POST candidate_models with workflow_id + selected rows
       await postCandidateModels({
         apiBase: API_BASE,
         token,
@@ -315,7 +323,7 @@ const Step6: React.FC = () => {
 
       setHasTriggered(true);
       setPage(1);
-      await fetchPage(1, pageSize); // immediately pull fresh results
+      await fetchPage(1, pageSize);
     } catch (e: any) {
       setErrMsg(e?.message || "Failed to run candidate model generation.");
       setModels([]);
@@ -340,7 +348,7 @@ const Step6: React.FC = () => {
     fetchPage(page, pageSize);
   }, [page, pageSize, selectedWorkflowId, fetchPage]);
 
-  // Reset on workflow change (UI pieces; fetching handled by effect above)
+  // Reset on workflow change
   useEffect(() => {
     setModels([]);
     setTotal(undefined);
@@ -427,12 +435,13 @@ const Step6: React.FC = () => {
     }
   }
 
-  // Choose & persist single selection; keep shortlist optional
+  // Choose & persist single selection; shortlist optional
   function handleChoose(idx: number) {
     setChosenIdx(idx);
     const wfId = Number(selectedWorkflowId);
     const model = models[idx];
 
+    // Save the exact model (including .raw if backend provided) for Step 7.
     saveSingleSelection(wfId, idx, model);
 
     const updated = addToShortlist(wfId, shortlist, model);
@@ -467,7 +476,7 @@ const Step6: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Shortlist toolbar (optional) */}
+          {/* Shortlist toolbar */}
           <div className="mr-2 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-2 py-1">
             <span className="text-xs text-neutral-700">Shortlist:</span>
             <span className="rounded-md bg-amber-300/80 px-2 py-0.5 text-xs font-semibold text-black">
@@ -522,7 +531,7 @@ const Step6: React.FC = () => {
             {posting ? "Refreshing…" : "Refresh"}
           </button>
 
-          {/* NEW: Export */}
+          {/* Export */}
           <button
             onClick={exportCsv}
             disabled={
@@ -547,61 +556,7 @@ const Step6: React.FC = () => {
     [posting, loading, selectedWorkflowId, shortlist.length, hasStep5Selection, exportReady, exporting]
   );
 
-  const pager = useMemo(
-    () => (
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            className="cursor-pointer rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:opacity-50"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={loading || !canPrev}
-          >
-            ← Prev
-          </button>
-          <button
-            className="cursor-pointer rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:opacity-50"
-            onClick={() => setPage((p) => p + 1)}
-            disabled={loading || !canNext}
-          >
-            Next →
-          </button>
-        </div>
 
-        <div className="flex items-center gap-2 text-sm">
-          <span>Page</span>
-          <input
-            type="number"
-            min={1}
-            value={page}
-            onChange={(e) => setPage(Math.max(1, Number(e.target.value) || 1))}
-            className="w-16 rounded-md border border-neutral-300 px-2 py-1"
-            disabled={loading}
-          />
-          <span>/ {pages ?? "?"}</span>
-        </div>
-
-        <div className="ml-auto flex items-center gap-2 text-sm">
-          <span>Cards per page</span>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setPage(1);
-            }}
-            className="rounded-md border border-neutral-300 px-2 py-1"
-            disabled={loading}
-          >
-            {[3, 6, 9, 12].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-    ),
-    [loading, canPrev, canNext, page, pages, pageSize]
-  );
 
   return (
     <div className="min-h-dvh bg-neutral-50 p-6">
@@ -618,7 +573,6 @@ const Step6: React.FC = () => {
         </div>
       )}
 
-      {pager}
 
       <div className="relative rounded-2xl bg-yellow-50/60 p-6">
         {loading && (

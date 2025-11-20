@@ -9,7 +9,11 @@ import type { ColumnNode } from "../../../../components/overlay/development/data
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
-import { PlayCircleIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import {
+  PlayCircleIcon,
+  ArrowPathIcon,
+  ArrowDownTrayIcon,
+} from "@heroicons/react/24/outline";
 import {
   runDataTransformation,
   type ApiEnvelope,
@@ -27,11 +31,14 @@ export default function OverlayDevelpmentPage3() {
   const [frequency] = useState<Frequency>("monthly");
   const [view] = useState<ViewMode>("transformations");
 
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } = useSelector(
-    (s: RootState) => (s.pdTransitionMatrixWfHelper as any)
-  );
+  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
+    useSelector(
+      (s: RootState) => (s.pdTransitionMatrixWfHelper as any)
+    );
 
-  const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
+  const token = useAppSelector(
+    (s) => (s as any)?.auth?.token
+  ) as string | null;
 
   const [busy, setBusy] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -54,7 +61,9 @@ export default function OverlayDevelpmentPage3() {
       const { poll, skipPost } = params;
       setErrMsg(null);
       if (!selectedWorkflowId && selectedWorkflowId !== 0) {
-        setErrMsg("Please select a workflow on Step 1 before running the transformation.");
+        setErrMsg(
+          "Please select a workflow on Step 1 before running the transformation."
+        );
         return;
       }
 
@@ -95,8 +104,10 @@ export default function OverlayDevelpmentPage3() {
 
   // ---- Enable export ONLY after GET data is present ----
   useEffect(() => {
-    const hasData = (mevRows?.length ?? 0) > 0 || (defRows?.length ?? 0) > 0;
-    const hasWorkflow = selectedWorkflowId !== null && selectedWorkflowId !== undefined;
+    const hasData =
+      (mevRows?.length ?? 0) > 0 || (defRows?.length ?? 0) > 0;
+    const hasWorkflow =
+      selectedWorkflowId !== null && selectedWorkflowId !== undefined;
     setExportReady(Boolean(hasWorkflow && hasData && !busy));
   }, [mevRows, defRows, busy, selectedWorkflowId]);
 
@@ -153,7 +164,8 @@ export default function OverlayDevelpmentPage3() {
     }
   }, [API_BASE, selectedWorkflowId, token]);
 
-  const caption = view === "consolidated" ? "Consolidated monthly MEVs" : undefined;
+  const caption =
+    view === "consolidated" ? "Consolidated monthly MEVs" : undefined;
 
   // ---- GET-only status URL for the polling notifier ----
   const statusUrl =
@@ -172,7 +184,8 @@ export default function OverlayDevelpmentPage3() {
               Consolidate all monthly MEVs
             </h1>
             <p className="text-sm text-gray-600">
-              Apply lag/log/diff transformations to MEVs and take log of default rate data
+              Apply lag/log/diff transformations to MEVs and take log of default
+              rate data
             </p>
           </div>
 
@@ -180,9 +193,16 @@ export default function OverlayDevelpmentPage3() {
             {/* Run (POST + internal poll) */}
             <button
               onClick={onRun}
-              disabled={busy || (!selectedWorkflowId && selectedWorkflowId !== 0)}
+              disabled={
+                busy ||
+                (!selectedWorkflowId && selectedWorkflowId !== 0)
+              }
               className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
-              title={!selectedWorkflowId ? "Pick a workflow on Step 1" : ""}
+              title={
+                !selectedWorkflowId
+                  ? "Pick a workflow on Step 1"
+                  : ""
+              }
             >
               <PlayCircleIcon className="h-4 w-4" />
               {busy ? "Processing…" : "Run Data Transform"}
@@ -191,18 +211,31 @@ export default function OverlayDevelpmentPage3() {
             {/* Refresh (GET-only) */}
             <button
               onClick={onRefresh}
-              disabled={busy || (!selectedWorkflowId && selectedWorkflowId !== 0)}
+              disabled={
+                busy ||
+                (!selectedWorkflowId && selectedWorkflowId !== 0)
+              }
               className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
-              title={!selectedWorkflowId ? "Pick a workflow on Step 1" : "Fetch latest results once"}
+              title={
+                !selectedWorkflowId
+                  ? "Pick a workflow on Step 1"
+                  : "Fetch latest results once"
+              }
             >
-              <ArrowPathIcon className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+              <ArrowPathIcon
+                className={`h-4 w-4 ${busy ? "animate-spin" : ""}`}
+              />
               {busy ? "Refreshing…" : "Refresh"}
             </button>
 
             {/* Export CSV */}
             <button
               onClick={exportCsv}
-              disabled={!exportReady || exporting || (!selectedWorkflowId && selectedWorkflowId !== 0)}
+              disabled={
+                !exportReady ||
+                exporting ||
+                (!selectedWorkflowId && selectedWorkflowId !== 0)
+              }
               className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
               title={
                 !selectedWorkflowId
@@ -212,6 +245,7 @@ export default function OverlayDevelpmentPage3() {
                   : "Download CSV"
               }
             >
+              <ArrowDownTrayIcon className="h-4 w-4" />
               {exporting ? "Exporting…" : "Export CSV"}
             </button>
 
