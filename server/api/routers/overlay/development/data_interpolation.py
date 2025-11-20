@@ -1,6 +1,8 @@
 from fastapi import Depends, Form, Query
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from starlette.responses import StreamingResponse
+from io import BytesIO
 import pandas as pd
 import os
 import json
@@ -24,6 +26,9 @@ from models.overlay.development import (
 from helpers.get_time_date import get_time_date
 from helpers.save_csv_data_in_folder import save_csv_data_in_folder
 from helpers.make_json_serializable import make_json_serializable
+from helpers.format_dataframe_constructor import format_dataframe_constructor
+
+import traceback
 
 router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development"])
 
@@ -68,12 +73,77 @@ async def get_data_interpolation(
             db.close()
         
     except Exception as e:
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={
                 "code": -1,
                 "success": False,
                 "msg": f"Error retrieving data interpolation: {str(e)}",
+                "data": None
+            }
+        )
+
+@router.get("/data_interpolation/export")
+async def export_data_interpolation(
+    workflow_id: int = Query(..., description="Workflow ID to export data interpolation for"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Export data interpolation data as CSV file
+    """
+    try:
+        db = SessionLocal()
+        try:
+            # Query the database for data interpolation output (same as GET endpoint)
+            interpolation_record = db.query(OverlayDevelopmentDataInterpolationOutput).filter(
+                OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id,
+                OverlayDevelopmentDataInterpolationOutput.user_id == current_user.id
+            ).first()
+
+            if not interpolation_record:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "No data interpolation output found for this workflow",
+                        "data": None
+                    }
+                )
+            
+            # Parse the JSON data from the record
+            data = json.loads(interpolation_record.json_data) if interpolation_record.json_data else []
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(data)
+            
+            # Create CSV in memory
+            output = BytesIO()
+            df.to_csv(output, index=False, encoding='utf-8')
+            output.seek(0)
+            
+            # Generate filename
+            filename = interpolation_record.filename or f"data_interpolation_export_{workflow_id}.csv"
+            
+            # Return as CSV file
+            return StreamingResponse(
+                output,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+            
+        finally:
+            db.close()
+        
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Error exporting data interpolation: {str(e)}",
                 "data": None
             }
         )
@@ -136,10 +206,14 @@ async def calculate_data_interpolation(
             
             # Parse the JSON data from the record
             import json
-            quarterly_data = json.loads(quarterly_record.json_data) if quarterly_record.json_data else []
+            # quarterly_data = json.loads(quarterly_record.json_data) if quarterly_record.json_data else []
+            quarterly_df = format_dataframe_constructor(quarterly_record.json_data)
+            
+
+            print(quarterly_df)
             
             # Convert to DataFrame
-            quarterly_df = pd.DataFrame(quarterly_data)
+            # quarterly_df = pd.DataFrame(quarterly_data)
             print(f"Retrieved quarterly data: {len(quarterly_df)} rows")
             
         finally:
@@ -165,6 +239,7 @@ async def calculate_data_interpolation(
 
         
         filename = f"data_interpolation_output_{get_time_date()}.csv"
+        output_folder_path = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/development/{workflow.loan_product}/data_interpolation"
 
         # Save data in documents models
         db = SessionLocal()
@@ -188,7 +263,7 @@ async def calculate_data_interpolation(
                 user_id=user_id.id,
                 json_data=json.dumps(process_data_interpolation_res.to_dict(orient='records')),
                 log_id=log_record.id,
-                folder=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/development",
+                folder=output_folder_path,
                 filename=filename
             )
             db.add(new_overlay_record)
@@ -199,7 +274,7 @@ async def calculate_data_interpolation(
             db.close()
 
         save_csv_data_in_folder(
-            workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/development",
+            workflow_path=output_folder_path,
             document_type="OVERLAY_DEVELOPMENT_DATA_INTERPOLATION_OUTPUT",
             # csv_data is a daraframe
             csv_data=process_data_interpolation_res,
@@ -216,6 +291,7 @@ async def calculate_data_interpolation(
         res = make_json_serializable(res)
         return JSONResponse(status_code=200, content=res)
     except Exception as e:
+        traceback.print_exc()
         res = {
             'code': -1,
             'msg': f'Something went wrong. {e}',

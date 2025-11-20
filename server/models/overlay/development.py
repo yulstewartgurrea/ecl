@@ -207,7 +207,7 @@ class OverlayDevelopmenCandidateModelsOutput(Base):
     id = Column(Integer, primary_key=True, index=True)
     workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    log_id = Column(Integer, ForeignKey("overlay_logs.id"), nullable=False)
+    log_id = Column(Integer, ForeignKey("overlay_logs.id"), nullable=True)
     json_data = Column(Text, nullable=True)
     created_at = Column(
         DateTime, nullable=False, server_default=sql_text("CURRENT_TIMESTAMP")
