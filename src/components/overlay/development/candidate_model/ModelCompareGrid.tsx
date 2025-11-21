@@ -8,19 +8,34 @@ export type ModelVariable = {
   coeff_X1: number;
   "p-value_X1": number | string;
   vif_X1?: number | string;
+  raw?: number | string;   // ← change this line
 };
+
+
+
 
 export type ModelMetrics = {
   Adj_R_Squared?: number; // 0..1
   RMSE?: number;
   MAPE?: number | string;
+  R_Squared?: number | string;
 };
 
 export type ModelSpec = {
   title: string;
   variables: ModelVariable[];
   metrics: ModelMetrics;
-  previewUrl?: string; // optional thumbnail/screenshot
+  previewUrl?: string;
+
+  // ✅ extras used by Step 6/7
+  raw?: any;                         // the original server row
+  index?: number;                    // internal index
+  Y?: string;
+  X1?: string;
+  X2?: string;
+  R_Squared?: number | string;
+  Adj_R_Squared?: number | string;
+  MAPE?: number | string;
 };
 
 export type ModelCompareGridProps = {

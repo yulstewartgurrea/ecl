@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { XMarkIcon, PlusIcon, TrashIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, TrashIcon, CheckIcon } from "@heroicons/react/24/outline";
 import { type FilterRule, saveFilters, loadFilters } from "./headersStorage";
 
 type Props = {
@@ -40,6 +40,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
 
   useEffect(() => {
     if (open) {
+      console.log('setSearch: ', setSearch)
       const existing = loadFilters(workflowId); // only SELECTED rules are persisted
       setRows(existing.length ? existing : [{ id: uid(), column: "", value: "" }]);
       setInvalidValueIds(new Set());

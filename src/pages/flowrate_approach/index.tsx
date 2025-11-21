@@ -20,9 +20,8 @@ import {
   setPdTransitionMatrixWorkflowData,
   setPdTransitionMatrixSelectedLoanProduct,
   setPdTransitionMatrixReportDateStart,
-  resetPdTransitionMatrixWfHelperData,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const TransitionMatrixLanding = () => {
   const navigate = useNavigate();
@@ -34,7 +33,6 @@ const TransitionMatrixLanding = () => {
     selectedPdTransitionMatrixEntity,
     selectedPdTransitionMatrixReportingPeriod,
     pdTransitionMatrixWfName,
-    currentPdTransitionMatrixWorkflowId,
     selectedPdTransitionMatrixLoanProduct,
     selectedPdTransitionMatrixReportDateStart,
   } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);

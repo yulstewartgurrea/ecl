@@ -1,28 +1,29 @@
 use std::{
     fs,
+    io::Read,
+    net::TcpStream,
     path::PathBuf,
     process::{Command, Stdio},
     sync::Mutex,
-    io::Read,
 };
-use tauri::{Manager, WindowEvent, State};
-use std::net::TcpStream;
+
+use tauri::{Manager, WindowEvent};
+use tauri::path::BaseDirectory;
 use tauri_plugin_updater::UpdaterExt;
-use chrono;
 
 struct FastApiProcess(Mutex<Option<std::process::Child>>);
-mod api;
 
+mod api;
 use crate::api::folderapi::{create_folder_tree, upload_files, list_folder_contents, get_folder_contents};
 
-// Updater commands
+// ----------------------- Updater commands (unchanged) -----------------------
+
 #[tauri::command]
 async fn check_for_updates(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     let updater = app.updater().map_err(|e| format!("Failed to get updater: {}", e))?;
-    
+
     match updater.check().await {
         Ok(Some(update)) => {
-            // Convert update info to JSON
             let update_info = serde_json::json!({
                 "version": update.version,
                 "date": chrono::Utc::now().to_rfc3339(),
@@ -38,21 +39,21 @@ async fn check_for_updates(app: tauri::AppHandle) -> Result<serde_json::Value, S
 #[tauri::command]
 async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     let updater = app.updater().map_err(|e| format!("Failed to get updater: {}", e))?;
-    
+
     match updater.check().await {
         Ok(Some(update)) => {
-            match update.download_and_install(
-                |chunk_length, content_length| {
-                    // Handle download progress
-                    println!("Downloaded {} bytes out of {:?}", chunk_length, content_length);
-                },
-                || {
-                    // Handle completion
-                    println!("Download and installation completed.");
-                },
-            ).await {
+            match update
+                .download_and_install(
+                    |chunk_length, content_length| {
+                        println!("Downloaded {} bytes out of {:?}", chunk_length, content_length);
+                    },
+                    || {
+                        println!("Download and installation completed.");
+                    },
+                )
+                .await
+            {
                 Ok(_) => {
-                    // Restart the app after successful update
                     app.restart();
                     Ok(())
                 }
@@ -69,21 +70,15 @@ async fn get_app_version() -> Result<String, String> {
     Ok(env!("CARGO_PKG_VERSION").to_string())
 }
 
+// ----------------------- Helper funcs -----------------------
 
-
-fn get_server_dir() -> PathBuf {
-    if cfg!(debug_assertions) {
-        // DEV: project root/server
-        let mut dir = std::env::current_dir().unwrap();
-        dir.pop(); // go up from src-tauri
-        dir.push("server");
-        dir
-    } else {
-        // PROD: _up_/server
-        let exe = std::env::current_exe().unwrap();
-        let exe_dir = exe.parent().unwrap();
-        exe_dir.join("_up_").join("server")
-    }
+fn dev_server_dir() -> PathBuf {
+    // DEV: project root/server
+    let mut dir = std::env::current_dir().unwrap();
+    // current_dir: src-tauri
+    dir.pop(); // go up to project root
+    dir.push("server");
+    dir
 }
 
 fn setup_python_env(server_dir: &PathBuf) -> PathBuf {
@@ -108,16 +103,15 @@ fn setup_python_env(server_dir: &PathBuf) -> PathBuf {
         }
     }
 
-    // Ensure requirements.txt exists
     let req_file = server_dir.join("requirements.txt");
     if !req_file.exists() {
         fs::write(
             &req_file,
             "fastapi==0.95.2\nuvicorn[standard]==0.22.0\npython-multipart==0.0.6\nsqlalchemy==2.0.15\npydantic==1.10.7\npasslib[bcrypt]==1.7.5\npython-jose==3.3.0\nwatchfiles==0.20.0\n",
-        ).unwrap();
+        )
+        .unwrap();
     }
 
-    // Install requirements
     let python_exe = if cfg!(windows) {
         venv_path.join("Scripts").join("python.exe")
     } else {
@@ -143,7 +137,15 @@ fn start_fastapi(server_dir: &PathBuf, python_exe: &PathBuf) -> std::process::Ch
     let stdout = fs::File::create(&stdout_path).unwrap();
     let stderr = fs::File::create(&stderr_path).unwrap();
 
-    let mut args = vec!["-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"];
+    let mut args = vec![
+        "-m",
+        "uvicorn",
+        "main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+    ];
     if cfg!(debug_assertions) {
         args.push("--reload");
         args.push("--reload-dir");
@@ -159,7 +161,7 @@ fn start_fastapi(server_dir: &PathBuf, python_exe: &PathBuf) -> std::process::Ch
         .spawn()
         .unwrap();
 
-    // Wait until port is open
+    // wait until port is open
     let timeout_secs = 15;
     let mut waited = 0;
     let check_interval = 500;
@@ -177,14 +179,14 @@ fn start_fastapi(server_dir: &PathBuf, python_exe: &PathBuf) -> std::process::Ch
         waited += check_interval;
         if waited / 1000 >= timeout_secs {
             let mut err_contents = String::new();
-            let _ = fs::File::open(&stderr_path).and_then(|mut f| f.read_to_string(&mut err_contents));
+            let _ = fs::File::open(&stderr_path)
+                .and_then(|mut f| f.read_to_string(&mut err_contents));
             panic!("Timed out waiting for FastAPI:\n{}", err_contents);
         }
     }
 
     child
 }
-
 
 fn ensure_server_folders(server_dir: &PathBuf) {
     let files_dir = server_dir.join("files");
@@ -197,37 +199,50 @@ fn ensure_server_folders(server_dir: &PathBuf) {
     } else {
         println!("Files directory already exists at {:?}", files_dir);
     }
-
-    // Add more folders here if needed in the future
 }
+
+// ----------------------- main -----------------------
 
 #[tokio::main]
 async fn main() {
-    let server_dir = get_server_dir();
-    fs::create_dir_all(&server_dir).unwrap();
-    println!("Server directory: {:?}", server_dir);
-
-    // Ensure server subfolders like `files` exist
-    ensure_server_folders(&server_dir);
-
-    // Commented out to prevent auto-starting FastAPI server
-    // This allows running FastAPI separately for development
-    let python_exe = setup_python_env(&server_dir);
-    let fastapi_child = start_fastapi(&server_dir, &python_exe);
-
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
             create_folder_tree,
             upload_files,
-            list_folder_contents, 
-            get_folder_contents
+            list_folder_contents,
+            get_folder_contents,
             // check_for_updates,
             // install_update,
             // get_app_version
         ])
-        .manage(FastApiProcess(Mutex::new(Some(fastapi_child))))
+        .setup(|app| {
+            // Resolve server directory differently for dev vs prod
+            let server_dir: PathBuf = if cfg!(debug_assertions) {
+                let dir = dev_server_dir();
+                println!("[DEV] Server directory: {:?}", dir);
+                dir
+            } else {
+                // This must match `bundle.resources` ("../server")
+                let dir = app
+                    .path()
+                    .resolve("../server", BaseDirectory::Resource)
+                    .expect("Failed to resolve server folder from resources");
+                println!("[PROD] Server directory: {:?}", dir);
+                dir
+            };
+
+            // Ensure subfolders exist, then start FastAPI
+            ensure_server_folders(&server_dir);
+            let python_exe = setup_python_env(&server_dir);
+            let fastapi_child = start_fastapi(&server_dir, &python_exe);
+
+            // Make the child process available to the whole app
+            app.manage(FastApiProcess(Mutex::new(Some(fastapi_child))));
+
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {
                 if let Some(state) = window.try_state::<FastApiProcess>() {

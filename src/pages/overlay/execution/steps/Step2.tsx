@@ -11,7 +11,6 @@ import {
   runInterpolationPOST,
   sanitizeInterpolationRows,
   type InterpolationRow,
-  type Mode,
 } from "../../../../services/interpolation";
 
 import {

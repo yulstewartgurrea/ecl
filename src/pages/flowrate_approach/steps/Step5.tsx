@@ -247,6 +247,7 @@ const Step5: React.FC = () => {
       setToasterStatus("success");
       setToasterMessage("File exported successfully!");
     } catch (e: any) {
+      console.log(error)
       const errorMsg = e?.message || "Failed to export file.";
       setToasterStatus("error");
       setToasterMessage(errorMsg);

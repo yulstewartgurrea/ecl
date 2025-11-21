@@ -1,5 +1,10 @@
-use std::{fs, path::{Path, PathBuf}};
-use tauri::command;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
+use tauri::{command, AppHandle};
+use tauri::path::BaseDirectory;
 use base64::decode;
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -12,23 +17,18 @@ pub struct FolderContentItem {
 pub struct FolderContents {
     pub items: Vec<FolderContentItem>,
 }
-fn get_server_dir() -> PathBuf {
-    if cfg!(debug_assertions) {
-        // DEV: project root/server
-        let mut dir = std::env::current_dir().unwrap();
-        dir.pop(); // go up from src-tauri
-        dir.push("server");
-        dir
-    } else {
-        // PROD: _up_/server
-        let exe = std::env::current_exe().unwrap();
-        let exe_dir = exe.parent().unwrap();
-        exe_dir.join("_up_").join("server")
-    }
+
+// Optional: keep if you still need this elsewhere, but it’s not used below.
+fn get_server_dir_dev_only() -> PathBuf {
+    // DEV: project root/server
+    let mut dir = std::env::current_dir().unwrap();
+    dir.pop(); // go up from src-tauri
+    dir.push("server");
+    dir
 }
 
-/// Returns the base path depending on dev or prod
-fn get_base_path() -> Result<PathBuf, String> {
+/// Returns the base path to `server/files` depending on dev or prod
+fn get_base_path(app: &AppHandle) -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
         // DEV: project root/server/files
         let mut base_path = std::env::current_dir().map_err(|e| e.to_string())?;
@@ -37,17 +37,19 @@ fn get_base_path() -> Result<PathBuf, String> {
         base_path.push("files");
         Ok(base_path)
     } else {
-        // PROD: executable_dir/_up_/server/files
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let exe_dir = exe.parent().ok_or("Failed to get exe directory")?;
-        Ok(exe_dir.join("_up_").join("server").join("files"))
+        // PROD: resolve bundled "../server" from Resource dir, then /files
+        let server_dir = app
+            .path()
+            .resolve("../server", BaseDirectory::Resource)
+            .map_err(|e| format!("Failed to resolve server dir from resources: {e}"))?;
+
+        Ok(server_dir.join("files"))
     }
 }
 
-
-#[tauri::command]
-pub fn get_folder_contents(relative_path: &str) -> Result<FolderContents, String> {
-    let base_path = get_base_path()?;
+#[command]
+pub fn get_folder_contents(app: AppHandle, relative_path: &str) -> Result<FolderContents, String> {
+    let base_path = get_base_path(&app)?;
     let target_path = base_path.join(relative_path);
 
     if !target_path.exists() {
@@ -62,7 +64,10 @@ pub fn get_folder_contents(relative_path: &str) -> Result<FolderContents, String
         let entry = entry_result.map_err(|e| e.to_string())?;
         let entry_path = entry.path();
         let is_folder = entry_path.is_dir();
-        let name = entry.file_name().into_string().map_err(|_| "Invalid UTF-8 in file name")?;
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| "Invalid UTF-8 in file name")?;
 
         if is_folder || name.ends_with(".xls") || name.ends_with(".xlsx") {
             contents.push(FolderContentItem { name, is_folder });
@@ -72,14 +77,15 @@ pub fn get_folder_contents(relative_path: &str) -> Result<FolderContents, String
     Ok(FolderContents { items: contents })
 }
 
-#[tauri::command]
+#[command]
 pub fn create_folder_tree(
+    app: AppHandle,
     entity: String,
     loan_product: String,
     period: String,
     workflow_name: String,
 ) -> Result<String, String> {
-    let base_path = get_base_path()?;
+    let base_path = get_base_path(&app)?;
     let target_path = base_path
         .join(&entity)
         .join(&period)
@@ -89,21 +95,26 @@ pub fn create_folder_tree(
     std::fs::create_dir_all(&target_path).map_err(|e| e.to_string())?;
     Ok(format!("✅ Folder created at {:?}", target_path))
 }
+
 #[derive(serde::Deserialize)]
 pub struct FilePayload {
     pub filename: String,
     pub contents_base64: String,
 }
 
-#[tauri::command]
+#[command]
 pub fn upload_files(
+    app: AppHandle,
     entity: String,
     reporting_period: String,
     workflow_name: String,
     files: Vec<FilePayload>,
 ) -> Result<String, String> {
-    let base_path = get_base_path()?;
-    let target_folder = base_path.join(&entity).join(&reporting_period).join(&workflow_name);
+    let base_path = get_base_path(&app)?;
+    let target_folder = base_path
+        .join(&entity)
+        .join(&reporting_period)
+        .join(&workflow_name);
 
     fs::create_dir_all(&target_folder).map_err(|e| e.to_string())?;
 
@@ -116,15 +127,21 @@ pub fn upload_files(
     Ok(format!("Successfully saved {} files", files.len()))
 }
 
-#[tauri::command]
-pub fn list_folder_contents(folder_path: Option<String>) -> Result<FolderContents, String> {
-    let base_path = get_base_path()?;
+#[command]
+pub fn list_folder_contents(
+    app: AppHandle,
+    folder_path: Option<String>,
+) -> Result<FolderContents, String> {
+    let base_path = get_base_path(&app)?;
 
     let path = if let Some(folder_rel) = folder_path {
         let rel_path = Path::new(&folder_rel);
 
         // Prevent path traversal outside base_path
-        if rel_path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        if rel_path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
             return Err("Parent directory traversal not allowed".into());
         }
 
@@ -142,7 +159,10 @@ pub fn list_folder_contents(folder_path: Option<String>) -> Result<FolderContent
 
     for entry in entries.flatten() {
         let metadata = entry.metadata().map_err(|e| e.to_string())?;
-        let name = entry.file_name().into_string().map_err(|_| "Invalid UTF-8 in file name")?;
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| "Invalid UTF-8 in file name")?;
 
         if metadata.is_dir() || name.ends_with(".xls") || name.ends_with(".xlsx") {
             items.push(FolderContentItem {

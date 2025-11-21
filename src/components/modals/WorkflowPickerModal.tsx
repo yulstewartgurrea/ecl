@@ -163,8 +163,7 @@ export default function WorkflowPickerModal({
                 const path =
                   (w.directory_path ?? w.workflow_path ?? (w as any).path) ||
                   label;
-                const status = String(w.status || "").toUpperCase();
-                console.log('filtered: ', filtered)
+           
                 return (
                   <li key={w.id}>
                     <button

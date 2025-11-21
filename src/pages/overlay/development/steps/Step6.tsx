@@ -194,10 +194,10 @@ const Step6: React.FC = () => {
         setErrMsg("Missing or invalid workflowId.");
         return;
       }
-
+      console.log(canNext,hasTriggered)
       setLoading(true);
       setErrMsg(null);
-
+      console.log(setPageSize)
       // detect Step 5 selection presence (but still fetch even if none)
       const step5Rows = loadSelectedRowsFromStep5(wfId);
       setHasStep5Selection(step5Rows.length > 0);
@@ -214,7 +214,7 @@ const Step6: React.FC = () => {
         setModels(list);
         setTotal(total);
         setPages(pages);
-
+        console.log(canPrev)
         // Rehydrate the single-selection for this workflow first
         const { model: savedOne } = loadSingleSelection(wfId);
         if (savedOne) {

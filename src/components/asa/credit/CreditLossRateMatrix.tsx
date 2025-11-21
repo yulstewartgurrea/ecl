@@ -50,97 +50,6 @@ export type CreditLossRateMatrixProps = {
   className?: string;
 };
 
-/* ===================== Sensible defaults (so it renders) ===================== */
-const DEFAULT_CATEGORIES: AgingCategory[] = [
-  { key: "d0", label: "0 day to PAR 1" },
-  { key: "par1_30", label: "PAR 1 to PAR 30" },
-  { key: "par30_60", label: "PAR 30 to PAR 60" },
-  { key: "par60_90", label: "PAR 60 to PAR 90" },
-  { key: "par90_120", label: "PAR 90 to PAR 120" },
-  { key: "par120_180", label: "PAR 120 to PAR 180" },
-  { key: "par180_240", label: "PAR 180 to PAR 240" },
-  { key: "par240_360", label: "PAR 240 to PAR 360" },
-  { key: "par360p", label: "PAR 360 above" },
-];
-
-const DEFAULT_ROWS: MonthRow[] = [
-  {
-    date: "2025-08-31",
-    cols: {
-      d0: 0.0011588,
-      par1_30: 0.250136,
-      par30_60: 0.262342,
-      par60_90: 0.281607,
-      par90_120: 0.066089,
-      par120_180: 0.114862,
-      par180_240: 0.205884,
-      par240_360: 0.236813,
-      par360p: 1.0,
-    },
-  },
-  {
-    date: "2025-07-31",
-    cols: {
-      d0: 0.001,
-      par1_30: 0.2,
-      par30_60: 0.22,
-      par60_90: 0.24,
-      par90_120: 0.06,
-      par120_180: 0.11,
-      par180_240: 0.19,
-      par240_360: 0.23,
-      par360p: 1.0,
-    },
-  },
-];
-
-const DEFAULT_RATESETS: RatesColumnSet[] = [
-  {
-    name: "Historical Credit Loss Rate",
-    values: {
-      d0: 0.0012,
-      par1_30: 0.2501,
-      par30_60: 0.2623,
-      par60_90: 0.2816,
-      par90_120: 0.0661,
-      par120_180: 0.1149,
-      par180_240: 0.2059,
-      par240_360: 0.2368,
-      par360p: 1.0,
-    },
-  },
-  {
-    name: "Historical Credit Loss Rate (w/o Jul–Sep 2024)",
-    values: {
-      d0: 0.0002,
-      par1_30: 0.0558,
-      par30_60: 0.0606,
-      par60_90: 0.0661,
-      par90_120: 0.0661,
-      par120_180: 0.1149,
-      par180_240: 0.2059,
-      par240_360: 0.2368,
-      par360p: 1.0,
-    },
-  },
-];
-
-const DEFAULT_DISTRIBUTION: DistributionBy = {
-  type: "asOf",
-  asOfLabel: "as of Aug 2025",
-  values: {
-    d0: 0.962052,
-    par1_30: 0.001825,
-    par30_60: 0.003864,
-    par60_90: 0.004209,
-    par90_120: 0.000581,
-    par120_180: 0.010536,
-    par180_240: 0.001193,
-    par240_360: 0.000037,
-    par360p: 0.000001,
-  },
-};
-
 /* ===================== Utils ===================== */
 const pct = (v: number, digits = 3) =>
   (v ?? 0).toLocaleString(undefined, {
@@ -251,17 +160,9 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
 
   const [rateSetIndex, setRateSetIndex] = useState(defaultRateSetIndex || 0);
   const activeRates = historicalRateSets[rateSetIndex]?.values ?? {};
-  const hasPerMonthDist = distribution?.type === "perMonth";
-
-  const overallWeighted = useMemo(() => {
-    if (!distribution) return 0;
-    if (distribution.type === "asOf") return computeWeighted(distribution.values, activeRates);
-    const per = Object.values(distribution.valuesByRow);
-    if (!per.length) return 0;
-    return per.reduce((acc, d) => acc + computeWeighted(d, activeRates), 0) / per.length;
-  }, [distribution, activeRates]);
 
   const tableRows = useMemo(() => {
+    console.log(showNotes)
     return rows.map((r, i) => {
       // Use API-provided values if available, otherwise recalculate
       let monotonic: boolean;

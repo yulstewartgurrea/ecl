@@ -1,7 +1,7 @@
 // ==========================
 // components/asa/table/ui/TableFilterPopover.tsx (UPDATED)
 // ==========================
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FunnelIcon, ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 type Props = {

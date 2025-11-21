@@ -25,4 +25,10 @@ dist-ssr
 # Ignore server persistence
 server/files/
 server/db.sqlite
+server/.venv
+server/venv/
+
+
+src-tauri/resource
+
 ~/*

@@ -1,5 +1,5 @@
 // components/asa/table/FlowRateCalcTable.tsx
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { SpreadsheetTable, type Column } from "./SpreadsheetTable";
 import { fmtDate } from "./aging.types";
 

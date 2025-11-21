@@ -1,5 +1,5 @@
 // components/asa/table/PrincipalMatrixDistributionTable.tsx
-import React, { useMemo } from "react";
+import  { useMemo } from "react";
 import { SpreadsheetTable, type Column } from "./SpreadsheetTable";
 import { BUCKET_KEYS, toNum, isNA, fmtDate, fmtPct } from "./aging.types";
 import type { AgingRow } from "./aging.types";
