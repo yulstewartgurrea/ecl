@@ -73,14 +73,22 @@ pub fn get_folder_contents(relative_path: &str) -> Result<FolderContents, String
 }
 
 #[tauri::command]
-pub fn create_folder_tree(entity: String, period: String, workflow_name: String) -> Result<String, String> {
+pub fn create_folder_tree(
+    entity: String,
+    loan_product: String,
+    period: String,
+    workflow_name: String,
+) -> Result<String, String> {
     let base_path = get_base_path()?;
-    let target_path = base_path.join(&entity).join(&period).join(&workflow_name);
+    let target_path = base_path
+        .join(&entity)
+        .join(&period)
+        .join(&workflow_name)
+        .join(&loan_product);
 
-    fs::create_dir_all(&target_path).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&target_path).map_err(|e| e.to_string())?;
     Ok(format!("✅ Folder created at {:?}", target_path))
 }
-
 #[derive(serde::Deserialize)]
 pub struct FilePayload {
     pub filename: String,
@@ -90,12 +98,12 @@ pub struct FilePayload {
 #[tauri::command]
 pub fn upload_files(
     entity: String,
-    period: String,
+    reporting_period: String,
     workflow_name: String,
     files: Vec<FilePayload>,
 ) -> Result<String, String> {
     let base_path = get_base_path()?;
-    let target_folder = base_path.join(&entity).join(&period).join(&workflow_name);
+    let target_folder = base_path.join(&entity).join(&reporting_period).join(&workflow_name);
 
     fs::create_dir_all(&target_folder).map_err(|e| e.to_string())?;
 
