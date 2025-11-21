@@ -3,6 +3,8 @@ import type { PayloadAction } from "@reduxjs/toolkit";
 
 interface wfHelperData {
   [key: string]: any;
+  // map: "/Entity/Loan/Period/Date/WorkflowName" -> step index
+  stepsByWorkflowPath?: Record<string, number>;
 }
 
 const initialState: wfHelperData = {
@@ -19,7 +21,12 @@ const initialState: wfHelperData = {
   isPdTransitionMatrixWfStarted: false,
   isPdTransitionMatrixWfFinish: false,
   isPdTransitionMatrixImportedOnce: false,
+
+  // generic “last used” step (still kept for backwards-compat)
   currentStep: 0,
+
+  // NEW: per-workflow step map
+  stepsByWorkflowPath: {},
 };
 
 const PdTransitionMatrixWfHelperSlice = createSlice({
@@ -58,7 +65,8 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
       state,
       action: PayloadAction<{ loan_product: string }>
     ) {
-      state.selectedPdTransitionMatrixLoanProduct = action.payload.loan_product;
+      state.selectedPdTransitionMatrixLoanProduct =
+        action.payload.loan_product;
     },
 
     // NEW: save Report Date Start in Redux (YYYY-MM-DD)
@@ -81,36 +89,55 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
       state,
       action: PayloadAction<{ is_workflow_started: boolean }>
     ) {
-      state.isPdTransitionMatrixWfStarted = action.payload.is_workflow_started;
+      state.isPdTransitionMatrixWfStarted =
+        action.payload.is_workflow_started;
     },
 
     setPdTransitionMatrixInputFilesIsImportedOnce(
       state,
       action: PayloadAction<{ is_imported_once: boolean }>
     ) {
-      state.isPdTransitionMatrixImportedOnce = action.payload.is_imported_once;
+      state.isPdTransitionMatrixImportedOnce =
+        action.payload.is_imported_once;
     },
 
     setPdTransitionMatrixIsWfFinish(
       state,
       action: PayloadAction<{ is_workflow_finish: boolean }>
     ) {
-      state.isPdTransitionMatrixWfFinish = action.payload.is_workflow_finish;
+      state.isPdTransitionMatrixWfFinish =
+        action.payload.is_workflow_finish;
     },
 
-    setPdTransitionMatrixWfData: (_state, action: PayloadAction<wfHelperData>) => {
+    setPdTransitionMatrixWfData: (
+      _state,
+      action: PayloadAction<wfHelperData>
+    ) => {
       return action.payload;
     },
 
     resetPdTransitionMatrixWfHelperData: () => {
-      return initialState;
+      // full reset including per-workflow steps
+      return {
+        ...initialState,
+        stepsByWorkflowPath: {},
+      };
     },
 
+    // 🔥 NEW: store step globally + per workflowPath
     setPdTransitionMatrixCurrentStep(
       state,
-      action: PayloadAction<{ step: number }>
+      action: PayloadAction<{ step: number; workflowPath?: string }>
     ) {
-      state.currentStep = action.payload.step;
+      const { step, workflowPath } = action.payload;
+      state.currentStep = step;
+
+      if (workflowPath) {
+        if (!state.stepsByWorkflowPath) {
+          state.stepsByWorkflowPath = {};
+        }
+        state.stepsByWorkflowPath[workflowPath] = step;
+      }
     },
 
     setPdTransitionMatrixWorkflowId(
@@ -124,7 +151,8 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
       state,
       action: PayloadAction<{ workflow_data: any }>
     ) {
-      state.currentPdTransitionMatrixWorkflowData = action.payload.workflow_data;
+      state.currentPdTransitionMatrixWorkflowData =
+        action.payload.workflow_data;
     },
   },
 });
@@ -141,7 +169,7 @@ export const {
   resetPdTransitionMatrixWfHelperData,
   setPdTransitionMatrixCurrentStep,
   setPdTransitionMatrixWorkflowId,
-  setPdTransitionMatrixWorkflowData, // NEW export
+  setPdTransitionMatrixWorkflowData,
   // NEW exports
   setPdTransitionMatrixSelectedLoanProduct,
   setPdTransitionMatrixReportDateStart,

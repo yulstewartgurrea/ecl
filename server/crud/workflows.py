@@ -21,7 +21,6 @@ def create_workflow(
         workflow_type=wf_in.workflow_type,
         user_id=user_id,
         loan_product=wf_in.loan_product,
-        report_date_start=wf_in.report_date_start,
     )
 
     db.add(db_workflow)

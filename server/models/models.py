@@ -41,7 +41,6 @@ class Workflow(Base):
             "entity",
             "loan_product",
             "reporting_period",
-            "report_date_start",
             "workflow_name",
             name="uq_user_workflow_fullpath",
         ),
@@ -62,7 +61,7 @@ class Workflow(Base):
     # portfolio
     loan_product = Column(String, nullable=True)
     # reporting date
-    report_date_start = Column(String, nullable=False)
+    report_date_start = Column(String, nullable=True)
     def __repr__(self):
         return f"<Workflow id={self.id} name={self.workflow_name!r}>"
 

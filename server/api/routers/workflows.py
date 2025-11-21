@@ -57,7 +57,6 @@ def create_user_workflow(
             Workflow.entity == workflow.entity,
             Workflow.loan_product == workflow.loan_product,
             Workflow.reporting_period == workflow.reporting_period,
-            Workflow.report_date_start == workflow.report_date_start,
             Workflow.workflow_name == workflow.workflow_name,
         )
     ).scalar_one_or_none()
@@ -71,13 +70,11 @@ def create_user_workflow(
                 "already exists for this user."
             ),
         )
-
     workflow_path = (
         f"/{workflow.entity}"
-        f"/{workflow.loan_product}"
         f"/{workflow.reporting_period}"
-        f"/{workflow.report_date_start}"
         f"/{workflow.workflow_name}"
+        f"/{workflow.loan_product}"
     )
 
     try:

@@ -64,12 +64,14 @@ def check_workflow_exists(
     current_user: User = Depends(get_current_user),
 ):
     # 📁 MUST match the same pattern as in create_user_workflow
+
     workflow_path = (
         f"/{entity}"
-        f"/{loan_product}"
         f"/{reporting_period}"
-        f"/{report_date_start}"
         f"/{workflow_name}"
+        f"/{loan_product}"
+       
+        
     )
 
     doc = (

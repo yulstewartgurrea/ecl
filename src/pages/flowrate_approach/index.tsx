@@ -20,8 +20,9 @@ import {
   setPdTransitionMatrixWorkflowData,
   setPdTransitionMatrixSelectedLoanProduct,
   setPdTransitionMatrixReportDateStart,
+  resetPdTransitionMatrixWfHelperData,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const TransitionMatrixLanding = () => {
   const navigate = useNavigate();
@@ -54,10 +55,6 @@ const TransitionMatrixLanding = () => {
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
 
-  console.log(
-    "Transition Matrix - Current workflow ID:",
-    currentPdTransitionMatrixWorkflowId
-  );
 
   /**
    * Called when a folder is selected from WorkflowFolderList.
@@ -154,7 +151,7 @@ const handleStartCalculation = async () => {
       }
 
       const checkData = await checkResponse.json();
-      console.log("exists?", checkData.exists, "proceedWithUpdate", proceedWithUpdate);
+      console.log("exists?", checkData.exists, "proceedWithUpdate", proceedWithUpdate, pdTransitionMatrixWfName);
 
       // --- CASE 1: workflow exists, but user has not confirmed yet -> show modal
       if (checkData.exists && !proceedWithUpdate) {
@@ -272,6 +269,10 @@ const handleStartCalculation = async () => {
         period: selectedPdTransitionMatrixReportingPeriod,
         report_date_start: selectedPdTransitionMatrixReportDateStart!,
         workflow_name: pdTransitionMatrixWfName,
+
+        loanProduct: selectedPdTransitionMatrixLoanProduct,
+        workflowName: pdTransitionMatrixWfName,
+        reportDateStart: selectedPdTransitionMatrixReportDateStart
       });
 
       setProceedWithUpdate(false);
@@ -326,7 +327,9 @@ const handleStartCalculation = async () => {
   const isFormValid =
     selectedPdTransitionMatrixEntity &&
     pdTransitionMatrixWfName &&
-    selectedPdTransitionMatrixReportingPeriod;
+    selectedPdTransitionMatrixReportingPeriod
+     &&
+    selectedPdTransitionMatrixLoanProduct;
 
   return (
     <>

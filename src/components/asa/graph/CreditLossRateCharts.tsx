@@ -176,84 +176,84 @@ function buildWeightedSummary(rows: CreditLossRateRow[]) {
 }
 
 // ---------- Bucket explainer (tab: "bucket") ----------
-function buildBucketSummary(
-  rows: CreditLossRateRow[],
-  bucket: BucketKey,
-  compareKeys: string[]
-) {
-  const series = getBucketSeries(rows, bucket); // [{date,val}] decimals
-  if (!series.length) {
-    return {
-      title: `Quick take — Bucket ${BUCKETS.find((b) => b.key === bucket)?.label}`,
-      summary:
-        "No numeric values for this bucket yet. The bucket trend chart will look empty for this selection.",
-      details: [] as string[],
-      actions: [
-        "Ensure Step 5 produced roll-rates for this bucket.",
-        "Verify coercer mappings for bucket labels.",
-      ],
-    };
-  }
+// function buildBucketSummary(
+//   rows: CreditLossRateRow[],
+//   bucket: BucketKey,
+//   compareKeys: string[]
+// ) {
+//   const series = getBucketSeries(rows, bucket); // [{date,val}] decimals
+//   if (!series.length) {
+//     return {
+//       title: `Quick take — Bucket ${BUCKETS.find((b) => b.key === bucket)?.label}`,
+//       summary:
+//         "No numeric values for this bucket yet. The bucket trend chart will look empty for this selection.",
+//       details: [] as string[],
+//       actions: [
+//         "Ensure Step 5 produced roll-rates for this bucket.",
+//         "Verify coercer mappings for bucket labels.",
+//       ],
+//     };
+//   }
 
-  const avg = series.reduce((a, b) => a + b.val, 0) / series.length;
-  const peak = series.reduce((best, x) => (x.val > best.val ? x : best), series[0]);
-  const first = series[0];
-  const last = series[series.length - 1];
-  const delta = last.val - first.val; // simple slope
-  const trend =
-    Math.abs(delta) < Math.max(0.001, avg * 0.15)
-      ? "flat"
-      : delta > 0
-      ? "rising"
-      : "falling";
+//   const avg = series.reduce((a, b) => a + b.val, 0) / series.length;
+//   const peak = series.reduce((best, x) => (x.val > best.val ? x : best), series[0]);
+//   const first = series[0];
+//   const last = series[series.length - 1];
+//   const delta = last.val - first.val; // simple slope
+//   const trend =
+//     Math.abs(delta) < Math.max(0.001, avg * 0.15)
+//       ? "flat"
+//       : delta > 0
+//       ? "rising"
+//       : "falling";
 
-  // Rank vs selected compare keys (use their averages)
-  const visKeys = compareKeys
-    .filter((k): k is BucketKey => BUCKETS.some((b) => b.key === k))
-    .filter((k) => k !== bucket);
+//   // Rank vs selected compare keys (use their averages)
+//   const visKeys = compareKeys
+//     .filter((k): k is BucketKey => BUCKETS.some((b) => b.key === k))
+//     .filter((k) => k !== bucket);
 
-  const ranking = [
-    { key: bucket, label: BUCKETS.find((b) => b.key === bucket)?.label || "", avg },
-    ...visKeys.map((k) => {
-      const s = getBucketSeries(rows, k);
-      const a = s.length ? s.reduce((p, q) => p + q.val, 0) / s.length : 0;
-      return { key: k, label: BUCKETS.find((b) => b.key === k)?.label || "", avg: a };
-    }),
-  ]
-    .sort((a, b) => b.avg - a.avg)
-    .map((x, i) => ({ ...x, rank: i + 1 }));
+//   const ranking = [
+//     { key: bucket, label: BUCKETS.find((b) => b.key === bucket)?.label || "", avg },
+//     ...visKeys.map((k) => {
+//       const s = getBucketSeries(rows, k);
+//       const a = s.length ? s.reduce((p, q) => p + q.val, 0) / s.length : 0;
+//       return { key: k, label: BUCKETS.find((b) => b.key === k)?.label || "", avg: a };
+//     }),
+//   ]
+//     .sort((a, b) => b.avg - a.avg)
+//     .map((x, i) => ({ ...x, rank: i + 1 }));
 
-  const me = ranking.find((r) => r.key === bucket)!;
+//   const me = ranking.find((r) => r.key === bucket)!;
 
-  const summary =
-    `Bucket ${me.label} averages ${fmtPct(avg * 100)}, ` +
-    `peaking at ${fmtPct(peak.val * 100)} on ${peak.date}. ` +
-    `Recent direction looks <strong>${trend}</strong> (${fmtPct(delta * 100)} from first to last point). ` +
-    (ranking.length > 1
-      ? `Among selected buckets, it ranks #${me.rank} by average.`
-      : "No comparison buckets are selected.");
+//   const summary =
+//     `Bucket ${me.label} averages ${fmtPct(avg * 100)}, ` +
+//     `peaking at ${fmtPct(peak.val * 100)} on ${peak.date}. ` +
+//     `Recent direction looks <strong>${trend}</strong> (${fmtPct(delta * 100)} from first to last point). ` +
+//     (ranking.length > 1
+//       ? `Among selected buckets, it ranks #${me.rank} by average.`
+//       : "No comparison buckets are selected.");
 
-  const details = [
-    ranking.length > 1
-      ? "Average ranking (highest to lowest): " +
-        ranking
-          .map((r) => `${r.label} (${fmtPct(r.avg * 100)})`)
-          .join(" → ")
-      : "Tip: tick a few buckets in Compare to see how this bucket stacks up.",
-  ];
+//   const details = [
+//     ranking.length > 1
+//       ? "Average ranking (highest to lowest): " +
+//         ranking
+//           .map((r) => `${r.label} (${fmtPct(r.avg * 100)})`)
+//           .join(" → ")
+//       : "Tip: tick a few buckets in Compare to see how this bucket stacks up.",
+//   ];
 
-  const actions = [
-    "If rising, check what changed recently (collections, policy, mix).",
-    "If this bucket ranks high persistently, consider targeted actions for that delinquency band.",
-  ];
+//   const actions = [
+//     "If rising, check what changed recently (collections, policy, mix).",
+//     "If this bucket ranks high persistently, consider targeted actions for that delinquency band.",
+//   ];
 
-  return {
-    title: `Quick take — Bucket ${me.label}`,
-    summary,
-    details,
-    actions,
-  };
-}
+//   return {
+//     title: `Quick take — Bucket ${me.label}`,
+//     summary,
+//     details,
+//     actions,
+//   };
+// }
 
 export default function CreditLossRateCharts({
   data,
@@ -316,19 +316,19 @@ export default function CreditLossRateCharts({
 
   // ----- Explain only for the active tab
   const weightedExplainer = useMemo(() => buildWeightedSummary(rows), [rows]);
-  const bucketExplainer = useMemo(
-    () => buildBucketSummary(rows, bucketKey, visibleBuckets),
-    [rows, bucketKey, visibleBuckets]
-  );
+  // const bucketExplainer = useMemo(
+  //   () => buildBucketSummary(rows, bucketKey, visibleBuckets),
+  //   [rows, bucketKey, visibleBuckets]
+  // );
 
-  function colorFor(v: number | null, min: number, max: number) {
-    if (v == null) return "rgba(0,0,0,0.05)";
-    const t = max === min ? 1 : (v - min) / (max - min); // 0..1
-    const h = 220 - 220 * t; // blue -> red
-    const l = 55;
-    const s = 85;
-    return `hsl(${h} ${s}% ${l}%)`;
-  }
+  // function colorFor(v: number | null, min: number, max: number) {
+  //   if (v == null) return "rgba(0,0,0,0.05)";
+  //   const t = max === min ? 1 : (v - min) / (max - min); // 0..1
+  //   const h = 220 - 220 * t; // blue -> red
+  //   const l = 55;
+  //   const s = 85;
+  //   return `hsl(${h} ${s}% ${l}%)`;
+  // }
 
   async function exportPNG() {
     if (!enableExport) return;
@@ -347,8 +347,8 @@ export default function CreditLossRateCharts({
   }
 
   // Choose explainer by active tab
-  const activeExplainer =
-    tab === "weighted" ? weightedExplainer : tab === "bucket" ? bucketExplainer : null;
+  // const activeExplainer =
+  //   tab === "weighted" ? weightedExplainer : tab === "bucket" ? bucketExplainer : null;
 
   return (
     <div className={`w-full ${className}`}>
@@ -402,36 +402,7 @@ export default function CreditLossRateCharts({
       {/* Body */}
       <div className="border border-gray-200 border-t-0 rounded-b-lg">
         {/* Tab-scoped explainer */}
-        {showExplainer && activeExplainer && (
-          <div className="px-4 pt-4">
-            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900">
-              <div className="font-semibold mb-1">{activeExplainer.title}</div>
-              <p className="mb-2">{activeExplainer.summary}</p>
-              {activeExplainer.details.length > 0 && (
-                <ul className="list-disc pl-5 space-y-1">
-                  {activeExplainer.details.map((t, i) => (
-                    <li
-                      key={i}
-                      dangerouslySetInnerHTML={{
-                        __html: t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"),
-                      }}
-                    />
-                  ))}
-                </ul>
-              )}
-              {activeExplainer.actions.length > 0 && (
-                <>
-                  <div className="mt-2 font-medium">What to do next</div>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {activeExplainer.actions.map((t, i) => (
-                      <li key={i}>{t}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+
 
         {/* Tabs */}
         <div className="px-3 pt-3">

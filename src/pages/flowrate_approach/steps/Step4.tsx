@@ -1,5 +1,5 @@
 // ==========================
-// pages/flowrate/steps/Step4.tsx (API-DRIVEN)
+// pages/flowrate/steps/Step4.tsx (API-DRIVEN, FIXED FLOWRATE VIEW)
 // ==========================
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -13,7 +13,6 @@ import {
 import PrincipalMatrixTable from "../../../components/asa/table/PrincipalMatrixTable";
 import PrincipalMatrixDistributionTable from "../../../components/asa/table/PrincipalMatrixDistributionTable";
 import FlowRateCalcTable from "../../../components/asa/table/FlowRateCalcTable";
-import TableFilterPopover from "../../../components/asa/table/ui/TableFilterPopover";
 import type { AgingRow } from "../../../components/asa/table/aging.types";
 import { useAsaApi } from "../../../lib/asaApi";
 import { useLocation, useSearchParams } from "react-router-dom";
@@ -26,29 +25,29 @@ function useWorkflowId(): number {
   const [params] = useSearchParams();
 
   const q = Number(params.get("workflow_id"));
-  console.log('Step4 - URL workflow_id:', q);
-  
+  console.log("Step4 - URL workflow_id:", q);
+
   if (!Number.isNaN(q) && q > 0) {
-    console.log('Step4 - Using URL workflow_id:', q);
+    console.log("Step4 - Using URL workflow_id:", q);
     return q;
   }
 
-  console.log('Step4 - Route state workflowId:', state?.workflowId);
+  console.log("Step4 - Route state workflowId:", state?.workflowId);
   if (state?.workflowId && state.workflowId > 0) {
-    console.log('Step4 - Using state workflowId:', state.workflowId);
+    console.log("Step4 - Using state workflowId:", state.workflowId);
     return state.workflowId;
   }
 
   const ls = Number(localStorage.getItem("current_workflow_id") || "");
-  console.log('Step4 - LocalStorage workflow_id:', ls);
-  
+  console.log("Step4 - LocalStorage workflow_id:", ls);
+
   if (!Number.isNaN(ls) && ls > 0) {
-    console.log('Step4 - Using localStorage workflow_id:', ls);
+    console.log("Step4 - Using localStorage workflow_id:", ls);
     return ls;
   }
 
-  console.log('Step4 - No valid workflow_id found, falling back to default: 1');
-  return 0; // sensible dev fallback
+  console.log("Step4 - No valid workflow_id found, falling back to default: 0");
+  return 0;
 }
 
 /* ---------- helpers (same style as Step 3) ---------- */
@@ -78,7 +77,7 @@ function numOrNA(v: any): number | "#N/A" {
   return Number.isFinite(n) ? n : "#N/A";
 }
 
-/** Coerce backend data -> AgingRow[] used by all three Step 4 tables */
+/** Coerce backend data -> AgingRow[] used by principal + distribution tables */
 function coercePrincipalMatrix(payload: any, view: ViewKey): AgingRow[] {
   const data = payload?.data ?? payload;
 
@@ -87,9 +86,13 @@ function coercePrincipalMatrix(payload: any, view: ViewKey): AgingRow[] {
   if (view === "principal") {
     block = data?.["Flow of Loan Balance Principal Matrix"] ?? data?.rows ?? [];
   } else if (view === "distribution") {
-    block = data?.["Flow of Loan Balance Principal Matrix (Distribution)"] ?? data?.rows ?? [];
-  } else if (view === "flowrate") {
-    block = data?.["Flow Rate Calculation"] ?? data?.rows ?? [];
+    block =
+      data?.["Flow of Loan Balance Principal Matrix (Distribution)"] ??
+      data?.rows ??
+      [];
+  } else {
+    // for safety; real flowrate handled separately
+    block = data?.rows ?? [];
   }
 
   const arr: any[] = Array.isArray(block) ? block : [];
@@ -98,7 +101,6 @@ function coercePrincipalMatrix(payload: any, view: ViewKey): AgingRow[] {
     const product = (pick(r, ["Product", "product"]) ?? "").toString();
     const date = (pick(r, ["Date", "date"]) ?? "").toString();
 
-    // Total Loan Balance with C/P can be "-" or a number string like "22,774,500.00"
     const tlb = pick(r, [
       "Total Loan Balance with C/P",
       "Total Loan Balance with CP",
@@ -107,16 +109,63 @@ function coercePrincipalMatrix(payload: any, view: ViewKey): AgingRow[] {
       "total_loan_balance_with_cp",
     ]);
 
-    // Bucket columns (handle both formats: "par 1  (1 & 30 days)" and "PAR 1 (1 & 30 days)")
     const d0 = pick(r, ["0 day", "0 Day", "d0"]);
-    const par1 = pick(r, ["PAR 1 (1 & 30 days)", "PAR 1  (1 & 30 days)", "par 1 (1 & 30 days)", "par 1  (1 & 30 days)", "par1"]);
-    const par30 = pick(r, ["PAR 30 (31 & 60 days)", "PAR 30  (31 & 60 days)", "par 30 (31 & 60 days)", "par 30  (31 & 60 days)", "par30"]);
-    const par60 = pick(r, ["PAR 60 (61 & 90 days)", "PAR 60  (61 & 90 days)", "par 60 (61 & 90 days)", "par 60  (61 & 90 days)", "par60"]);
-    const par90 = pick(r, ["PAR 90 (91 & 120 days)", "PAR 90  (91 & 120 days)", "par 90 (91 & 120 days)", "par 90  (91 & 120 days)", "par90"]);
-    const par120 = pick(r, ["PAR 120 (121 & 180 days)", "PAR 120  (121 & 180 days)", "par 120 (121 & 180 days)", "par 120  (121 & 180 days)", "par120"]);
-    const par180 = pick(r, ["PAR 180 (181 & 240 days)", "PAR 180  (181 & 240 days)", "par 180 (181 & 240 days)", "par 180  (181 & 240 days)", "par180"]);
-    const par240 = pick(r, ["PAR 240 (241 & 360 days)", "PAR 240  (241 & 360 days)", "par 240 (241 & 360 days)", "par 240  (241 & 360 days)", "par240"]);
-    const par360 = pick(r, ["PAR 360 (361 & Up days)", "PAR 360  (361 & Up days)", "par 360 (361 & up days)", "par 360  (361 & up days)", "par360"]);
+    const par1 = pick(r, [
+      "PAR 1 (1 & 30 days)",
+      "PAR 1  (1 & 30 days)",
+      "par 1 (1 & 30 days)",
+      "par 1  (1 & 30 days)",
+      "par1",
+    ]);
+    const par30 = pick(r, [
+      "PAR 30 (31 & 60 days)",
+      "PAR 30  (31 & 60 days)",
+      "par 30 (31 & 60 days)",
+      "par 30  (31 & 60 days)",
+      "par30",
+    ]);
+    const par60 = pick(r, [
+      "PAR 60 (61 & 90 days)",
+      "PAR 60  (61 & 90 days)",
+      "par 60 (61 & 90 days)",
+      "par 60  (61 & 90 days)",
+      "par60",
+    ]);
+    const par90 = pick(r, [
+      "PAR 90 (91 & 120 days)",
+      "PAR 90  (91 & 120 days)",
+      "par 90 (91 & 120 days)",
+      "par 90  (91 & 120 days)",
+      "par90",
+    ]);
+    const par120 = pick(r, [
+      "PAR 120 (121 & 180 days)",
+      "PAR 120  (121 & 180 days)",
+      "par 120 (121 & 180 days)",
+      "par 120  (121 & 180 days)",
+      "par120",
+    ]);
+    const par180 = pick(r, [
+      "PAR 180 (181 & 240 days)",
+      "PAR 180  (181 & 240 days)",
+      "par 180 (181 & 240 days)",
+      "par 180  (181 & 240 days)",
+      "par180",
+    ]);
+    const par240 = pick(r, [
+      "PAR 240 (241 & 360 days)",
+      "PAR 240  (241 & 360 days)",
+      "par 240 (241 & 360 days)",
+      "par 240  (241 & 360 days)",
+      "par240",
+    ]);
+    const par360 = pick(r, [
+      "PAR 360 (361 & Up days)",
+      "PAR 360  (361 & Up days)",
+      "par 360 (361 & up days)",
+      "par 360  (361 & up days)",
+      "par360",
+    ]);
 
     const row: AgingRow = {
       product,
@@ -143,33 +192,28 @@ function coercePrincipalMatrix(payload: any, view: ViewKey): AgingRow[] {
 type ViewKey = "principal" | "distribution" | "flowrate";
 
 export default function Step4() {
-  // Get workflow ID from Redux
-  const currentPdTransitionMatrixWorkflowId = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowId);
+  const currentPdTransitionMatrixWorkflowId = useAppSelector(
+    (state: any) =>
+      state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowId
+  );
   const workflowId = currentPdTransitionMatrixWorkflowId || useWorkflowId();
   const authToken = useAppSelector((s) => s.auth.token);
-  
-  console.log('Step4 - Redux workflow ID:', currentPdTransitionMatrixWorkflowId);
-  console.log('Step4 - Final workflow ID being used:', workflowId);
 
-  // NOTE: Your asaApi.getStep4Data currently points to data_consolidation,
-  // which does NOT contain the principal matrix. Step 4 needs the same
-  // endpoint used in Step 3 (processed_flow_rate_approach).
   const { getStep3Data } = useAsaApi();
 
-  const [rows, setRows] = useState<AgingRow[]>([]);
+  const [apiData, setApiData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [toasterStatus, setToasterStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [toasterStatus, setToasterStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
   const [toasterMessage, setToasterMessage] = useState<string>("");
 
   // default view = principal
   const [view, setView] = useState<ViewKey>("principal");
   const [productFilter, setProductFilter] = useState<string | null>(null);
-
-  // Store all API data
-  const [apiData, setApiData] = useState<any>(null);
 
   // Check if data already exists on page load
   useEffect(() => {
@@ -180,22 +224,22 @@ export default function Step4() {
     getStep3Data(workflowId)
       .then((res) => {
         if (!mounted) return;
-        // Check if data exists
-        const data = res?.data;
-        if (data && (data['Flow of Loan Balance Principal Matrix'] || 
-                     data['Flow of Loan Balance Principal Matrix (Distribution)'] || 
-                     data['Flow Rate Calculation'])) {
+        const data = res?.data ?? res;
+        if (
+          data &&
+          (data["Flow of Loan Balance Principal Matrix"] ||
+            data["Flow of Loan Balance Principal Matrix (Distribution)"] ||
+            data["Flow Rate Calculation"])
+        ) {
           setApiData(res);
         } else {
-          // No data exists, just show empty state
           setApiData(null);
         }
         setLoading(false);
       })
       .catch((e: any) => {
         if (!mounted) return;
-        // Don't show error, just set no data
-        console.log("No existing data found");
+        console.log("No existing data found for Step 4:", e?.message);
         setApiData(null);
         setLoading(false);
       });
@@ -205,73 +249,95 @@ export default function Step4() {
     };
   }, [workflowId, getStep3Data]);
 
-  // Update rows when view or apiData changes
-  useEffect(() => {
-    if (apiData) {
-      console.log('apiData changed:', apiData);
-      const transformedRows = coercePrincipalMatrix(apiData, view);
-      console.log('transformed rows:', transformedRows);
-      setRows(transformedRows);
+  // Derive rows per view
+  const rowsForView = useMemo(() => {
+    if (!apiData) return [] as any[];
+    const data = apiData?.data ?? apiData;
+
+    if (view === "principal") {
+      return coercePrincipalMatrix(apiData, "principal");
     }
+    if (view === "distribution") {
+      return coercePrincipalMatrix(apiData, "distribution");
+    }
+    if (view === "flowrate") {
+      const block =
+        data?.["Flow Rate Calculation"] ??
+        data?.["Flowrate Calculation"] ??
+        data?.rows ??
+        [];
+      return Array.isArray(block) ? block : [];
+    }
+    return [] as any[];
   }, [apiData, view]);
 
-  const products = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.product))).filter(Boolean).sort(),
-    [rows]
-  );
+  // products from whatever rows we are showing
+  const products = useMemo(() => {
+    return Array.from(
+      new Set(
+        rowsForView
+          .map((r: any) => r.product ?? r.Product ?? "")
+          .filter(Boolean)
+      )
+    )
+      .sort()
+      .filter(Boolean);
+  }, [rowsForView]);
 
-  const filteredRows = useMemo(
-    () => (productFilter ? rows.filter((r) => r.product === productFilter) : rows),
-    [rows, productFilter]
-  );
+  const filteredRows = useMemo(() => {
+    if (!productFilter) return rowsForView;
+    return rowsForView.filter(
+      (r: any) =>
+        (r.product ?? r.Product ?? "").toString() === productFilter
+    );
+  }, [rowsForView, productFilter]);
 
   const handleRun = async () => {
     setRunning(true);
     setError(null);
     setToasterStatus("loading");
     setToasterMessage("Running flow rate calculation...");
-    
+
     try {
       const formData = new FormData();
-      formData.append('workflow_id', String(workflowId));
+      formData.append("workflow_id", String(workflowId));
 
       const headers: Record<string, string> = {};
-      
       if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
+        headers["Authorization"] = `Bearer ${authToken}`;
       }
 
-      const response = await fetch('http://localhost:8000/api/flowrate_approach/flow_rate/', {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
+      const response = await fetch(
+        "http://localhost:8000/api/flowrate_approach/flow_rate/",
+        {
+          method: "POST",
+          headers,
+          body: formData,
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
 
       const result = await response.json();
-      console.log('Run result:', result);
-      
-      // If successful, fetch the updated data using the API helper
+      console.log("Run result:", result);
+
       if (result.success || result.code === 1) {
         const getResult = await getStep3Data(workflowId);
-        console.log('Updated data:', getResult);
+        console.log("Updated data:", getResult);
         setApiData(getResult);
-        // Show success toaster
         setToasterStatus("success");
         setToasterMessage("Flow rate calculation completed successfully!");
       } else {
-        // Show error if result is not successful
-        const errorMsg = result.msg || 'Flow rate calculation failed.';
+        const errorMsg = result.msg || "Flow rate calculation failed.";
         setToasterStatus("error");
         setToasterMessage(errorMsg);
         setError(errorMsg);
       }
     } catch (e: any) {
-      console.error('Run error:', e);
-      const errorMsg = e?.message || 'Failed to run flow rate calculation.';
+      console.error("Run error:", e);
+      const errorMsg = e?.message || "Failed to run flow rate calculation.";
       setToasterStatus("error");
       setToasterMessage(errorMsg);
       setError(errorMsg);
@@ -285,34 +351,34 @@ export default function Step4() {
     setError(null);
     setToasterStatus("loading");
     setToasterMessage("Exporting file...");
-    
+
     try {
       const headers: Record<string, string> = {};
-      
       if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
+        headers["Authorization"] = `Bearer ${authToken}`;
       }
 
-      const response = await fetch(`http://localhost:8000/api/flowrate_approach/flow_rate/export?workflow_id=${workflowId}`, {
-        method: 'GET',
-        headers,
-      });
+      const response = await fetch(
+        `http://localhost:8000/api/flowrate_approach/flow_rate/export?workflow_id=${workflowId}`,
+        {
+          method: "GET",
+          headers,
+        }
+      );
 
       if (!response.ok) {
-        // Try to parse error response
         let errorMsg = `API error: ${response.status} ${response.statusText}`;
         try {
           const errorData = await response.json();
           errorMsg = errorData.msg || errorMsg;
         } catch {
-          // If response is not JSON, use default message
+          //
         }
         throw new Error(errorMsg);
       }
 
-      // Get filename from Content-Disposition header or use default
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = 'flow_rate_output.xlsx';
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = "flow_rate_output.xlsx";
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
         if (filenameMatch) {
@@ -320,10 +386,9 @@ export default function Step4() {
         }
       }
 
-      // Create blob and download
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = filename;
       document.body.appendChild(a);
@@ -331,12 +396,11 @@ export default function Step4() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      // Show success toaster
       setToasterStatus("success");
       setToasterMessage("File exported successfully!");
     } catch (e: any) {
-      console.error('Export error:', e);
-      const errorMsg = e?.message || 'Failed to export file.';
+      console.error("Export error:", e);
+      const errorMsg = e?.message || "Failed to export file.";
       setToasterStatus("error");
       setToasterMessage(errorMsg);
       setError(errorMsg);
@@ -353,134 +417,170 @@ export default function Step4() {
         onHide={() => setToasterStatus("idle")}
       />
       <div className="min-h-dvh p-6 space-y-6">
-        {/* Top heading + Run button */}
+        {/* Top heading + Run + Export */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">Flowrate Approach — Step 2</h2>
-          <p className="text-xs text-gray-700">
-            Explore principal matrices, their distributions, and flow rate calculations.
-          </p>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">
+              Flowrate Approach
+            </h2>
+            <p className="text-xs text-gray-700">
+              Explore principal matrices, their distributions, and flow rate
+              calculations.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRun}
+              disabled={running}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
+            >
+              <PlayIcon className="h-5 w-5" />
+              {running ? "Running..." : "Run"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={exporting || running || !apiData}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
+            >
+              <ArrowDownTrayIcon className="h-5 w-5" />
+              {exporting ? "Exporting..." : "Export"}
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleRun}
-            disabled={running}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
-          >
-            <PlayIcon className="h-5 w-5" />
-            {running ? 'Running...' : 'Run'}
-          </button>
+        {/* Segmented View Switch */}
+        <div className="flex items-center justify-between">
+          <div className="inline-flex rounded-xl bg-gray-100 p-1">
+            <button
+              type="button"
+              onClick={() => setView("principal")}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition
+                ${
+                  view === "principal" ? "bg-white shadow-sm" : "hover:bg-white/60"
+                }
+              `}
+              aria-pressed={view === "principal"}
+            >
+              <Squares2X2Icon className="h-4 w-4" />
+              Principal Matrix
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("distribution")}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition
+                ${
+                  view === "distribution"
+                    ? "bg-white shadow-sm"
+                    : "hover:bg-white/60"
+                }
+              `}
+              aria-pressed={view === "distribution"}
+            >
+              <ChartBarIcon className="h-4 w-4" />
+              Distribution
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("flowrate")}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition
+                ${
+                  view === "flowrate"
+                    ? "bg-white shadow-sm"
+                    : "hover:bg-white/60"
+                }
+              `}
+              aria-pressed={view === "flowrate"}
+            >
+              <ArrowTrendingUpIcon className="h-4 w-4" />
+              Flow Rate Calc
+            </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={exporting || running || !apiData}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
-          >
-            <ArrowDownTrayIcon className="h-5 w-5" />
-            {exporting ? 'Exporting...' : 'Export'}
-          </button>
+          {/* simple product filter (optional) */}
+          {products.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-700">Filter by product:</span>
+              <select
+                value={productFilter ?? ""}
+                onChange={(e) =>
+                  setProductFilter(e.target.value || null)
+                }
+                className="h-9 rounded-lg border border-gray-300 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-300"
+              >
+                <option value="">All</option>
+                {products.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
+
+        {/* Loading / Error / Content */}
+        {loading ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">
+            Loading…
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            {error}
+          </div>
+        ) : (
+          <>
+            {view === "principal" && (
+              <Card
+                title="Flow of Loan Balance Principal Matrix"
+                subtitle="Raw principal balances by PAR bucket."
+              >
+                <PrincipalMatrixTable rows={filteredRows as AgingRow[]} height={420} />
+              </Card>
+            )}
+
+            {view === "distribution" && (
+              <Card
+                title="Flow of Loan Balance Principal Matrix — Distribution"
+                subtitle="Bucket shares (percent of total) per row."
+              >
+                <PrincipalMatrixDistributionTable
+                  rows={filteredRows as AgingRow[]}
+                  height={420}
+                />
+              </Card>
+            )}
+
+            {view === "flowrate" && (
+              <Card
+                title="Flow Rate Calculation"
+                subtitle="Calculated from successive periods per product."
+              >
+                {/* now gets raw 'Flow Rate Calculation' rows from backend */}
+                <FlowRateCalcTable rows={filteredRows} height={420} />
+              </Card>
+            )}
+          </>
+        )}
       </div>
-
-      {/* Segmented View Switch */}
-      <div className="flex items-center justify-between">
-        <div className="inline-flex rounded-xl bg-gray-100 p-1">
-          <button
-            type="button"
-            onClick={() => setView("principal")}
-            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition
-              ${view === "principal" ? "bg-white shadow-sm" : "hover:bg-white/60"}
-            `}
-            aria-pressed={view === "principal"}
-          >
-            <Squares2X2Icon className="h-4 w-4" />
-            Principal Matrix
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("distribution")}
-            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition
-              ${view === "distribution" ? "bg-white shadow-sm" : "hover:bg-white/60"}
-            `}
-            aria-pressed={view === "distribution"}
-          >
-            <ChartBarIcon className="h-4 w-4" />
-            Distribution
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("flowrate")}
-            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition
-              ${view === "flowrate" ? "bg-white shadow-sm" : "hover:bg-white/60"}
-            `}
-            aria-pressed={view === "flowrate"}
-          >
-            <ArrowTrendingUpIcon className="h-4 w-4" />
-            Flow Rate Calc
-          </button>
-        </div>
-      </div>
-
-      {/* Loading / Error / Content */}
-      {loading ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">
-          Loading…
-        </div>
-      ) : error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          {error}
-        </div>
-      ) : (
-        <>
-          {view === "principal" && (
-            <Card
-              title="Flow of Loan Balance Principal Matrix"
-              subtitle="Raw principal balances by PAR bucket."
-            >
-              <PrincipalMatrixTable rows={filteredRows} height={420} />
-            </Card>
-          )}
-
-          {view === "distribution" && (
-            <Card
-              title="Flow of Loan Balance Principal Matrix — Distribution"
-              subtitle="Bucket shares (percent of total) per row."
-            >
-              {/* This table computes distribution from the numeric principal rows */}
-              <PrincipalMatrixDistributionTable rows={filteredRows} height={420} />
-            </Card>
-          )}
-
-          {view === "flowrate" && (
-            <Card
-              title="Flow Rate Calculation"
-              subtitle="Calculated from successive periods per product."
-            >
-              {/* Component typically derives transitions; feeding principal rows is fine */}
-              <FlowRateCalcTable rows={filteredRows} height={420} />
-            </Card>
-          )}
-        </>
-      )}
-    </div>
     </>
   );
 }
 
-/* ------------------ Small Card wrapper (matches Step 5 style) ------------------ */
-const Card: React.FC<React.PropsWithChildren<{ title: string; subtitle?: string }>> = ({
-  title,
-  subtitle,
-  children,
-}) => (
+/* ------------------ Small Card wrapper ------------------ */
+const Card: React.FC<
+  React.PropsWithChildren<{ title: string; subtitle?: string }>
+> = ({ title, subtitle, children }) => (
   <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
     <div className="flex items-center justify-between px-4 py-3 border-b rounded-t-2xl bg-yellow-500">
       <div>
         <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {subtitle && <p className="text-xs text-gray-800 -mt-0.5">{subtitle}</p>}
+        {subtitle && (
+          <p className="text-xs text-gray-800 -mt-0.5">{subtitle}</p>
+        )}
       </div>
     </div>
     <div className="p-4">{children}</div>

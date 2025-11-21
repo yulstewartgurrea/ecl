@@ -1,7 +1,7 @@
 // ==========================
 // pages/flowrate/FlowrateApproachPage.tsx
 // ==========================
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Stepper from "../../components/stepper/Stepper";
 import Step1 from "./steps/Step1";
 import Step4 from "./steps/Step4";
@@ -17,17 +17,60 @@ import {
 const FlowrateApproachPage = () => {
   const dispatch = useAppDispatch();
 
-  // read current step from Redux (default to 0)
-  const currentStep = useAppSelector(
-    (state: RootState) => state.pdTransitionMatrixWfHelper.currentStep ?? 0
-  );
+  const {
+    currentPdTransitionMatrixWorkflowData,
+    selectedPdTransitionMatrixEntity,
+    selectedPdTransitionMatrixReportingPeriod,
+    pdTransitionMatrixWfName,
+    selectedPdTransitionMatrixLoanProduct,
+    stepsByWorkflowPath = {},
+    currentStep: legacyCurrentStep,
+  } = useAppSelector((state: RootState) => state.pdTransitionMatrixWfHelper as any);
 
-  const [activeSubStep, setActiveSubStep] = useState<number>(currentStep);
+  // 🔗 Build the canonical workflowPath: entity/reportingPeriod/workflowName/loanProduct
+  const workflowPath = useMemo(() => {
+    const entity =
+      currentPdTransitionMatrixWorkflowData?.entity ||
+      selectedPdTransitionMatrixEntity ||
+      "";
+    const reportingPeriod =
+      currentPdTransitionMatrixWorkflowData?.reporting_period ||
+      selectedPdTransitionMatrixReportingPeriod ||
+      "";
+    const wfName =
+      currentPdTransitionMatrixWorkflowData?.workflow_name ||
+      pdTransitionMatrixWfName ||
+      "";
+    const loanProduct =
+      currentPdTransitionMatrixWorkflowData?.loan_product ||
+      selectedPdTransitionMatrixLoanProduct ||
+      "";
 
-  // keep local state in sync if Redux changes (e.g. restored workflow)
+    if (!entity || !reportingPeriod || !wfName || !loanProduct) {
+      return "";
+    }
+
+    return `${entity}/${reportingPeriod}/${wfName}/${loanProduct}`;
+  }, [
+    currentPdTransitionMatrixWorkflowData,
+    selectedPdTransitionMatrixEntity,
+    selectedPdTransitionMatrixReportingPeriod,
+    pdTransitionMatrixWfName,
+    selectedPdTransitionMatrixLoanProduct,
+  ]);
+
+  // Prefer per-workflow step; fall back to legacy currentStep; then 0
+  const initialStepForPath =
+    (workflowPath && stepsByWorkflowPath[workflowPath] !== undefined
+      ? stepsByWorkflowPath[workflowPath]
+      : legacyCurrentStep ?? 0) || 0;
+
+  const [activeSubStep, setActiveSubStep] = useState<number>(initialStepForPath);
+
+  // Keep local state synced if Redux step for this path changes
   useEffect(() => {
-    setActiveSubStep(currentStep);
-  }, [currentStep]);
+    setActiveSubStep(initialStepForPath);
+  }, [initialStepForPath]);
 
   const developmentSteps = [
     { label: "Inputs", completed: false },
@@ -38,9 +81,15 @@ const FlowrateApproachPage = () => {
 
   const commitStepChange = (targetIndex: number) => {
     setActiveSubStep(targetIndex);
-    // persist step in Redux so when you come back from the landing page
-    // it re-opens on the same step
-    dispatch(setPdTransitionMatrixCurrentStep({ step: targetIndex }));
+
+    // Persist step in Redux, including the workflowPath so
+    // each workflow remembers its own last step.
+    dispatch(
+      setPdTransitionMatrixCurrentStep({
+        step: targetIndex,
+        workflowPath: workflowPath || undefined,
+      })
+    );
   };
 
   const renderSubStepContent = () => {

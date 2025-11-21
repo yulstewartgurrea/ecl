@@ -1,36 +1,90 @@
 // ==========================
-// pages/flowrate/steps/Step1.tsx (WRAPPED with yellow background)
+// pages/flowrate/steps/Step1.tsx
 // ==========================
-import MultiCategoryUploader, { type CategoryConfig, type PathBuilderContext, type UploadResultsByCategory } from "../../../components/uploader/MultiCategoryUploader";
+import MultiCategoryUploader, {
+  type CategoryConfig,
+  type PathBuilderContext,
+  type UploadResultsByCategory,
+} from "../../../components/uploader/MultiCategoryUploader";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
 
 const categories: CategoryConfig[] = [
-
-  { key: "FLOWRATE_APPROACH_AGING_REPORT", label: "Aging Report", description: "CSV or Excel. Upload your aging report data.", required: true },
-
+  {
+    key: "FLOWRATE_APPROACH_AGING_REPORT",
+    label: "Aging Report",
+    description: "CSV or Excel. Upload your aging report data.",
+    required: true,
+  },
 ];
 
-const pathBuilder = ({ entity, cadence, wf, subdir }: PathBuilderContext) => [entity, cadence, String(wf), subdir].filter(Boolean).join("/");
+/**
+ * 🔗 Align upload path with workflow path:
+ *   entity / loanProduct / period / report_date_start / workflowName / subdir
+ */
+const pathBuilder = (ctx: PathBuilderContext) => {
+  const anyCtx = ctx as any;
+
+  const entity = anyCtx.entity;              // e.g. "Entity 1"
+  const loanProduct = anyCtx.loanProduct;    // e.g. "Home"
+  const period = anyCtx.cadence;             // e.g. "Monthly"
+  const wf = anyCtx.wf;                      // workflow name
+  const subdir = anyCtx.subdir;              // e.g. "input/flowrate_approach"
+
+return [
+  entity,
+  period,    
+  wf ? String(wf) : undefined,
+  loanProduct,
+  subdir,
+].filter(Boolean).join("/");
+}
 
 export default function Step1() {
-  // Get workflow data from Redux
-  const currentPdTransitionMatrixWorkflowId = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowId);
-  const currentPdTransitionMatrixWorkflowData = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowData);
-  
-  console.log('Step1 - Workflow ID:', currentPdTransitionMatrixWorkflowId);
-  console.log('Step1 - Workflow Data:', currentPdTransitionMatrixWorkflowData);
-  
+  // Get workflow data + selected fields from Redux
+  const {
+    currentPdTransitionMatrixWorkflowId,
+    currentPdTransitionMatrixWorkflowData,
+    selectedPdTransitionMatrixLoanProduct,
+    selectedPdTransitionMatrixReportDateStart,
+  } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
+
+  console.log("Step1 - Workflow Data:", currentPdTransitionMatrixWorkflowData);
+
   // Use the workflow ID from Redux, or fallback to "1"
-  const workflowId = currentPdTransitionMatrixWorkflowId ? String(currentPdTransitionMatrixWorkflowId) : "1";
-  
-  const context = { 
-    entity: currentPdTransitionMatrixWorkflowData?.entity || "Entity 1", 
-    cadence: currentPdTransitionMatrixWorkflowData?.reporting_period || "Monthly", 
-    wf: currentPdTransitionMatrixWorkflowData?.workflow_name || "wf3", 
-    subdir: "input/flowrate_approach" 
+  const workflowId = currentPdTransitionMatrixWorkflowId
+    ? String(currentPdTransitionMatrixWorkflowId)
+    : "1";
+
+  // Prefer values from persisted workflowData; fall back to selected values; finally to sane defaults
+  const entity =
+    currentPdTransitionMatrixWorkflowData?.entity || "Entity 1";
+  const period =
+    currentPdTransitionMatrixWorkflowData?.reporting_period || "Monthly";
+  const wfName =
+    currentPdTransitionMatrixWorkflowData?.workflow_name || "wf3";
+  const loanProduct =
+    currentPdTransitionMatrixWorkflowData?.loan_product ||
+    selectedPdTransitionMatrixLoanProduct ||
+    "GenericLoan";
+  const reportDateStart =
+    currentPdTransitionMatrixWorkflowData?.report_date_start ||
+    selectedPdTransitionMatrixReportDateStart ||
+    "2025-01-01";
+
+  const context = {
+    entity,
+    cadence: period,
+    wf: wfName,
+    loanProduct,
+    reportDateStart,
+    subdir: "input/flowrate_approach",
   };
-  
-  const handleResults = (results: UploadResultsByCategory) => { console.log("Upload results merged:", results); };
+
+  console.log("Uploader context:", context);
+
+  const handleResults = (results: UploadResultsByCategory) => {
+    console.log("Upload results merged:", results);
+  };
 
   return (
     <div className="min-h-dvh p-4 ">

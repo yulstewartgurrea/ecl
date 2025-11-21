@@ -279,7 +279,7 @@ const Step5: React.FC = () => {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-bold text-gray-900">
-              Credit Loss Rate — Step 5
+              Credit Loss Rate
             </h2>
             <p className="text-xs text-gray-700">
               Explore credit loss rate calculations.
