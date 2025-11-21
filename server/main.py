@@ -18,12 +18,26 @@ from api.routers import (users,
                         entity,
                         loan_product,
                         upload)
-from api.routers.overlay.development import data_interpolation, data_transformation
+from api.routers.overlay.development import (
+    data_interpolation, 
+    data_transformation, 
+    multifactor_analysis, 
+    filtering_of_models,
+    candidate_models,
+    final_models)
 from api.routers.flowrate_approach import (
     flowrate_approach,
     creditloss_rate_calculation
 )
-
+from api.routers.overlay.execution import (
+    data_interpolation as overlay_execution_data_interpolation,
+    override_forecasted_mevs as overlay_execution_override_forecasted_mevs,
+    transform_forecasted_mevs as overlay_execution_transform_forecasted_mevs,
+    forecasted_pd_calc as overlay_execution_forecasted_pd_calc,
+    overlay_multiplier as overlay_execution_overlay_multiplier,
+    pd_calibration as overlay_execution_pd_calibration,
+    final_pit_pd as overlay_execution_final_pit_pd
+)
 
 from core.dependencies import get_password_hash
 
@@ -109,8 +123,25 @@ app.include_router(documents.router)
 app.include_router(login.router)
 app.include_router(entity.router)
 app.include_router(loan_product.router)
-app.include_router(data_interpolation.router)
-app.include_router(data_transformation.router)
 app.include_router(upload.router)
+
+# FLOWRATE
 app.include_router(flowrate_approach.router)
 app.include_router(creditloss_rate_calculation.router)
+
+# OVERLAY DEVELOPMENT
+app.include_router(data_interpolation.router)
+app.include_router(data_transformation.router)
+app.include_router(multifactor_analysis.router)
+app.include_router(filtering_of_models.router)
+app.include_router(candidate_models.router)
+app.include_router(final_models.router)
+
+# OVERLAY EXECUTION
+app.include_router(overlay_execution_data_interpolation.router)
+app.include_router(overlay_execution_override_forecasted_mevs.router)
+app.include_router(overlay_execution_transform_forecasted_mevs.router)
+app.include_router(overlay_execution_forecasted_pd_calc.router)
+app.include_router(overlay_execution_overlay_multiplier.router)
+app.include_router(overlay_execution_pd_calibration.router)
+app.include_router(overlay_execution_final_pit_pd.router)
