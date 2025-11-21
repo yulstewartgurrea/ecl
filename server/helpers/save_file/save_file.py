@@ -7,6 +7,16 @@ from helpers.get_time_date import get_time_date
 from .flowrate_approach.flowrate import save_flowrate_output
 from .flowrate_approach.creditloss_rate import save_creditloss_rate_output
 
+from helpers.save_file.overlay.data_interpolation import save_data_interpolation_output
+from helpers.save_file.overlay.data_transformation import save_data_transformation_output
+from helpers.save_file.overlay.candidate_models import save_candidate_models_output
+from helpers.save_file.overlay.final_models import save_final_models_output
+from helpers.save_file.overlay.execution.override_forecasted_mve import save_override_forecasted_mev
+from helpers.save_file.overlay.execution.save_transform_forecasted_mevs import save_transform_forecasted_mevs_output
+from helpers.save_file.overlay.execution.forecasted_pd_calc import save_forecasted_pd_calc_output
+from helpers.save_file.overlay.execution.overlay_multiplier import save_overlay_multiplier_output
+from helpers.save_file.overlay.execution.pd_calibration import save_pd_calibration_output
+
 def save_csv_data_in_folder(
     workflow_path: str,
     document_type: str, 
@@ -32,6 +42,18 @@ def save_csv_data_in_folder(
         document_type_mapping = {
             "FLOWRATE_APPROACH_FLOWRATE_OUTPUT": save_flowrate_output,
             "FLOWRATE_APPROACH_CREDITLOSS_RATE_OUTPUT": save_creditloss_rate_output,
+
+            "OVERLAY_DEVELOPMENT_DATA_INTERPOLATION_OUTPUT": save_data_interpolation_output,
+            "OVERLAY_DEVELOPMENT_DATA_TRANSFORMATION_OUTPUT": save_data_transformation_output,
+            "OVERLAY_DEVELOPMENT_CANDIDATE_MODELS_OUTPUT": save_candidate_models_output,
+            "OVERLAY_DEVELOPMENT_FINAL_MODELS_OUTPUT": save_final_models_output,
+
+            "OVERLAY_EXECUTION_DATA_INTERPOLATION_OUTPUT": save_data_interpolation_output,
+            "OVERLAY_EXECUTION_OVERRIDE_FORECASTED_MEVS_OUTPUT": save_override_forecasted_mev,
+            "OVERLAY_EXECUTION_TRANSFORM_FORECASTED_MEVS_OUTPUT": save_transform_forecasted_mevs_output,
+            "OVERLAY_EXECUTION_FORECASTED_PD_CALC_OUTPUT": save_forecasted_pd_calc_output,
+            "OVERLAY_EXECUTION_OVERLAY_MULTIPLIER_OUTPUT": save_overlay_multiplier_output,
+            "OVERLAY_EXECUTION_PD_CALIBRATION_OUTPUT": save_pd_calibration_output
         }
         
         # Get the appropriate model class
