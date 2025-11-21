@@ -11,10 +11,20 @@ interface FileInfo {
 }
 
 interface WorkflowFolderListProps {
+  /**
+   * Mapping (kept as-is for compatibility with TransitionMatrixLanding):
+   *   entity         -> entity dropdown
+   *   reportingPeriod -> period dropdown
+   *   workflowName   -> workflow name input
+   *   loanProduct    -> loan product dropdown
+   *   reportDateStart -> report date input (YYYY-MM-DD)
+   */
   onWorkflowSelect?: (
     entity: string,
     reportingPeriod: string,
-    workflowName: string
+    workflowName: string,
+    loanProduct?: string,
+    reportDateStart?: string
   ) => void;
 }
 
@@ -30,6 +40,7 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
 
   const fetchContents = async (path: string) => {
     setLoading(true);
+    console.log('path:', path)
     try {
       const res = await invoke<{ items: FileInfo[] }>("get_folder_contents", {
         relativePath: path || "",
@@ -45,10 +56,49 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
 
   useEffect(() => {
     fetchContents(currentPath);
+    console.log(currentPath)
   }, [currentPath]);
+
+  /**
+   * Folder structure (desired):
+   *   0: Entity
+   *   1: Loan Product
+   *   2: Period
+   *   3: Report Date
+   *   4: Workflow Name
+   */
+  const notifySelection = (path: string) => {
+    if (!onWorkflowSelect) return;
+
+    if (!path) {
+      onWorkflowSelect("", "", "", "", "");
+      return;
+    }
+
+    const parts = path.split("/");
+
+    const entity = parts[0] ?? "";
+    const loanProduct = parts[1] ?? "";
+    const reportingPeriod = parts[2] ?? "";
+    const reportDateStart = parts[3] ?? "";
+    const workflowName = parts[4] ?? "";
+
+    // Keep parameter order consistent with prop type:
+    // (entity, reportingPeriod, workflowName, loanProduct, reportDateStart)
+    onWorkflowSelect(
+      entity,
+      reportingPeriod,
+      workflowName,
+      loanProduct,
+      reportDateStart
+    );
+  };
 
   const handleFolderClick = async (folderName: string) => {
     const newPath = currentPath ? `${currentPath}/${folderName}` : folderName;
+
+    // always update the left form based on the path
+    notifySelection(newPath);
 
     try {
       setLoading(true);
@@ -58,23 +108,9 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
 
       const hasSubfolders = res.items.some((item) => item.is_folder);
 
-      if (!hasSubfolders) {
-        // This is last folder (WorkflowName)
-        // Extract Entity, ReportingPeriod, WorkflowName from path parts
-        const parts = newPath.split("/");
-        if (parts.length === 3) {
-          const [entity, reportingPeriod, workflowName] = parts;
-          if (onWorkflowSelect) {
-            onWorkflowSelect(entity, reportingPeriod, workflowName);
-          }
-        } else {
-          // fallback if path not exactly 3 parts
-          if (onWorkflowSelect) {
-            onWorkflowSelect("", "", newPath);
-          }
-        }
+      if (hasSubfolders) {
+        setCurrentPath(newPath);
       } else {
-        // not last folder — drill down
         setCurrentPath(newPath);
       }
       setContents(res.items);
@@ -89,7 +125,9 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
   const handleBack = () => {
     if (!currentPath) return;
     const newPath = currentPath.split("/").slice(0, -1).join("/");
+
     setCurrentPath(newPath);
+    notifySelection(newPath);
   };
 
   const handleContextMenu = (

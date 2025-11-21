@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session
 from typing import List
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+from crud.workflows import create_workflow
 from schemas.schemas import WorkflowResponse, WorkflowCreate  # Updated imports
 from models.models import User, Workflow
 from database import get_db
-from helpers.workflow import get_workflows, create_workflow, get_latest_workflow, get_workflow_by_id, update_workflow, delete_workflow
+from helpers.workflow import get_workflows, get_latest_workflow, get_workflow_by_id, update_workflow, delete_workflow
 from core.security import get_current_user
 from sqlalchemy import select
 from fastapi import HTTPException
@@ -48,28 +49,47 @@ def read_workflows(
 def create_user_workflow(
     workflow: WorkflowCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    # Optional: pre-check to return a clearer error before hitting the DB
     exists = db.execute(
-        select(Workflow)
-        .where(
+        select(Workflow).where(
             Workflow.user_id == current_user.id,
+            Workflow.entity == workflow.entity,
+            Workflow.loan_product == workflow.loan_product,
+            Workflow.reporting_period == workflow.reporting_period,
+            Workflow.report_date_start == workflow.report_date_start,
             Workflow.workflow_name == workflow.workflow_name,
         )
     ).scalar_one_or_none()
+
     if exists:
         raise HTTPException(
             status_code=409,
-            detail=f'Workflow name "{workflow.workflow_name}" already exists for this user (id={exists.id}).',
+            detail=(
+                "A workflow with the same "
+                "entity / loan_product / reporting_period / report_date_start / workflow_name "
+                "already exists for this user."
+            ),
         )
 
+    workflow_path = (
+        f"/{workflow.entity}"
+        f"/{workflow.loan_product}"
+        f"/{workflow.reporting_period}"
+        f"/{workflow.report_date_start}"
+        f"/{workflow.workflow_name}"
+    )
+
     try:
-        db_workflow = create_workflow(db=db, wf_in=workflow, user_id=current_user.id)
+        db_workflow = create_workflow(
+            db=db,
+            wf_in=workflow,
+            user_id=current_user.id,
+            workflow_path=workflow_path,
+        )
         return db_workflow
     except IntegrityError as e:
         db.rollback()
-        # still return a precise message if a different unique index fires
         msg = getattr(e, "orig", e)
         raise HTTPException(status_code=409, detail=f"Integrity error: {msg}")
 

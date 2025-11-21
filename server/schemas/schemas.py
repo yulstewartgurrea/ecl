@@ -28,11 +28,12 @@ class WorkflowBase(BaseModel):
 class WorkflowCreate(BaseModel):
     entity: str
     workflow_name: str
-    reporting_period: str | Literal["Monthly", "Quarterly", "Yearly"]  # adjust as needed
+    reporting_period: str | Literal["Annual", "Monthly", "Quarterly", "Yearly"]  # adjust as needed
     baseline_year: int | str
     workflow_type: str
     json_data: Optional[str] = "default"
     loan_product: str
+    report_date_start: str
     @field_validator("baseline_year", mode="before")
     @classmethod
     def _coerce_year(cls, v):

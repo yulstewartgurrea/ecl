@@ -36,7 +36,15 @@ class User(Base):
 class Workflow(Base):
     __tablename__ = "workflows"
     __table_args__ = (
-        UniqueConstraint("user_id", "workflow_name", name="uq_user_workflow_name"),
+        UniqueConstraint(
+            "user_id",
+            "entity",
+            "loan_product",
+            "reporting_period",
+            "report_date_start",
+            "workflow_name",
+            name="uq_user_workflow_fullpath",
+        ),
     )
     id = Column(Integer, primary_key=True, index=True)
     entity = Column(String, nullable=False)
@@ -53,7 +61,8 @@ class Workflow(Base):
     documents = relationship("Document", back_populates="workflow", cascade="all, delete-orphan")
     # portfolio
     loan_product = Column(String, nullable=True)
-
+    # reporting date
+    report_date_start = Column(String, nullable=False)
     def __repr__(self):
         return f"<Workflow id={self.id} name={self.workflow_name!r}>"
 
@@ -93,8 +102,8 @@ class Document(Base):
     __tablename__ = "documents"
 
     id = Column(Integer, primary_key=True, index=True)
-    filename = Column(String, nullable=False)
-    workflow_path = Column(String, nullable=False)
+    filename = Column(String, nullable=True)
+    workflow_path = Column(String, nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     json_data = Column(Text, nullable=True)
     version = Column(Integer, nullable=True)

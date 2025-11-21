@@ -56,33 +56,50 @@ def insert_documents(
 @router.get("/workflows/check")
 def check_workflow_exists(
     entity: str = Query(..., description="Entity name, e.g., BanKo"),
-    reporting_period: str = Query(..., description="Reporting period, e.g., Annually"),
-    workflow_name: str = Query(..., description="Workflow name, e.g., asdsdf"),
+    loan_product: str = Query("", description="Loan product, e.g., Home"),
+    reporting_period: str = Query(..., description="Reporting period, e.g., Monthly"),
+    report_date_start: str = Query("", description="Report start date, e.g., 2025-11-21"),
+    workflow_name: str = Query(..., description="Workflow name, e.g., asa1a2"),
     db: Session = Depends(get_db),
-   current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    # Build the workflow_path string
-    workflow_path = f"/{entity}/{reporting_period}/{workflow_name}"
-    
-    # Query the document table for that path and user_id (optional: filter by current user)
-    doc = db.query(Document).filter(
-        Document.workflow_path == workflow_path,
-        Document.user_id == current_user.id
-    ).first()
+    # 📁 MUST match the same pattern as in create_user_workflow
+    workflow_path = (
+        f"/{entity}"
+        f"/{loan_product}"
+        f"/{reporting_period}"
+        f"/{report_date_start}"
+        f"/{workflow_name}"
+    )
 
-    exists = doc is not None
+    doc = (
+        db.query(Document)
+        .filter(
+            Document.workflow_path == workflow_path,
+            Document.user_id == current_user.id,
+        )
+        .first()
+    )
 
-    return {"exists": exists}
+    return {"exists": doc is not None}
 
 @router.get("/workflows/files", response_model=List[str])
 def list_excel_files(
     entity: str = Query(...),
     reporting_period: str = Query(...),
     workflow_name: str = Query(...),
+    loan_product: str = Query(...),
+    report_date_start: str = Query(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    workflow_path = f"/{entity}/{reporting_period}/{workflow_name}"
+    workflow_path = (
+        f"/{entity}/"
+        f"{loan_product}/"
+        f"{reporting_period}/"
+        f"{report_date_start}/"
+        f"{workflow_name}"
+    )
 
     latest_docs_subquery = (
         db.query(

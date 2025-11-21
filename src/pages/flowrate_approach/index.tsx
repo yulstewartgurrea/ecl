@@ -18,7 +18,6 @@ import {
   setPdTransitionMatrixWfName,
   setPdTransitionMatrixWorkflowId,
   setPdTransitionMatrixWorkflowData,
-  // NEW actions
   setPdTransitionMatrixSelectedLoanProduct,
   setPdTransitionMatrixReportDateStart,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
@@ -35,13 +34,14 @@ const TransitionMatrixLanding = () => {
     selectedPdTransitionMatrixReportingPeriod,
     pdTransitionMatrixWfName,
     currentPdTransitionMatrixWorkflowId,
-    // NEW from Redux
     selectedPdTransitionMatrixLoanProduct,
     selectedPdTransitionMatrixReportDateStart,
   } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
 
   // Entities saved in Redux
-  const entities = useAppSelector((state: any) => state.eclEntitiesReducer.items);
+  const entities = useAppSelector(
+    (state: any) => state.eclEntitiesReducer.items
+  );
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -49,146 +49,278 @@ const TransitionMatrixLanding = () => {
   const [proceedWithUpdate, setProceedWithUpdate] = useState(false);
 
   // API status
-  const [apiStatus, setApiStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [apiStatus, setApiStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
   const [statusMessage, setStatusMessage] = useState("");
 
-  // Debug
-  console.log("Transition Matrix - Current workflow ID:", currentPdTransitionMatrixWorkflowId);
+  console.log(
+    "Transition Matrix - Current workflow ID:",
+    currentPdTransitionMatrixWorkflowId
+  );
 
+  /**
+   * Called when a folder is selected from WorkflowFolderList.
+   * Folder structure is: Entity / LoanProduct / Period / ReportDate / WorkflowName
+   *
+   * WorkflowFolderList will parse the path and call:
+   *   onWorkflowSelect(entity, reportingPeriod, workflowName, loanProduct, reportDateStart)
+   */
   const handleWorkflowSelect = (
     entity: string,
     reportingPeriod: string,
-    workflowName: string
+    workflowName: string,
+    loanProduct?: string,
+    reportDateStart?: string
   ) => {
-    dispatch(setPdTransitionMatrixSelectedEntity({ entity }));
-    dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: reportingPeriod }));
-    dispatch(setPdTransitionMatrixWfName({ workflow_name: workflowName }));
-    console.log("Current workflow ID:", currentPdTransitionMatrixWorkflowId);
+    dispatch(
+      setPdTransitionMatrixSelectedEntity({
+        entity: entity || "",
+      })
+    );
+
+    dispatch(
+      setPdTransitionMatrixSelectedLoanProduct({
+        loan_product: loanProduct || "",
+      })
+    );
+
+    dispatch(
+      setPdTransitionMatrixSelectedReportingPeriod({
+        period: reportingPeriod || "",
+      })
+    );
+
+    dispatch(
+      setPdTransitionMatrixReportDateStart({
+        report_date_start: reportDateStart || "",
+      })
+    );
+
+    dispatch(
+      setPdTransitionMatrixWfName({
+        workflow_name: workflowName || "",
+      })
+    );
+
+    // Clear workflow id/data when navigating via folders
+    dispatch(
+      setPdTransitionMatrixWorkflowId({
+        workflow_id: null,
+      })
+    );
+    dispatch(
+      setPdTransitionMatrixWorkflowData({
+        workflow_data: null,
+      })
+    );
   };
 
-  const handleStartCalculation = async () => {
-    if (
-      pdTransitionMatrixWfName.trim() &&
-      selectedPdTransitionMatrixEntity &&
-      selectedPdTransitionMatrixReportingPeriod
-    ) {
-      try {
-        setApiStatus("loading");
-        setStatusMessage("Checking existing workflow...");
+const handleStartCalculation = async () => {
+  if (
+    pdTransitionMatrixWfName.trim() &&
+    selectedPdTransitionMatrixEntity &&
+    selectedPdTransitionMatrixReportingPeriod
+  ) {
+    try {
+      setApiStatus("loading");
+      setStatusMessage("Checking existing workflow...");
 
-        const checkResponse = await fetch(
-          `http://127.0.0.1:8000/documents/workflows/check?entity=${encodeURIComponent(
-            selectedPdTransitionMatrixEntity
-          )}&reporting_period=${encodeURIComponent(
-            selectedPdTransitionMatrixReportingPeriod
-          )}&workflow_name=${encodeURIComponent(pdTransitionMatrixWfName)}`,
-          { headers: { Authorization: `Bearer ${authToken}` } }
+      const checkUrl = new URL(
+        "http://127.0.0.1:8000/documents/workflows/check"
+      );
+
+      checkUrl.searchParams.set("entity", selectedPdTransitionMatrixEntity);
+      checkUrl.searchParams.set(
+        "loan_product",
+        selectedPdTransitionMatrixLoanProduct || ""
+      );
+      checkUrl.searchParams.set(
+        "reporting_period",
+        selectedPdTransitionMatrixReportingPeriod
+      );
+      checkUrl.searchParams.set(
+        "report_date_start",
+        selectedPdTransitionMatrixReportDateStart || ""
+      );
+      checkUrl.searchParams.set("workflow_name", pdTransitionMatrixWfName);
+
+      const checkResponse = await fetch(checkUrl.toString(), {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+
+      if (!checkResponse.ok) {
+        throw new Error(`Error: ${checkResponse.statusText}`);
+      }
+
+      const checkData = await checkResponse.json();
+      console.log("exists?", checkData.exists, "proceedWithUpdate", proceedWithUpdate);
+
+      // --- CASE 1: workflow exists, but user has not confirmed yet -> show modal
+      if (checkData.exists && !proceedWithUpdate) {
+        setModalMessage(
+          "This workflow already exists. If you wish to continue, click Continue. Note that it will update the existing record."
         );
+        setShowModal(true);
+        setApiStatus("idle");
+        return;
+      }
 
-        if (!checkResponse.ok) {
-          throw new Error(`Error: ${checkResponse.statusText}`);
-        }
+      // --- CASE 2: workflow exists AND user clicked Continue -> load existing and go to steps
+      if (checkData.exists && proceedWithUpdate) {
+        try {
+          setApiStatus("loading");
+          setStatusMessage("Loading existing workflow...");
 
-        const checkData = await checkResponse.json();
+          const params = new URLSearchParams({
+            entity: selectedPdTransitionMatrixEntity,
+            loan_product: selectedPdTransitionMatrixLoanProduct || "",
+            reporting_period: selectedPdTransitionMatrixReportingPeriod,
+            report_date_start: selectedPdTransitionMatrixReportDateStart || "",
+            workflow_name: pdTransitionMatrixWfName,
+            workflow_type: "asa",
+          });
 
-        if (checkData.exists && !proceedWithUpdate) {
-          setModalMessage(
-            "This workflow already exists. If you wish to continue, click Continue. Note that it will update the existing record."
+          const existingRes = await fetch(
+            `http://127.0.0.1:8000/workflows/?${params.toString()}`,
+            { headers: { Authorization: `Bearer ${authToken}` } }
           );
-          setShowModal(true);
-          setApiStatus("idle");
+
+          if (!existingRes.ok) {
+            throw new Error(`Failed to load existing workflow (${existingRes.status})`);
+          }
+
+          const data = await existingRes.json();
+          const wf = Array.isArray(data) ? data[0] : data?.data?.[0];
+
+          if (!wf) {
+            throw new Error("Existing workflow not found on server.");
+          }
+
+          // hydrate Redux with this workflow
+          dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: wf.id }));
+          dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: wf }));
+
+          setApiStatus("success");
+          setStatusMessage("Workflow loaded.");
+          setProceedWithUpdate(false);
+          setShowModal(false);
+
+          // go to current flowrate steps page
+          navigate(`/page/flowrate`, { state: { pdTransitionMatrixWfName } });
+          return;
+        } catch (err: any) {
+          console.error(err);
+          setApiStatus("error");
+          setStatusMessage(err?.message || "Failed to load existing workflow.");
+          setProceedWithUpdate(false);
+          setShowModal(false);
           return;
         }
-
-        setApiStatus("loading");
-        setStatusMessage("Creating workflow...");
-
-        const payload = {
-          entity: selectedPdTransitionMatrixEntity,
-          workflow_name: pdTransitionMatrixWfName,
-          reporting_period: selectedPdTransitionMatrixReportingPeriod,
-          baseline_year: "2023",
-          loan_product: selectedPdTransitionMatrixLoanProduct || undefined,
-          // Enable only if backend supports:
-          report_date_start: selectedPdTransitionMatrixReportDateStart || undefined,
-          workflow_type: 'asa'
-        };
-
-        const workflowResponse = await fetch("http://127.0.0.1:8000/workflows/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!workflowResponse.ok) {
-          const errorData = await workflowResponse.json();
-          throw new Error(errorData.detail || "Failed to create workflow");
-        }
-
-        const workflowData = await workflowResponse.json();
-        console.log('Full workflow response:', workflowData);
-
-        if (workflowData) {
-          const workflowId = workflowData.id;
-          console.log('Workflow ID:', workflowId);
-          console.log(
-            `🎯 WORKFLOW CREATED: ID=${workflowId}, Name='${workflowData.workflow_name}', Entity='${workflowData.entity}', Period='${workflowData.reporting_period}'`
-          );
-          
-          // Save workflow ID
-          console.log('Dispatching workflow_id to Redux:', workflowId);
-          dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: workflowId }));
-          
-          // Save full workflow data
-          console.log('Dispatching full workflow data to Redux:', workflowData);
-          dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: workflowData }));
-          
-          console.log('Workflow data should now be in Redux');
-        } else {
-          console.error('No workflow ID in response:', workflowData);
-        }
-
-        setStatusMessage("Creating folder structure...");
-
-        await invoke("create_folder_tree", {
-          entity: selectedPdTransitionMatrixEntity,
-          period: selectedPdTransitionMatrixReportingPeriod,
-          workflowName: pdTransitionMatrixWfName,
-        });
-
-        setProceedWithUpdate(false);
-        setShowModal(false);
-        setApiStatus("success");
-        setStatusMessage("Workflow created successfully!");
-
-        navigate(`/page/flowrate`, { state: { pdTransitionMatrixWfName } });
-      } catch (error: any) {
-        console.error("Failed to start calculation:", error);
-        setApiStatus("error");
-        setStatusMessage(error?.message || "Something went wrong");
       }
+
+      // --- CASE 3: workflow does NOT exist -> create new, as before
+      setApiStatus("loading");
+      setStatusMessage("Creating workflow...");
+
+      const payload = {
+        entity: selectedPdTransitionMatrixEntity,
+        workflow_name: pdTransitionMatrixWfName,
+        reporting_period: selectedPdTransitionMatrixReportingPeriod,
+        baseline_year: "2023",
+        loan_product: selectedPdTransitionMatrixLoanProduct || undefined,
+        report_date_start: selectedPdTransitionMatrixReportDateStart || undefined,
+        workflow_type: "asa",
+      };
+
+      const workflowResponse = await fetch("http://127.0.0.1:8000/workflows/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!workflowResponse.ok) {
+        const errorData = await workflowResponse.json();
+        throw new Error(errorData.detail || "Failed to create workflow");
+      }
+
+      const workflowData = await workflowResponse.json();
+      console.log("Full workflow response:", workflowData);
+
+      if (workflowData) {
+        const workflowId = workflowData.id;
+        console.log(
+          `🎯 WORKFLOW CREATED: ID=${workflowId}, Name='${workflowData.workflow_name}', Entity='${workflowData.entity}', Period='${workflowData.reporting_period}'`
+        );
+
+        dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: workflowId }));
+        dispatch(
+          setPdTransitionMatrixWorkflowData({ workflow_data: workflowData })
+        );
+      } else {
+        console.error("No workflow ID in response:", workflowData);
+      }
+
+      setStatusMessage("Creating folder structure...");
+
+      await invoke("create_folder_tree", {
+        entity: selectedPdTransitionMatrixEntity,
+        loan_product: selectedPdTransitionMatrixLoanProduct!,
+        period: selectedPdTransitionMatrixReportingPeriod,
+        report_date_start: selectedPdTransitionMatrixReportDateStart!,
+        workflow_name: pdTransitionMatrixWfName,
+      });
+
+      setProceedWithUpdate(false);
+      setShowModal(false);
+      setApiStatus("success");
+      setStatusMessage("Workflow created successfully!");
+
+      navigate(`/page/flowrate`, { state: { pdTransitionMatrixWfName } });
+    } catch (error: any) {
+      console.error("Failed to start calculation:", error);
+      setApiStatus("error");
+      setStatusMessage(error?.message || "Something went wrong");
+      setProceedWithUpdate(false);
+      setShowModal(false);
     }
-  };
+  }
+};
+
 
   const handleEntityChange = (e: any) => {
     dispatch(setPdTransitionMatrixSelectedEntity({ entity: e.target.value }));
   };
+
   const handleWorkflowInputChange = (e: any) => {
-    dispatch(setPdTransitionMatrixWfName({ workflow_name: e.target.value }));
-  };
-  const handleReportingPeriodChange = (e: any) => {
-    dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: e.target.value }));
+    dispatch(
+      setPdTransitionMatrixWfName({ workflow_name: e.target.value })
+    );
   };
 
-  // NEW: Redux-backed handlers
-  const handleLoanProductChange = (e: any) => {
-    dispatch(setPdTransitionMatrixSelectedLoanProduct({ loan_product: e.target.value }));
+  const handleReportingPeriodChange = (e: any) => {
+    dispatch(
+      setPdTransitionMatrixSelectedReportingPeriod({ period: e.target.value })
+    );
   };
+
+  const handleLoanProductChange = (e: any) => {
+    dispatch(
+      setPdTransitionMatrixSelectedLoanProduct({
+        loan_product: e.target.value,
+      })
+    );
+  };
+
   const handleReportDateStartChange = (e: any) => {
-    dispatch(setPdTransitionMatrixReportDateStart({ report_date_start: e.target.value }));
+    dispatch(
+      setPdTransitionMatrixReportDateStart({
+        report_date_start: e.target.value,
+      })
+    );
   };
 
   const isFormValid =
@@ -201,7 +333,9 @@ const TransitionMatrixLanding = () => {
       <div className="w-full h-full grid md:grid-cols-5 sm:grid-cols-2 space-y-2">
         <div className={clsx("md:col-span-3 w-full h-full flex flex-col items-center justify-center")}>
           <div className="text-center">
-            <h1 className="text-3xl font-semibold mb-4 text-gray-800">Flowrate Approach Workflow</h1>
+            <h1 className="text-3xl font-semibold mb-4 text-gray-800">
+              Flowrate Approach Workflow
+            </h1>
           </div>
 
           <div
@@ -210,10 +344,12 @@ const TransitionMatrixLanding = () => {
               { "min-w-4/5": !isSidebarOpen, "min-w-5/6": isSidebarOpen }
             )}
           >
-            {/* Entity (from Redux) */}
+            {/* Entity */}
             <div className="px-10 pt-8 text-start">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-gray-700 font-medium text-sm">Generate Report For</label>
+                <label className="block text-gray-700 font-medium text-sm">
+                  Generate Report For
+                </label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
@@ -237,15 +373,18 @@ const TransitionMatrixLanding = () => {
               </div>
               {(!entities || entities.length === 0) && (
                 <p className="text-xs text-amber-600 mt-2">
-                  No entities found. Go to <b>Configuration → Entities</b> to add one.
+                  No entities found. Go to <b>Configuration → Entities</b> to add
+                  one.
                 </p>
               )}
             </div>
 
-            {/* Loan Product (Redux) */}
+            {/* Loan Product */}
             <div className="px-10 pt-6 text-start">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-gray-700 font-medium text-sm">Loan Product</label>
+                <label className="block text-gray-700 font-medium text-sm">
+                  Loan Product
+                </label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
@@ -268,10 +407,12 @@ const TransitionMatrixLanding = () => {
               </div>
             </div>
 
-            {/* Reporting Period (Frequency) */}
+            {/* Reporting Period */}
             <div className="px-10 pt-6 text-start">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-gray-700 font-medium text-sm">Reporting Period</label>
+                <label className="block text-gray-700 font-medium text-sm">
+                  Reporting Period
+                </label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
@@ -292,10 +433,12 @@ const TransitionMatrixLanding = () => {
               </div>
             </div>
 
-            {/* Report Date Start (Redux) */}
+            {/* Report Date Start */}
             <div className="px-10 pt-6 text-start">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-gray-700 font-medium text-sm">Report Date Start</label>
+                <label className="block text-gray-700 font-medium text-sm">
+                  Report Date Start
+                </label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
@@ -313,8 +456,10 @@ const TransitionMatrixLanding = () => {
 
             {/* Workflow Name */}
             <div className="px-10 pt-6 text-start">
-              <label className="block text-gray-700 mb-2 font-medium text-sm">Workflow Name</label>
-              <div className="flex flex-row border border-gray-300 rounded-XL bg-white focus-within:ring-2 focus-within:ring-amber-500 rounded-xl">
+              <label className="block text-gray-700 mb-2 font-medium text-sm">
+                Workflow Name
+              </label>
+              <div className="flex flex-row border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-amber-500 rounded-xl">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
                   <FolderIcon className="w-5 h-5 text-gray-500" />
                 </div>
