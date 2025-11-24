@@ -326,7 +326,8 @@ def compute_correlation_matrix(x_transformed: pd.DataFrame,
 
 def generate_variable_combinations(x_raw_vars: list,
                                    x_transformed: pd.DataFrame,
-                                   excluded_columns: list) -> list[list[str]]:
+                                   excluded_columns: list,
+                                   cancellation_check=None) -> list[list[str]]:
     """
     Mirrors the R expansion:
       base (raw) -> append "", ".Level", ".GR" -> filter exists
@@ -347,11 +348,16 @@ def generate_variable_combinations(x_raw_vars: list,
 
     # Level/GR
     print("Applying Level/GR permutations...")
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
     level_gr_options = ["", ".Level", ".GR"]
     level_gr_perms = list(product(level_gr_options, repeat=num_vars_taken))
 
     new_ext = []
-    for base_comb in comb_extended:
+    for idx, base_comb in enumerate(comb_extended):
+        if cancellation_check and idx % 100 == 0 and cancellation_check():
+            raise Exception("Job cancelled")
         for p in level_gr_perms:
             names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
             new_ext.append(names)
@@ -362,11 +368,16 @@ def generate_variable_combinations(x_raw_vars: list,
 
     # Transformations
     print("Applying transformation permutations...")
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
     trans_options = ["", ".ln", ".asinh"]
     trans_perms = list(product(trans_options, repeat=num_vars_taken))
 
     new_ext = []
-    for base_comb in comb_extended:
+    for idx, base_comb in enumerate(comb_extended):
+        if cancellation_check and idx % 100 == 0 and cancellation_check():
+            raise Exception("Job cancelled")
         for p in trans_perms:
             names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
             new_ext.append(names)
@@ -375,11 +386,16 @@ def generate_variable_combinations(x_raw_vars: list,
 
     # Differencing
     print("Applying differencing permutations...")
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
     diff_options = ["", ".diff_12"]
     diff_perms = list(product(diff_options, repeat=num_vars_taken))
 
     new_ext = []
-    for base_comb in comb_extended:
+    for idx, base_comb in enumerate(comb_extended):
+        if cancellation_check and idx % 100 == 0 and cancellation_check():
+            raise Exception("Job cancelled")
         for p in diff_perms:
             names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
             new_ext.append(names)
@@ -388,11 +404,16 @@ def generate_variable_combinations(x_raw_vars: list,
 
     # Lags
     print("Applying lag permutations...")
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
     lag_options = ["", ".lag_3", ".lag_6", ".lag_9", ".lag_12"]
     lag_perms = list(product(lag_options, repeat=num_vars_taken))
 
     new_ext = []
-    for base_comb in comb_extended:
+    for idx, base_comb in enumerate(comb_extended):
+        if cancellation_check and idx % 100 == 0 and cancellation_check():
+            raise Exception("Job cancelled")
         for p in lag_perms:
             names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
             new_ext.append(names)
@@ -435,9 +456,11 @@ def process_combination_with_cor_mat(cor_mat: pd.DataFrame, combination: list[st
 
 def compute_correlations_for_combinations(all_combinations: list[list[str]],
                                           x_cor_mat: pd.DataFrame,
-                                          num_vars_taken: int) -> pd.DataFrame:
+                                          num_vars_taken: int,
+                                          cancellation_check=None) -> pd.DataFrame:
     """
     Parallel compute max |corr| per combination (Windows-safe: function is global).
+    Processes in batches to allow cancellation checks.
     """
     print("Computing maximum correlations for all combinations...")
     if not all_combinations:
@@ -446,14 +469,28 @@ def compute_correlations_for_combinations(all_combinations: list[list[str]],
     num_cores = max(1, cpu_count())
     print(f"Using {num_cores} CPU cores for parallel processing")
 
-    with Pool(processes=num_cores) as pool:
-        process_func = partial(process_combination_with_cor_mat, x_cor_mat)
-        results = pool.map(process_func, all_combinations)
+    # Process in batches to allow cancellation checks
+    batch_size = max(1000, len(all_combinations) // 10)  # Process in batches
+    all_results = []
+    
+    for i in range(0, len(all_combinations), batch_size):
+        # Check for cancellation before each batch
+        if cancellation_check and cancellation_check():
+            raise Exception("Job cancelled")
+        
+        batch = all_combinations[i:i + batch_size]
+        print(f"Processing batch {i // batch_size + 1}/{(len(all_combinations) + batch_size - 1) // batch_size} ({len(batch)} combinations)")
+        
+        with Pool(processes=num_cores) as pool:
+            process_func = partial(process_combination_with_cor_mat, x_cor_mat)
+            batch_results = pool.map(process_func, batch)
+        
+        all_results.extend(batch_results)
 
-    print(f"Processed {len(results)} combinations")
+    print(f"Processed {len(all_results)} combinations")
 
     rows = []
-    for comb, max_cor in results:
+    for comb, max_cor in all_results:
         row = {f"X{i+1}": comb[i] for i in range(num_vars_taken)}
         row["max_abs_cor"] = max_cor
         rows.append(row)
@@ -466,7 +503,9 @@ def compute_correlations_for_combinations(all_combinations: list[list[str]],
 
 def process_data_transformation_output(combine_monthly_mev_data_interpolation_df: pd.DataFrame,
                                        historical_default_rate_df: pd.DataFrame,
-                                       workflow):
+                                       workflow,
+                                       progress_callback=None,
+                                       cancellation_check=None):
     """
     Full pipeline: clean -> add .Level/.GR -> transforms -> ADF -> corr -> combos -> combo corr
     """
@@ -484,6 +523,11 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     os.makedirs(output_dir, exist_ok=True)
 
     # 1) Prep
+    if progress_callback:
+        progress_callback(25, "Preparing independent and dependent variables...")
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
     x_raw = prepare_independent_variables(combine_monthly_mev_data_interpolation_df, excluded_columns)
     x_raw = add_level_gr_columns(x_raw, excluded_columns)  # NEW: provide .Level and .GR
     y_raw = prepare_dependent_variables(historical_default_rate_df, excluded_columns)
@@ -495,24 +539,55 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     print(f"Loaded {len(x_raw_vars)} independent raw variables and {len(y_raw_vars)} dependent variables")
 
     # 2) Transforms
+    if progress_callback:
+        progress_callback(35, "Applying transformations to variables...")
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
     x_transformed = apply_transformations_to_independent_variables(x_raw, x_raw_vars, excluded_columns)
     y_transformed = apply_transformations_to_dependent_variables(y_raw, y_raw_vars)
 
     # 3) Save transformed
+    if progress_callback:
+        progress_callback(45, "Saving transformed data...")
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
     x_out = f"{output_dir}/{workflow.loan_product}_Independent - Transformed with Time_{_date_time}.csv"
     y_out = f"{output_dir}/{workflow.loan_product}_Dependent - Transformed with Time_{_date_time}.csv"
     x_transformed.to_csv(x_out, index=False); docs.append(os.path.basename(x_out))
     y_transformed.to_csv(y_out, index=False); docs.append(os.path.basename(y_out))
 
     # 4) ADF + Corr
+    if progress_callback:
+        progress_callback(50, "Performing ADF tests and computing correlation matrix...")
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
     perform_adf_tests(x_transformed, y_transformed, excluded_columns, output_dir, workflow, _date_time, docs)
     x_cor_mat = compute_correlation_matrix(x_transformed, excluded_columns, output_dir, workflow, _date_time, docs)
 
     # 5) Combos + combo max corr
-    all_combinations = generate_variable_combinations(x_raw_vars, x_transformed, excluded_columns)
+    if progress_callback:
+        progress_callback(60, "Generating variable combinations...")
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
+    all_combinations = generate_variable_combinations(x_raw_vars, x_transformed, excluded_columns, cancellation_check)
+    
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
+    if progress_callback:
+        progress_callback(70, f"Computing correlations for {len(all_combinations)} combinations...")
     num_vars_taken = 2
-    all_comb_df = compute_correlations_for_combinations(all_combinations, x_cor_mat, num_vars_taken)
+    all_comb_df = compute_correlations_for_combinations(all_combinations, x_cor_mat, num_vars_taken, cancellation_check)
 
+    if cancellation_check and cancellation_check():
+        raise Exception("Job cancelled")
+    
+    if progress_callback:
+        progress_callback(85, "Saving combination results...")
     comb_out = f"{output_dir}/{workflow.loan_product}_{num_vars_taken}-var_combinations_{_date_time}.csv"
     all_comb_df.to_csv(comb_out, index=False); docs.append(os.path.basename(comb_out))
 
@@ -535,20 +610,30 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
 def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
                                 data_interpolation_df: pd.DataFrame,
                                 historical_default_rates_df: pd.DataFrame,
-                                workflow):
+                                workflow,
+                                progress_callback=None,
+                                cancellation_check=None):
     """
     Entrypoint used by the app.
     """
     print("🔄 Starting dataframe combination process...")
     start_time = time.time()  # Start the timer
     try:
+        if progress_callback:
+            progress_callback(15, "Combining monthly MEV and interpolation data...")
+        if cancellation_check and cancellation_check():
+            raise Exception("Job cancelled")
+        
         df_combined = combine_monthly_mev_data_interpolation(monthly_historical_mev_df, data_interpolation_df)
-        res = process_data_transformation_output(df_combined, historical_default_rates_df, workflow)
+        res = process_data_transformation_output(df_combined, historical_default_rates_df, workflow, progress_callback, cancellation_check)
         end_time = time.time()  # End the timer
         elapsed_time = end_time - start_time  # Calculate elapsed time
         print(f"✅ Data transformation completed in {elapsed_time:.2f} seconds.")
         return res
     except Exception as e:
+        if "cancelled" in str(e).lower():
+            print(f"⚠️ Job cancelled during processing")
+            raise  # Re-raise to be handled by caller
         print(f"❌ Error during combination: {str(e)}")
         import traceback; traceback.print_exc()
         return None

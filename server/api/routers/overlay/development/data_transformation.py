@@ -25,13 +25,77 @@ from models.overlay.development import (
     OverlayDevelopmentDataInterpolationOutput,
     OverlayDevelopmentHistoricalDefaultRateInput,
     OverlayDevelopmentDataTransformationOutput,
-    OverlayLogs
+    OverlayLogs,
+    OverlayDevelopmentDataTransformationJob,
 )
 
 from helpers.get_time_date import get_time_date
 from helpers.save_csv_data_in_folder import save_csv_data_in_folder
 from helpers.make_json_serializable import make_json_serializable
 from helpers.format_dataframe_constructor import format_dataframe_constructor
+
+import threading
+
+# Thread tracking registry for Solution 3
+# Tracks active threads per workflow to prevent concurrent jobs
+active_threads = {}  # {workflow_id: {'thread': Thread, 'started_at': datetime, 'job_id': int}}
+thread_lock = threading.Lock()  # Protect the registry
+
+def cleanup_dead_threads():
+    """
+    Remove dead/stuck threads from the registry
+    """
+    with thread_lock:
+        dead_workflows = []
+        for workflow_id, thread_info in active_threads.items():
+            thread = thread_info.get('thread')
+            if thread and not thread.is_alive():
+                dead_workflows.append(workflow_id)
+        
+        for workflow_id in dead_workflows:
+            del active_threads[workflow_id]
+            print(f"🧹 Cleaned up dead thread for workflow {workflow_id}")
+
+def is_workflow_busy(workflow_id: int) -> bool:
+    """
+    Check if there's an active thread for the given workflow
+    Returns True if a thread is running, False otherwise
+    """
+    cleanup_dead_threads()  # Clean up dead threads first
+    
+    with thread_lock:
+        if workflow_id in active_threads:
+            thread_info = active_threads[workflow_id]
+            thread = thread_info.get('thread')
+            if thread and thread.is_alive():
+                return True
+            else:
+                # Thread is dead, clean it up
+                del active_threads[workflow_id]
+                return False
+    return False
+
+def register_thread(workflow_id: int, thread: threading.Thread, job_id: int):
+    """
+    Register a thread in the active threads registry
+    """
+    with thread_lock:
+        active_threads[workflow_id] = {
+            'thread': thread,
+            'started_at': datetime.utcnow(),
+            'job_id': job_id
+        }
+        print(f"📝 Registered thread for workflow {workflow_id}, job {job_id}")
+
+def deregister_thread(workflow_id: int):
+    """
+    Remove a thread from the active threads registry
+    """
+    with thread_lock:
+        if workflow_id in active_threads:
+            job_id = active_threads[workflow_id].get('job_id', 'unknown')
+            del active_threads[workflow_id]
+            print(f"🗑️ Deregistered thread for workflow {workflow_id}, job {job_id}")
 
 def clean_dataframe_for_json(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -90,15 +154,222 @@ def clean_response_data(data_dict):
 
 router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development"])
 
+def run_data_transformation_background(job_id: int, workflow_id: int, user_id: int):
+    """
+    Background function that runs the data transformation process
+    and updates progress in the database
+    """
+    db = SessionLocal()
+    try:
+        # Update job status to processing
+        job = db.query(OverlayDevelopmentDataTransformationJob).filter(
+            OverlayDevelopmentDataTransformationJob.id == job_id
+        ).first()
+        
+        if not job:
+            print(f"❌ Job {job_id} not found")
+            return
+        
+        # Mark job as started and record start time
+        job.status = "processing"
+        job.progress = 0
+        job.message = "Initializing..."
+        job.started_at = datetime.utcnow()
+        db.commit()
+        
+        # Get required data
+        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+        log_record = db.query(OverlayLogs).filter(
+            OverlayLogs.workflow_id == workflow_id,
+            OverlayLogs.submodule == "DEVELOPMENT"
+        ).first()
+        
+        monthly_historical_mev = db.query(OverlayDevelopmentMonthlyHistoricalMevInput).filter(
+            OverlayDevelopmentMonthlyHistoricalMevInput.workflow_id == workflow_id
+        ).first()
+        
+        data_interpolation = db.query(OverlayDevelopmentDataInterpolationOutput).filter(
+            OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id
+        ).first()
+        
+        historical_default_rates = db.query(OverlayDevelopmentHistoricalDefaultRateInput).filter(
+            OverlayDevelopmentHistoricalDefaultRateInput.workflow_id == workflow_id
+        ).first()
+        
+        if not all([workflow, log_record, monthly_historical_mev, data_interpolation, historical_default_rates]):
+            set_running_time()
+            job.status = "failed"
+            job.error_message = "Required data not found"
+            db.commit()
+            return
+        
+        # Helper function to calculate and set running time
+        def set_running_time():
+            if job.started_at:
+                completed_time = datetime.utcnow()
+                running_time = (completed_time - job.started_at).total_seconds()
+                job.completed_at = completed_time
+                job.running_time_seconds = int(running_time)
+        
+        # Helper function to check if job is cancelled
+        def check_cancellation():
+            db.refresh(job)
+            if job.status == "cancelled":
+                return True
+            return False
+        
+        # Progress callback function with cancellation check
+        def update_progress(progress: int, message: str):
+            # Check for cancellation before updating progress
+            if check_cancellation():
+                raise Exception("Job cancelled by user")
+            job.progress = progress
+            job.message = message
+            db.commit()
+            db.refresh(job)
+        
+        # Check for cancellation before starting
+        if check_cancellation():
+            set_running_time()
+            print(f"⚠️ Job {job_id} was cancelled before processing started")
+            return
+        
+        # Prepare dataframes
+        update_progress(10, "Loading and preparing data...")
+        if check_cancellation():
+            set_running_time()
+            return
+        
+        monthly_historical_mev_df = format_dataframe_constructor(monthly_historical_mev.json_data)
+        data_interpolation_df = format_dataframe_constructor(data_interpolation.json_data)
+        historical_default_rates_df = format_dataframe_constructor(historical_default_rates.json_data)
+        
+        # Process transformation with progress updates
+        update_progress(20, "Starting data transformation...")
+        if check_cancellation():
+            set_running_time()
+            return
+        
+        try:
+            process_data_transformation_res = process_data_transformation(
+                monthly_historical_mev_df, 
+                data_interpolation_df,
+                historical_default_rates_df,
+                workflow,
+                progress_callback=update_progress,
+                cancellation_check=check_cancellation
+            )
+        except Exception as e:
+            if "cancelled" in str(e).lower() or job.status == "cancelled":
+                # Job was cancelled during processing
+                db.refresh(job)
+                if job.status == "cancelled":
+                    set_running_time()
+                    job.message = "Cancelled by user"
+                    db.commit()
+                    print(f"⚠️ Job {job_id} was cancelled during processing")
+                    return
+            raise  # Re-raise if it's a different error
+        
+        # Check cancellation after processing
+        if check_cancellation():
+            set_running_time()
+            return
+        
+        if not process_data_transformation_res or 'docs' not in process_data_transformation_res:
+            set_running_time()
+            job.status = "failed"
+            job.error_message = "Data transformation failed - no results returned"
+            db.commit()
+            return
+        
+        # Save results
+        update_progress(90, "Saving results...")
+        if check_cancellation():
+            set_running_time()
+            return
+        
+        document_type = "OVERLAY_DEVELOPMENT_DATA_TRANSFORMATION_OUTPUT"
+        filename = f"data_transformation_output_{get_time_date()}"
+        
+        for doc in process_data_transformation_res['docs']:
+            if check_cancellation():
+                set_running_time()
+                return
+            new_document = Document(
+                filename=doc,
+                json_data=None,
+                document_type=document_type,
+                user_id=user_id,
+                workflow_id=workflow_id,
+                workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
+            )
+            db.add(new_document)
+            db.commit()
+            db.refresh(new_document)
+
+            new_overlay_record = OverlayDevelopmentDataTransformationOutput(
+                workflow_id=workflow_id,
+                user_id=user_id,
+                json_data=None,
+                log_id=log_record.id,
+                folder=process_data_transformation_res['file_path'],
+                filename=filename
+            )
+            db.add(new_overlay_record)
+            db.commit()
+            db.refresh(new_overlay_record)
+        
+        # Check cancellation before marking as completed
+        if check_cancellation():
+            set_running_time()
+            return
+        
+        # Calculate running time and mark as completed
+        set_running_time()
+        job.status = "completed"
+        job.progress = 100
+        job.message = "Data transformation completed successfully"
+        db.commit()
+        
+        print(f"✅ Job {job_id} completed successfully in {job.running_time_seconds} seconds")
+        
+    except Exception as e:
+        traceback.print_exc()
+        db.rollback()
+        try:
+            job = db.query(OverlayDevelopmentDataTransformationJob).filter(
+                OverlayDevelopmentDataTransformationJob.id == job_id
+            ).first()
+            if job:
+                # Calculate running time if job was started
+                if job.started_at:
+                    completed_time = datetime.utcnow()
+                    running_time = (completed_time - job.started_at).total_seconds()
+                    job.completed_at = completed_time
+                    job.running_time_seconds = int(running_time)
+                
+                # Only update status if not already cancelled
+                if job.status != "cancelled":
+                    job.status = "failed"
+                    job.error_message = str(e)
+                db.commit()
+        except:
+            pass
+        print(f"❌ Job {job_id} failed: {str(e)}")
+    finally:
+        db.close()
+        # Always deregister thread when done (success, failure, or cancellation)
+        deregister_thread(workflow_id)
+
 @router.post("/data_transformation")
 async def calculate_data_transformation(workflow_id: int = Form(...),
                                         num_combinations: int = Form(2, description="Number of combinations to test"),
                                         user_id: User = Depends(get_current_user)):
     """
-        Calculate data transformation
+    Calculate data transformation - returns immediately with job_id for status polling
     """
     try:
-        document_type = "OVERLAY_DEVELOPMENT_DATA_TRANSFORMATION_OUTPUT"
         db = SessionLocal()
         try:
             workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
@@ -111,8 +382,6 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
             monthly_historical_mev = db.query(OverlayDevelopmentMonthlyHistoricalMevInput).filter(
                 OverlayDevelopmentMonthlyHistoricalMevInput.workflow_id == workflow_id
             ).first()
-
-            print(monthly_historical_mev)
 
             data_interpolation = db.query(OverlayDevelopmentDataInterpolationOutput).filter(
                 OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id
@@ -147,7 +416,7 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
             if not monthly_historical_mev:
                 return JSONResponse(
                     status_code=404,
-                    content= {
+                    content={
                         "code": -1,
                         "success": False,
                         "msg": "No monthly historical mev data found for this workflow",
@@ -158,7 +427,7 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
             if not data_interpolation:
                 return JSONResponse(
                     status_code=404,
-                    content= {
+                    content={
                         "code": -1,
                         "success": False,
                         "msg": "No data interpolation data found for this workflow",
@@ -169,150 +438,238 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
             if not historical_default_rates:
                 return JSONResponse(
                     status_code=404,
-                    content= {
+                    content={
                         "code": -1,
                         "success": False,
                         "msg": "No historical default rates data found for this workflow",
                         "data": None
                     }
                 )
-
-            import json
-            # Parse the JSON data from the record
-            # monthly_historical_mev_data = json.loads(monthly_historical_mev.json_data) if monthly_historical_mev.json_data else []
-            # data_interpolation_data = json.loads(data_interpolation.json_data) if data_interpolation.json_data else []
-            # historical_default_rates_data = json.loads(historical_default_rates.json_data) if historical_default_rates.json_data else []
-        finally:
-            db.close()
-
-        # monthly_historical_mev_df = pd.DataFrame(monthly_historical_mev_data)
-        # data_interpolation_df = pd.DataFrame(data_interpolation_data)
-        # historical_default_rates_df = pd.DataFrame(historical_default_rates_data)
-        
-        monthly_historical_mev_df = format_dataframe_constructor(monthly_historical_mev.json_data)
-        data_interpolation_df = format_dataframe_constructor(data_interpolation.json_data)
-        historical_default_rates_df = format_dataframe_constructor(historical_default_rates.json_data)
-
-        process_data_transformation_res = process_data_transformation(monthly_historical_mev_df, 
-                                                                      data_interpolation_df,
-                                                                      historical_default_rates_df,
-                                                                      workflow)
-
-        # Clean each DataFrame individually and convert to dict
-        # try:
-        #     data_interpolation_combined_clean = clean_dataframe_for_json(process_data_transformation_res["data_interpolation_combined"])
-        #     data_interpolation_combined_dict = data_interpolation_combined_clean.to_dict(orient='records')
-        #     print("✅ data_interpolation_combined converted successfully")
-        # except Exception as e:
-        #     print(f"❌ Error converting data_interpolation_combined: {e}")
-        #     raise e
             
-        # try:
-        #     lag_transformation_clean = clean_dataframe_for_json(process_data_transformation_res["lag_tranformation"])
-        #     lag_transformation_dict = lag_transformation_clean.to_dict(orient='records')
-        #     print("✅ lag_transformation converted successfully")
-        # except Exception as e:
-        #     print(f"❌ Error converting lag_transformation: {e}")
-        #     raise e
-            
-        # try:
-        #     historical_default_rate_clean = clean_dataframe_for_json(process_data_transformation_res["historical_default_rate"])
-        #     historical_default_rate_dict = historical_default_rate_clean.to_dict(orient='records')
-        #     print("✅ historical_default_rate converted successfully")
-        # except Exception as e:
-        #     print(f"❌ Error converting historical_default_rate: {e}")
-        #     raise e
-        
-        print('process_data_transformation_res', process_data_transformation_res)
-
-        # save_json_data = {
-            # "data_interpolation_combined": data_interpolation_combined_dict,
-            # "lag_tranformation": lag_transformation_dict,
-            # "historical_default_rate": historical_default_rate_dict
-        # }
-
-        res = {
-            'code': 1,
-            'success': True,
-            'msg': 'Success'
-        }
-
-        filename = f"data_transformation_output_{get_time_date()}.csv"
-
-        # Save data in documents models
-        db = SessionLocal()
-        try:
-            # Check if process_data_transformation_res is valid
-            if not process_data_transformation_res or 'docs' not in process_data_transformation_res:
+            # Solution 3: Check thread registry first (prevents concurrent jobs within this process)
+            if is_workflow_busy(workflow_id):
                 return JSONResponse(
-                    status_code=500,
+                    status_code=400,
                     content={
-                        'code': -1,
-                        'success': False,
-                        'msg': 'Data transformation failed - no results returned',
-                        'data': None
+                        "code": -1,
+                        "success": False,
+                        "msg": "A data transformation job is already running for this workflow. Please wait for it to complete or cancel it first.",
+                        "data": None
                     }
                 )
             
-            for doc in process_data_transformation_res['docs']:
-                # Create Document record
-                new_document = Document(
-                    filename=doc,
-                    json_data=None,
-                    document_type=document_type,
-                    user_id=user_id.id,
-                    workflow_id=workflow_id,
-                    workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
+            # Also check database for pending/processing jobs (handles multi-process scenarios)
+            existing_job = db.query(OverlayDevelopmentDataTransformationJob).filter(
+                OverlayDevelopmentDataTransformationJob.workflow_id == workflow_id,
+                OverlayDevelopmentDataTransformationJob.status.in_(["pending", "processing"])
+            ).first()
+            
+            if existing_job:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "A data transformation job is already in progress for this workflow",
+                        "data": {"job_id": existing_job.id}
+                    }
                 )
-                db.add(new_document)
-                db.commit()
-                db.refresh(new_document)
-
-                # Create OverlayDevelopmentDataTransformationOutput record
-                new_overlay_record = OverlayDevelopmentDataTransformationOutput(
-                    workflow_id=workflow_id,
-                    user_id=user_id.id,
-                    json_data=None,
-                    log_id=log_record.id,
-                    # folder=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/development/{workflow.loan_product}",
-                    folder=process_data_transformation_res['file_path'],
-                    filename=filename
-                )
-                db.add(new_overlay_record)
-                db.commit()
-                db.refresh(new_overlay_record)
+            
+            # Create new job record
+            new_job = OverlayDevelopmentDataTransformationJob(
+                workflow_id=workflow_id,
+                user_id=user_id.id,
+                status="pending",
+                progress=0,
+                message="Job created, waiting to start..."
+            )
+            db.add(new_job)
+            db.commit()
+            db.refresh(new_job)
             
         finally:
             db.close()
-
-        # save_csv_data_in_folder(
-        #     workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/development/{workflow.loan_product}",
-        #     document_type=document_type,
-        #     # csv_data is a daraframe
-        #     csv_data=process_data_transformation_res,
-        #     filename=filename
-        # )
-
-        # Final check - ensure the response itself is JSON serializable
-        try:
-            import json
-            json.dumps(res)  # Test if the response can be serialized
-            print("✅ Response is JSON serializable")
-        except Exception as e:
-            print(f"❌ Response is not JSON serializable: {e}")
-            # If there are still issues, try to clean the response data
-            res['data'] = clean_response_data(res['data'])
-            print("✅ Response cleaned and retested")
-
-        return JSONResponse(status_code=200, content=res)
+        
+        # Start background thread
+        thread = threading.Thread(
+            target=run_data_transformation_background,
+            args=(new_job.id, workflow_id, user_id.id),
+            daemon=True
+        )
+        
+        # Solution 3: Register thread before starting (prevents race condition)
+        register_thread(workflow_id, thread, new_job.id)
+        thread.start()
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "code": 1,
+                "success": True,
+                "msg": "Data transformation job started",
+                "data": {
+                    "job_id": new_job.id,
+                    "status": "pending",
+                    "progress": 0
+                }
+            }
+        )
+        
     except Exception as e:
         traceback.print_exc()
-        res = {
-            'code': -1,
-            'msg': f'Something went wrong. {e}',
-            'success': False
-        }
-        return JSONResponse(status_code=500, content=res)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "msg": f"Something went wrong. {e}",
+                "success": False,
+                "data": None
+            }
+        )
+
+
+@router.get("/data_transformation/status/{workflow_id}")
+async def get_data_transformation_status(workflow_id: int,
+                                        current_user: User = Depends(get_current_user)):
+    """Get the status of the latest data transformation job for a workflow"""
+    try:
+        db = SessionLocal()
+        try:
+            # Get the most recent job for this workflow
+            job = db.query(OverlayDevelopmentDataTransformationJob).filter(
+                OverlayDevelopmentDataTransformationJob.workflow_id == workflow_id,
+                OverlayDevelopmentDataTransformationJob.user_id == current_user.id
+            ).order_by(OverlayDevelopmentDataTransformationJob.created_at.desc()).first()
+            
+            if not job:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "No data transformation job found for this workflow",
+                        "data": None
+                    }
+                )
+            
+            # Calculate current running time if job is still processing
+            current_running_time = None
+            if job.status == "processing" and job.started_at:
+                current_running_time = int((datetime.utcnow() - job.started_at).total_seconds())
+            elif job.running_time_seconds is not None:
+                current_running_time = job.running_time_seconds
+            
+            response_data = {
+                "job_id": job.id,
+                "workflow_id": job.workflow_id,
+                "status": job.status,
+                "progress": job.progress,
+                "message": job.message,
+                "error_message": job.error_message,
+                "started_at": job.started_at.isoformat() if job.started_at else None,
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                "running_time_seconds": current_running_time,
+                "created_at": job.created_at.isoformat() if job.created_at else None,
+                "updated_at": job.updated_at.isoformat() if job.updated_at else None
+            }
+            
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "msg": "Success",
+                    "data": response_data
+                }
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Something went wrong: {str(e)}",
+                "data": None
+            }
+        )
+
+
+@router.post("/data_transformation/cancel/")
+async def cancel_data_transformation(workflow_id: int = Form(...),
+                                    current_user: User = Depends(get_current_user)):
+    """Cancel the latest data transformation job for a workflow"""
+    try:
+        db = SessionLocal()
+        try:
+            # Get the most recent job for this workflow
+            job = db.query(OverlayDevelopmentDataTransformationJob).filter(
+                OverlayDevelopmentDataTransformationJob.workflow_id == workflow_id,
+                OverlayDevelopmentDataTransformationJob.user_id == current_user.id
+            ).order_by(OverlayDevelopmentDataTransformationJob.created_at.desc()).first()
+            
+            if not job:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "No data transformation job found for this workflow",
+                        "data": None
+                    }
+                )
+            
+            # Check if job can be cancelled
+            if job.status in ["completed", "failed", "cancelled"]:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Cannot cancel job with status: {job.status}",
+                        "data": {
+                            "job_id": job.id,
+                            "workflow_id": job.workflow_id,
+                            "current_status": job.status
+                        }
+                    }
+                )
+            
+            # Mark job as cancelled
+            job.status = "cancelled"
+            job.message = "Cancellation requested by user"
+            db.commit()
+            
+            print(f"⚠️ Job {job.id} (workflow {workflow_id}) cancellation requested by user {current_user.id}")
+            
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "msg": "Job cancellation requested. The process will stop at the next checkpoint.",
+                    "data": {
+                        "job_id": job.id,
+                        "workflow_id": job.workflow_id,
+                        "status": "cancelled"
+                    }
+                }
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Something went wrong: {str(e)}",
+                "data": None
+            }
+        )
 
 
 @router.get("/data_transformation_results")

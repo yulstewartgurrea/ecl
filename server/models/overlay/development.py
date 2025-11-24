@@ -132,6 +132,32 @@ class OverlayDevelopmentDataInterpolationOutput(Base):
     def __repr__(self):
         return f"<OverlayDevelopmentDataInterpolationOutput id={self.id} workflow_id={self.workflow_id!r}>"
 
+class OverlayDevelopmentDataTransformationJob(Base):
+    __tablename__ = "overlay_development_data_transformation_job"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(50), nullable=False, default="pending")  # pending, processing, completed, failed, cancelled
+    progress = Column(Integer, nullable=False, default=0)  # 0-100
+    message = Column(Text, nullable=True)  # Current step description
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=True)  # When processing started
+    completed_at = Column(DateTime, nullable=True)  # When processing completed/failed/cancelled
+    running_time_seconds = Column(Integer, nullable=True)  # Total running time in seconds
+    created_at = Column(
+        DateTime, nullable=False, server_default=sql_text("CURRENT_TIMESTAMP")
+    )
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+        onupdate=datetime.utcnow,
+    )
+
+    def __repr__(self):
+        return f"<OverlayDevelopmentDataTransformationJob id={self.id} workflow_id={self.workflow_id!r} status={self.status!r}>"
+
 class OverlayDevelopmentDataTransformationOutput(Base):
     __tablename__ = "overlay_development_data_tranformation_output"
 
@@ -154,6 +180,32 @@ class OverlayDevelopmentDataTransformationOutput(Base):
 
     def __repr__(self):
         return f"<OverlayDevelopmentDataTransformationOutput id={self.id} workflow_id={self.workflow_id!r}>"
+
+class OverlayDevelopmentMultifactorAnalysisJob(Base):
+    __tablename__ = "overlay_development_multifactor_analysis_job"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(50), nullable=False, default="pending")  # pending, processing, completed, failed, cancelled
+    progress = Column(Integer, nullable=False, default=0)  # 0-100
+    message = Column(Text, nullable=True)  # Current step description
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=True)  # When processing started
+    completed_at = Column(DateTime, nullable=True)  # When processing completed/failed/cancelled
+    running_time_seconds = Column(Integer, nullable=True)  # Total running time in seconds
+    created_at = Column(
+        DateTime, nullable=False, server_default=sql_text("CURRENT_TIMESTAMP")
+    )
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+        onupdate=datetime.utcnow,
+    )
+
+    def __repr__(self):
+        return f"<OverlayDevelopmentMultifactorAnalysisJob id={self.id} workflow_id={self.workflow_id!r} status={self.status!r}>"
 
 class OverlayDevelopmentMultiFactorAnalysisOutput(Base):
     __tablename__ = "overlay_development_multi_factor_analysis_output"

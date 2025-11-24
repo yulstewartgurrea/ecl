@@ -1,10 +1,10 @@
 // dataTransformation.ts
 // -------------------------------------------------------------
-// Orchestrates: POST -> GET (or poll) -> shape for ExeTable.
+// Orchestrates: POST -> GET -> shape for ExeTable.
 // Provides dynamic ColumnNode[] for both "transformations" tables.
 //
 // Usage in Step3.tsx (example):
-// const shaped = await runDataTransformation({ apiBase, token, workflowId: 1, poll: true });
+// const shaped = await runDataTransformation({ apiBase, token, workflowId: 1 });
 // <ExeTable
 //   view="transformations"
 //   mevData={shaped.independentRows}
@@ -31,6 +31,20 @@ export type DataTransformationResults = {
   dependent_data: Array<Record<string, any>>;
   independent_columns: string[];
   dependent_columns?: string[]; // optional; some backends only return rows
+};
+
+export type DataTransformationStatus = {
+  job_id: number;
+  workflow_id: number;
+  status: "pending" | "processing" | "completed" | "failed" | "cancelled";
+  progress: number;
+  message: string | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  running_time_seconds: number | null;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
 // The UI-ready payload for ExeTable
@@ -106,6 +120,59 @@ export async function postDataTransformation(opts: {
   return json;
 }
 
+export async function getDataTransformationStatus(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+}): Promise<ApiEnvelope<DataTransformationStatus>> {
+  const { apiBase, token, workflowId } = opts;
+
+  const url = `${base(apiBase)}/api/overlay/development/data_transformation/status/${workflowId}`;
+
+  const res = await xfetch(url, {
+    method: "GET",
+    headers: withAuth(token, { Accept: "application/json" }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiEnvelope<DataTransformationStatus>;
+  return json;
+}
+
+export async function cancelDataTransformation(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+}): Promise<ApiEnvelope<unknown>> {
+  const { apiBase, token, workflowId } = opts;
+
+  if (!Number.isFinite(workflowId)) {
+    throw new Error("workflowId must be a finite number");
+  }
+
+  const url = `${base(apiBase)}/api/overlay/development/data_transformation/cancel/`;
+
+  const form = new FormData();
+  form.append("workflow_id", String(workflowId));
+
+  const res = await xfetch(url, {
+    method: "POST",
+    headers: withAuth(token, { Accept: "application/json" }), // don't set Content-Type for FormData
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiEnvelope<unknown>;
+  if (!json?.success) throw new Error(json?.msg || "Failed to cancel data transformation");
+  return json;
+}
+
 export async function getDataTransformationResults(opts: {
   apiBase: string;
   token?: string | null;
@@ -129,45 +196,6 @@ export async function getDataTransformationResults(opts: {
   return json;
 }
 
-export async function pollDataTransformationResults(opts: {
-  apiBase: string;
-  token?: string | null;
-  workflowId: number;
-  intervalMs?: number; // default 800ms
-  maxAttempts?: number; // default 30 (~24s)
-  signal?: AbortSignal;
-}): Promise<ApiEnvelope<DataTransformationResults>> {
-  const {
-    apiBase,
-    token,
-    workflowId,
-    intervalMs = 800,
-    maxAttempts = 30,
-    signal,
-  } = opts;
-
-  let lastErr: unknown = null;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    if (signal?.aborted) throw new Error("Polling aborted");
-    try {
-      const res = await getDataTransformationResults({ apiBase, token, workflowId });
-      // Consider data "ready" if success=true and arrays exist
-      if (res?.success && res?.data?.independent_data && res?.data?.dependent_data) {
-        return res;
-      }
-      lastErr = new Error(res?.msg || "Results not ready yet");
-    } catch (e) {
-      // transient 404/422/empty while job is still running
-      lastErr = e;
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-
-  throw (lastErr instanceof Error
-    ? new Error(`Results not ready after ${maxAttempts} attempts: ${lastErr.message}`)
-    : new Error(`Results not ready after ${maxAttempts} attempts`));
-}
 
 // ---- shaping (dynamic columns for ExeTable) -----------------
 
@@ -316,30 +344,24 @@ export async function runDataTransformation(opts: {
   apiBase: string;
   token?: string | null;
   workflowId: number;
-  poll?: boolean; // default true
   includeAllIndependent?: boolean; // default false
   maxIndependentCols?: number; // default 120
-  signal?: AbortSignal;
-  skipPost?: boolean | undefined;           // ← NEW
+  skipPost?: boolean | undefined;
 }): Promise<TransformedUIData> {
   const {
     apiBase,
     token,
     workflowId,
-    poll = true,
     includeAllIndependent = false,
     maxIndependentCols,
-    signal,
-    skipPost = false,           // ← NEW default
+    skipPost = false,
   } = opts;
 
   if (!skipPost) {
     await postDataTransformation({ apiBase, token, workflowId });
   }
 
-  const resEnvelope = poll
-    ? await pollDataTransformationResults({ apiBase, token, workflowId, signal })
-    : await getDataTransformationResults({ apiBase, token, workflowId });
+  const resEnvelope = await getDataTransformationResults({ apiBase, token, workflowId });
 
   if (!resEnvelope?.success || !resEnvelope?.data) {
     throw new Error(resEnvelope?.msg || "Failed to retrieve transformation results");

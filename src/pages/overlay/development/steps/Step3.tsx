@@ -13,15 +13,18 @@ import {
   PlayCircleIcon,
   ArrowPathIcon,
   ArrowDownTrayIcon,
+  XCircleIcon,
 } from "@heroicons/react/24/outline";
 import {
   runDataTransformation,
-  type ApiEnvelope,
-  type DataTransformationResults,
+  postDataTransformation,
+  getDataTransformationStatus,
+  getDataTransformationResults,
+  cancelDataTransformation,
+  shapeTransformationResults,
+  type DataTransformationStatus,
 } from "../../../../services/dataTransformation";
 
-// 👉 Add this import (adjust relative path if needed)
-import { PollIsendNotifier } from "../../../../components/PollIsendNotifier";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -53,12 +56,16 @@ export default function OverlayDevelpmentPage3() {
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false); // enabled after GET success
 
-  const abortRef = useRef<AbortController | null>(null);
+  // Status states
+  const [status, setStatus] = useState<DataTransformationStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
-  // ---- Core loader (POST+poll or GET-only) ----
+
+  // ---- Core loader (POST or GET-only) ----
   const loadTransformation = useCallback(
-    async (params: { poll: boolean; skipPost: boolean }) => {
-      const { poll, skipPost } = params;
+    async (params: { skipPost: boolean }) => {
+      const { skipPost } = params;
       setErrMsg(null);
       if (!selectedWorkflowId && selectedWorkflowId !== 0) {
         setErrMsg(
@@ -67,25 +74,55 @@ export default function OverlayDevelpmentPage3() {
         return;
       }
 
-      if (abortRef.current) abortRef.current.abort();
-      abortRef.current = new AbortController();
+      // If starting a new job (POST), clear table data immediately
+      if (!skipPost) {
+        setMevRows([]);
+        setDefRows([]);
+        setMevCols([]);
+        setDefCols([]);
+      }
 
       setBusy(true);
       try {
-        const shaped = await runDataTransformation({
-          apiBase: API_BASE,
-          token,
-          workflowId: Number(selectedWorkflowId),
-          poll, // controls poll vs single GET
-          skipPost, // explicit
-          includeAllIndependent: false,
-          signal: abortRef.current.signal,
-        });
+        // POST to start new job
+        if (!skipPost) {
+          await postDataTransformation({
+            apiBase: API_BASE,
+            token,
+            workflowId: Number(selectedWorkflowId),
+          });
+          
+          // After starting job, check status instead of fetching results
+          const statusResponse = await getDataTransformationStatus({
+            apiBase: API_BASE,
+            token,
+            workflowId: Number(selectedWorkflowId),
+          });
 
-        setMevRows(shaped.independentRows);
-        setDefRows(shaped.dependentRows);
-        setMevCols(shaped.independentColumns);
-        setDefCols(shaped.dependentColumns);
+          if (statusResponse?.success && statusResponse?.data) {
+            setStatus(statusResponse.data);
+            // Job will be pending/processing, so show status message
+            if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
+              setErrMsg(
+                `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
+              );
+            }
+          }
+        } else {
+          // GET-only: fetch results (this path is for refresh)
+          const shaped = await runDataTransformation({
+            apiBase: API_BASE,
+            token,
+            workflowId: Number(selectedWorkflowId),
+            skipPost: true,
+            includeAllIndependent: false,
+          });
+
+          setMevRows(shaped.independentRows);
+          setDefRows(shaped.dependentRows);
+          setMevCols(shaped.independentColumns);
+          setDefCols(shaped.dependentColumns);
+        }
       } catch (err: any) {
         setErrMsg(err?.message || "Failed to run data transformation");
         setMevRows([]);
@@ -99,8 +136,146 @@ export default function OverlayDevelpmentPage3() {
     [API_BASE, token, selectedWorkflowId]
   );
 
-  const onRun = () => loadTransformation({ poll: true, skipPost: false }); // POST + poll
-  const onRefresh = () => loadTransformation({ poll: false, skipPost: true }); // GET-only
+  const onRun = () => loadTransformation({ skipPost: false }); // POST
+
+  // Refresh with status check
+  const onRefresh = useCallback(async () => {
+    setErrMsg(null);
+    if (!selectedWorkflowId && selectedWorkflowId !== 0) {
+      setErrMsg(
+        "Please select a workflow on Step 1 before refreshing."
+      );
+      return;
+    }
+
+    setStatusLoading(true);
+    setBusy(true);
+    try {
+      // First, check the job status
+      const statusResponse = await getDataTransformationStatus({
+        apiBase: API_BASE,
+        token,
+        workflowId: Number(selectedWorkflowId),
+      });
+
+      if (statusResponse?.success && statusResponse?.data) {
+        setStatus(statusResponse.data);
+        
+        // If job is still processing, show status but clear table data
+        if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
+          setErrMsg(
+            `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
+          );
+          // Clear table data when job is not completed
+          setMevRows([]);
+          setDefRows([]);
+          setMevCols([]);
+          setDefCols([]);
+          setBusy(false);
+          setStatusLoading(false);
+          return;
+        }
+
+        // If job failed, show error and clear table data
+        if (statusResponse.data.status === "failed") {
+          setErrMsg(
+            `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`
+          );
+          // Clear table data when job is not completed
+          setMevRows([]);
+          setDefRows([]);
+          setMevCols([]);
+          setDefCols([]);
+          setBusy(false);
+          setStatusLoading(false);
+          return;
+        }
+
+        // If job is cancelled, show message and clear table data
+        if (statusResponse.data.status === "cancelled") {
+          setErrMsg("Job was cancelled.");
+          // Clear table data when job is not completed
+          setMevRows([]);
+          setDefRows([]);
+          setMevCols([]);
+          setDefCols([]);
+          setBusy(false);
+          setStatusLoading(false);
+          return;
+        }
+
+        // If job is completed, fetch the results
+        if (statusResponse.data.status === "completed") {
+          const resultsResponse = await getDataTransformationResults({
+            apiBase: API_BASE,
+            token,
+            workflowId: Number(selectedWorkflowId),
+          });
+
+          if (resultsResponse?.success && resultsResponse?.data) {
+            const shaped = shapeTransformationResults(resultsResponse.data, {
+              includeAllIndependent: false,
+            });
+            shaped.meta.workflowId = Number(selectedWorkflowId);
+
+            setMevRows(shaped.independentRows);
+            setDefRows(shaped.dependentRows);
+            setMevCols(shaped.independentColumns);
+            setDefCols(shaped.dependentColumns);
+            setErrMsg(null); // Clear any previous errors
+          } else {
+            setErrMsg(resultsResponse?.msg || "Failed to retrieve transformation results");
+          }
+        }
+      } else {
+        // If status check fails, clear table data (only show data when status is completed)
+        setErrMsg(statusResponse?.msg || "Failed to check job status");
+        setMevRows([]);
+        setDefRows([]);
+        setMevCols([]);
+        setDefCols([]);
+      }
+    } catch (err: any) {
+      setErrMsg(err?.message || "Failed to refresh data transformation");
+      setMevRows([]);
+      setDefRows([]);
+      setMevCols([]);
+      setDefCols([]);
+    } finally {
+      setBusy(false);
+      setStatusLoading(false);
+    }
+  }, [API_BASE, token, selectedWorkflowId]);
+
+  // Cancel data transformation
+  const onCancel = useCallback(async () => {
+    if (!selectedWorkflowId && selectedWorkflowId !== 0) {
+      setErrMsg("Please select a workflow on Step 1 before cancelling.");
+      return;
+    }
+
+    setCancelling(true);
+    setErrMsg(null);
+    try {
+      const cancelResponse = await cancelDataTransformation({
+        apiBase: API_BASE,
+        token,
+        workflowId: Number(selectedWorkflowId),
+      });
+
+      if (cancelResponse?.success) {
+        setErrMsg("Job cancellation requested. The process will stop at the next checkpoint.");
+        // Refresh status to update UI
+        await onRefresh();
+      } else {
+        setErrMsg(cancelResponse?.msg || "Failed to cancel data transformation");
+      }
+    } catch (err: any) {
+      setErrMsg(err?.message || "Failed to cancel data transformation");
+    } finally {
+      setCancelling(false);
+    }
+  }, [API_BASE, token, selectedWorkflowId, onRefresh]);
 
   // ---- Enable export ONLY after GET data is present ----
   useEffect(() => {
@@ -110,6 +285,113 @@ export default function OverlayDevelpmentPage3() {
       selectedWorkflowId !== null && selectedWorkflowId !== undefined;
     setExportReady(Boolean(hasWorkflow && hasData && !busy));
   }, [mevRows, defRows, busy, selectedWorkflowId]);
+
+  // ---- Load data and check status on page load ----
+  useEffect(() => {
+    const loadDataOnMount = async () => {
+      // Only run if we have a workflow selected and token
+      if ((!selectedWorkflowId && selectedWorkflowId !== 0) || !token) {
+        return;
+      }
+
+      setStatusLoading(true);
+      setBusy(true);
+      try {
+        // First, check the job status
+        const statusResponse = await getDataTransformationStatus({
+          apiBase: API_BASE,
+          token,
+          workflowId: Number(selectedWorkflowId),
+        });
+
+        if (statusResponse?.success && statusResponse?.data) {
+          setStatus(statusResponse.data);
+          
+          // If job is still processing, show status but clear table data
+          if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
+            setErrMsg(
+              `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
+            );
+            // Clear table data when job is not completed
+            setMevRows([]);
+            setDefRows([]);
+            setMevCols([]);
+            setDefCols([]);
+            setBusy(false);
+            setStatusLoading(false);
+            return;
+          }
+
+          // If job failed, show error and clear table data
+          if (statusResponse.data.status === "failed") {
+            setErrMsg(
+              `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`
+            );
+            // Clear table data when job is not completed
+            setMevRows([]);
+            setDefRows([]);
+            setMevCols([]);
+            setDefCols([]);
+            setBusy(false);
+            setStatusLoading(false);
+            return;
+          }
+
+          // If job is cancelled, show message and clear table data
+          if (statusResponse.data.status === "cancelled") {
+            setErrMsg("Job was cancelled.");
+            // Clear table data when job is not completed
+            setMevRows([]);
+            setDefRows([]);
+            setMevCols([]);
+            setDefCols([]);
+            setBusy(false);
+            setStatusLoading(false);
+            return;
+          }
+
+          // If job is completed, fetch the results
+          if (statusResponse.data.status === "completed") {
+            const resultsResponse = await getDataTransformationResults({
+              apiBase: API_BASE,
+              token,
+              workflowId: Number(selectedWorkflowId),
+            });
+
+            if (resultsResponse?.success && resultsResponse?.data) {
+              const shaped = shapeTransformationResults(resultsResponse.data, {
+                includeAllIndependent: false,
+              });
+              shaped.meta.workflowId = Number(selectedWorkflowId);
+
+              setMevRows(shaped.independentRows);
+              setDefRows(shaped.dependentRows);
+              setMevCols(shaped.independentColumns);
+              setDefCols(shaped.dependentColumns);
+              setErrMsg(null); // Clear any previous errors
+            } else {
+              setErrMsg(resultsResponse?.msg || "Failed to retrieve transformation results");
+            }
+          }
+        } else {
+          // If status check fails, clear table data (only show data when status is completed)
+          setMevRows([]);
+          setDefRows([]);
+          setMevCols([]);
+          setDefCols([]);
+          // Don't set error on mount - silently fail
+        }
+      } catch (err: any) {
+        // Silently fail on mount - user can manually refresh if needed
+        console.error("Failed to load data on mount:", err);
+      } finally {
+        setBusy(false);
+        setStatusLoading(false);
+      }
+    };
+
+    loadDataOnMount();
+  }, [selectedWorkflowId, token, API_BASE]);
 
   // ---- Export CSV handler ----
   // Endpoint: /api/overlay/development/data_transformation_results/export/?workflow_id=<id>
@@ -167,14 +449,6 @@ export default function OverlayDevelpmentPage3() {
   const caption =
     view === "consolidated" ? "Consolidated monthly MEVs" : undefined;
 
-  // ---- GET-only status URL for the polling notifier ----
-  const statusUrl =
-    selectedWorkflowId || selectedWorkflowId === 0
-      ? `${API_BASE}/api/overlay/development/data_transformation_results?workflow_id=${encodeURIComponent(
-          String(selectedWorkflowId)
-        )}`
-      : "";
-
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
       <header className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white border-b">
@@ -190,7 +464,7 @@ export default function OverlayDevelpmentPage3() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Run (POST + internal poll) */}
+            {/* Run (POST) */}
             <button
               onClick={onRun}
               disabled={
@@ -208,25 +482,47 @@ export default function OverlayDevelpmentPage3() {
               {busy ? "Processing…" : "Run Data Transform"}
             </button>
 
-            {/* Refresh (GET-only) */}
+            {/* Refresh (with status check) */}
             <button
               onClick={onRefresh}
               disabled={
-                busy ||
+                statusLoading ||
                 (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
               className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
-                  : "Fetch latest results once"
+                  : "Check status and fetch latest results"
               }
             >
               <ArrowPathIcon
-                className={`h-4 w-4 ${busy ? "animate-spin" : ""}`}
+                className={`h-4 w-4 ${statusLoading ? "animate-spin" : ""}`}
               />
-              {busy ? "Refreshing…" : "Refresh"}
+              {statusLoading ? "Checking…" : "Refresh"}
             </button>
+
+            {/* Cancel (only show when job is pending or processing) */}
+            {status && (status.status === "pending" || status.status === "processing") && (
+              <button
+                onClick={onCancel}
+                disabled={
+                  cancelling ||
+                  (!selectedWorkflowId && selectedWorkflowId !== 0)
+                }
+                className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
+                title={
+                  !selectedWorkflowId
+                    ? "Pick a workflow on Step 1"
+                    : "Cancel the running data transformation job"
+                }
+              >
+                <XCircleIcon
+                  className={`h-4 w-4 ${cancelling ? "animate-spin" : ""}`}
+                />
+                {cancelling ? "Cancelling…" : "Cancel"}
+              </button>
+            )}
 
             {/* Export CSV */}
             <button
@@ -249,29 +545,6 @@ export default function OverlayDevelpmentPage3() {
               {exporting ? "Exporting…" : "Export CSV"}
             </button>
 
-            {/* Auto-checker (GET-only, every 10 mins) */}
-            {(selectedWorkflowId || selectedWorkflowId === 0) && (
-              <PollIsendNotifier<ApiEnvelope<DataTransformationResults>>
-                url={statusUrl}
-                everyMinutes={10}
-                requestInit={{
-                  headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                    Accept: "application/json",
-                  },
-                }}
-                // Consider it done when backend marks success and any rows exist.
-                parseDone={(env) =>
-                  Boolean(
-                    env?.success &&
-                      ((env?.data?.independent_data?.length ?? 0) > 0 ||
-                        (env?.data?.dependent_data?.length ?? 0) > 0)
-                  )
-                }
-                // When done, immediately load the data into the table.
-                onDone={() => onRefresh()}
-              />
-            )}
           </div>
         </div>
       </header>
@@ -286,6 +559,48 @@ export default function OverlayDevelpmentPage3() {
           {exportErr && (
             <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
               {exportErr}
+            </div>
+          )}
+          {status && (status.status === "processing" || status.status === "pending") && (
+            <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-blue-900">
+                    Job Status: {status.status.charAt(0).toUpperCase() + status.status.slice(1)}
+                  </div>
+                  <div className="text-xs text-blue-700 mt-1">
+                    {status.message || "Processing..."}
+                  </div>
+                  {status.progress !== null && status.progress !== undefined && (
+                    <div className="mt-2">
+                      <div className="w-full bg-blue-200 rounded-full h-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${status.progress}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-blue-600 mt-1">
+                        {status.progress}% complete
+                      </div>
+                    </div>
+                  )}
+                  {status.running_time_seconds !== null && (
+                    <div className="text-xs text-blue-600 mt-1">
+                      Running time: {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {status && status.status === "completed" && (
+            <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+              ✓ Job completed successfully
+              {status.running_time_seconds !== null && (
+                <span className="ml-2 text-xs">
+                  (Completed in {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s)
+                </span>
+              )}
             </div>
           )}
 
