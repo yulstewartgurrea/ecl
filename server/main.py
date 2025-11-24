@@ -46,19 +46,22 @@ app = FastAPI()
 
 origins = [
     "tauri://localhost",
-    "http://localhost:5173", 
+    "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost",
     "http://127.0.0.1",
     "http://localhost:3000",
-    "app://localhost"
+    "app://localhost",
+    "http://127.0.0.1:8000"
 ]
 
 # CORS - allow dev origins; adjust / tighten for production
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],          # accept any origin
+    allow_origin_regex=".*",     # extra-safe: any scheme (tauri://, app://, etc.)
+    allow_credentials=True,      # for cookies if you ever use them
     allow_methods=["*"],
     allow_headers=["*"],
 )

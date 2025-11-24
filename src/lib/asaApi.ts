@@ -6,7 +6,7 @@ type AuthScheme = "Bearer" | "Token" | "";
 /* ===== Base URL ===== */
 const DEFAULT_API_BASE =
   (typeof window !== "undefined" && (window as any).__ASA_API_BASE__) ||
-  "http://localhost:8000/api/flowrate_approach";
+  "http://127.0.0.1:8000/api/flowrate_approach";
 
 /* ===== Types used in Step 2 (keep exported) ===== */
 export type SummaryRow = {
@@ -34,10 +34,15 @@ export type AsaApi = {
 };
 
 /* ===== Helpers ===== */
-function makeAuthHeader(token?: string, scheme: AuthScheme = "Bearer"): Record<string, string> {
+function makeAuthHeader(
+  token?: string,
+  scheme: AuthScheme = "Bearer"
+): Record<string, string> {
   if (!token) return {};
   if (/^\s*(Bearer|Token)\s+/i.test(token)) return { Authorization: token };
-  return scheme ? { Authorization: `${scheme} ${token}` } : { Authorization: token };
+  return scheme
+    ? { Authorization: `${scheme} ${token}` }
+    : { Authorization: token };
 }
 
 /** Join base + path safely and remove any `/ ?` that causes 307s. */
@@ -68,7 +73,13 @@ async function fetchJson<T>(
 
   if (!res.ok) {
     let body: any = null;
-    try { body = await res.json(); } catch { try { body = await res.text(); } catch {} }
+    try {
+      body = await res.json();
+    } catch {
+      try {
+        body = await res.text();
+      } catch {}
+    }
     const err: any = new Error(`API ${res.status} ${res.statusText} – ${url}`);
     err.status = res.status;
     err.body = body;
@@ -104,29 +115,42 @@ export async function getStep2Consolidation(
   };
 
   // ⬇️ no trailing slash before ? (prevents 307)
-  const raw = await fetchJson<RawResp>(base, `data_consolidation?workflow_id=${workflowId}`, token, scheme);
+  const raw = await fetchJson<RawResp>(
+    base,
+    `data_consolidation?workflow_id=${workflowId}`,
+    token,
+    scheme
+  );
   const data = raw?.data ?? {};
 
-  const summaryRows: SummaryRow[] = (data.data_summary ?? []).map((r: any): SummaryRow => {
-    const dateKey = pick(r, ["Unique Report Dates", "Unique Report Date", "Report Date"])!;
-    const prodKey = pick(r, ["Unique Product", "Product"])!;
-    const idxKey  = pick(r, ["Index"])!;
-    return {
-      uniqueReportDate: (r[dateKey] ?? "").toString(),
-      uniqueProduct: (r[prodKey] ?? "").toString(),
-      index: Number(r[idxKey] ?? 0) || 0,
-    };
-  });
+  const summaryRows: SummaryRow[] = (data.data_summary ?? []).map(
+    (r: any): SummaryRow => {
+      const dateKey = pick(r, [
+        "Unique Report Dates",
+        "Unique Report Date",
+        "Report Date",
+      ])!;
+      const prodKey = pick(r, ["Unique Product", "Product"])!;
+      const idxKey = pick(r, ["Index"])!;
+      return {
+        uniqueReportDate: (r[dateKey] ?? "").toString(),
+        uniqueProduct: (r[prodKey] ?? "").toString(),
+        index: Number(r[idxKey] ?? 0) || 0,
+      };
+    }
+  );
 
-  const consolidatedRows: ConsolidatedRow[] = (data.consolidated_data ?? []).map((r: any): ConsolidatedRow => {
-    const rdKey   = pick(r, ["Report Date", "Date"])!;
-    const acKey   = pick(r, ["Aging Category"])!;
-    const delKey  = pick(r, ["Product Counts", "No. of Delinquents"]);
-    const lbpKey  = pick(r, ["Loan Balance Principal"]);
-    const nparCP  = pick(r, ["NET PAR Amount Loan Balance w/ CP"]);
-    const nparLB  = pick(r, ["NET PAR Amount Loan Balance Principal"]);
+  const consolidatedRows: ConsolidatedRow[] = (
+    data.consolidated_data ?? []
+  ).map((r: any): ConsolidatedRow => {
+    const rdKey = pick(r, ["Report Date", "Date"])!;
+    const acKey = pick(r, ["Aging Category"])!;
+    const delKey = pick(r, ["Product Counts", "No. of Delinquents"]);
+    const lbpKey = pick(r, ["Loan Balance Principal"]);
+    const nparCP = pick(r, ["NET PAR Amount Loan Balance w/ CP"]);
+    const nparLB = pick(r, ["NET PAR Amount Loan Balance Principal"]);
     const nparPct = pick(r, ["NET PAR % (Gross PAR/TLP)", "NET PAR %"]);
-    const repay   = pick(r, ["Repayment Rate"]);
+    const repay = pick(r, ["Repayment Rate"]);
 
     return {
       reportDate: (r[rdKey] ?? "").toString(),
@@ -144,25 +168,44 @@ export async function getStep2Consolidation(
 }
 
 /* ===== Generic API factory ===== */
-export function createAsaApi(token?: string, options?: { base?: string; scheme?: AuthScheme }): AsaApi {
+export function createAsaApi(
+  token?: string,
+  options?: { base?: string; scheme?: AuthScheme }
+): AsaApi {
   const base = options?.base ?? DEFAULT_API_BASE;
   const scheme = options?.scheme ?? "Bearer";
   return {
     getStep2Data: (workflowId: number) =>
-      fetchJson(base, `data_consolidation/?workflow_id=${workflowId}`, token, scheme),
+      fetchJson(
+        base,
+        `data_consolidation/?workflow_id=${workflowId}`,
+        token,
+        scheme
+      ),
     getStep3Data: (workflowId: number) =>
       fetchJson(base, `flow_rate/?workflow_id=${workflowId}`, token, scheme),
     getStep4Data: (workflowId: number) =>
       fetchJson(base, `flow_rate/?workflow_id=${workflowId}`, token, scheme),
     getStep5Data: (workflowId: number) =>
-      fetchJson(base, `credit_loss_calculation/?workflow_id=${workflowId}`, token, scheme),
+      fetchJson(
+        base,
+        `credit_loss_calculation/?workflow_id=${workflowId}`,
+        token,
+        scheme
+      ),
   };
 }
 
 /* ===== React hook — memoize so identity is STABLE ===== */
-export function useAsaApi(options?: { base?: string; scheme?: AuthScheme }): AsaApi {
+export function useAsaApi(options?: {
+  base?: string;
+  scheme?: AuthScheme;
+}): AsaApi {
   const authToken = useAppSelector((s) => s.auth.token) || undefined;
   const base = options?.base;
   const scheme = options?.scheme;
-  return useMemo(() => createAsaApi(authToken, { base, scheme }), [authToken, base, scheme]);
+  return useMemo(
+    () => createAsaApi(authToken, { base, scheme }),
+    [authToken, base, scheme]
+  );
 }

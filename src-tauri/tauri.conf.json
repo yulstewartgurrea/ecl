@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "ASA PHILIPPINES",
+        "title": "ecl-vite",
         "width": 1600,
         "height": 900,
         "resizable": true,
@@ -26,36 +26,36 @@
       "dangerousDisableAssetCspModification": true
     }
   },
-"bundle": {
-  "active": true,
-  "targets": "all",
-  "icon": [
-    "icons/32x32.png",
-    "icons/128x128.png",
-    "icons/128x128@2x.png",
-    "icons/icon.icns",
-    "icons/icon.ico"
-  ],
-  "windows": {
-    "allowDowngrades": true,
-    "certificateThumbprint": null,
-    "digestAlgorithm": null,
-    "nsis": {
-      "languages": ["English"]
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "allowDowngrades": true,
+      "certificateThumbprint": null,
+      "digestAlgorithm": null,
+      "nsis": {
+        "languages": ["English"]
+      },
+      "signCommand": null,
+      "timestampUrl": null,
+      "tsp": false,
+      "webviewInstallMode": {
+        "silent": true,
+        "type": "downloadBootstrapper"
+      },
+      "wix": {
+        "language": "en-US"
+      }
     },
-    "signCommand": null,
-    "timestampUrl": null,
-    "tsp": false,
-    "webviewInstallMode": {
-      "silent": true,
-      "type": "downloadBootstrapper"
-    },
-    "wix": {
-      "language": "en-US"
-    }
+    "resources": ["../server"]
   },
-  "resources": ["../server"]
-},
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDQTNENjY0MDQ4NkRBNEUKUldSTzJvWUVaTmFqTEhNRkh5WUFxN2kzZG5qUFdFM2lKMEpGQklxM1VNVTVDTlZ6NnBsbmtCMzAK",

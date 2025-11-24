@@ -1,19 +1,17 @@
-from sqlite3 import IntegrityError
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from crud.workflows import create_workflow
 from schemas.schemas import WorkflowResponse, WorkflowCreate  # Updated imports
-from models.models import User, Workflow
+from models.models import User
 from database import get_db
-from helpers.workflow import get_workflows, get_latest_workflow, get_workflow_by_id, update_workflow, delete_workflow
+from helpers.workflow import get_workflows, create_workflow, get_latest_workflow, get_workflow_by_id, update_workflow, delete_workflow
 from core.security import get_current_user
-from sqlalchemy import select
-from fastapi import HTTPException
+
 from helpers.make_json_serializable import make_json_serializable
+
+import traceback
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
@@ -38,6 +36,7 @@ def read_workflows(
         }
         return JSONResponse(status_code=200, content=res) 
     except Exception as e:
+        traceback.print_exc()
         res = {
             'code': -1,
             'msg': f'Something went wrong. {e}',
@@ -45,50 +44,32 @@ def read_workflows(
         }
         return JSONResponse(status_code=500, content=res) 
 
-@router.post("/", response_model=WorkflowResponse, status_code=201)
+@router.post("/", response_model=WorkflowResponse)
 def create_user_workflow(
     workflow: WorkflowCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
-    exists = db.execute(
-        select(Workflow).where(
-            Workflow.user_id == current_user.id,
-            Workflow.entity == workflow.entity,
-            Workflow.loan_product == workflow.loan_product,
-            Workflow.reporting_period == workflow.reporting_period,
-            Workflow.workflow_name == workflow.workflow_name,
-        )
-    ).scalar_one_or_none()
-
-    if exists:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "A workflow with the same "
-                "entity / loan_product / reporting_period / report_date_start / workflow_name "
-                "already exists for this user."
-            ),
-        )
-    workflow_path = (
-        f"/{workflow.entity}"
-        f"/{workflow.reporting_period}"
-        f"/{workflow.workflow_name}"
-        f"/{workflow.loan_product}"
-    )
-
     try:
-        db_workflow = create_workflow(
-            db=db,
-            wf_in=workflow,
-            user_id=current_user.id,
-            workflow_path=workflow_path,
-        )
-        return db_workflow
-    except IntegrityError as e:
-        db.rollback()
-        msg = getattr(e, "orig", e)
-        raise HTTPException(status_code=409, detail=f"Integrity error: {msg}")
+        workflow = create_workflow(db=db, workflow=workflow, user_id=current_user.id)
+        
+        # Console log when workflow is created
+        print(f"WORKFLOW CREATED: ID={workflow.id}, Name='{workflow.workflow_name}', Entity='{workflow.entity}', Period='{workflow.reporting_period}', User={current_user.id}") 
+        
+        res = {
+            "code": 1, 
+            "success": True,
+            "data": workflow.model_dump(),
+        }
+        return JSONResponse(status_code=200, content=res) 
+    except Exception as e:
+        traceback.print_exc()
+        res = {
+            'code': -1,
+            'msg': f'Something went wrong. {e}',
+            'success': False
+        }
+        return JSONResponse(status_code=500, content=res) 
 
 @router.get("/latest", response_model=WorkflowResponse)
 def get_latest_user_workflow(
