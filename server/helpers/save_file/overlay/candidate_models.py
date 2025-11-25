@@ -34,9 +34,9 @@ def save_candidate_models_output(
         df = pd.DataFrame(csv_data)
         df = df.to_csv(full_file_path, index=False)
         
-        print(f"✅ CSV file saved successfully: {full_file_path}")
+        print(f"CSV file saved successfully: {full_file_path}")
         return full_file_path
         
     except Exception as e:
-        print(f"❌ Error saving Excel file: {str(e)}")
+        print(f"Error saving Excel file: {str(e)}")
         raise Exception(f"Error saving Excel file: {str(e)}")

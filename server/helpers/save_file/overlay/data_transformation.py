@@ -50,13 +50,13 @@ def save_data_transformation_output(
                     
                     # Save DataFrame to Excel sheet
                     df.to_excel(writer, sheet_name=clean_sheet_name, index=False)
-                    print(f"✅ Saved {sheet_name} to sheet '{clean_sheet_name}' with {len(df)} rows")
+                    print(f"Saved {sheet_name} to sheet '{clean_sheet_name}' with {len(df)} rows")
                 else:
-                    print(f"⚠️ Skipping {sheet_name} - not a DataFrame: {type(df)}")
+                    print(f"Skipping {sheet_name} - not a DataFrame: {type(df)}")
         
-        print(f"✅ Excel file saved successfully: {full_file_path}")
+        print(f"Excel file saved successfully: {full_file_path}")
         return full_file_path
         
     except Exception as e:
-        print(f"❌ Error saving Excel file: {str(e)}")
+        print(f"Error saving Excel file: {str(e)}")
         raise Exception(f"Error saving Excel file: {str(e)}")
