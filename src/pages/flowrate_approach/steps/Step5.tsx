@@ -139,7 +139,7 @@ const Step5: React.FC = () => {
       if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
       const response = await fetch(
-        `http://localhost:8000/api/flowrate_approach/credit_loss_calculation/`,
+        `http://localhost:8000/api/flowrate_approach/credit_loss_calculation`,
         {
           method: "POST",
           headers,
