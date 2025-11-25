@@ -14,22 +14,22 @@ def extract_data(df, target_columns):
 
         df = df.copy()
         # Step 2: Find the header row (row 0 contains column names)
-        print("\n🔍 Step 2: Finding header row...")
+        print("\nStep 2: Finding header row...")
         header_row = 0  # Based on the CSV structure, row 0 has column names
-        print(f"✅ Using header row at line {header_row + 1}")
+        print(f"Using header row at line {header_row + 1}")
         
         # Step 3: Get column names
-        print("\n📋 Step 3: Getting column names...")
+        print("\nStep 3: Getting column names...")
         # column_names = df.iloc[header_row].tolist()
         column_names = df.columns.tolist()
-        print(f"📊 Total columns: {len(column_names)}")
-        print(f"📋 Column names: {column_names[:10]}...")  # Show first 10 columns
+        print(f"Total columns: {len(column_names)}")
+        print(f"Column names: {column_names[:10]}...")  # Show first 10 columns
         
         # Step 4: Define target columns
-        print("\n🎯 Step 4: Finding target columns...")
+        print("\nStep 4: Finding target columns...")
         
         # Step 5: Find columns with correct data types
-        print("\n🎯 Step 5: Finding columns with correct data types...")
+        print("\nStep 5: Finding columns with correct data types...")
         
         target_data_types = [
             'in levels (rates)', 
@@ -50,10 +50,10 @@ def extract_data(df, target_columns):
                 continue
         
         if data_type_row is None:
-            print("❌ Error: Could not find data type row")
+            print("Error: Could not find data type row")
             return None
         
-        print(f"✅ Found data type row at line {data_type_row + 1}")
+        print(f"Found data type row at line {data_type_row + 1}")
         data_types = df.iloc[data_type_row].tolist()
         
         # Find indices of target columns that have correct data types
@@ -70,27 +70,27 @@ def extract_data(df, target_columns):
                 if is_valid:
                     target_indices.append(i)
                     found_columns.append(col_name)
-                    print(f"   ✅ Found: {col_name} with data type: {data_type}")
+                    print(f"   Found: {col_name} with data type: {data_type}")
                 else:
-                    print(f"   ❌ Skipped: {col_name} with data type: {data_type}")
+                    print(f"   Skipped: {col_name} with data type: {data_type}")
         
-        print(f"\n📊 Found {len(found_columns)} valid columns out of {len(target_columns)}")
+        print(f"\nFound {len(found_columns)} valid columns out of {len(target_columns)}")
 
         print(found_columns)
         
         if len(found_columns) == 0:
-            print("❌ Error: No valid columns found")
+            print("Error: No valid columns found")
             return None
         
         # Step 6: Extract data using column indices
-        print("\n🔄 Step 6: Extracting data...")
+        print("\nStep 6: Extracting data...")
         df_extracted = df.iloc[:, target_indices].copy()
         df_extracted.columns = found_columns
         
-        print(f"✅ Extracted dataframe shape: {df_extracted.shape}")
+        print(f"Extracted dataframe shape: {df_extracted.shape}")
         
         # Step 7: Clean the data
-        print("\n🧹 Step 7: Cleaning extracted data...")
+        print("\nStep 7: Cleaning extracted data...")
         
         # Remove rows where all values are empty or NaN
         df_extracted = df_extracted.dropna(how='all')
@@ -98,7 +98,7 @@ def extract_data(df, target_columns):
         return df_extracted
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         return None
 
 def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
@@ -127,18 +127,18 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
     
     # Check if input file exists
     # if not os.path.exists(input_file):
-    #     print(f"❌ Error: Input file not found: {input_file}")
+    #     print(f"Error: Input file not found: {input_file}")
     #     return None
     
     try:
         # Step 1: Load and clean the data
-        print("\n📁 Step 1: Loading and cleaning quarterly data...")
+        print("\nStep 1: Loading and cleaning quarterly data...")
 
         df = quarterly_hist_mev_df.copy()
         df.columns = df.columns.str.strip().str.lower()
 
         # Step 2: Clean the data
-        print("\n🧹 Step 2: Cleaning quarterly data...")
+        print("\nStep 2: Cleaning quarterly data...")
 
         df = extract_data(df, target_columns)
 
@@ -151,8 +151,8 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         df = df[pd.to_numeric(df['year'], errors='coerce').notna()]
         cleaned_rows = len(df)
         
-        print(f"✅ Removed {initial_rows - cleaned_rows} rows with non-numeric years")
-        print(f"📊 Stored {len(non_numeric_rows)} non-numeric year rows to add back later")
+        print(f"Removed {initial_rows - cleaned_rows} rows with non-numeric years")
+        print(f"Stored {len(non_numeric_rows)} non-numeric year rows to add back later")
         
         # Convert Year to integer
         df['year'] = df['year'].astype(int)
@@ -180,7 +180,7 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
                 
                 if has_percentage:
                     # Remove % symbol and convert to numeric
-                    print(f"      🎯 Processing percentage column: {col}")
+                    print(f"      Processing percentage column: {col}")
                     df[col] = df[col].astype(str).str.replace('%', '').str.strip()
                     df[col] = pd.to_numeric(df[col], errors='coerce')
                 else:
@@ -192,15 +192,15 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         # Remove rows where all numeric values are NaN
         df = df.dropna(subset=numeric_columns, how='all')
         
-        print(f"📊 Final cleaned quarterly data shape: {df.shape}")
-        print(f"📅 Date range: {df['year'].min()}-{df['year'].max()}")
+        print(f"Final cleaned quarterly data shape: {df.shape}")
+        print(f"Date range: {df['year'].min()}-{df['year'].max()}")
         
         # Show sample of quarterly data
-        print(f"📋 Sample quarterly data:")
+        print(f"Sample quarterly data:")
         print(df[['year', 'quarter', 'id', 'x']].head(10))
         
         # Step 3: Find the first quarter where x is not empty/NaN
-        print("\n🔍 Step 3: Finding first quarter with x value...")
+        print("\nStep 3: Finding first quarter with x value...")
         
         # Find the first row where x is not NaN/empty
         first_x_row = None
@@ -210,7 +210,7 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
                 break
         
         if first_x_row is None:
-            print("❌ Error: Could not find any row with x value")
+            print("Error: Could not find any row with x value")
             return None
         
         first_year = first_x_row['year']
@@ -221,10 +221,10 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         quarter_to_month = {1: 3, 2: 6, 3: 9, 4: 12}
         first_month = quarter_to_month[first_quarter]
         
-        print(f"✅ First quarter with x value: {first_year} Q{first_quarter} (Month {first_month}) with x={first_x_value}")
+        print(f"First quarter with x value: {first_year} Q{first_quarter} (Month {first_month}) with x={first_x_value}")
         
         # Step 4: Create monthly index for ALL months from 2012-01 to 2024-12
-        print("\n📅 Step 4: Creating monthly index for all months...")
+        print("\nStep 4: Creating monthly index for all months...")
         
         start_year = df['year'].min()
         end_year = df['year'].max()
@@ -236,11 +236,11 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             freq='MS'  # Month start
         )
         
-        print(f"✅ Created monthly index: {len(monthly_dates)} months")
-        print(f"📅 From {monthly_dates[0].strftime('%Y-%m')} to {monthly_dates[-1].strftime('%Y-%m')}")
+        print(f"Created monthly index: {len(monthly_dates)} months")
+        print(f"From {monthly_dates[0].strftime('%Y-%m')} to {monthly_dates[-1].strftime('%Y-%m')}")
         
         # Step 5: Create monthly DataFrame
-        print("\n🔄 Step 5: Creating monthly DataFrame...")
+        print("\nStep 5: Creating monthly DataFrame...")
         
         monthly_df = pd.DataFrame(index=monthly_dates)
         monthly_df['year'] = monthly_df.index.year
@@ -258,7 +258,7 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             monthly_df['x'].iloc[i] = (i - first_data_row_idx) * 0.1
         
         # Step 6: Interpolate quarterly data to monthly
-        print("\n📈 Step 6: Interpolating quarterly to monthly data...")
+        print("\nStep 6: Interpolating quarterly to monthly data...")
         
         # Get numeric columns (excluding Year, Quarter, Month, ID, x and unnamed columns)
         numeric_cols = [col for col in df.columns 
@@ -266,17 +266,17 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
                        not str(col).lower().startswith('unnamed') and
                        pd.api.types.is_numeric_dtype(df[col])]
         
-        print(f"📊 Found {len(numeric_cols)} numeric columns to interpolate:")
+        print(f"Found {len(numeric_cols)} numeric columns to interpolate:")
         for i, col in enumerate(numeric_cols, 1):
             print(f"   {i:2d}. {col}")
         
         # Remove duplicate rows based on Year and Quarter
         df_clean = df.drop_duplicates(subset=['year', 'quarter'], keep='first')
-        print(f"📊 Removed {len(df) - len(df_clean)} duplicate rows")
+        print(f"Removed {len(df) - len(df_clean)} duplicate rows")
         
         # For each numeric column, interpolate from quarterly to monthly
         for col in numeric_cols:
-            print(f"   🔄 Interpolating: {col}")
+            print(f"   Interpolating: {col}")
             
             # Create quarterly series with proper dates
             quarterly_temp = df_clean[['year', 'quarter', col]].copy()
@@ -309,15 +309,15 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         column_order = ['year', 'quarter', 'month', 'id', 'x'] + numeric_cols
         monthly_df = monthly_df[column_order]
         
-        print(f"✅ Interpolation complete!")
-        print(f"📊 Monthly data shape: {monthly_df.shape}")
+        print(f"Interpolation complete!")
+        print(f"Monthly data shape: {monthly_df.shape}")
         
         # Show sample of interpolated data
-        print(f"📋 Sample interpolated monthly data:")
+        print(f"Sample interpolated monthly data:")
         print(monthly_df[['year', 'month', 'id', 'x']].head(15))
         
         # Step 7: Calculate growth rates
-        print("\n📊 Step 7: Calculating growth rates...")
+        print("\nStep 7: Calculating growth rates...")
         
         monthly_with_growth = monthly_df.copy()
         
@@ -325,7 +325,7 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         first_data_date_idx = monthly_df.index[monthly_df.index >= f"{first_year}-{first_month:02d}-01"][0]
         first_data_row_idx = monthly_df.index.get_loc(first_data_date_idx)
         
-        print(f"📅 Growth rate calculation starts from: {first_data_date_idx.strftime('%Y-%m')} (row {first_data_row_idx})")
+        print(f"Growth rate calculation starts from: {first_data_date_idx.strftime('%Y-%m')} (row {first_data_row_idx})")
         
         for col in numeric_cols:
             growth_col = f"{col}_growth_12m"
@@ -346,11 +346,11 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
                 else:
                     monthly_with_growth[growth_col].iloc[i] = 0
         
-        print(f"✅ Added 12-month growth rates for {len(numeric_cols)} variables")
-        print(f"📊 Growth rates calculated from row {first_data_row_idx + 12} onwards")
+        print(f"Added 12-month growth rates for {len(numeric_cols)} variables")
+        print(f"Growth rates calculated from row {first_data_row_idx + 12} onwards")
         
         # Step 8: Save output files
-        print("\n💾 Step 8: Saving output files...")
+        print("\nStep 8: Saving output files...")
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
@@ -368,28 +368,28 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         # monthly_with_growth.to_csv(excel_growth, index=False)
         # monthly_with_growth.to_excel(excel_growth, index=False, sheet_name='Monthly_Data_With_Growth')
         
-        print(f"✅ Files saved:")
-        # print(f"   📄 Basic data (CSV): {csv_basic}")
-        # print(f"   📊 Basic data (Excel): {excel_basic}")
-        # print(f"   📄 With growth (CSV): {csv_growth}")
-        # print(f"   📊 With growth (Excel): {excel_growth}")
+        print(f"Files saved:")
+        # print(f"   Basic data (CSV): {csv_basic}")
+        # print(f"   Basic data (Excel): {excel_basic}")
+        # print(f"   With growth (CSV): {csv_growth}")
+        # print(f"   With growth (Excel): {excel_growth}")
         
         # Step 9: Generate summary
-        print("\n📋 Step 9: Summary Report")
+        print("\nStep 9: Summary Report")
         print("="*60)
-        print(f"📁 Input file: {input_file}")
-        print(f"📅 Processing date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"📊 Quarterly data rows: {len(df)}")
-        print(f"📊 Monthly data rows: {len(monthly_df)}")
-        print(f"📅 Date range: {start_year}-{end_year}")
-        print(f"📅 First quarter with x value: {first_year} Q{first_quarter} (Month {first_month}) with x={first_x_value}")
-        print(f"📈 Variables interpolated: {len(numeric_cols)}")
-        print(f"🔄 Interpolation method: Linear interpolation (Quarterly to Monthly)")
-        print(f"📊 Growth rate period: 12 months (Year-over-Year)")
-        print(f"🔢 Months with zero values: {first_month - 1} months before first x value")
+        print(f"Input file: {input_file}")
+        print(f"Processing date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Quarterly data rows: {len(df)}")
+        print(f"Monthly data rows: {len(monthly_df)}")
+        print(f"Date range: {start_year}-{end_year}")
+        print(f"First quarter with x value: {first_year} Q{first_quarter} (Month {first_month}) with x={first_x_value}")
+        print(f"Variables interpolated: {len(numeric_cols)}")
+        print(f"Interpolation method: Linear interpolation (Quarterly to Monthly)")
+        print(f"Growth rate period: 12 months (Year-over-Year)")
+        print(f"Months with zero values: {first_month - 1} months before first x value")
         
         # Verify specific data points
-        print(f"\n🔍 Data Verification:")
+        print(f"\nData Verification:")
         # Dynamic verification - check first month, month before start, and start month
         first_month_id = f"{start_year}-Jan"
         month_before_start_id = f"{first_year}-{month_names[first_month-1] if first_month > 1 else 12}"
@@ -419,7 +419,7 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             print(f"   {prev_month_id}: Unemployment Rate={prev_row['unemp_rate'].iloc[0]:.3f}")
         
         print("\n" + "="*60)
-        print("🎉 SUCCESS: Proper monthly interpolated data generated!")
+        print("SUCCESS: Proper monthly interpolated data generated!")
         print("="*60)
         
         # Clean and convert DataFrames for JSON serialization
@@ -428,7 +428,7 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         
         # Add back the non-numeric year rows to the final output
         if len(non_numeric_rows) > 0:
-            print(f"\n🔄 Adding back {len(non_numeric_rows)} non-numeric year rows...")
+            print(f"\nAdding back {len(non_numeric_rows)} non-numeric year rows...")
             
             # Convert non_numeric_rows to the same format as monthly data
             # Add missing columns with default values, but preserve original values where they exist
@@ -494,16 +494,16 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             # Prepend to monthly_with_growth_clean (add at the top)
             monthly_with_growth_clean = pd.concat([non_numeric_rows_growth, monthly_with_growth_clean], ignore_index=True)
 
-            print(f"✅ Added back {len(non_numeric_rows)} rows to final output")
-            print(f"📊 Final monthly_df_clean shape: {monthly_df_clean.shape}")
-            print(f"📊 Final monthly_with_growth_clean shape: {monthly_with_growth_clean.shape}")
+            print(f"Added back {len(non_numeric_rows)} rows to final output")
+            print(f"Final monthly_df_clean shape: {monthly_df_clean.shape}")
+            print(f"Final monthly_with_growth_clean shape: {monthly_with_growth_clean.shape}")
 
         # monthly_with_growth_clean.to_csv("data/ecl/overlay/output/development/data_interpolation_output.csv", index=False)
 
         return monthly_with_growth_clean
         
     except Exception as e:
-        print(f"❌ Error during processing: {str(e)}")
+        print(f"Error during processing: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
