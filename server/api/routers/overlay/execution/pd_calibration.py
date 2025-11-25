@@ -59,7 +59,7 @@ async def calculate_pd_calibration(workflow_id: int = Form(...),
             name = "12month_transition_matrix"
             workflow_path = f"/{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
             print(workflow)
-            # 🔹 Step 2: Check if workflow_path already exists in DB
+            # Step 2: Check if workflow_path already exists in DB
             migration_matrix = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
             if migration_matrix:
                 # Deserialize json_data before returning

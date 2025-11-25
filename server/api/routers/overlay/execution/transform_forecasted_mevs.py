@@ -222,11 +222,11 @@ async def get_transform_forecasted_mevs_results(workflow_id: int = Query(...),
             data = None
             if file_ext in ['.xlsx', '.xls']:
                 # Read Excel file
-                print(f"📊 Detected Excel file: {file_ext}")
+                print(f"Detected Excel file: {file_ext}")
                 data = pd.read_excel(transform_forecasted_mevs_file)
             elif file_ext == '.csv':
                 # Read CSV file
-                print(f"📊 Detected CSV file")
+                print(f"Detected CSV file")
                 data = pd.read_csv(transform_forecasted_mevs_file)
             else:
                 raise ValueError(f"Unsupported file format: {file_ext}. Supported formats: .csv, .xlsx, .xls")

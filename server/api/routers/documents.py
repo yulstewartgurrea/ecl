@@ -60,7 +60,7 @@ def options_workflow_exists() -> Response:
     return Response(status_code=status.HTTP_200_OK)
 
 
-# 👇 2) Your existing GET handler, unchanged logic but with debug logs
+# 2) Your existing GET handler, unchanged logic but with debug logs
 @router.get("/workflows/check")
 def check_workflow_exists(
     entity: str = Query(..., description="Entity name, e.g., BanKo"),
@@ -73,7 +73,7 @@ def check_workflow_exists(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # 📁 MUST match the same pattern as in create_user_workflow
+    # MUST match the same pattern as in create_user_workflow
     print("test")
     workflow_path = (
         f"/{entity}"
@@ -138,7 +138,7 @@ def list_excel_files(
         .filter(
             Document.workflow_path == workflow_path,
             Document.user_id == current_user.id
-        )  # ✅ apply same filter here
+        )  # apply same filter here
         .all()
     )
 
@@ -533,7 +533,7 @@ def insert_new_document(
         # Increment version by 1 for the new record
         version = docs.version + 1
 
-        # 2️⃣ Create new record
+        # Create new record
         new_doc = Document(
             workflow_path=workflow,
             filename=filename,
@@ -591,7 +591,7 @@ def get_valid_rows_only(
             (Document.filename == latest_docs_subquery.c.filename) &
             (Document.version == latest_docs_subquery.c.max_version)
         )
-        .all()  # ✅ must be .all() to make it iterable
+        .all()  # must be .all() to make it iterable
     )
 
     if not records:
@@ -619,7 +619,7 @@ def get_valid_rows_only(
         if not combined_data:
             return JSONResponse(status_code=404, content={"detail": "No valid json_data found in any records."})
 
-        # ✅ Convert to DataFrame and process DPD
+        # Convert to DataFrame and process DPD
         df = pd.DataFrame(combined_data)
 
         if "report_date" in df.columns and "dpd" in df.columns:
@@ -920,7 +920,7 @@ def bucket_dpd_pivoted(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        # 🔹 Step 1: Extract workflow_path and row
+        # Step 1: Extract workflow_path and row
         workflow_path = payload.get("workflow_path")
         name = "bucket-dpd"
         payload_rows = payload.get("row", [])
@@ -931,12 +931,12 @@ def bucket_dpd_pivoted(
         # Debug
         print(f"[bucket-dpd] workflow_path={workflow_path}; payload_rows_present={isinstance(payload_rows, list) and len(payload_rows) > 0}")
 
-        # 🔹 Step 2: See if a cached Json exists (we won't return it immediately)
+        # Step 2: See if a cached Json exists (we won't return it immediately)
         existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
         if existing:
             print(f"[bucket-dpd] cached Json found id={existing.id} (will be updated after recompute)")
 
-        # 🔹 Step 3: Determine rows_to_use — prefer payload rows, else gather from latest Documents
+        # Step 3: Determine rows_to_use — prefer payload rows, else gather from latest Documents
         rows_to_use: List[Dict[str, Any]] = []
 
         if isinstance(payload_rows, list) and len(payload_rows) > 0:
@@ -1008,7 +1008,7 @@ def bucket_dpd_pivoted(
         if not isinstance(rows_to_use, list) or len(rows_to_use) == 0:
             return JSONResponse(status_code=400, content={"detail": "No row data available to process (payload or DB)."})
 
-        # 🔹 Step 4: Original processing — do not change calculations/responses
+        # Step 4: Original processing — do not change calculations/responses
         df = pd.DataFrame(rows_to_use)
 
         if df.empty:
@@ -1057,7 +1057,7 @@ def bucket_dpd_pivoted(
                     total_accounts += count
             print(f"[bucket-dpd] {col} total accounts (0–4): {total_accounts}")
 
-        # 🔹 Step 5: Save to DB and return (keep same return structure)
+        # Step 5: Save to DB and return (keep same return structure)
         result = pivot_df.to_dict(orient="records")
 
         if existing:
@@ -1102,7 +1102,7 @@ def dpd_bucket1(dpd_value):
         else:
             return 4  # DPD > 90 is BAD
     except Exception as e:
-        print(f"⚠️ Error in dpd_bucket1 for value: {dpd_value} -> {e}")
+        print(f"Error in dpd_bucket1 for value: {dpd_value} -> {e}")
         return "Invalid"
 
 
@@ -1729,7 +1729,7 @@ def calculate_bucket_matrix_average(
     merged_df = merged_df.dropna(subset=["Bucket"])
     merged_df["Bucket"] = merged_df["Bucket"].astype(int)
 
-    # ✅ Helper: truncate instead of round
+    # Helper: truncate instead of round
     def truncate(num: float, decimals: int = 2) -> float:
         if pd.isna(num):
             return 0.0
@@ -1787,10 +1787,10 @@ def calculate_bucket_matrix_average(
 @router.get("/get-migration-matrix-average")
 def get_migration_matrix_average(workflow_path: str = Query(..., description="Subdirectory under server/files containing Excel files"),
     db: Session = Depends(get_db)):
-    # 🔹 Step 1: Check if workflow_path already exists in D
+    # Step 1: Check if workflow_path already exists in D
     name = "migration_matrix_average"
     print(workflow_path)
-    # 🔹 Step 2: Check if workflow_path already exists in DB
+    # Step 2: Check if workflow_path already exists in DB
     existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
     if existing:
         # Deserialize json_data before returning

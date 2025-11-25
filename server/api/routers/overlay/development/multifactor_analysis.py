@@ -48,7 +48,7 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
         ).first()
         
         if not job:
-            print(f"❌ Job {job_id} not found")
+            print(f"Job {job_id} not found")
             return
         
         # Mark job as started and record start time
@@ -100,7 +100,7 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
         # Check for cancellation before starting
         if check_cancellation():
             set_running_time()
-            print(f"⚠️ Job {job_id} was cancelled before processing started")
+            print(f"Job {job_id} was cancelled before processing started")
             return
         
         portfolio = workflow.loan_product
@@ -173,7 +173,7 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
                     set_running_time()
                     job.message = "Cancelled by user"
                     db.commit()
-                    print(f"⚠️ Job {job_id} was cancelled during processing")
+                    print(f"Job {job_id} was cancelled during processing")
                     return
             raise  # Re-raise if it's a different error
         
@@ -189,7 +189,7 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
         job.message = f"Multifactor analysis completed successfully. Processed {num_comb} combinations."
         db.commit()
         
-        print(f"✅ Job {job_id} completed successfully in {job.running_time_seconds} seconds")
+        print(f"Job {job_id} completed successfully in {job.running_time_seconds} seconds")
         
     except Exception as e:
         traceback.print_exc()
@@ -213,7 +213,7 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
                 db.commit()
         except:
             pass
-        print(f"❌ Job {job_id} failed: {str(e)}")
+        print(f"Job {job_id} failed: {str(e)}")
     finally:
         db.close()
 
@@ -447,7 +447,7 @@ async def cancel_multifactor_analysis(workflow_id: int = Form(...),
             job.message = "Cancellation requested by user"
             db.commit()
             
-            print(f"⚠️ Job {job.id} (workflow {workflow_id}) cancellation requested by user {current_user.id}")
+            print(f"Job {job.id} (workflow {workflow_id}) cancellation requested by user {current_user.id}")
             
             return JSONResponse(
                 status_code=200,
@@ -522,7 +522,7 @@ async def get_mfa_results(
         )
 
         if not os.path.exists(multifactor_analysis_output_path):
-            print(f"❌ {multifactor_analysis_output_path} does not exist")
+            print(f"{multifactor_analysis_output_path} does not exist")
             return JSONResponse(
                 status_code=404, 
                 content={
@@ -555,8 +555,8 @@ async def get_mfa_results(
         df = pd.read_csv(mfa_path)
         total_count = len(df)
         
-        print(f"📊 MFA Results: {total_count} total records")
-        print(f"📄 Pagination: Page {page}, Size {page_size}")
+        print(f"MFA Results: {total_count} total records")
+        print(f"Pagination: Page {page}, Size {page_size}")
 
         # Convert to list of records for pagination
         all_records = make_json_serializable(df.to_dict('records'))
