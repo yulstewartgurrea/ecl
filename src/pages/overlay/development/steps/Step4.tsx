@@ -99,6 +99,8 @@ const Step4: React.FC<Step4Props> = ({
 
   const canPrev = page > 1;
 
+  const canNext = totalPages ? page < totalPages : serverRows.length === pageSize;
+  console.log(canNext)
   const displayRows = useMemo(() => {
     const usingServerPaging = Boolean(pages || total);
     if (usingServerPaging) return serverRows;

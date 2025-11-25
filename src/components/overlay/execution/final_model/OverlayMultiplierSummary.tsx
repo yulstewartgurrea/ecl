@@ -14,8 +14,6 @@ export type OverlayMultiplierSummaryProps = {
 };
 
 // ODR already comes as a percentage value (e.g. 4.28)
-const fmtPct = (v: number) =>
-  `${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
 
 /**
  * Convert overlay multiplier value to a percentage string with 2 decimals.

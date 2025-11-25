@@ -15,6 +15,117 @@ mod api;
 
 use crate::api::folderapi::{create_folder_tree, upload_files, list_folder_contents, get_folder_contents};
 
+//////////////////////////////////////////////////////////////////
+// INSERTED: Windows helper to ensure Python 3.12 is installed
+//////////////////////////////////////////////////////////////////
+#[cfg(target_os = "windows")]
+fn ensure_python312_installed_and_in_path() {
+    // Preferred per-user install location
+    let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let py_dir_default = std::path::Path::new(&local)
+        .join("Programs").join("Python").join("Python312");
+    let py_exe_default = py_dir_default.join("python.exe");
+
+    // Helper: run a command and return success
+    let ok = |mut c: Command| {
+        c.stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    };
+
+    // Detect an existing 3.12
+    let mut have_312 = false;
+
+    if py_exe_default.exists() {
+        have_312 = true;
+    } else {
+        let mut c = Command::new("py");
+        c.args(["-3.12", "--version"]);
+        if ok(c) {
+            have_312 = true;
+        } else if let Ok(out) = Command::new("python").arg("--version").output() {
+            let s = if out.stdout.is_empty() { &out.stderr } else { &out.stdout };
+            let v = String::from_utf8_lossy(s);
+            if v.contains("3.12") {
+                have_312 = true;
+            }
+        }
+    }
+
+    // If missing, download and install silently (per-user, no admin)
+    if !have_312 {
+        println!("Python 3.12 not found. Downloading and installing Python 3.12.0 for current user…");
+        let url = "https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe";
+        let tmp = std::env::temp_dir().join("python-3.12.0-amd64.exe");
+        let tmp_str = tmp.to_string_lossy().to_string();
+
+        // Download with PowerShell to avoid adding Rust HTTP deps
+        let dl = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy","Bypass",
+                "-Command",
+                &format!("Invoke-WebRequest -UseBasicParsing -Uri '{}' -OutFile '{}'", url, tmp_str.replace('\\', "\\\\")),
+            ])
+            .status();
+
+        if !dl.as_ref().map(|s| s.success()).unwrap_or(false) {
+            eprintln!("Failed to download Python installer from {}", url);
+        } else {
+            let inst = Command::new(&tmp)
+                .args([
+                    "/quiet",
+                    "InstallAllUsers=0",
+                    "PrependPath=1",
+                    "Include_test=0",
+                    "SimpleInstall=1",
+                    "Shortcuts=0",
+                ])
+                .status();
+
+            if !inst.as_ref().map(|s| s.success()).unwrap_or(false) {
+                eprintln!("Python installer failed (exit {:?}).", inst.ok().and_then(|s| s.code()));
+            } else {
+                println!("Python 3.12 installed successfully.");
+            }
+        }
+    }
+
+    // Ensure PATH for the current process so `Command::new("python")` resolves now
+    let py_dir = if py_exe_default.exists() {
+        py_dir_default.clone()
+    } else if let Ok(out) = Command::new("py")
+        .args(["-3.12","-c","import sys,os;print(os.path.dirname(sys.executable), end='')"])
+        .output()
+    {
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let cand = std::path::PathBuf::from(s);
+        if cand.exists() { cand } else { py_dir_default.clone() }
+    } else {
+        py_dir_default.clone()
+    };
+
+    let scripts = py_dir.join("Scripts");
+    let old = std::env::var("PATH").unwrap_or_default();
+    let mut newp = String::new();
+    newp.push_str(&py_dir.to_string_lossy());
+    newp.push(';');
+    newp.push_str(&scripts.to_string_lossy());
+    newp.push(';');
+    newp.push_str(&old);
+    std::env::set_var("PATH", newp);
+}
+
+#[cfg(not(target_os = "windows"))]
+fn ensure_python312_installed_and_in_path() {
+    // no-op on non-Windows platforms
+}
+//////////////////////////////////////////////////////////////////
+// END INSERT
+//////////////////////////////////////////////////////////////////
+
 // Updater commands
 #[tauri::command]
 async fn check_for_updates(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
@@ -22,7 +133,6 @@ async fn check_for_updates(app: tauri::AppHandle) -> Result<serde_json::Value, S
     
     match updater.check().await {
         Ok(Some(update)) => {
-            // Convert update info to JSON
             let update_info = serde_json::json!({
                 "version": update.version,
                 "date": chrono::Utc::now().to_rfc3339(),
@@ -43,16 +153,13 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         Ok(Some(update)) => {
             match update.download_and_install(
                 |chunk_length, content_length| {
-                    // Handle download progress
                     println!("Downloaded {} bytes out of {:?}", chunk_length, content_length);
                 },
                 || {
-                    // Handle completion
                     println!("Download and installation completed.");
                 },
             ).await {
                 Ok(_) => {
-                    // Restart the app after successful update
                     app.restart();
                     Ok(())
                 }
@@ -69,8 +176,6 @@ async fn get_app_version() -> Result<String, String> {
     Ok(env!("CARGO_PKG_VERSION").to_string())
 }
 
-
-
 fn get_server_dir() -> PathBuf {
     if cfg!(debug_assertions) {
         // DEV: project root/server
@@ -85,6 +190,26 @@ fn get_server_dir() -> PathBuf {
         exe_dir.join("_up_").join("server")
     }
 }
+
+//////////////////////////////////////////////////////////////////
+// INSERTED: user-writable log directory to avoid UAC denials
+//////////////////////////////////////////////////////////////////
+fn resolve_log_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(base) = std::env::var("LOCALAPPDATA") {
+            let p = PathBuf::from(base).join("ecl-automation-tool").join("logs");
+            let _ = fs::create_dir_all(&p);
+            return p;
+        }
+    }
+    let p = std::env::temp_dir().join("ecl-automation-tool-logs");
+    let _ = fs::create_dir_all(&p);
+    p
+}
+//////////////////////////////////////////////////////////////////
+// END INSERT
+//////////////////////////////////////////////////////////////////
 
 fn setup_python_env(server_dir: &PathBuf) -> PathBuf {
     let venv_path = server_dir.join("venv");
@@ -137,8 +262,10 @@ fn setup_python_env(server_dir: &PathBuf) -> PathBuf {
 }
 
 fn start_fastapi(server_dir: &PathBuf, python_exe: &PathBuf) -> std::process::Child {
-    let stdout_path = server_dir.join("fastapi_stdout.log");
-    let stderr_path = server_dir.join("fastapi_stderr.log");
+    // WRITE LOGS OUTSIDE Program Files (avoid UAC)
+    let log_dir = resolve_log_dir();
+    let stdout_path = log_dir.join("fastapi_stdout.log");
+    let stderr_path = log_dir.join("fastapi_stderr.log");
 
     let stdout = fs::File::create(&stdout_path).unwrap();
     let stderr = fs::File::create(&stderr_path).unwrap();
@@ -185,7 +312,6 @@ fn start_fastapi(server_dir: &PathBuf, python_exe: &PathBuf) -> std::process::Ch
     child
 }
 
-
 fn ensure_server_folders(server_dir: &PathBuf) {
     let files_dir = server_dir.join("files");
 
@@ -207,7 +333,7 @@ async fn main() {
     fs::create_dir_all(&server_dir).unwrap();
     println!("Server directory: {:?}", server_dir);
 
-    // Ensure server subfolders like `files` exist
+    // // Ensure server subfolders like `files` exist
     ensure_server_folders(&server_dir);
 
     // Commented out to prevent auto-starting FastAPI server

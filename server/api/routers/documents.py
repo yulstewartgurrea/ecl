@@ -12,7 +12,7 @@ from models.models import User
 from database import get_db
 from helpers.document import get_documents, create_document, delete_document
 from core.security import get_current_user
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Body, Query, Response
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 from pathlib import Path
@@ -53,36 +53,67 @@ def insert_documents(
     return created_documents
 
 
+@router.options("/workflows/check")
+def options_workflow_exists() -> Response:
+    # CORS middleware will still inject the right headers.
+    # We just return 200 so the preflight always passes.
+    return Response(status_code=status.HTTP_200_OK)
+
+
+# 👇 2) Your existing GET handler, unchanged logic but with debug logs
 @router.get("/workflows/check")
 def check_workflow_exists(
     entity: str = Query(..., description="Entity name, e.g., BanKo"),
-    reporting_period: str = Query(..., description="Reporting period, e.g., Annually"),
-    workflow_name: str = Query(..., description="Workflow name, e.g., asdsdf"),
+    loan_product: str = Query("", description="Loan product, e.g., Home"),
+    reporting_period: str = Query(..., description="Reporting period, e.g., Monthly"),
+    report_date_start: str = Query(
+        "", description="Report start date, e.g., 2025-11-21"
+    ),
+    workflow_name: str = Query(..., description="Workflow name, e.g., asa1a2"),
     db: Session = Depends(get_db),
-   current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    # Build the workflow_path string
-    workflow_path = f"/{entity}/{reporting_period}/{workflow_name}"
-    
-    # Query the document table for that path and user_id (optional: filter by current user)
-    doc = db.query(Document).filter(
-        Document.workflow_path == workflow_path,
-        Document.user_id == current_user.id
-    ).first()
+    # 📁 MUST match the same pattern as in create_user_workflow
+    print("test")
+    workflow_path = (
+        f"/{entity}"
+        f"/{reporting_period}"
+        f"/{workflow_name}"
+        f"/{loan_product}"
+    )
+    print("test")
+    print("[check_workflow_exists] user_id:", current_user.id)
+    print("[check_workflow_exists] workflow_path:", workflow_path)
 
-    exists = doc is not None
+    doc = (
+        db.query(Document)
+        .filter(
+            Document.workflow_path == workflow_path,
+            Document.user_id == current_user.id,
+        )
+        .first()
+    )
 
-    return {"exists": exists}
+    print("[check_workflow_exists] found doc:", doc)
 
+    return {"exists": doc is not None}
 @router.get("/workflows/files", response_model=List[str])
 def list_excel_files(
     entity: str = Query(...),
     reporting_period: str = Query(...),
     workflow_name: str = Query(...),
+    loan_product: str = Query(...),
+    report_date_start: str = Query(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    workflow_path = f"/{entity}/{reporting_period}/{workflow_name}"
+    workflow_path = (
+        f"/{entity}/"
+        f"{loan_product}/"
+        f"{reporting_period}/"
+        f"{report_date_start}/"
+        f"{workflow_name}"
+    )
 
     latest_docs_subquery = (
         db.query(

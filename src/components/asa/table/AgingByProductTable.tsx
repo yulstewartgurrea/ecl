@@ -1,7 +1,7 @@
 // ==========================
 // components/asa/table/AgingByProductTable.tsx (PAGINATION + NEUTRAL HEADER)
 // ==========================
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SpreadsheetTable, type Column } from "./SpreadsheetTable";
 import type { AgingRow } from "./aging.types";
 import { fmtDate, fmtNum } from "./aging.types";
@@ -10,8 +10,6 @@ import {
   ChevronRightIcon,
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
-  FunnelIcon,
-  ChevronDownIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 

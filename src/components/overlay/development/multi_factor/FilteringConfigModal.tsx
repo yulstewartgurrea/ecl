@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { XMarkIcon, PlusIcon, TrashIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon,  TrashIcon, CheckIcon } from "@heroicons/react/24/outline";
 import { type FilterRule, saveFilters, loadFilters } from "./headersStorage";
 
 type Props = {
@@ -44,6 +44,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
       setRows(existing.length ? existing : [{ id: uid(), column: "", value: "" }]);
       setInvalidValueIds(new Set());
       setTimeout(() => firstInputRef.current?.focus(), 50);
+      console.log('setSearch: ', setSearch)
     }
   }, [open, workflowId]);
 
@@ -166,7 +167,8 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
           <div>
             <h3 className="text-lg font-semibold">Configure Filters</h3>
             <p className="text-xs text-neutral-600">
-              Choose a column and enter a value. You can add multiple rules. Use search to find columns quickly.
+              Choose a column and enter a numeric value, then click <strong>Apply</strong>. These filters will be used
+              when you run the analysis in Step 5.
             </p>
           </div>
           <button onClick={onClose} className="rounded-md p-2 hover:bg-neutral-100">
@@ -236,7 +238,6 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
 
             {/* COMPACT RULES GRID (2 columns) */}
             <div className="rounded-md border">
-
               {/* The grid scrolls; 2 cards per row on md+ */}
               <div className="p-2 max-h-[48vh] overflow-auto">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

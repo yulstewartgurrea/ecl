@@ -8,7 +8,7 @@ import {
   ArrowPathIcon,
   PlayCircleIcon,
   Cog6ToothIcon,
-  ArrowDownTrayIcon, // ✅ added
+  ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 
 import FilteringConfigModal from "../../../../components/overlay/development/multi_factor/FilteringConfigModal";
@@ -81,7 +81,7 @@ function toCsv(headers: string[], rows: Row[]): string {
 
 const Step5: React.FC<Step5Props> = ({
   title = "Filtering Models — Selected Regression Outputs",
-  description = "Trigger filtering, then review the filtered model list. Use column filters to narrow by variables, lags, and stats."
+  description = "Configure filters, run the analysis, then select one or more models before proceeding to Step 6.",
 }) => {
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
     useSelector((s: RootState) => (s as any).pdTransitionMatrixWfHelper);
@@ -107,8 +107,15 @@ const Step5: React.FC<Step5Props> = ({
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
 
+  // ✅ New gating states
+  const [hasAppliedFilters, setHasAppliedFilters] = useState(false);
+  const [hasRunAnalysis, setHasRunAnalysis] = useState(false);
+  const [selectedRowsCount, setSelectedRowsCount] = useState(0);
+
   const selectedCount = selectedFilters.length;
-  const canRun = Number.isFinite(selectedWorkflowId) && selectedCount > 0;
+  // ✅ Run Analysis is only enabled if: workflow selected + filters exist + filters applied this session
+  const canRun =
+    Number.isFinite(selectedWorkflowId) && selectedCount > 0 && hasAppliedFilters;
 
   // Stable fetcher
   const fetchResults = useCallback(async () => {
@@ -126,6 +133,7 @@ const Step5: React.FC<Step5Props> = ({
       setRows(rows ?? []);
       setTotal(total);
     } catch (e: any) {
+      console.log(payloadFilters)
       setRows([]);
       setTotal(undefined);
       setErrMsg(e?.message || "Failed to fetch filtering results.");
@@ -140,6 +148,9 @@ const Step5: React.FC<Step5Props> = ({
       setHeaders([]);
       setSelectedFilters([]);
       setPayloadFilters([]);
+      setHasAppliedFilters(false);
+      setHasRunAnalysis(false);
+      setSelectedRowsCount(0);
       return;
     }
     const wf = Number(selectedWorkflowId);
@@ -152,6 +163,11 @@ const Step5: React.FC<Step5Props> = ({
     setHeaders(merged);
     setSelectedFilters(sel);
     setPayloadFilters(buildPayload(merged, sel));
+
+    // Reset gating for new workflow
+    setHasAppliedFilters(false);
+    setHasRunAnalysis(false);
+    setSelectedRowsCount(0);
   }, [selectedWorkflowId]);
 
   // Auto-fetch results on mount & whenever the workflow changes
@@ -179,6 +195,10 @@ const Step5: React.FC<Step5Props> = ({
     if (Number.isFinite(selectedWorkflowId)) {
       setSelectedFilters(loadFilters(Number(selectedWorkflowId))); // reads back selected (now includes REQUIRED)
     }
+    // ✅ Mark that user applied filters in this session
+    setHasAppliedFilters(true);
+    // ✅ Require re-run after changing filters
+    setHasRunAnalysis(false);
     fetchResults();
   }
 
@@ -191,6 +211,11 @@ const Step5: React.FC<Step5Props> = ({
       setErrMsg("Please configure at least one filter (gear icon).");
       return;
     }
+    if (!hasAppliedFilters) {
+      setErrMsg("Click Configure, set filters, and Apply before running the analysis.");
+      return;
+    }
+
     setPosting(true);
     setErrMsg(null);
     try {
@@ -202,6 +227,8 @@ const Step5: React.FC<Step5Props> = ({
         // filters: payloadFilters.map((f) => ({ column: f.column, value: f.value })),
       });
       await fetchResults();
+      // ✅ Mark that analysis has run successfully with the current filters
+      setHasRunAnalysis(true);
     } catch (e: any) {
       setErrMsg(e?.message || "Failed to start filtering.");
     } finally {
@@ -218,6 +245,25 @@ const Step5: React.FC<Step5Props> = ({
       ((rows?.length ?? 0) > 0 || (total ?? 0) > 0);
     setExportReady(Boolean(ready));
   }, [selectedWorkflowId, loading, posting, rows, total]);
+
+  // ✅ Persist "ready for Step 6" status in localStorage so Step 6 can validate
+  useEffect(() => {
+    if (!Number.isFinite(selectedWorkflowId)) return;
+    const readyForStep6 = hasAppliedFilters && hasRunAnalysis && selectedRowsCount > 0;
+    const key = `overlay:step5:ready:${selectedWorkflowId}`;
+    const payload = {
+      readyForStep6,
+      hasAppliedFilters,
+      hasRunAnalysis,
+      selectedRowsCount,
+      lastUpdated: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem(key, JSON.stringify(payload));
+    } catch {
+      // ignore storage errors
+    }
+  }, [selectedWorkflowId, hasAppliedFilters, hasRunAnalysis, selectedRowsCount]);
 
   // ---- Export handler ----
   async function exportCsv() {
@@ -298,7 +344,9 @@ const Step5: React.FC<Step5Props> = ({
           <Cog6ToothIcon className="h-4 w-4" />
           Configure
           {selectedCount > 0 && (
-            <span className="ml-1 rounded-full bg-neutral-200 px-2 py-0.5 text-xs">{selectedCount}</span>
+            <span className="ml-1 rounded-full bg-neutral-200 px-2 py-0.5 text-xs">
+              {selectedCount}
+            </span>
           )}
         </button>
 
@@ -306,7 +354,15 @@ const Step5: React.FC<Step5Props> = ({
           onClick={runFiltering}
           disabled={posting || loading || !canRun}
           className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
-          title={!canRun ? "Configure at least one filter via the gear icon" : ""}
+          title={
+            !Number.isFinite(selectedWorkflowId)
+              ? "Pick a workflow on Step 1 first."
+              : !selectedCount
+              ? "Add at least one filter via Configure."
+              : !hasAppliedFilters
+              ? "After configuring filters, click Apply in the modal before running the analysis."
+              : "Run analysis using the configured filters."
+          }
         >
           <PlayCircleIcon className="h-4 w-4" />
           {posting ? "Running…" : "Run Analysis"}
@@ -340,7 +396,19 @@ const Step5: React.FC<Step5Props> = ({
         </button>
       </div>
     ),
-    [posting, loading, selectedWorkflowId, headers.length, selectedCount, canRun, exportReady, exporting]
+    [
+      posting,
+      loading,
+      selectedWorkflowId,
+      headers.length,
+      selectedCount,
+      canRun,
+      exportReady,
+      exporting,
+      hasAppliedFilters,
+      fetchResults,
+      exportCsv,
+    ]
   );
 
   return (
@@ -352,6 +420,29 @@ const Step5: React.FC<Step5Props> = ({
           <p className="mt-1 max-w-3xl text-sm text-neutral-600">{description}</p>
         </div>
         {headerRight}
+      </div>
+
+      {/* ✅ Clear step-by-step instructions for the user */}
+      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+        <p className="font-semibold">Before you can proceed to Step 6, please follow these steps:</p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5">
+          <li>
+            Click <strong>Configure</strong> and set your filter rules (columns &amp; values).
+          </li>
+          <li>
+            Inside the configuration modal, click <strong>Apply</strong> to save the filters.
+          </li>
+          <li>
+            Back on this page, click <strong>Run Analysis</strong> to generate the filtered model list.
+          </li>
+          <li>
+            After the table is populated, <strong>select one or more rows</strong> in the table.
+          </li>
+        </ol>
+        <p className="mt-2">
+          You can only continue to <strong>Step 6</strong> after you have run the analysis and selected models in the
+          table.
+        </p>
       </div>
 
       {/* Errors */}
@@ -385,16 +476,26 @@ const Step5: React.FC<Step5Props> = ({
             String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`)
           }
           onSelectionChange={(selRows) => {
-            // eslint-disable-next-line no-console
             console.log("Selected:", selRows.length);
+            // ✅ track selected rows for Step 6 gating
+            setSelectedRowsCount(selRows.length);
           }}
-          emptyMessage="Run analysis (after configuring filters) to see results."
+          emptyMessage="Run analysis (after configuring filters) to see results, then select rows to proceed to Step 6."
         />
       </div>
 
       {/* Footer / count */}
       <p className="mt-3 text-sm text-neutral-600">
         Showing {filtered.length} of {total ?? rows.length} rows.
+      </p>
+
+      {/* ✅ Status hint for Step 6 */}
+      <p className="mt-1 text-xs text-neutral-700">
+        {hasAppliedFilters && hasRunAnalysis
+          ? selectedRowsCount > 0
+            ? "✅ You have selected models. Step 6 can now be unlocked."
+            : "⚠️ Analysis complete. Select at least one row in the table to unlock Step 6."
+          : "⚠️ Step 6 is locked until you configure filters, click Apply, and run the analysis."}
       </p>
 
       {/* Config Modal */}

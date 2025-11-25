@@ -1,5 +1,4 @@
 // components/asa/table/PrincipalMatrixTable.tsx
-import React from "react";
 import { SpreadsheetTable, type Column } from "./SpreadsheetTable";
 import type { AgingRow } from "./aging.types";
 import { fmtDate, fmtNum } from "./aging.types";

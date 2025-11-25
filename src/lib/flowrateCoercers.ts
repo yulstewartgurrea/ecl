@@ -30,7 +30,9 @@ export function pctToDecimal(v: any): number {
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
-export function latestByDate<T extends { Date?: string; date?: string }>(arr: T[]): T | undefined {
+export function latestByDate<T extends { Date?: string; date?: string }>(
+  arr: T[]
+): T | undefined {
   if (!arr || arr.length === 0) return undefined;
   const get = (r: any) => (r?.Date ?? r?.date ?? "").toString();
   const sorted = arr.slice().sort((a, b) => get(b).localeCompare(get(a)));
@@ -74,7 +76,9 @@ export function coerceRowsFromStep5(payload: any): MonthRow[] {
 
   const arr: any[] = Array.isArray(block) ? block : [];
   return arr.map((r) => {
-    const date = (pick(r, ["Date", "Report Date", "date", "report_date"]) ?? "").toString();
+    const date = (
+      pick(r, ["Date", "Report Date", "date", "report_date"]) ?? ""
+    ).toString();
     const cols: MonthRow["cols"] = {
       d0: pctToDecimal(pick(r, FLOW_KEYS.d0)),
       par1_30: pctToDecimal(pick(r, FLOW_KEYS.par1_30)),
@@ -89,7 +93,11 @@ export function coerceRowsFromStep5(payload: any): MonthRow[] {
 
     const monotonicStr = pick(r, ["Monotonic?", "Monotonic", "monotonic"]);
     let monotonic: boolean | undefined = undefined;
-    if (monotonicStr !== undefined && monotonicStr !== null && monotonicStr !== "") {
+    if (
+      monotonicStr !== undefined &&
+      monotonicStr !== null &&
+      monotonicStr !== ""
+    ) {
       const str = String(monotonicStr).toLowerCase().trim();
       monotonic = str === "yes" || monotonicStr === true;
     }
@@ -98,13 +106,19 @@ export function coerceRowsFromStep5(payload: any): MonthRow[] {
       "Weighted credit loss rate / month",
       "weighted_credit_loss_rate",
     ]);
-    const weighted = weightedRate != null && weightedRate !== "" ? pctToDecimal(weightedRate) : undefined;
+    const weighted =
+      weightedRate != null && weightedRate !== ""
+        ? pctToDecimal(weightedRate)
+        : undefined;
 
     return { date, cols, monotonic, weighted };
   });
 }
 
-export function coerceRateSets(payload: any, rows: MonthRow[]): RatesColumnSet[] {
+export function coerceRateSets(
+  payload: any,
+  rows: MonthRow[]
+): RatesColumnSet[] {
   const explicit =
     payload?.data?.historical_credit_loss_rate ??
     payload?.data?.historical_rates ??
@@ -146,13 +160,22 @@ export function coerceRateSets(payload: any, rows: MonthRow[]): RatesColumnSet[]
 
   if (!rows.length) return [];
   const keys = CATS.map((c) => c.key);
-  const sums: Record<string, number> = Object.fromEntries(keys.map((k) => [k, 0]));
-  rows.forEach((r) => keys.forEach((k) => (sums[k] += r.cols[k as keyof MonthRow["cols"]] || 0)));
-  const avg: Record<any, number> = Object.fromEntries(keys.map((k) => [k, (sums[k] || 0) / rows.length]));
+  const sums: Record<string, number> = Object.fromEntries(
+    keys.map((k) => [k, 0])
+  );
+  rows.forEach((r) =>
+    keys.forEach((k) => (sums[k] += r.cols[k as keyof MonthRow["cols"]] || 0))
+  );
+  const avg: Record<any, number> = Object.fromEntries(
+    keys.map((k) => [k, (sums[k] || 0) / rows.length])
+  );
   return [{ name: "Historical (avg of months)", values: avg as any }];
 }
 
-export function coerceDistribution(step5: any, step3?: any): DistributionBy | undefined {
+export function coerceDistribution(
+  step5: any,
+  step3?: any
+): DistributionBy | undefined {
   const d1 =
     step5?.data?.distribution ??
     step5?.data?.["distribution"] ??
@@ -181,17 +204,38 @@ export function coerceDistribution(step5: any, step3?: any): DistributionBy | un
 
   if (Array.isArray(distBlock) && distBlock.length) {
     const latest = latestByDate(distBlock as any[]);
-    const date = (latest?.Date ?? latest?.date ?? latest?.["Report Date"] ?? "").toString();
+    const date = (
+      latest?.Date ??
+      latest?.date ??
+      latest?.["Report Date"] ??
+      ""
+    ).toString();
     const values = {
       d0: pctToDecimal(pick(latest, ["0 day", "0 Day"])),
-      par1_30: pctToDecimal(pick(latest, ["PAR 1  (1 & 30 days)", "PAR 1 (1 & 30 days)"])),
-      par30_60: pctToDecimal(pick(latest, ["PAR 30  (31 & 60 days)", "PAR 30 (31 & 60 days)"])),
-      par60_90: pctToDecimal(pick(latest, ["PAR 60  (61 & 90 days)", "PAR 60 (61 & 90 days)"])),
-      par90_120: pctToDecimal(pick(latest, ["PAR 90  (91 & 120 days)", "PAR 90 (91 & 120 days)"])),
-      par120_180: pctToDecimal(pick(latest, ["PAR 120  (121 & 180 days)", "PAR 120 (121 & 180 days)"])),
-      par180_240: pctToDecimal(pick(latest, ["PAR 180  (181 & 240 days)", "PAR 180 (181 & 240 days)"])),
-      par240_360: pctToDecimal(pick(latest, ["PAR 240  (241 & 360 days)", "PAR 240 (241 & 360 days)"])),
-      par360p: pctToDecimal(pick(latest, ["PAR 360  (361 & Up days)", "PAR 360 (361 & Up days)"])),
+      par1_30: pctToDecimal(
+        pick(latest, ["PAR 1  (1 & 30 days)", "PAR 1 (1 & 30 days)"])
+      ),
+      par30_60: pctToDecimal(
+        pick(latest, ["PAR 30  (31 & 60 days)", "PAR 30 (31 & 60 days)"])
+      ),
+      par60_90: pctToDecimal(
+        pick(latest, ["PAR 60  (61 & 90 days)", "PAR 60 (61 & 90 days)"])
+      ),
+      par90_120: pctToDecimal(
+        pick(latest, ["PAR 90  (91 & 120 days)", "PAR 90 (91 & 120 days)"])
+      ),
+      par120_180: pctToDecimal(
+        pick(latest, ["PAR 120  (121 & 180 days)", "PAR 120 (121 & 180 days)"])
+      ),
+      par180_240: pctToDecimal(
+        pick(latest, ["PAR 180  (181 & 240 days)", "PAR 180 (181 & 240 days)"])
+      ),
+      par240_360: pctToDecimal(
+        pick(latest, ["PAR 240  (241 & 360 days)", "PAR 240 (241 & 360 days)"])
+      ),
+      par360p: pctToDecimal(
+        pick(latest, ["PAR 360  (361 & Up days)", "PAR 360 (361 & Up days)"])
+      ),
     };
     return { type: "asOf", asOfLabel: `as of ${date}`, values };
   }
@@ -214,4 +258,3 @@ export function toChartRows(rows: MonthRow[]): CreditLossRateRow[] {
     weighted_loss_rate: r.weighted ?? null,
   }));
 }
-

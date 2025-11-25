@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
-from typing import Literal, Optional, Union
+from pydantic import BaseModel, EmailStr
+from typing import Optional, Union
 from datetime import datetime
 # User Schemas
 class UserBase(BaseModel):
@@ -23,38 +23,19 @@ class WorkflowBase(BaseModel):
     baseline_year: Optional[Union[int, str]] = None  # Accept int or str
     json_data: Optional[str] = "default"
     reporting_period: str
+    status: Optional[Union[int, str]] = None  # Accept int or str
     workflow_type: Optional[str] = "default"
+    loan_product: Optional[str] = None
 
-class WorkflowCreate(BaseModel):
-    entity: str
-    workflow_name: str
-    reporting_period: str | Literal["Monthly", "Quarterly", "Yearly"]  # adjust as needed
-    baseline_year: int | str
-    workflow_type: str
-    json_data: Optional[str] = "default"
-    loan_product: str
-    @field_validator("baseline_year", mode="before")
-    @classmethod
-    def _coerce_year(cls, v):
-        if v is None:
-            raise ValueError("baseline_year is required")
-        if isinstance(v, int):
-            return v
-        s = str(v).strip()
-        if not s.isdigit():
-            raise ValueError("baseline_year must be numeric")
-        return int(s)
+class WorkflowCreate(WorkflowBase):
+    pass
 
-class WorkflowResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)  # <-- IMPORTANT
+class WorkflowResponse(WorkflowBase):
     id: int
-    entity: str
-    workflow_name: str
-    reporting_period: str
-    baseline_year: int
-    workflow_type: str
     user_id: int
-    json_data: Optional[str] = "default"
+
+    class Config:
+        from_attributes = True
 
 # Document Schemas
 class DocumentBase(BaseModel):

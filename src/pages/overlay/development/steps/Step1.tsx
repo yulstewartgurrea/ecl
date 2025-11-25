@@ -586,7 +586,7 @@ export default function Step1() {
           <div className="space-y-2">
             <div className="relative">
               <UploadDropzone
-                label="HISTORICAL MEV"
+                label="HISTORICAL WEIGHTED CREDIT LOSS RATE"
                 description="CSV or Excel. Name like: historical_*_arima.*"
                 required
                 accept={accept}

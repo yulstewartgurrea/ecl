@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { ChevronLeftIcon } from "@heroicons/react/24/outline";
 import { invoke } from "@tauri-apps/api/core";
-
+import { useAppDispatch } from "../../redux_toolkit/hooks";
+import { resetPdMatrixWfHelperData } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdMatrixWfHelper";
+import { resetPdTransitionMatrixWfHelperData } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 interface FileInfo {
   name: string;
   is_folder: boolean;
@@ -11,16 +13,27 @@ interface FileInfo {
 }
 
 interface WorkflowFolderListProps {
+  /**
+   * Mapping (kept as-is for compatibility with TransitionMatrixLanding):
+   *   entity         -> entity dropdown
+   *   reportingPeriod -> period dropdown
+   *   workflowName   -> workflow name input
+   *   loanProduct    -> loan product dropdown
+   *   reportDateStart -> report date input (YYYY-MM-DD)  (not used in path anymore)
+   */
   onWorkflowSelect?: (
     entity: string,
     reportingPeriod: string,
-    workflowName: string
+    workflowName: string,
+    loanProduct?: string,
+    reportDateStart?: string
   ) => void;
 }
 
 const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
   onWorkflowSelect,
 }) => {
+    const dispatch = useAppDispatch();
   const [currentPath, setCurrentPath] = useState("");
   const [contents, setContents] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +43,7 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
 
   const fetchContents = async (path: string) => {
     setLoading(true);
+    console.log("path:", path);
     try {
       const res = await invoke<{ items: FileInfo[] }>("get_folder_contents", {
         relativePath: path || "",
@@ -45,10 +59,52 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
 
   useEffect(() => {
     fetchContents(currentPath);
+    console.log("currentPath:", currentPath);
   }, [currentPath]);
+
+  /**
+   * Folder structure (NEW source of truth):
+   *   0: Entity
+   *   1: Reporting Period
+   *   2: Workflow Name
+   *   3: Loan Product
+   *
+   * => workflowPath = entity/reportingPeriod/workflowName/loanProduct
+   */
+  const notifySelection = (path: string) => {
+    if (!onWorkflowSelect) return;
+
+    if (!path) {
+      // Clear selection when at root
+      onWorkflowSelect("", "", "", "", "");
+      return;
+    }
+
+    const parts = path.split("/");
+
+    const entity = parts[0] ?? "";
+    const reportingPeriod = parts[1] ?? "";
+    const workflowName = parts[2] ?? "";
+    const loanProduct = parts[3] ?? "";
+    // reportDateStart is *not* part of workflowPath anymore
+    const reportDateStart = "";
+
+    // Parameter order:
+    // (entity, reportingPeriod, workflowName, loanProduct, reportDateStart)
+    onWorkflowSelect(
+      entity,
+      reportingPeriod,
+      workflowName,
+      loanProduct,
+      reportDateStart
+    );
+  };
 
   const handleFolderClick = async (folderName: string) => {
     const newPath = currentPath ? `${currentPath}/${folderName}` : folderName;
+
+    // Update the landing form based on full path
+    notifySelection(newPath);
 
     try {
       setLoading(true);
@@ -58,23 +114,9 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
 
       const hasSubfolders = res.items.some((item) => item.is_folder);
 
-      if (!hasSubfolders) {
-        // This is last folder (WorkflowName)
-        // Extract Entity, ReportingPeriod, WorkflowName from path parts
-        const parts = newPath.split("/");
-        if (parts.length === 3) {
-          const [entity, reportingPeriod, workflowName] = parts;
-          if (onWorkflowSelect) {
-            onWorkflowSelect(entity, reportingPeriod, workflowName);
-          }
-        } else {
-          // fallback if path not exactly 3 parts
-          if (onWorkflowSelect) {
-            onWorkflowSelect("", "", newPath);
-          }
-        }
+      if (hasSubfolders) {
+        setCurrentPath(newPath);
       } else {
-        // not last folder — drill down
         setCurrentPath(newPath);
       }
       setContents(res.items);
@@ -89,7 +131,10 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
   const handleBack = () => {
     if (!currentPath) return;
     const newPath = currentPath.split("/").slice(0, -1).join("/");
+    dispatch(resetPdMatrixWfHelperData());
+     dispatch(resetPdTransitionMatrixWfHelperData());
     setCurrentPath(newPath);
+    notifySelection(newPath);
   };
 
   const handleContextMenu = (

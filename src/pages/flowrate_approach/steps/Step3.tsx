@@ -1,7 +1,7 @@
 // ==========================
 // pages/flowrate/steps/Step3.tsx (API-DRIVEN, FIXED BLOCK + NUMBER PARSING)
 // ==========================
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import AgingByProductTable from "../../../components/asa/table/AgingByProductTable";
 import TableFilterPopover from "../../../components/asa/table/ui/TableFilterPopover";

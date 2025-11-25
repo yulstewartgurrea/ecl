@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useLocation, useSearchParams } from "react-router-dom";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
@@ -133,9 +133,9 @@ export default function Step6() {
 
       <div className="min-h-dvh p-6 space-y-6">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Credit Loss Rate — Step 6 (Charts)</h2>
+          <h2 className="text-lg font-bold text-gray-900">Credit Loss Rate — (Charts)</h2>
           <p className="text-xs text-gray-700">
-            Visualize the flow-rate credit loss output from Step 5.
+            Visualize the flow-rate credit loss output from Step 3.
           </p>
         </div>
 
