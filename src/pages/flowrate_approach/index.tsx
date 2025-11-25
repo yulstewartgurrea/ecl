@@ -61,7 +61,7 @@ const TransitionMatrixLanding = () => {
    * WorkflowFolderList will parse the path and call:
    *   onWorkflowSelect(entity, reportingPeriod, workflowName, loanProduct, reportDateStart)
    */
-  const handleWorkflowSelect = (
+  const handleWorkflowSelect = async (
     entity: string,
     reportingPeriod: string,
     workflowName: string,
@@ -98,17 +98,66 @@ const TransitionMatrixLanding = () => {
       })
     );
 
-    // Clear workflow id/data when navigating via folders
-    dispatch(
-      setPdTransitionMatrixWorkflowId({
-        workflow_id: null,
-      })
-    );
-    dispatch(
-      setPdTransitionMatrixWorkflowData({
-        workflow_data: null,
-      })
-    );
+    // Fetch workflow ID from backend when folder is selected
+    if (entity && reportingPeriod && workflowName) {
+      try {
+        const params = new URLSearchParams({
+          entity: entity,
+          loan_product: loanProduct || "",
+          reporting_period: reportingPeriod,
+          report_date_start: reportDateStart || "",
+          workflow_name: workflowName,
+          workflow_type: "asa",
+        });
+
+        const workflowRes = await fetch(
+          `http://127.0.0.1:8000/workflows/?${params.toString()}`,
+          { headers: { Authorization: `Bearer ${authToken}` } }
+        );
+
+        if (workflowRes.ok) {
+          const responseData = await workflowRes.json();
+          // Handle different response structures:
+          // 1. Array: [workflow1, workflow2, ...]
+          // 2. Nested object: { code, success, data: { id, ... } }
+          // 3. Nested array: { code, success, data: [workflow1, ...] }
+          // 4. Direct object: { id, workflow_name, ... }
+          let wf = null;
+          if (Array.isArray(responseData)) {
+            wf = responseData[0];
+          } else if (responseData?.data) {
+            wf = Array.isArray(responseData.data) ? responseData.data[0] : responseData.data;
+          } else {
+            wf = responseData;
+          }
+
+          if (wf && wf.id) {
+            console.log(`🎯 WORKFLOW FOUND FROM FOLDER: ID=${wf.id}, Name='${wf.workflow_name}'`);
+            dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: wf.id }));
+            dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: wf }));
+          } else {
+            // Workflow doesn't exist yet, clear the ID
+            console.log("Workflow not found for selected folder, clearing ID");
+            dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: null }));
+            dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: null }));
+          }
+        } else {
+          // API error, clear the ID
+          console.log("Failed to fetch workflow, clearing ID");
+          dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: null }));
+          dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: null }));
+        }
+      } catch (error) {
+        console.error("Error fetching workflow from folder selection:", error);
+        // On error, clear the ID
+        dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: null }));
+        dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: null }));
+      }
+    } else {
+      // Not enough info to fetch workflow, clear the ID
+      dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: null }));
+      dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: null }));
+    }
   };
 
 const handleStartCalculation = async () => {
@@ -185,10 +234,22 @@ const handleStartCalculation = async () => {
             throw new Error(`Failed to load existing workflow (${existingRes.status})`);
           }
 
-          const data = await existingRes.json();
-          const wf = Array.isArray(data) ? data[0] : data?.data?.[0];
+          const responseData = await existingRes.json();
+          // Handle different response structures:
+          // 1. Array: [workflow1, workflow2, ...]
+          // 2. Nested object: { code, success, data: { id, ... } }
+          // 3. Nested array: { code, success, data: [workflow1, ...] }
+          // 4. Direct object: { id, workflow_name, ... }
+          let wf = null;
+          if (Array.isArray(responseData)) {
+            wf = responseData[0];
+          } else if (responseData?.data) {
+            wf = Array.isArray(responseData.data) ? responseData.data[0] : responseData.data;
+          } else {
+            wf = responseData;
+          }
 
-          if (!wf) {
+          if (!wf || !wf.id) {
             throw new Error("Existing workflow not found on server.");
           }
 
@@ -242,10 +303,13 @@ const handleStartCalculation = async () => {
         throw new Error(errorData.detail || "Failed to create workflow");
       }
 
-      const workflowData = await workflowResponse.json();
-      console.log("Full workflow response:", workflowData);
+      const workflowResponseData = await workflowResponse.json();
+      console.log("Full workflow response:", workflowResponseData);
 
-      if (workflowData) {
+      // Handle nested response structure: { code, success, data: { id, workflow_name, ... } }
+      const workflowData = workflowResponseData?.data || workflowResponseData;
+      
+      if (workflowData && workflowData.id) {
         const workflowId = workflowData.id;
         console.log(
           `🎯 WORKFLOW CREATED: ID=${workflowId}, Name='${workflowData.workflow_name}', Entity='${workflowData.entity}', Period='${workflowData.reporting_period}'`
@@ -256,7 +320,7 @@ const handleStartCalculation = async () => {
           setPdTransitionMatrixWorkflowData({ workflow_data: workflowData })
         );
       } else {
-        console.error("No workflow ID in response:", workflowData);
+        console.error("No workflow ID in response:", workflowResponseData);
       }
 
       setStatusMessage("Creating folder structure...");
