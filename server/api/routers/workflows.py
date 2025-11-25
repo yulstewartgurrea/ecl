@@ -51,15 +51,18 @@ def create_user_workflow(
     db: Session = Depends(get_db)
 ):
     try:
-        workflow = create_workflow(db=db, workflow=workflow, user_id=current_user.id)
+        workflow = create_workflow(db=db, wf_in=workflow, user_id=current_user.id)
         
         # Console log when workflow is created
         print(f"WORKFLOW CREATED: ID={workflow.id}, Name='{workflow.workflow_name}', Entity='{workflow.entity}', Period='{workflow.reporting_period}', User={current_user.id}") 
         
+        # Convert SQLAlchemy object to Pydantic model and then to dictionary
+        workflow_data = WorkflowResponse.model_validate(workflow).model_dump()
+        
         res = {
             "code": 1, 
             "success": True,
-            "data": workflow.model_dump(),
+            "data": workflow_data,
         }
         return JSONResponse(status_code=200, content=res) 
     except Exception as e:
