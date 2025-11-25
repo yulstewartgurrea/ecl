@@ -20,11 +20,13 @@ import { useAppSelector } from "../../../redux_toolkit/hooks";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 
 /* -------- workflow id helpers (URL ?workflow_id=, route state, or localStorage) -------- */
-function useWorkflowId(): number {
+function useWorkflowIdFallback(): number {
   const { state } = useLocation() as { state?: { workflowId?: number } };
   const [params] = useSearchParams();
 
-  const q = Number(params.get("workflow_id"));
+  // URL ?workflow_id=
+  const raw = params.get("workflow_id");
+  const q = raw ? Number(raw) : NaN;
   console.log("Step4 - URL workflow_id:", q);
 
   if (!Number.isNaN(q) && q > 0) {
@@ -32,13 +34,19 @@ function useWorkflowId(): number {
     return q;
   }
 
+  // route state
   console.log("Step4 - Route state workflowId:", state?.workflowId);
   if (state?.workflowId && state.workflowId > 0) {
     console.log("Step4 - Using state workflowId:", state.workflowId);
     return state.workflowId;
   }
 
-  const ls = Number(localStorage.getItem("current_workflow_id") || "");
+  // localStorage
+  const lsRaw =
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("current_workflow_id")
+      : null;
+  const ls = lsRaw ? Number(lsRaw) : NaN;
   console.log("Step4 - LocalStorage workflow_id:", ls);
 
   if (!Number.isNaN(ls) && ls > 0) {
@@ -46,7 +54,9 @@ function useWorkflowId(): number {
     return ls;
   }
 
-  console.log("Step4 - No valid workflow_id found, falling back to default: 0");
+  console.log(
+    "Step4 - No valid workflow_id found in URL/state/LS, fallback = 0"
+  );
   return 0;
 }
 
@@ -192,12 +202,33 @@ function coercePrincipalMatrix(payload: any, view: ViewKey): AgingRow[] {
 type ViewKey = "principal" | "distribution" | "flowrate";
 
 export default function Step4() {
-  const currentPdTransitionMatrixWorkflowId = useAppSelector(
-    (state: any) =>
-      state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowId
-  );
-  const workflowId = currentPdTransitionMatrixWorkflowId || useWorkflowId();
+  const {
+    currentPdTransitionMatrixWorkflowId,
+    currentPdTransitionMatrixWorkflowData,
+  } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
+
+  // 1) Try Redux explicit workflow id
+  const reduxId = currentPdTransitionMatrixWorkflowId as number | null;
+
+  // 2) Try id from workflow_data (we store full workflow object there on landing)
+  const reduxDataId = currentPdTransitionMatrixWorkflowData?.id as
+    | number
+    | undefined;
+
+  // 3) Fallback: URL / route state / localStorage
+  const fallbackId = useWorkflowIdFallback();
+
+  const workflowId =
+    (reduxId && reduxId > 0 && reduxId) ||
+    (reduxDataId && reduxDataId > 0 && reduxDataId) ||
+    fallbackId;
+
   const authToken = useAppSelector((s) => s.auth.token);
+
+  console.log("Step4 – Redux workflowId:", reduxId);
+  console.log("Step4 – Redux workflowData.id:", reduxDataId);
+  console.log("Step4 – fallback workflowId:", fallbackId);
+  console.log("Step4 – final workflowId:", workflowId);
 
   const { getStep3Data } = useAsaApi();
 
@@ -217,6 +248,14 @@ export default function Step4() {
 
   // Check if data already exists on page load
   useEffect(() => {
+    if (!workflowId || workflowId <= 0) {
+      setLoading(false);
+      setError(
+        "No workflow is selected. Please start from the Flowrate landing page and create or load a workflow."
+      );
+      return;
+    }
+
     let mounted = true;
     setLoading(true);
     setError(null);
@@ -287,8 +326,7 @@ export default function Step4() {
   const filteredRows = useMemo(() => {
     if (!productFilter) return rowsForView;
     return rowsForView.filter(
-      (r: any) =>
-        (r.product ?? r.Product ?? "").toString() === productFilter
+      (r: any) => (r.product ?? r.Product ?? "").toString() === productFilter
     );
   }, [rowsForView, productFilter]);
 
@@ -433,7 +471,7 @@ export default function Step4() {
             <button
               type="button"
               onClick={handleRun}
-              disabled={running}
+              disabled={running || !workflowId}
               className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
             >
               <PlayIcon className="h-5 w-5" />
@@ -443,7 +481,7 @@ export default function Step4() {
             <button
               type="button"
               onClick={handleExport}
-              disabled={exporting || running || !apiData}
+              disabled={exporting || running || !apiData || !workflowId}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
             >
               <ArrowDownTrayIcon className="h-5 w-5" />
@@ -460,7 +498,9 @@ export default function Step4() {
               onClick={() => setView("principal")}
               className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition
                 ${
-                  view === "principal" ? "bg-white shadow-sm" : "hover:bg-white/60"
+                  view === "principal"
+                    ? "bg-white shadow-sm"
+                    : "hover:bg-white/60"
                 }
               `}
               aria-pressed={view === "principal"}
@@ -506,9 +546,7 @@ export default function Step4() {
               <span className="text-xs text-gray-700">Filter by product:</span>
               <select
                 value={productFilter ?? ""}
-                onChange={(e) =>
-                  setProductFilter(e.target.value || null)
-                }
+                onChange={(e) => setProductFilter(e.target.value || null)}
                 className="h-9 rounded-lg border border-gray-300 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-300"
               >
                 <option value="">All</option>
@@ -538,7 +576,10 @@ export default function Step4() {
                 title="Flow of Loan Balance Principal Matrix"
                 subtitle="Raw principal balances by PAR bucket."
               >
-                <PrincipalMatrixTable rows={filteredRows as AgingRow[]} height={420} />
+                <PrincipalMatrixTable
+                  rows={filteredRows as AgingRow[]}
+                  height={420}
+                />
               </Card>
             )}
 

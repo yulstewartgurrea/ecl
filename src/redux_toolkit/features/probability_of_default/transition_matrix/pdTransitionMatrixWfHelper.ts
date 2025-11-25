@@ -65,8 +65,7 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
       state,
       action: PayloadAction<{ loan_product: string }>
     ) {
-      state.selectedPdTransitionMatrixLoanProduct =
-        action.payload.loan_product;
+      state.selectedPdTransitionMatrixLoanProduct = action.payload.loan_product;
     },
 
     // NEW: save Report Date Start in Redux (YYYY-MM-DD)
@@ -89,24 +88,21 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
       state,
       action: PayloadAction<{ is_workflow_started: boolean }>
     ) {
-      state.isPdTransitionMatrixWfStarted =
-        action.payload.is_workflow_started;
+      state.isPdTransitionMatrixWfStarted = action.payload.is_workflow_started;
     },
 
     setPdTransitionMatrixInputFilesIsImportedOnce(
       state,
       action: PayloadAction<{ is_imported_once: boolean }>
     ) {
-      state.isPdTransitionMatrixImportedOnce =
-        action.payload.is_imported_once;
+      state.isPdTransitionMatrixImportedOnce = action.payload.is_imported_once;
     },
 
     setPdTransitionMatrixIsWfFinish(
       state,
       action: PayloadAction<{ is_workflow_finish: boolean }>
     ) {
-      state.isPdTransitionMatrixWfFinish =
-        action.payload.is_workflow_finish;
+      state.isPdTransitionMatrixWfFinish = action.payload.is_workflow_finish;
     },
 
     setPdTransitionMatrixWfData: (
