@@ -60,7 +60,7 @@ def process_pd_calibration(overlay_multiplier_df: pd.DataFrame,
         return ttc_pd_df_copy
 
     except Exception as e:
-        print(f"❌ Error during forecasted PD calc: {str(e)}")
+        print(f"Error during forecasted PD calc: {str(e)}")
         import traceback
         traceback.print_exc()
         return None

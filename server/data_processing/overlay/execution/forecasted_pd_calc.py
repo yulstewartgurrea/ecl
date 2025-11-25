@@ -41,7 +41,7 @@ def process_forecasted_pd_calc(finals_overlay_model_df: pd.DataFrame,
         }
 
     except Exception as e:
-        print(f"❌ Error during forecasted PD calc: {str(e)}")
+        print(f"Error during forecasted PD calc: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -77,7 +77,7 @@ def format_variable_model(finals_overlay_model_df):
                 }
                 print(f"{x_col} = {variable_name}, coefficient = {coefficient_value}")
             else:
-                print(f"⚠️ Warning: {coeff_col} not found in columns")
+                print(f"Warning: {coeff_col} not found in columns")
                 x_variables[x_col] = {
                     'variable_name': variable_name,
                     'coefficient': None
@@ -140,18 +140,18 @@ def calculate_multiple_linear_regression(final_variable_model, data_transformati
                         if pd.notna(value) and pd.notna(coefficient):
                             calculation += coefficient * value
                     else:
-                        print(f"⚠️ Warning: Column '{column_name}' not found in data_transformation_df")
+                        print(f"Warning: Column '{column_name}' not found in data_transformation_df")
                 
                 scenario_values.append(calculation)
             
             # Add scenario column to result
             result_df[f'{scenario}'] = scenario_values
         
-        print(f"✅ Calculated multiple linear regression for {len(result_df)} periods")
+        print(f"Calculated multiple linear regression for {len(result_df)} periods")
         return result_df
         
     except Exception as e:
-        print(f"❌ Error during multiple linear regression: {str(e)}")
+        print(f"Error during multiple linear regression: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -177,11 +177,11 @@ def forecasted_pd_calculation(multiple_linear_regression):
             # Store the calculated PD values
             result_df[scenario] = pd_values
 
-        print(f"✅ Calculated forecasted PD for {len(result_df)} periods")
+        print(f"Calculated forecasted PD for {len(result_df)} periods")
         return result_df
         
     except Exception as e:
-        print(f"❌ Error during forecasted PD calculation: {str(e)}")
+        print(f"Error during forecasted PD calculation: {str(e)}")
         import traceback
         traceback.print_exc()
         return None

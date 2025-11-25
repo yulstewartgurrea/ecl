@@ -96,7 +96,7 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
         return df_combined
 
     except Exception as e:
-        print(f"❌ Error during combination: {str(e)}")
+        print(f"Error during combination: {str(e)}")
         import traceback; traceback.print_exc()
         return None
 
@@ -616,7 +616,7 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
     """
     Entrypoint used by the app.
     """
-    print("🔄 Starting dataframe combination process...")
+    print("Starting dataframe combination process...")
     start_time = time.time()  # Start the timer
     try:
         if progress_callback:
@@ -628,12 +628,12 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
         res = process_data_transformation_output(df_combined, historical_default_rates_df, workflow, progress_callback, cancellation_check)
         end_time = time.time()  # End the timer
         elapsed_time = end_time - start_time  # Calculate elapsed time
-        print(f"✅ Data transformation completed in {elapsed_time:.2f} seconds.")
+        print(f"Data transformation completed in {elapsed_time:.2f} seconds.")
         return res
     except Exception as e:
         if "cancelled" in str(e).lower():
-            print(f"⚠️ Job cancelled during processing")
+            print(f"Job cancelled during processing")
             raise  # Re-raise to be handled by caller
-        print(f"❌ Error during combination: {str(e)}")
+        print(f"Error during combination: {str(e)}")
         import traceback; traceback.print_exc()
         return None
