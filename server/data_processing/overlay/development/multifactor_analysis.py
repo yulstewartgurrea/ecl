@@ -18,7 +18,7 @@ import math
 import time
 import itertools
 from pathlib import Path
-from typing import List, Dict, Any, Iterable
+from typing import List, Dict, Any, Iterable, Callable, Optional
 
 import numpy as np
 import pandas as pd
@@ -350,9 +350,13 @@ def run_mfa(
     max_bg_order: int,
     out_csv_path: Path,
     flush_every: int = 100,  # write to disk every N rows to keep memory in check
+    progress_callback: Optional[Callable[[int, str], None]] = None,  # Optional: (progress: int, message: str) -> None
+    cancellation_check: Optional[Callable[[], bool]] = None,  # Optional: () -> bool
+    total_combinations: int | None = None,  # Optional: total count for progress calculation
 ) -> None:
     """
     Sequentially evaluate each combination, compute stats, and append to CSV.
+    Supports optional progress tracking and cancellation checks.
     """
     out_csv_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -364,6 +368,10 @@ def run_mfa(
     print(total)
 
     for i, combo in enumerate(combinations, start=1):
+        # Check for cancellation before processing each combination
+        if cancellation_check and cancellation_check():
+            raise Exception("Job cancelled by user")
+        
         indep_vars = list(combo)
         try:
             row = write_model_stats_for_combo(
@@ -379,6 +387,21 @@ def run_mfa(
         except Exception as e:
             # Keep going — log minimally to stdout
             print(f"[{i}/{total}] Failed on {indep_vars}: {e}", file=sys.stderr)
+
+        # Update progress if callback is provided
+        if progress_callback:
+            # Calculate progress percentage
+            progress_total = total_combinations if total_combinations is not None else total
+            progress_pct = int((i / progress_total) * 100) if progress_total > 0 else 0
+            # Map MFA progress (0-100%) to overall job progress (30-100%)
+            # The router sets progress to 30% before calling run_mfa
+            base_progress = 30
+            progress_range = 70  # 100% - 30% = 70%
+            adjusted_progress = base_progress + int((progress_pct / 100) * progress_range)
+            # Ensure progress doesn't exceed 100%
+            adjusted_progress = min(adjusted_progress, 100)
+            message = f"Processing combination {i}/{progress_total}..."
+            progress_callback(adjusted_progress, message)
 
         if len(buffer) >= flush_every:
             df = pd.DataFrame(buffer)

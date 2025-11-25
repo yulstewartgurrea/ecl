@@ -23,6 +23,20 @@ export type MultiFactorPagination = {
   total_pages?: number;
 };
 
+export type MultiFactorStatus = {
+  job_id: number;
+  workflow_id: number;
+  status: "pending" | "processing" | "completed" | "failed" | "cancelled";
+  progress: number;
+  message: string | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  running_time_seconds: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type ApiEnvelope<TData = unknown, TPagination = unknown> = {
   code: number;
   success: boolean;
@@ -73,6 +87,61 @@ async function xfetch(input: string, init?: RequestInit): Promise<Response> {
   }
   return fetch(input, init);
 }
+/** GET /api/overlay/development/multifactor_analysis/status/{workflow_id} to get job status */
+export async function getMultiFactorStatus(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+}): Promise<ApiEnvelope<MultiFactorStatus>> {
+  const { apiBase, token, workflowId } = opts;
+
+  const url = `${base(apiBase)}/api/overlay/development/multifactor_analysis/status/${workflowId}`;
+
+  const res = await xfetch(url, {
+    method: "GET",
+    headers: withAuth(token, { Accept: "application/json" }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiEnvelope<MultiFactorStatus>;
+  return json;
+}
+
+/** POST /api/overlay/development/multifactor_analysis/cancel/ to cancel job */
+export async function cancelMultiFactorAnalysis(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+}): Promise<ApiEnvelope<unknown>> {
+  const { apiBase, token, workflowId } = opts;
+
+  if (!Number.isFinite(workflowId)) {
+    throw new Error("workflowId must be a finite number");
+  }
+
+  const url = `${base(apiBase)}/api/overlay/development/multifactor_analysis/cancel/`;
+
+  const form = new FormData();
+  form.append("workflow_id", String(workflowId));
+
+  const res = await xfetch(url, {
+    method: "POST",
+    headers: withAuth(token, { Accept: "application/json" }), // don't set Content-Type for FormData
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiEnvelope<unknown>;
+  if (!json?.success) throw new Error(json?.msg || "Failed to cancel multifactor analysis");
+  return json;
+}
+
 /** POST /api/overlay/development/multifactor_analysis/ to trigger the job */
 export async function postMultiFactorTrigger(opts: {
   apiBase: string;

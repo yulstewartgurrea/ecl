@@ -1,7 +1,13 @@
 // src/pages/overlay/development/.../Step4.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Multi_Table, type Row } from "../../../../components/overlay/development/multi_factor/Multi_Table";
-import { getMultiFactorResults, postMultiFactorTrigger } from "../../../../services/multi_factor";
+import { 
+  getMultiFactorResults, 
+  postMultiFactorTrigger,
+  getMultiFactorStatus,
+  cancelMultiFactorAnalysis,
+  type MultiFactorStatus,
+} from "../../../../services/multi_factor";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
@@ -10,13 +16,12 @@ import {
   PlayCircleIcon,
   ArrowDownTrayIcon,   // ✅ NEW
   ChevronLeftIcon,     // ✅ NEW (for Prev)
+  XCircleIcon,
 } from "@heroicons/react/24/outline";
 
 // NEW: headers storage helper
 import { saveHeaders } from "../../../../components/overlay/development/multi_factor/headersStorage";
 
-// ✅ NEW: polling notifier
-import { PollIsendNotifier } from "../../../../components/PollIsendNotifier";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -63,6 +68,11 @@ const Step4: React.FC<Step4Props> = ({
   const [posting, setPosting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
+  // Status states
+  const [status, setStatus] = useState<MultiFactorStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10); // server supports page_size
 
@@ -88,7 +98,6 @@ const Step4: React.FC<Step4Props> = ({
   }, [pages, total, pageSize, serverRows]);
 
   const canPrev = page > 1;
-  const canNext = totalPages ? page < totalPages : serverRows.length === pageSize;
 
   const displayRows = useMemo(() => {
     const usingServerPaging = Boolean(pages || total);
@@ -130,6 +139,86 @@ const Step4: React.FC<Step4Props> = ({
     }
   }
 
+  // Refresh with status check
+  const onRefresh = async () => {
+    if (!Number.isFinite(selectedWorkflowId)) {
+      setErrMsg("Please select a workflow on Step 1 before refreshing.");
+      return;
+    }
+
+    setStatusLoading(true);
+    setLoading(true);
+    setErrMsg(null);
+    try {
+      // First, check the job status
+      const statusResponse = await getMultiFactorStatus({
+        apiBase: API_BASE,
+        token,
+        workflowId: Number(selectedWorkflowId),
+      });
+
+      if (statusResponse?.success && statusResponse?.data) {
+        setStatus(statusResponse.data);
+        
+        // If job is still processing, show status but clear table data
+        if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
+          setErrMsg(
+            `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
+          );
+          // Clear table data when job is not completed
+          setServerRows([]);
+          setTotal(undefined);
+          setPages(undefined);
+          setLoading(false);
+          setStatusLoading(false);
+          return;
+        }
+
+        // If job failed, show error and clear table data
+        if (statusResponse.data.status === "failed") {
+          setErrMsg(
+            `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`
+          );
+          // Clear table data when job is not completed
+          setServerRows([]);
+          setTotal(undefined);
+          setPages(undefined);
+          setLoading(false);
+          setStatusLoading(false);
+          return;
+        }
+
+        // If job is cancelled, show message and clear table data
+        if (statusResponse.data.status === "cancelled") {
+          setErrMsg("Job was cancelled.");
+          // Clear table data when job is not completed
+          setServerRows([]);
+          setTotal(undefined);
+          setPages(undefined);
+          setLoading(false);
+          setStatusLoading(false);
+          return;
+        }
+
+        // If job is completed, fetch the results
+        if (statusResponse.data.status === "completed") {
+          await fetchPage(page, pageSize);
+        }
+      } else {
+        // If status check fails, try to fetch results anyway (might be old data)
+        await fetchPage(page, pageSize);
+      }
+    } catch (err: any) {
+      setErrMsg(err?.message || "Failed to refresh multifactor analysis");
+      setServerRows([]);
+      setTotal(undefined);
+      setPages(undefined);
+    } finally {
+      setLoading(false);
+      setStatusLoading(false);
+    }
+  };
+
   async function runAnalysis() {
     if (!Number.isFinite(selectedWorkflowId)) {
       setErrMsg("Missing or invalid workflowId.");
@@ -137,21 +226,71 @@ const Step4: React.FC<Step4Props> = ({
     }
     setPosting(true);
     setErrMsg(null);
+    
+    // Clear table data immediately when starting a new job
+    setServerRows([]);
+    setTotal(undefined);
+    setPages(undefined);
+    
     try {
       await postMultiFactorTrigger({
         apiBase: API_BASE,
         token,
         workflowId: Number(selectedWorkflowId),
       });
-      setHasTriggered(true);
-      setPage(1);
-      await fetchPage(1, pageSize);
+      
+      // After starting job, check status instead of fetching results
+      const statusResponse = await getMultiFactorStatus({
+        apiBase: API_BASE,
+        token,
+        workflowId: Number(selectedWorkflowId),
+      });
+
+      if (statusResponse?.success && statusResponse?.data) {
+        setStatus(statusResponse.data);
+        // Job will be pending/processing, so show status message
+        if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
+          setErrMsg(
+            `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
+          );
+        }
+      }
     } catch (e: any) {
       setErrMsg(e?.message || "Failed to start analysis.");
     } finally {
       setPosting(false);
     }
   }
+
+  // Cancel multifactor analysis
+  const onCancel = async () => {
+    if (!Number.isFinite(selectedWorkflowId)) {
+      setErrMsg("Please select a workflow on Step 1 before cancelling.");
+      return;
+    }
+
+    setCancelling(true);
+    setErrMsg(null);
+    try {
+      const cancelResponse = await cancelMultiFactorAnalysis({
+        apiBase: API_BASE,
+        token,
+        workflowId: Number(selectedWorkflowId),
+      });
+
+      if (cancelResponse?.success) {
+        setErrMsg("Job cancellation requested. The process will stop at the next checkpoint.");
+        // Refresh status to update UI
+        await onRefresh();
+      } else {
+        setErrMsg(cancelResponse?.msg || "Failed to cancel multifactor analysis");
+      }
+    } catch (err: any) {
+      setErrMsg(err?.message || "Failed to cancel multifactor analysis");
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   // Enable export once we have data and not loading/posting
   useEffect(() => {
@@ -248,8 +387,92 @@ const Step4: React.FC<Step4Props> = ({
     setTotal(undefined);
     setPages(undefined);
     setErrMsg(null);
+    setStatus(null);
     if (Number.isFinite(selectedWorkflowId)) saveHeaders(Number(selectedWorkflowId), []);
   }, [selectedWorkflowId]);
+
+  // Load data and check status on page load
+  useEffect(() => {
+    const loadDataOnMount = async () => {
+      // Only run if we have a workflow selected and token
+      if ((!selectedWorkflowId && selectedWorkflowId !== 0) || !token) {
+        return;
+      }
+
+      setStatusLoading(true);
+      setLoading(true);
+      try {
+        // First, check the job status
+        const statusResponse = await getMultiFactorStatus({
+          apiBase: API_BASE,
+          token,
+          workflowId: Number(selectedWorkflowId),
+        });
+
+        if (statusResponse?.success && statusResponse?.data) {
+          setStatus(statusResponse.data);
+          
+          // If job is still processing, show status but clear table data
+          if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
+            setErrMsg(
+              `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
+            );
+            // Clear table data when job is not completed
+            setServerRows([]);
+            setTotal(undefined);
+            setPages(undefined);
+            setLoading(false);
+            setStatusLoading(false);
+            return;
+          }
+
+          // If job failed, show error and clear table data
+          if (statusResponse.data.status === "failed") {
+            setErrMsg(
+              `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`
+            );
+            // Clear table data when job is not completed
+            setServerRows([]);
+            setTotal(undefined);
+            setPages(undefined);
+            setLoading(false);
+            setStatusLoading(false);
+            return;
+          }
+
+          // If job is cancelled, show message and clear table data
+          if (statusResponse.data.status === "cancelled") {
+            setErrMsg("Job was cancelled.");
+            // Clear table data when job is not completed
+            setServerRows([]);
+            setTotal(undefined);
+            setPages(undefined);
+            setLoading(false);
+            setStatusLoading(false);
+            return;
+          }
+
+          // If job is completed, fetch the results (start from page 1 on mount)
+          if (statusResponse.data.status === "completed") {
+            await fetchPage(1, pageSize);
+          }
+        } else {
+          // If status check fails, silently fail on mount - user can manually refresh if needed
+          setServerRows([]);
+          setTotal(undefined);
+          setPages(undefined);
+        }
+      } catch (err: any) {
+        // Silently fail on mount - user can manually refresh if needed
+        console.error("Failed to load data on mount:", err);
+      } finally {
+        setLoading(false);
+        setStatusLoading(false);
+      }
+    };
+
+    loadDataOnMount();
+  }, [selectedWorkflowId, token, API_BASE]);
 
   useEffect(() => {
     if (!totalPages) return;
@@ -265,14 +488,6 @@ const Step4: React.FC<Step4Props> = ({
     }),
     [total, serverRows.length, page, pageSize, totalPages]
   );
-
-  // ✅ GET-only status URL for the polling notifier (minimal payload)
-  const statusUrl =
-    Number.isFinite(selectedWorkflowId)
-      ? `${API_BASE}/api/overlay/development/multifactor_analysis?workflow_id=${encodeURIComponent(
-          String(selectedWorkflowId)
-        )}&page=1&page_size=1`
-      : "";
 
   return (
     <div className="min-h-dvh bg-neutral-50 p-6">
@@ -295,52 +510,38 @@ const Step4: React.FC<Step4Props> = ({
             {posting ? "Running…" : "Run Analysis"}
           </button>
 
-          {/* Refresh */}
+          {/* Refresh (with status check) */}
           <button
-            onClick={() => fetchPage()}
-            disabled={loading || !Number.isFinite(selectedWorkflowId)}
+            onClick={onRefresh}
+            disabled={statusLoading || !Number.isFinite(selectedWorkflowId)}
             className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
-            title={!selectedWorkflowId ? "Pick a workflow on Step 1" : "Fetch latest results once"}
+            title={!selectedWorkflowId ? "Pick a workflow on Step 1" : "Check status and fetch latest results"}
           >
-            <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            {loading ? "Refreshing…" : "Refresh"}
+            <ArrowPathIcon className={`h-4 w-4 ${statusLoading ? "animate-spin" : ""}`} />
+            {statusLoading ? "Checking…" : "Refresh"}
           </button>
 
-
-
-          {/* ✅ Auto-checker (GET-only, every 10 mins) */}
-          {Number.isFinite(selectedWorkflowId) && (
-            <PollIsendNotifier<any>
-              url={statusUrl}
-              everyMinutes={10}
-              requestInit={{
-                headers: {
-                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                  Accept: "application/json",
-                },
-              }}
-              // Robust 'done' detection for either an envelope or plain JSON:
-              // - Envelope: { success, data: { rows, total_items, ... } }
-              // - Plain:    { rows, total_items, ... }
-              parseDone={(env: any) => {
-                const data = env?.data ?? env;
-                const rows = Array.isArray(data?.rows) ? data.rows : [];
-                const totalItems =
-                  typeof data?.total_items === "number"
-                    ? data.total_items
-                    : Array.isArray(rows)
-                    ? rows.length
-                    : 0;
-                return (rows.length ?? 0) > 0 || (totalItems ?? 0) > 0;
-              }}
-              onDone={async () => {
-                // When results appear, load the first page immediately.
-                setHasTriggered(true);
-                setPage(1);
-                await fetchPage(1, pageSize);
-              }}
-            />
+          {/* Cancel (only show when job is pending or processing) */}
+          {status && (status.status === "pending" || status.status === "processing") && (
+            <button
+              onClick={onCancel}
+              disabled={cancelling || !Number.isFinite(selectedWorkflowId)}
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
+              title={
+                !selectedWorkflowId
+                  ? "Pick a workflow on Step 1"
+                  : "Cancel the running multifactor analysis job"
+              }
+            >
+              <XCircleIcon
+                className={`h-4 w-4 ${cancelling ? "animate-spin" : ""}`}
+              />
+              {cancelling ? "Cancelling…" : "Cancel"}
+            </button>
           )}
+
+
+
         </div>
       </div>
 
@@ -421,6 +622,48 @@ const Step4: React.FC<Step4Props> = ({
       {exportErr && (
         <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {exportErr}
+        </div>
+      )}
+      {status && (status.status === "processing" || status.status === "pending") && (
+        <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="text-sm font-medium text-blue-900">
+                Job Status: {status.status.charAt(0).toUpperCase() + status.status.slice(1)}
+              </div>
+              <div className="text-xs text-blue-700 mt-1">
+                {status.message || "Processing..."}
+              </div>
+              {status.progress !== null && status.progress !== undefined && (
+                <div className="mt-2">
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${status.progress}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    {status.progress}% complete
+                  </div>
+                </div>
+              )}
+              {status.running_time_seconds !== null && (
+                <div className="text-xs text-blue-600 mt-1">
+                  Running time: {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {status && status.status === "completed" && (
+        <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+          ✓ Job completed successfully
+          {status.running_time_seconds !== null && (
+            <span className="ml-2 text-xs">
+              (Completed in {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s)
+            </span>
+          )}
         </div>
       )}
 
