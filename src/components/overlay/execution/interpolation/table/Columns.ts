@@ -47,14 +47,11 @@ const BASE_METRICS: Array<{ top: string; key: string }> = [
   { top: "Gross fixed capital formation - at constant 2018 prices", key: "fix_cap_form" },
   { top: "Exports of goods and services - at constant 2018 prices", key: "exports" },
   { top: "Imports of goods and services - at constant 2018 prices", key: "imports" },
-  { top: "Gross National income and Gross Domestic Product : industry", key: "gni_gdp_industry" },
-  { top: "Gross National income and Gross Domestic Product : industry (mining and quarrying)", key: "gni_gdp_mining" },
+
+  // 🔧 Keep only keys that actually exist in your API response:
   { top: "Gross National income and Gross Domestic Product : industry (manufacturing)", key: "gni_gdp_manufacturing" },
-  { top: "Gross National income and Gross Domestic Product : industry (Electricity, steam, water and waste management)", key: "gni_gdp_elec_steam_g" },
-  { top: "Gross National income and Gross Domestic Product : (construction)", key: "gni_gdp_const" },
-  { top: "Gross National income and Gross Domestic Product : (services)", key: "gni_gdp_services" },
-  { top: "Gross National income and Gross Domestic Product : services (Wholesale and retail trade; repair of motor vehicles and motorcycles)", key: "gni_gdp_wholesale_retl" },
-  { top: "Gross National income and Gross Domestic Product : services (transportation and storage)", key: "gni_gdp_transpo_stor" },
+  { top: "Gross National income and Gross Domestic Product : (construction)", key: "gni_gdp_constr" },            // <- was const
+  { top: "Gross National income and Gross Domestic Product : services (Wholesale and retail trade; repair of motor vehicles and motorcycles)", key: "gni_gdp_wholesale_ret" }, // <- was wholesale_retl
   { top: "Gross National income and Gross Domestic Product : services (Real estate and ownership of dwellings)", key: "gni_gdp_real_est" },
 ];
 
@@ -65,7 +62,7 @@ export function buildMacroColumns(
 ): ColumnNode[] {
   const includeQuarter =
     frequency === "quarterly" ? true : !!opts.includeQuarterInMonthly;
-  const growthSuffix = opts.growthSuffix ?? "_gr";
+  const growthSuffix = opts.growthSuffix ?? "_gr"; // you pass " growth_rate"
 
   const dateChildren: ColumnNode[] = [
     { key: "year", header: "Year", width: "64px" },
@@ -79,14 +76,22 @@ export function buildMacroColumns(
   if (frequency === "quarterly") {
     return [
       { header: "Date", children: dateChildren },
-      ...BASE_METRICS.map(m => metricGroup(m.top, m.key, "In levels (million PHP)")),
+      // Use "<metric> Point" so it matches "gdp Point", "gni Point", etc.
+      ...BASE_METRICS.map(m =>
+        metricGroup(
+          m.top,
+          `${m.key} Point`,                   // 🔑 matches "gdp Point", "gni Point", ...
+          "In levels (million PHP)",
+          m.key
+        )
+      ),
       {
         header: "Unemployment rate",
         children: [
           {
             header: "In levels (rates)",
             className: "text-[11px]",
-            children: [leaf("unemp_rate", "unemp_rate", "right")],
+            children: [leaf("unemp_rate Point", "unemp_rate", "right")], // 🔑 matches "unemp_rate Point"
           },
         ],
       },
@@ -96,24 +101,51 @@ export function buildMacroColumns(
   // ----- MONTHLY: Levels + Growth Rates (extra columns) -----
   const monthlyColumns: ColumnNode[] = [{ header: "Date", children: dateChildren }];
 
-  // Levels (same as quarterly)
+  // Levels (Point)
   for (const m of BASE_METRICS) {
-    monthlyColumns.push(metricGroup(m.top, m.key, "In levels (million PHP)"));
+    monthlyColumns.push(
+      metricGroup(
+        m.top,
+        `${m.key} Point`,                     // 🔑 "gdp Point", etc.
+        "In levels (million PHP)",
+        m.key
+      )
+    );
   }
   monthlyColumns.push({
     header: "Unemployment rate",
     children: [
-      { header: "In levels (rates)", className: "text-[11px]", children: [leaf("unemp_rate", "unemp_rate", "right")] },
+      {
+        header: "In levels (rates)",
+        className: "text-[11px]",
+        children: [leaf("unemp_rate Point", "unemp_rate", "right")],
+      },
     ],
   });
 
-  // EXTRA: Growth rates copy of each base metric
+  // Growth rates – use "<metric> Point growth_rate"
   for (const m of BASE_METRICS) {
     monthlyColumns.push(
-      metricGroup(m.top, `${m.key}${growthSuffix}`, "in growth rates", m.key)
+      metricGroup(
+        m.top,
+        `${m.key} Point${growthSuffix}`,      // 🔑 "gdp Point growth_rate"
+        "in growth rates",
+        m.key
+      )
     );
   }
-  // (Add a growth-rate unemployment column here if you actually have it)
+
+  // (Optional) unemployment growth_rate – your JSON has these as 0 now
+  monthlyColumns.push({
+    header: "Unemployment rate (growth)",
+    children: [
+      {
+        header: "in growth rates",
+        className: "text-[11px]",
+        children: [leaf(`unemp_rate Point${growthSuffix}`, "unemp_rate", "right")],
+      },
+    ],
+  });
 
   return monthlyColumns;
 }
