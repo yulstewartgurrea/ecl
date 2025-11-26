@@ -24,20 +24,22 @@ const categories: CategoryConfig[] = [
 const pathBuilder = (ctx: PathBuilderContext) => {
   const anyCtx = ctx as any;
 
-  const entity = anyCtx.entity;              // e.g. "Entity 1"
-  const loanProduct = anyCtx.loanProduct;    // e.g. "Home"
-  const period = anyCtx.cadence;             // e.g. "Monthly"
-  const wf = anyCtx.wf;                      // workflow name
-  const subdir = anyCtx.subdir;              // e.g. "input/flowrate_approach"
+  const entity = anyCtx.entity; // e.g. "Entity 1"
+  const loanProduct = anyCtx.loanProduct; // e.g. "Home"
+  const period = anyCtx.cadence; // e.g. "Monthly"
+  const wf = anyCtx.wf; // workflow name
+  const subdir = anyCtx.subdir; // e.g. "input/flowrate_approach"
 
-return [
-  entity,
-  period,    
-  wf ? String(wf) : undefined,
-  loanProduct,
-  subdir,
-].filter(Boolean).join("/");
-}
+  return [
+    entity,
+    period,
+    wf ? String(wf) : undefined,
+    loanProduct,
+    subdir,
+  ]
+    .filter(Boolean)
+    .join("/");
+};
 
 export default function Step1() {
   // Get workflow data + selected fields from Redux
@@ -50,14 +52,26 @@ export default function Step1() {
 
   console.log("Step1 - Workflow Data:", currentPdTransitionMatrixWorkflowData);
 
-  // Use the workflow ID from Redux, or fallback to "1"
-  const workflowId = currentPdTransitionMatrixWorkflowId
-    ? String(currentPdTransitionMatrixWorkflowId)
-    : "1";
+  // Prefer Redux workflowId, then localStorage, finally fallback to 1
+  const workflowIdFromRedux = currentPdTransitionMatrixWorkflowId;
+
+  let workflowIdFromLS: number | null = null;
+  if (typeof window !== "undefined") {
+    const raw = window.localStorage.getItem("current_workflow_id");
+    if (raw) {
+      const parsed = Number(raw);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        workflowIdFromLS = parsed;
+      }
+    }
+  }
+
+  const workflowId: number =
+    workflowIdFromRedux ??
+    (workflowIdFromLS !== null ? workflowIdFromLS : 1);
 
   // Prefer values from persisted workflowData; fall back to selected values; finally to sane defaults
-  const entity =
-    currentPdTransitionMatrixWorkflowData?.entity || "Entity 1";
+  const entity = currentPdTransitionMatrixWorkflowData?.entity || "Entity 1";
   const period =
     currentPdTransitionMatrixWorkflowData?.reporting_period || "Monthly";
   const wfName =
@@ -81,6 +95,7 @@ export default function Step1() {
   };
 
   console.log("Uploader context:", context);
+  console.log("Step1 - final workflowId:", workflowId);
 
   const handleResults = (results: UploadResultsByCategory) => {
     console.log("Upload results merged:", results);
@@ -96,7 +111,7 @@ export default function Step1() {
         maxSizeMB={20}
         endpoint="http://localhost:8000/api/document/upload"
         module="FLOWRATE_APPROACH"
-        workflowId={workflowId}
+        workflowId={String(workflowId)}
         context={context}
         pathBuilder={pathBuilder}
         initialSelectedKey="FLOWRATE_APPROACH_AGING_REPORT"

@@ -9,6 +9,7 @@ import { useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { ArrowPathIcon, PlayCircleIcon } from "@heroicons/react/24/outline";
+import { getFilteringModels } from "../../../../services/filteringModels";
 
 const LEGACY_SELECTED_KEY = "ecl:selectedModel";   // kept for Step 7 compatibility
 const SINGLE_SELECTED_PREFIX = "ecl:selectedmodels:"; // per-workflow single selection (exactly one)
@@ -203,6 +204,7 @@ const Step6: React.FC = () => {
       setHasStep5Selection(step5Rows.length > 0);
 
       try {
+        
         const { models: list, total, pages } = await getCandidateModels({
           apiBase: API_BASE,
           token,

@@ -199,6 +199,7 @@ const Step5: React.FC<Step5Props> = ({
     setHasAppliedFilters(true);
     // ✅ Require re-run after changing filters
     setHasRunAnalysis(false);
+    runFiltering()
     fetchResults();
   }
 
@@ -365,7 +366,7 @@ const Step5: React.FC<Step5Props> = ({
           }
         >
           <PlayCircleIcon className="h-4 w-4" />
-          {posting ? "Running…" : "Run Analysis"}
+          {posting ? "Saving…" : "Save Models"}
         </button>
 
         <button
