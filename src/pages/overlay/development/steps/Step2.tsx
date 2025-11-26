@@ -75,6 +75,7 @@ export default function OverlayDevelopmentPage2() {
       });
 
       const cleaned = sanitizeInterpolationRows(resp.data || []);
+    
       setRows(cleaned);
       setExportReady(Array.isArray(cleaned) && cleaned.length > 0);
     } catch (e: any) {
