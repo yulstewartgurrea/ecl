@@ -82,11 +82,11 @@ async def get_data_interpolation(
             data = None
             if file_ext in ['.xlsx', '.xls']:
                 # Read Excel file
-                print(f"📊 Detected Excel file: {file_ext}")
+                print(f"Detected Excel file: {file_ext}")
                 data = pd.read_excel(date_interpolation_output_file)
             elif file_ext == '.csv':
                 # Read CSV file
-                print(f"📊 Detected CSV file")
+                print(f"Detected CSV file")
                 data = pd.read_csv(date_interpolation_output_file)
             else:
                 raise ValueError(f"Unsupported file format: {file_ext}. Supported formats: .csv, .xlsx, .xls")
@@ -180,11 +180,11 @@ async def export_data_interpolation(
             
             if file_ext in ['.xlsx', '.xls']:
                 # Read Excel file
-                print(f"📊 Detected Excel file: {file_ext}")
+                print(f"Detected Excel file: {file_ext}")
                 df = pd.read_excel(date_interpolation_output_file)
             elif file_ext == '.csv':
                 # Read CSV file
-                print(f"📊 Detected CSV file")
+                print(f"Detected CSV file")
                 df = pd.read_csv(date_interpolation_output_file)
             else:
                 return JSONResponse(

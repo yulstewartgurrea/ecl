@@ -39,26 +39,26 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         print("="*60)
         
         # Step 1: Read quarterly data
-        print("\n📁 Step 1: Reading quarterly data...")
+        print("\nStep 1: Reading quarterly data...")
         
         # Determine file type based on extension
         file_ext = os.path.splitext(quarterly_file_path)[1].lower()
         
         if file_ext in ['.xlsx', '.xls']:
             # Read Excel file
-            print(f"📊 Detected Excel file: {file_ext}")
+            print(f"Detected Excel file: {file_ext}")
             df_quarterly = pd.read_excel(quarterly_file_path, header=None, dtype=str, keep_default_na=False, na_filter=False)
         elif file_ext == '.csv':
             # Read CSV file
-            print(f"📊 Detected CSV file")
+            print(f"Detected CSV file")
             df_quarterly = pd.read_csv(quarterly_file_path, header=None, dtype=str, keep_default_na=False, na_filter=False)
         else:
             raise ValueError(f"Unsupported file format: {file_ext}. Supported formats: .csv, .xlsx, .xls")
         
-        print(f"✅ Read {len(df_quarterly)} rows")
+        print(f"Read {len(df_quarterly)} rows")
         
         # Step 2: Find header row and data rows
-        print("\n🔍 Step 2: Finding header and data rows...")
+        print("\nStep 2: Finding header and data rows...")
         
         # Find the header row (row with 'Date' column)
         header_row_idx = None
@@ -70,7 +70,7 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         if header_row_idx is None:
             raise ValueError("Could not find header row with 'Date' column")
         
-        print(f"✅ Found header at row {header_row_idx}")
+        print(f"Found header at row {header_row_idx}")
         
         # Set header
         df_quarterly.columns = df_quarterly.iloc[header_row_idx]
@@ -91,7 +91,7 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         if data_start_idx is None:
             raise ValueError("Could not find data rows with valid dates")
         
-        print(f"✅ Data starts at row {data_start_idx}")
+        print(f"Data starts at row {data_start_idx}")
         
         # Extract quarterly data
         df_q = df_quarterly.iloc[data_start_idx:].copy()
@@ -108,12 +108,12 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         df_q['x'] = pd.to_numeric(df_q['x'], errors='coerce')
         df_q = df_q[df_q['x'].notna()].copy()
         
-        print(f"✅ Extracted {len(df_q)} quarterly data points")
-        print(f"📅 Date range: {df_q['Date'].min()} to {df_q['Date'].max()}")
-        print(f"📊 X range: {df_q['x'].min()} to {df_q['x'].max()}")
+        print(f"Extracted {len(df_q)} quarterly data points")
+        print(f"Date range: {df_q['Date'].min()} to {df_q['Date'].max()}")
+        print(f"X range: {df_q['x'].min()} to {df_q['x'].max()}")
         
         # Step 3: Identify numeric columns to interpolate
-        print("\n📊 Step 3: Identifying columns to interpolate...")
+        print("\nStep 3: Identifying columns to interpolate...")
         
         # Get all columns except metadata columns
         metadata_cols = ['Date', 'year', 'month (int)', 'month', 'id', 'x']
@@ -134,10 +134,10 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
                 # Convert to numeric
                 df_q[col] = numeric_series
         
-        print(f"✅ Found {len(valid_numeric_cols)} numeric columns to interpolate")
+        print(f"Found {len(valid_numeric_cols)} numeric columns to interpolate")
         
         # Step 4: Create monthly date range
-        print("\n📅 Step 4: Creating monthly date range...")
+        print("\nStep 4: Creating monthly date range...")
         
         # Get date range from quarterly data
         start_date = df_q['Date'].min()
@@ -151,10 +151,10 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         # Use 'ME' (Month End) to get the last day of each month instead of first day
         monthly_dates = pd.date_range(start=year_start, end=end_date, freq='ME')  # Month End
         
-        print(f"✅ Created {len(monthly_dates)} monthly dates (from {year_start.strftime('%Y-%m')} to {end_date.strftime('%Y-%m')})")
+        print(f"Created {len(monthly_dates)} monthly dates (from {year_start.strftime('%Y-%m')} to {end_date.strftime('%Y-%m')})")
         
         # Step 5: Create monthly DataFrame structure
-        print("\n🔄 Step 5: Creating monthly DataFrame structure...")
+        print("\nStep 5: Creating monthly DataFrame structure...")
         
         monthly_df = pd.DataFrame()
         monthly_df['Date'] = monthly_dates
@@ -164,7 +164,7 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         monthly_df['id'] = monthly_df['year'].astype(str) + '-' + monthly_df['month']
         
         # Step 6: Calculate x values for monthly data
-        print("\n🔢 Step 6: Calculating x values for monthly data...")
+        print("\nStep 6: Calculating x values for monthly data...")
         
         # Find the first December row in monthly data
         first_dec_idx = None
@@ -176,7 +176,7 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         if first_dec_idx is None:
             raise ValueError("Could not find December in monthly data")
         
-        print(f"✅ Found first December at index {first_dec_idx} ({monthly_df.iloc[first_dec_idx]['Date']})")
+        print(f"Found first December at index {first_dec_idx} ({monthly_df.iloc[first_dec_idx]['Date']})")
         
         # Calculate x values: start from 0.0 at first December and increment by 0.1
         monthly_x_values = []
@@ -191,10 +191,10 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         
         monthly_df['x'] = monthly_x_values
         
-        print(f"✅ Calculated x values: {monthly_df['x'].min():.1f} to {monthly_df['x'].max():.1f}")
+        print(f"Calculated x values: {monthly_df['x'].min():.1f} to {monthly_df['x'].max():.1f}")
         
         # Step 7: Find where quarterly data actually starts in monthly dataframe
-        print("\n🔍 Step 7a: Finding quarterly data start point...")
+        print("\nStep 7a: Finding quarterly data start point...")
         
         # Find the first monthly date that matches or is after the first quarterly data date
         quarterly_start_date = df_q['Date'].min()
@@ -208,14 +208,14 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         if monthly_data_start_idx is None:
             monthly_data_start_idx = len(monthly_df)
         
-        print(f"✅ Quarterly data starts at monthly index {monthly_data_start_idx} (date: {quarterly_start_date.strftime('%Y-%m-%d')})")
-        print(f"✅ Months before quarterly data: {monthly_data_start_idx} (will be set to 0)")
+        print(f"Quarterly data starts at monthly index {monthly_data_start_idx} (date: {quarterly_start_date.strftime('%Y-%m-%d')})")
+        print(f"Months before quarterly data: {monthly_data_start_idx} (will be set to 0)")
         
         # Step 7: Interpolate values for each numeric column
-        print("\n📈 Step 7: Interpolating values...")
+        print("\nStep 7: Interpolating values...")
         
         for col in valid_numeric_cols:
-            print(f"   🔄 Interpolating: {col}")
+            print(f"   Interpolating: {col}")
             
             # Create lookup dictionary for quarterly data (x -> value)
             quarterly_lookup = dict(zip(df_q['x'], df_q[col]))
@@ -271,19 +271,19 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
             
             monthly_df[col] = interpolated_values
         
-        print(f"✅ Interpolation complete!")
+        print(f"Interpolation complete!")
         
         # Step 8: Add growth rate columns
-        print("\n📊 Step 8: Adding growth rate columns...")
+        print("\nStep 8: Adding growth rate columns...")
         
         # Find the 3rd January (index where month is January and it's the 3rd occurrence)
         jan_indices = monthly_df[monthly_df['month'] == 'Jan'].index.tolist()
         if len(jan_indices) >= 3:
             start_calc_idx = jan_indices[2]  # 3rd January (0-indexed: 0, 1, 2)
-            print(f"✅ Found 3rd January at index {start_calc_idx} ({monthly_df.loc[start_calc_idx, 'Date']})")
+            print(f"Found 3rd January at index {start_calc_idx} ({monthly_df.loc[start_calc_idx, 'Date']})")
         else:
             start_calc_idx = len(monthly_df)  # If not found, don't calculate
-            print(f"⚠️  Could not find 3rd January, growth rates will be set to 0")
+            print(f"Could not find 3rd January, growth rates will be set to 0")
         
         growth_rate_cols = []
         for col in valid_numeric_cols:
@@ -314,10 +314,10 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
                     # Not enough data (less than 12 months), keep as 0
                     monthly_df.loc[idx, growth_rate_col_name] = 0.0
         
-        print(f"✅ Added {len(growth_rate_cols)} growth rate columns with calculations starting from 3rd January")
+        print(f"Added {len(growth_rate_cols)} growth rate columns with calculations starting from 3rd January")
         
         # Step 9: Reorder columns
-        print("\n📋 Step 9: Reordering columns...")
+        print("\nStep 9: Reordering columns...")
         
         # Put metadata columns first, then numeric columns, then growth rate columns
         column_order = metadata_cols + valid_numeric_cols + growth_rate_cols
@@ -326,13 +326,13 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         monthly_df = monthly_df[column_order]
         
         
-        print("🎉 INTERPOLATION COMPLETE!")
+        print("INTERPOLATION COMPLETE!")
         
         print(monthly_df)
         return monthly_df
     
     except Exception as e:
-        print(f"❌ Error during interpolation: {str(e)}")
+        print(f"Error during interpolation: {str(e)}")
         import traceback
         traceback.print_exc()
         return None

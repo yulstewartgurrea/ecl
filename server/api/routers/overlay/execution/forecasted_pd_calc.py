@@ -465,7 +465,7 @@ def format_variable_model(finals_overlay_model_df):
                 }
                 print(f"{x_col} = {variable_name}, coefficient = {coefficient_value}")
             else:
-                print(f"⚠️ Warning: {coeff_col} not found in columns")
+                print(f"Warning: {coeff_col} not found in columns")
                 x_variables[x_col] = {
                     'variable_name': variable_name,
                     'coefficient': None

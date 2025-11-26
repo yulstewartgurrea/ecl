@@ -61,7 +61,7 @@ def save_flowrate_output(
                 # Add data
                 df1.to_excel(writer, sheet_name=sheet_name, startrow=start_row, index=False)
                 start_row += len(df1) + 3  # Add 3 rows spacing
-                print(f"✓ Saved 'Flow of Loan Balance Principal Matrix' with {len(df1)} rows")
+                print(f"Saved 'Flow of Loan Balance Principal Matrix' with {len(df1)} rows")
             
             # Table 2: Flow of Loan Balance Principal Matrix (Distribution)
             if 'Flow of Loan Balance Principal Matrix (Distribution)' in csv_data:
@@ -75,7 +75,7 @@ def save_flowrate_output(
                 # Add data
                 df2.to_excel(writer, sheet_name=sheet_name, startrow=start_row, index=False)
                 start_row += len(df2) + 3  # Add 3 rows spacing
-                print(f"✓ Saved 'Distribution Matrix' with {len(df2)} rows")
+                print(f"Saved 'Distribution Matrix' with {len(df2)} rows")
             
             # Table 3: Flow Rate Calculation
             if 'Flow Rate Calculation' in csv_data and csv_data['Flow Rate Calculation'] is not None:
@@ -88,13 +88,13 @@ def save_flowrate_output(
                 
                 # Add data
                 df3.to_excel(writer, sheet_name=sheet_name, startrow=start_row, index=False)
-                print(f"✓ Saved 'Flow Rate Calculation' with {len(df3)} rows")
+                print(f"Saved 'Flow Rate Calculation' with {len(df3)} rows")
             else:
-                print("⚠ No Flow Rate Calculation data to save")
+                print("No Flow Rate Calculation data to save")
 
-        print(f"✅ Excel file saved successfully: {full_file_path}")
+        print(f"Excel file saved successfully: {full_file_path}")
         return full_file_path
         
     except Exception as e:
-        print(f"❌ Error saving Excel file: {str(e)}")
+        print(f"Error saving Excel file: {str(e)}")
         raise Exception(f"Error saving Excel file: {str(e)}")

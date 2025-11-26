@@ -93,12 +93,12 @@ def process_transform_forecasted_mevs(data_interpolation_df: pd.DataFrame,
                     # Update the lag column with log-transformed values
                     transformed_mev_forecasts_df[col] = lag_values
                 else:
-                    print(f"⚠️ Warning: Base column '{base_col}' not found in raw_mev_forecasts_df for lag column '{col}'")
+                    print(f"Warning: Base column '{base_col}' not found in raw_mev_forecasts_df for lag column '{col}'")
                     transformed_mev_forecasts_df[col] = np.nan
 
         return transformed_mev_forecasts_df
     except Exception as e:
-        print(f"❌ Error during interpolation: {str(e)}")
+        print(f"Error during interpolation: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -133,7 +133,7 @@ def format_override_forecasted_mevs_df(override_forecasted_mevs_df: pd.DataFrame
 
         return output_df
     except Exception as e:
-        print(f"❌ Error during format override forecasted MEVs dataframe: {str(e)}")
+        print(f"Error during format override forecasted MEVs dataframe: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -184,9 +184,9 @@ def populate_previous_dates(data_interpolation_df: pd.DataFrame,
                         growth_rate_col = f"{metric} Point growth_rate"
                         if growth_rate_col in data_interpolation_df_copy.columns:
                             matching_col = growth_rate_col
-                            print(f"ℹ️ Using '{growth_rate_col}' for '{col}' (values > 100 detected)")
+                            print(f"Using '{growth_rate_col}' for '{col}' (values > 100 detected)")
                         else:
-                            print(f"⚠️ Warning: Growth rate column '{growth_rate_col}' not found, using '{matching_col}'")
+                            print(f"Warning: Growth rate column '{growth_rate_col}' not found, using '{matching_col}'")
                     
                     # Merge on Date = Period
                     merged = pd.merge(
@@ -202,7 +202,7 @@ def populate_previous_dates(data_interpolation_df: pd.DataFrame,
                     else:
                         new_df[col] = merged[matching_col].values
                 else:
-                    print(f"⚠️ Warning: Could not find column '{matching_col}' in data_interpolation_df")
+                    print(f"Warning: Could not find column '{matching_col}' in data_interpolation_df")
                     new_df[col] = np.nan
             else:
                 # If column name doesn't match expected pattern, try to find exact match
@@ -216,12 +216,12 @@ def populate_previous_dates(data_interpolation_df: pd.DataFrame,
                     )
                     new_df[col] = merged[col].values
                 else:
-                    print(f"⚠️ Warning: Could not find column '{col}' in data_interpolation_df")
+                    print(f"Warning: Could not find column '{col}' in data_interpolation_df")
                     new_df[col] = np.nan
         
         return new_df
     except Exception as e:
-        print(f"❌ Error during populate previous dates: {str(e)}")
+        print(f"Error during populate previous dates: {str(e)}")
         import traceback
         traceback.print_exc()
         return None

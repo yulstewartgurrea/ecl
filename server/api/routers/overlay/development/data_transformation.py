@@ -85,7 +85,7 @@ def register_thread(workflow_id: int, thread: threading.Thread, job_id: int):
             'started_at': datetime.utcnow(),
             'job_id': job_id
         }
-        print(f"📝 Registered thread for workflow {workflow_id}, job {job_id}")
+        print(f"Registered thread for workflow {workflow_id}, job {job_id}")
 
 def deregister_thread(workflow_id: int):
     """
@@ -95,7 +95,7 @@ def deregister_thread(workflow_id: int):
         if workflow_id in active_threads:
             job_id = active_threads[workflow_id].get('job_id', 'unknown')
             del active_threads[workflow_id]
-            print(f"🗑️ Deregistered thread for workflow {workflow_id}, job {job_id}")
+            print(f"Deregistered thread for workflow {workflow_id}, job {job_id}")
 
 def clean_dataframe_for_json(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -167,7 +167,7 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
         ).first()
         
         if not job:
-            print(f"❌ Job {job_id} not found")
+            print(f"Job {job_id} not found")
             return
         
         # Mark job as started and record start time
@@ -231,7 +231,7 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
         # Check for cancellation before starting
         if check_cancellation():
             set_running_time()
-            print(f"⚠️ Job {job_id} was cancelled before processing started")
+            print(f"Job {job_id} was cancelled before processing started")
             return
         
         # Prepare dataframes
@@ -267,7 +267,7 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
                     set_running_time()
                     job.message = "Cancelled by user"
                     db.commit()
-                    print(f"⚠️ Job {job_id} was cancelled during processing")
+                    print(f"Job {job_id} was cancelled during processing")
                     return
             raise  # Re-raise if it's a different error
         
@@ -332,7 +332,7 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
         job.message = "Data transformation completed successfully"
         db.commit()
         
-        print(f"✅ Job {job_id} completed successfully in {job.running_time_seconds} seconds")
+        print(f"Job {job_id} completed successfully in {job.running_time_seconds} seconds")
         
     except Exception as e:
         traceback.print_exc()
@@ -356,7 +356,7 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
                 db.commit()
         except:
             pass
-        print(f"❌ Job {job_id} failed: {str(e)}")
+        print(f"Job {job_id} failed: {str(e)}")
     finally:
         db.close()
         # Always deregister thread when done (success, failure, or cancellation)
@@ -642,7 +642,7 @@ async def cancel_data_transformation(workflow_id: int = Form(...),
             job.message = "Cancellation requested by user"
             db.commit()
             
-            print(f"⚠️ Job {job.id} (workflow {workflow_id}) cancellation requested by user {current_user.id}")
+            print(f"Job {job.id} (workflow {workflow_id}) cancellation requested by user {current_user.id}")
             
             return JSONResponse(
                 status_code=200,
@@ -687,10 +687,10 @@ async def get_data_transformation_results(workflow_id: int = Query(...),
         ).first()
 
         if not workflow:
-            print(f"❌ Workflow with ID {workflow_id} not found for user {current_user.id}")
+            print(f"Workflow with ID {workflow_id} not found for user {current_user.id}")
             return JSONResponse(status_code=404, content={"detail": f"Workflow with ID {workflow_id} not found"})
 
-        print(f"✅ Found workflow: {workflow.workflow_name} (Entity: {workflow.entity}, Period: {workflow.reporting_period}, Portfolio: {workflow.loan_product})")
+        print(f"Found workflow: {workflow.workflow_name} (Entity: {workflow.entity}, Period: {workflow.reporting_period}, Portfolio: {workflow.loan_product})")
 
         # Construct file paths based on workflow
         portfolio = workflow.loan_product or "Housing"  # Default to Housing if loan_product is None
@@ -698,24 +698,24 @@ async def get_data_transformation_results(workflow_id: int = Query(...),
         # Use the correct server_files_path
         server_files_path = f"{root_folder}/server/files/{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/development/{portfolio}/data_transformation"
         
-        print(f"🔍 Looking for files in: {server_files_path}")
+        print(f"Looking for files in: {server_files_path}")
         
         if not os.path.exists(server_files_path):
-            print(f"❌ {server_files_path} does not exist")
+            print(f"{server_files_path} does not exist")
             return JSONResponse(status_code=404, content={"detail": f"Data transformation directory not found: {server_files_path}"})
         
-        print(f"✅ Found data transformation directory: {server_files_path}")
+        print(f"Found data transformation directory: {server_files_path}")
         
         # Find the most recent files with timestamp
         files = os.listdir(server_files_path)
-        print(f"📁 Found {len(files)} files in directory")
+        print(f"Found {len(files)} files in directory")
         
         # Filter files by pattern and get the most recent
         independent_files = [f for f in files if f.startswith(f"{portfolio}_Independent - Transformed with Time") and f.endswith('.csv')]
         dependent_files = [f for f in files if f.startswith(f"{portfolio}_Dependent - Transformed with Time") and f.endswith('.csv')]
         
-        print(f"🔍 Independent files found: {independent_files}")
-        print(f"🔍 Dependent files found: {dependent_files}")
+        print(f"Independent files found: {independent_files}")
+        print(f"Dependent files found: {dependent_files}")
         
         if not independent_files or not dependent_files:
             return JSONResponse(status_code=404, content={"detail": f"Transformed data files not found. Looking for {portfolio}_Independent and {portfolio}_Dependent files"})

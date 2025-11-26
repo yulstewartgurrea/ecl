@@ -45,5 +45,5 @@ def save_creditloss_rate_output(
         return full_file_path
         
     except Exception as e:
-        print(f"❌ Error saving Excel file: {str(e)}")
+        print(f"Error saving Excel file: {str(e)}")
         raise Exception(f"Error saving Excel file: {str(e)}")

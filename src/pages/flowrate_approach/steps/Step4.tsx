@@ -14,19 +14,21 @@ import PrincipalMatrixTable from "../../../components/asa/table/PrincipalMatrixT
 import PrincipalMatrixDistributionTable from "../../../components/asa/table/PrincipalMatrixDistributionTable";
 import FlowRateCalcTable from "../../../components/asa/table/FlowRateCalcTable";
 import type { AgingRow } from "../../../components/asa/table/aging.types";
-import { useAsaApi } from "../../../lib/asaApi";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
+import {
+  getFlowRateDataGET,
+  runFlowRatePOST,
+  exportFlowRateFile,
+} from "../../../services/flowrate";
 
 /* -------- workflow id helpers (URL ?workflow_id=, route state, or localStorage) -------- */
-function useWorkflowIdFallback(): number {
+function useWorkflowId(): number {
   const { state } = useLocation() as { state?: { workflowId?: number } };
   const [params] = useSearchParams();
 
-  // URL ?workflow_id=
-  const raw = params.get("workflow_id");
-  const q = raw ? Number(raw) : NaN;
+  const q = Number(params.get("workflow_id"));
   console.log("Step4 - URL workflow_id:", q);
 
   if (!Number.isNaN(q) && q > 0) {
@@ -34,19 +36,13 @@ function useWorkflowIdFallback(): number {
     return q;
   }
 
-  // route state
   console.log("Step4 - Route state workflowId:", state?.workflowId);
   if (state?.workflowId && state.workflowId > 0) {
     console.log("Step4 - Using state workflowId:", state.workflowId);
     return state.workflowId;
   }
 
-  // localStorage
-  const lsRaw =
-    typeof window !== "undefined"
-      ? window.localStorage.getItem("current_workflow_id")
-      : null;
-  const ls = lsRaw ? Number(lsRaw) : NaN;
+  const ls = Number(localStorage.getItem("current_workflow_id") || "");
   console.log("Step4 - LocalStorage workflow_id:", ls);
 
   if (!Number.isNaN(ls) && ls > 0) {
@@ -54,9 +50,7 @@ function useWorkflowIdFallback(): number {
     return ls;
   }
 
-  console.log(
-    "Step4 - No valid workflow_id found in URL/state/LS, fallback = 0"
-  );
+  console.log("Step4 - No valid workflow_id found, falling back to default: 0");
   return 0;
 }
 
@@ -201,36 +195,37 @@ function coercePrincipalMatrix(payload: any, view: ViewKey): AgingRow[] {
 /* ------------------ Page ------------------ */
 type ViewKey = "principal" | "distribution" | "flowrate";
 
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+
 export default function Step4() {
-  const {
-    currentPdTransitionMatrixWorkflowId,
-    currentPdTransitionMatrixWorkflowData,
-  } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
-
-  // 1) Try Redux explicit workflow id
-  const reduxId = currentPdTransitionMatrixWorkflowId as number | null;
-
-  // 2) Try id from workflow_data (we store full workflow object there on landing)
-  const reduxDataId = currentPdTransitionMatrixWorkflowData?.id as
-    | number
-    | undefined;
-
-  // 3) Fallback: URL / route state / localStorage
-  const fallbackId = useWorkflowIdFallback();
-
-  const workflowId =
-    (reduxId && reduxId > 0 && reduxId) ||
-    (reduxDataId && reduxDataId > 0 && reduxDataId) ||
-    fallbackId;
-
+  const currentPdTransitionMatrixWorkflowId = useAppSelector(
+    (state: any) =>
+      state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowId
+  );
+  const currentPdTransitionMatrixWorkflowData = useAppSelector(
+    (state: any) =>
+      state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowData
+  );
+  
+  // Try to get workflowId from multiple sources:
+  // 1. Direct workflowId from Redux
+  // 2. From workflowData.id
+  // 3. From useWorkflowId() hook (URL params, state, localStorage)
+  const workflowIdFromData = currentPdTransitionMatrixWorkflowData?.id;
+  const workflowId = 
+    currentPdTransitionMatrixWorkflowId || 
+    workflowIdFromData || 
+    useWorkflowId();
+  
   const authToken = useAppSelector((s) => s.auth.token);
 
-  console.log("Step4 – Redux workflowId:", reduxId);
-  console.log("Step4 – Redux workflowData.id:", reduxDataId);
-  console.log("Step4 – fallback workflowId:", fallbackId);
-  console.log("Step4 – final workflowId:", workflowId);
-
-  const { getStep3Data } = useAsaApi();
+  // Debug: Log workflowId value
+  useEffect(() => {
+    console.log("Step4 - Current workflowId:", workflowId, "Type:", typeof workflowId);
+    console.log("Step4 - Redux workflowId:", currentPdTransitionMatrixWorkflowId);
+    console.log("Step4 - WorkflowData ID:", workflowIdFromData);
+    console.log("Step4 - WorkflowData:", currentPdTransitionMatrixWorkflowData);
+  }, [workflowId, currentPdTransitionMatrixWorkflowId, workflowIdFromData, currentPdTransitionMatrixWorkflowData]);
 
   const [apiData, setApiData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -248,19 +243,29 @@ export default function Step4() {
 
   // Check if data already exists on page load
   useEffect(() => {
-    if (!workflowId || workflowId <= 0) {
+    if (!workflowId || workflowId === 0) {
+      setApiData(null);
       setLoading(false);
-      setError(
-        "No workflow is selected. Please start from the Flowrate landing page and create or load a workflow."
-      );
       return;
     }
 
+    const workflowIdNum = Number(workflowId);
+    if (isNaN(workflowIdNum) || workflowIdNum <= 0) {
+      setApiData(null);
+      setLoading(false);
+      return;
+    }
+
+    console.log("Step4 - Fetching flow rate data with workflowId:", workflowIdNum);
     let mounted = true;
     setLoading(true);
     setError(null);
 
-    getStep3Data(workflowId)
+    getFlowRateDataGET({
+      apiBase: API_BASE,
+      token: authToken,
+      workflowId: workflowIdNum,
+    })
       .then((res) => {
         if (!mounted) return;
         const data = res?.data ?? res;
@@ -286,7 +291,7 @@ export default function Step4() {
     return () => {
       mounted = false;
     };
-  }, [workflowId, getStep3Data]);
+  }, [workflowId, authToken]);
 
   // Derive rows per view
   const rowsForView = useMemo(() => {
@@ -326,53 +331,47 @@ export default function Step4() {
   const filteredRows = useMemo(() => {
     if (!productFilter) return rowsForView;
     return rowsForView.filter(
-      (r: any) => (r.product ?? r.Product ?? "").toString() === productFilter
+      (r: any) =>
+        (r.product ?? r.Product ?? "").toString() === productFilter
     );
   }, [rowsForView, productFilter]);
 
   const handleRun = async () => {
+    if (!workflowId || workflowId === 0) {
+      setError("Please select a workflow first");
+      return;
+    }
+    
+    const workflowIdNum = Number(workflowId);
+    if (isNaN(workflowIdNum) || workflowIdNum <= 0) {
+      setError("Invalid workflow ID");
+      return;
+    }
+    
+    console.log("Step4 - Running flow rate with workflowId:", workflowIdNum);
     setRunning(true);
     setError(null);
     setToasterStatus("loading");
     setToasterMessage("Running flow rate calculation...");
 
     try {
-      const formData = new FormData();
-      formData.append("workflow_id", String(workflowId));
+      await runFlowRatePOST({
+        apiBase: API_BASE,
+        token: authToken,
+        workflowId: workflowIdNum,
+      });
 
-      const headers: Record<string, string> = {};
-      if (authToken) {
-        headers["Authorization"] = `Bearer ${authToken}`;
-      }
+      // After POST, fetch updated data
+      const getResult = await getFlowRateDataGET({
+        apiBase: API_BASE,
+        token: authToken,
+        workflowId: workflowIdNum,
+      });
 
-      const response = await fetch(
-        "http://localhost:8000/api/flowrate_approach/flow_rate/",
-        {
-          method: "POST",
-          headers,
-          body: formData,
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      console.log("Run result:", result);
-
-      if (result.success || result.code === 1) {
-        const getResult = await getStep3Data(workflowId);
-        console.log("Updated data:", getResult);
-        setApiData(getResult);
-        setToasterStatus("success");
-        setToasterMessage("Flow rate calculation completed successfully!");
-      } else {
-        const errorMsg = result.msg || "Flow rate calculation failed.";
-        setToasterStatus("error");
-        setToasterMessage(errorMsg);
-        setError(errorMsg);
-      }
+      console.log("Updated data:", getResult);
+      setApiData(getResult);
+      setToasterStatus("success");
+      setToasterMessage("Flow rate calculation completed successfully!");
     } catch (e: any) {
       console.error("Run error:", e);
       const errorMsg = e?.message || "Failed to run flow rate calculation.";
@@ -385,46 +384,33 @@ export default function Step4() {
   };
 
   const handleExport = async () => {
+    if (!workflowId || workflowId === 0) {
+      setError("Please select a workflow first");
+      return;
+    }
+    
+    const workflowIdNum = Number(workflowId);
+    if (isNaN(workflowIdNum) || workflowIdNum <= 0) {
+      setError("Invalid workflow ID");
+      return;
+    }
+    
+    console.log("Step4 - Exporting flow rate with workflowId:", workflowIdNum);
     setExporting(true);
     setError(null);
     setToasterStatus("loading");
     setToasterMessage("Exporting file...");
 
     try {
-      const headers: Record<string, string> = {};
-      if (authToken) {
-        headers["Authorization"] = `Bearer ${authToken}`;
-      }
+      const blob = await exportFlowRateFile({
+        apiBase: API_BASE,
+        token: authToken,
+        workflowId: workflowIdNum,
+      });
 
-      const response = await fetch(
-        `http://localhost:8000/api/flowrate_approach/flow_rate/export?workflow_id=${workflowId}`,
-        {
-          method: "GET",
-          headers,
-        }
-      );
+      // Get filename from blob or use default
+      const filename = `flow_rate_output_${workflowIdNum}.xlsx`;
 
-      if (!response.ok) {
-        let errorMsg = `API error: ${response.status} ${response.statusText}`;
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.msg || errorMsg;
-        } catch {
-          //
-        }
-        throw new Error(errorMsg);
-      }
-
-      const contentDisposition = response.headers.get("Content-Disposition");
-      let filename = "flow_rate_output.xlsx";
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
-        if (filenameMatch) {
-          filename = filenameMatch[1];
-        }
-      }
-
-      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -471,8 +457,13 @@ export default function Step4() {
             <button
               type="button"
               onClick={handleRun}
-              disabled={running || !workflowId}
+              disabled={running || !workflowId || workflowId === 0}
               className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
+              title={
+                !workflowId || workflowId === 0
+                  ? "Select a workflow first"
+                  : "Run flow rate calculation"
+              }
             >
               <PlayIcon className="h-5 w-5" />
               {running ? "Running..." : "Run"}
@@ -481,7 +472,7 @@ export default function Step4() {
             <button
               type="button"
               onClick={handleExport}
-              disabled={exporting || running || !apiData || !workflowId}
+              disabled={exporting || running || !apiData}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
             >
               <ArrowDownTrayIcon className="h-5 w-5" />
@@ -498,9 +489,7 @@ export default function Step4() {
               onClick={() => setView("principal")}
               className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition
                 ${
-                  view === "principal"
-                    ? "bg-white shadow-sm"
-                    : "hover:bg-white/60"
+                  view === "principal" ? "bg-white shadow-sm" : "hover:bg-white/60"
                 }
               `}
               aria-pressed={view === "principal"}
@@ -546,7 +535,9 @@ export default function Step4() {
               <span className="text-xs text-gray-700">Filter by product:</span>
               <select
                 value={productFilter ?? ""}
-                onChange={(e) => setProductFilter(e.target.value || null)}
+                onChange={(e) =>
+                  setProductFilter(e.target.value || null)
+                }
                 className="h-9 rounded-lg border border-gray-300 px-2 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-300"
               >
                 <option value="">All</option>
@@ -576,10 +567,7 @@ export default function Step4() {
                 title="Flow of Loan Balance Principal Matrix"
                 subtitle="Raw principal balances by PAR bucket."
               >
-                <PrincipalMatrixTable
-                  rows={filteredRows as AgingRow[]}
-                  height={420}
-                />
+                <PrincipalMatrixTable rows={filteredRows as AgingRow[]} height={420} />
               </Card>
             )}
 
