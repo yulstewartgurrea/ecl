@@ -61,6 +61,7 @@ export default function Step1() {
     selectedPdTransitionMatrixReportingPeriod: period,
     pdTransitionMatrixWfName: workflowName,
     currentPdTransitionMatrixWorkflowId: selectedWorkflowId,
+    selectedPdTransitionMatrixLoanProduct: loanproduct
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper as any);
 
   const token = useAppSelector((state) => state.auth.token);
@@ -85,7 +86,7 @@ export default function Step1() {
   const maxSizeMB = 20;
 
   const baseDir = `/${entity}/${period}/${workflowName}`.replace(/^\/+/, "");
-  const workflowPathBase = `${baseDir}/input/overlay/development/Auto`;
+  const workflowPathBase = `${baseDir}/input/overlay/development/${loanproduct}`;
 
   const effectiveWorkflowId = selectedWorkflowId ?? 1;
 

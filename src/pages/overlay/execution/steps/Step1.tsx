@@ -63,6 +63,7 @@ export default function Step1() {
     selectedPdTransitionMatrixReportingPeriod: period,
     pdTransitionMatrixWfName: workflowName,
     currentPdTransitionMatrixWorkflowId: selectedWorkflowId,
+     selectedPdTransitionMatrixLoanProduct: loanproduct
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper as any);
 
   const token = useAppSelector((state) => state.auth.token);
@@ -88,7 +89,7 @@ export default function Step1() {
 
   // Build the base workflow path → <entity>/<period>/<wfName>/input/overlay/execution/Auto
   const baseDir = `/${entity}/${period}/${workflowName}`.replace(/^\/+/, "");
-  const workflowPathBase = `${baseDir}/input/overlay/execution/Auto`;
+  const workflowPathBase = `${baseDir}/input/overlay/execution/${loanproduct}`;
 
   // Prefer explicit workflow id
   const effectiveWorkflowId = selectedWorkflowId ?? 1;
