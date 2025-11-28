@@ -348,7 +348,7 @@ async def get_multifactor_analysis_status(workflow_id: int,
             
             if not job:
                 return JSONResponse(
-                    status_code=404,
+                    status_code=400,
                     content={
                         "code": -1,
                         "success": False,
@@ -477,6 +477,268 @@ async def cancel_multifactor_analysis(workflow_id: int = Form(...),
         )
 
 
+@router.get("/multifactor_analysis/files")
+async def get_mfa_files(
+    workflow_id: int = Query(..., description="Workflow ID"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get the latest MFA results folder and return all filenames in it.
+    
+    Returns the folder name and list of all CSV files in the most recent MFA results folder.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id,
+                Workflow.user_id == current_user.id
+            ).first()
+
+            if not workflow:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Workflow with ID {workflow_id} not found",
+                        "data": None
+                    }
+                )
+
+            portfolio = workflow.loan_product
+
+            multifactor_analysis_output_path = (
+                f"{get_root_folder()}/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{portfolio}/multifactor_analysis"
+            )
+
+            if not os.path.exists(multifactor_analysis_output_path):
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Multifactor analysis directory not found: {multifactor_analysis_output_path}",
+                        "data": None
+                    }
+                )
+
+            folder_path = Path(multifactor_analysis_output_path)
+            
+            # Look for folders matching the pattern (folder-based approach)
+            mfa_folders = list(folder_path.glob(f"{portfolio}_mfa_*_*-var_*"))
+            
+            if not mfa_folders:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"No MFA results folder found for portfolio {portfolio}",
+                        "data": None
+                    }
+                )
+            
+            # Get the most recent folder (by modification time)
+            mfa_folder = max(mfa_folders, key=lambda p: p.stat().st_mtime)
+            
+            # Find all CSV files in the folder (001.csv, 002.csv, etc.)
+            csv_files = sorted(mfa_folder.glob("*.csv"), key=lambda p: p.name)
+            
+            if not csv_files:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"No CSV files found in MFA results folder: {mfa_folder.name}",
+                        "data": None
+                    }
+                )
+            
+            # Get file information
+            filenames = [f.name for f in csv_files]
+            file_info = []
+            for csv_file in csv_files:
+                try:
+                    file_size = csv_file.stat().st_size
+                    file_mtime = datetime.fromtimestamp(csv_file.stat().st_mtime).isoformat()
+                    file_info.append({
+                        "filename": csv_file.name,
+                        "size_bytes": file_size,
+                        "modified_at": file_mtime
+                    })
+                except Exception as e:
+                    print(f"Error getting file info for {csv_file.name}: {e}")
+                    file_info.append({
+                        "filename": csv_file.name,
+                        "size_bytes": None,
+                        "modified_at": None
+                    })
+            
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "msg": "MFA files retrieved successfully",
+                    "data": {
+                        "folder_name": mfa_folder.name,
+                        "folder_path": str(mfa_folder),
+                        "total_files": len(csv_files),
+                        "files": file_info,
+                        "filenames": filenames
+                    }
+                }
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Unexpected error retrieving MFA files: {str(e)}",
+                "data": None
+            }
+        )
+
+
+@router.get("/multifactor_analysis/file")
+async def get_mfa_file(
+    workflow_id: int = Query(..., description="Workflow ID"),
+    filename: str = Query(..., description="Filename to read (e.g., 001.csv)"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Read a specific CSV file from the latest MFA results folder.
+    Returns the file contents as JSON.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id,
+                Workflow.user_id == current_user.id
+            ).first()
+
+            if not workflow:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Workflow with ID {workflow_id} not found",
+                        "data": None
+                    }
+                )
+
+            portfolio = workflow.loan_product
+
+            multifactor_analysis_output_path = (
+                f"{get_root_folder()}/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{portfolio}/multifactor_analysis"
+            )
+
+            if not os.path.exists(multifactor_analysis_output_path):
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Multifactor analysis directory not found: {multifactor_analysis_output_path}",
+                        "data": None
+                    }
+                )
+
+            folder_path = Path(multifactor_analysis_output_path)
+            
+            # Look for folders matching the pattern
+            mfa_folders = list(folder_path.glob(f"{portfolio}_mfa_*_*-var_*"))
+            
+            if not mfa_folders:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"No MFA results folder found for portfolio {portfolio}",
+                        "data": None
+                    }
+                )
+            
+            # Get the most recent folder
+            mfa_folder = max(mfa_folders, key=lambda p: p.stat().st_mtime)
+            
+            # Construct file path
+            file_path = mfa_folder / filename
+            
+            # Security: ensure filename doesn't contain path traversal
+            if not file_path.exists() or not str(file_path).startswith(str(mfa_folder)):
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"File not found: {filename}",
+                        "data": None
+                    }
+                )
+            
+            # Read CSV file
+            try:
+                df = pd.read_csv(file_path)
+                # Convert to list of records
+                records = make_json_serializable(df.to_dict('records'))
+                
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "code": 1,
+                        "success": True,
+                        "msg": "File read successfully",
+                        "data": {
+                            "filename": filename,
+                            "folder_name": mfa_folder.name,
+                            "rows": records,
+                            "total_rows": len(records)
+                        }
+                    }
+                )
+            except Exception as e:
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Error reading file: {str(e)}",
+                        "data": None
+                    }
+                )
+        finally:
+            db.close()
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Unexpected error reading file: {str(e)}",
+                "data": None
+            }
+        )
+
+
 @router.get("/multifactor_analysis")
 async def get_mfa_results(
     workflow_id: int = Query(..., description="Workflow ID"),
@@ -534,25 +796,63 @@ async def get_mfa_results(
             )
 
         folder_path = Path(multifactor_analysis_output_path)
-        mfa_path = max(
-            folder_path.glob(f"{portfolio}_mfa_odr.logit_2-var*"),
-            key=lambda p: p.stat().st_mtime,   # last modified time
-            default=None
-        )
         
-        if not mfa_path:
+        # Look for folders matching the pattern (folder-based approach)
+        # Pattern: {portfolio}_mfa_{ODR}_{num_vars_taken}-var_*
+        mfa_folders = list(folder_path.glob(f"{portfolio}_mfa_*_*-var_*"))
+        
+        if not mfa_folders:
             return JSONResponse(
                 status_code=404,
                 content={
                     "code": -1,
                     "success": False,
-                    "msg": f"No MFA results file found for portfolio {portfolio}",
+                    "msg": f"No MFA results folder found for portfolio {portfolio}",
                     "data": None
                 }
             )
-
-        # Read CSV file
-        df = pd.read_csv(mfa_path)
+        
+        # Get the most recent folder (by modification time)
+        mfa_folder = max(mfa_folders, key=lambda p: p.stat().st_mtime)
+        
+        # Find all CSV files in the folder (001.csv, 002.csv, etc.)
+        csv_files = sorted(mfa_folder.glob("*.csv"), key=lambda p: p.name)
+        
+        if not csv_files:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": -1,
+                    "success": False,
+                    "msg": f"No CSV files found in MFA results folder: {mfa_folder.name}",
+                    "data": None
+                }
+            )
+        
+        # Read and combine all CSV files in the folder
+        dfs = []
+        for csv_file in csv_files:
+            try:
+                df_part = pd.read_csv(csv_file)
+                dfs.append(df_part)
+                print(f"Loaded {len(df_part)} rows from {csv_file.name}")
+            except Exception as e:
+                print(f"Error reading {csv_file.name}: {e}")
+                continue
+        
+        if not dfs:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": -1,
+                    "success": False,
+                    "msg": f"Failed to read any CSV files from folder: {mfa_folder.name}",
+                    "data": None
+                }
+            )
+        
+        # Combine all dataframes
+        df = pd.concat(dfs, ignore_index=True)
         total_count = len(df)
         
         print(f"MFA Results: {total_count} total records")
