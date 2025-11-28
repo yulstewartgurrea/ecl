@@ -154,7 +154,7 @@ def clean_response_data(data_dict):
 
 router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development"])
 
-def run_data_transformation_background(job_id: int, workflow_id: int, user_id: int):
+def run_data_transformation_background(job_id: int, workflow_id: int, user_id: int, num_combinations: int):
     """
     Background function that runs the data transformation process
     and updates progress in the database
@@ -257,7 +257,8 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
                 historical_default_rates_df,
                 workflow,
                 progress_callback=update_progress,
-                cancellation_check=check_cancellation
+                cancellation_check=check_cancellation,
+                num_combinations=num_combinations
             )
         except Exception as e:
             if "cancelled" in str(e).lower() or job.status == "cancelled":
@@ -370,6 +371,7 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
     Calculate data transformation - returns immediately with job_id for status polling
     """
     try:
+        print(num_combinations)
         db = SessionLocal()
         try:
             workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
@@ -493,7 +495,7 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
         # Start background thread
         thread = threading.Thread(
             target=run_data_transformation_background,
-            args=(new_job.id, workflow_id, user_id.id),
+            args=(new_job.id, workflow_id, user_id.id, num_combinations),
             daemon=True
         )
         

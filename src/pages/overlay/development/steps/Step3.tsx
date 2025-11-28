@@ -14,6 +14,8 @@ import {
   ArrowPathIcon,
   ArrowDownTrayIcon,
   XCircleIcon,
+  Cog6ToothIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import {
   runDataTransformation,
@@ -61,6 +63,10 @@ export default function OverlayDevelpmentPage3() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
+  // Configuration states
+  const [showConfig, setShowConfig] = useState(false);
+  const [numCombinations, setNumCombinations] = useState<number>(2);
+
 
   // ---- Core loader (POST or GET-only) ----
   const loadTransformation = useCallback(
@@ -90,6 +96,7 @@ export default function OverlayDevelpmentPage3() {
             apiBase: API_BASE,
             token,
             workflowId: Number(selectedWorkflowId),
+            numCombinations: numCombinations,
           });
           
           // After starting job, check status instead of fetching results
@@ -133,7 +140,7 @@ export default function OverlayDevelpmentPage3() {
         setBusy(false);
       }
     },
-    [API_BASE, token, selectedWorkflowId]
+    [API_BASE, token, selectedWorkflowId, numCombinations]
   );
 
   const onRun = () => loadTransformation({ skipPost: false }); // POST
@@ -464,6 +471,17 @@ export default function OverlayDevelpmentPage3() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Configuration Button */}
+            <button
+              onClick={() => setShowConfig(true)}
+              disabled={busy || (!selectedWorkflowId && selectedWorkflowId !== 0)}
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+              title="Configure data transformation settings"
+            >
+              <Cog6ToothIcon className="h-4 w-4" />
+              Config
+            </button>
+
             {/* Run (POST) */}
             <button
               onClick={onRun}
@@ -548,6 +566,91 @@ export default function OverlayDevelpmentPage3() {
           </div>
         </div>
       </header>
+
+      {/* Configuration Modal */}
+      {showConfig && (
+        <div className="fixed inset-0 z-50">
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowConfig(false)} />
+          
+          {/* Dialog */}
+          <div className="absolute left-1/2 top-1/2 w-[min(100vw-2rem,500px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b p-4">
+              <div>
+                <h3 className="text-lg font-semibold">Configuration</h3>
+                <p className="text-xs text-neutral-600">
+                  Configure the number of combinations for data transformation.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowConfig(false)}
+                className="rounded-md p-2 hover:bg-neutral-100"
+                title="Close"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {/* Body */}
+            <div className="flex-1 overflow-auto p-4">
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="numCombinations" className="block text-sm font-medium text-gray-700 mb-2">
+                    Number of combinations
+                  </label>
+                  <input
+                    id="numCombinations"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={numCombinations}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Only allow positive integers
+                      if (value === "" || (Number.isInteger(Number(value)) && Number(value) > 0)) {
+                        setNumCombinations(value === "" ? 2 : Number(value));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Prevent decimal point, negative sign, and 'e' key
+                      if (e.key === '.' || e.key === '-' || e.key === 'e' || e.key === 'E') {
+                        e.preventDefault();
+                      }
+                    }}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    placeholder="Enter number of combinations"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Must be a positive integer (default: 2)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 border-t p-4">
+              <button
+                onClick={() => setShowConfig(false)}
+                className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm hover:bg-neutral-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (numCombinations > 0 && Number.isInteger(numCombinations)) {
+                    setShowConfig(false);
+                  }
+                }}
+                disabled={!Number.isInteger(numCombinations) || numCombinations <= 0}
+                className="rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto px-4 pb-8">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3">
