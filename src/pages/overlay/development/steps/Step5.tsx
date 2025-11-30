@@ -220,12 +220,12 @@ const Step5: React.FC<Step5Props> = ({
     setPosting(true);
     setErrMsg(null);
     try {
-      // If backend expects filters in body, pass payloadFilters here (kept commented if your API ignores body)
+      // Send workload_id and filter in the payload
       await postFilteringModels({
         apiBase: API_BASE,
         token,
         workflowId: Number(selectedWorkflowId),
-        // filters: payloadFilters.map((f) => ({ column: f.column, value: f.value })),
+        filter_list: payloadFilters.map((f) => ({ column: f.column, value: f.value })),
       });
       await fetchResults();
       // ✅ Mark that analysis has run successfully with the current filters

@@ -4,7 +4,7 @@ import pandas as pd
 
 from fastapi import APIRouter, Depends, HTTPException, Form, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from models.models import User, Workflow
 from core.security import get_current_user
@@ -22,14 +22,22 @@ router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development
 
 @router.post("/filtering_models")
 async def start_model_filtering(
-    workflow_id: int = Form(...),
+    workload_id: int = Form(...),
+    filter_list: str = Form(...),  # JSON string that will be parsed
     current_user: User = Depends(get_current_user)
 ):
     try:
+        import json
         db = SessionLocal()
         
+        # Parse filter_list JSON string
+        try:
+            parsed_filter_list = json.loads(filter_list) if isinstance(filter_list, str) else filter_list
+        except (json.JSONDecodeError, TypeError):
+            parsed_filter_list = []
+        
         workflow = db.query(Workflow).filter(
-            Workflow.id == workflow_id, 
+            Workflow.id == workload_id, 
             Workflow.user_id == current_user.id
         ).first()
         if not workflow:
@@ -78,7 +86,8 @@ async def start_model_filtering(
             num_of_vars,
             data_transformation_path,
             data_multifactor_analysis_path,
-            data_filtering_of_models_path
+            data_filtering_of_models_path,
+            parsed_filter_list
         )
 
         return JSONResponse(

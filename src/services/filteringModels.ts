@@ -57,19 +57,36 @@ export function extractFilteringRows(payload: FilteringPayload): {
 
 /* --------------------------------- POST --------------------------------- */
 // POST: /api/overlay/development/filtering_models
-// payload: { workflow_id: "22" }
+// payload: { workload_id: "22", filter: [...] }
+export type FilterRule = {
+  column: string;
+  value: string;
+};
+
 export async function postFilteringModels(opts: {
   apiBase: string;
   token?: string | null;
   workflowId: number;
+  filter_list?: FilterRule[];
 }): Promise<ApiEnvelope<unknown>> {
-  const { apiBase, token, workflowId } = opts;
+  const { apiBase, token, workflowId, filter_list } = opts;
   if (!Number.isFinite(workflowId)) throw new Error("workflowId must be a finite number");
 
   const url = `${base(apiBase)}/api/overlay/development/filtering_models`;
-  // Your example shows form-like payload {'workflow_id': '22'} → use FormData to avoid 422s.
+  // Use FormData to send workload_id and filter array
   const form = new FormData();
-  form.append("workflow_id", String(workflowId));
+  form.append("workload_id", String(workflowId));
+  
+  // Append filter_list array - send as JSON string
+  // FastAPI expects array[dict], so we'll send it as JSON string
+  if (filter_list && filter_list.length > 0) {
+    // Convert filter array to JSON string
+    const filterArray = filter_list.map(f => ({ column: f.column, value: f.value }));
+    form.append("filter_list", JSON.stringify(filterArray));
+  } else {
+    // Send empty array if no filter_list
+    form.append("filter_list", JSON.stringify([]));
+  }
 
   const res = await xfetch(url, {
     method: "POST",

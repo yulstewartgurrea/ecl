@@ -10,7 +10,7 @@ IV. Filter models — Python port of the R script
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 import re
 import pandas as pd
 
@@ -63,6 +63,7 @@ def filter_one_result_file(
     fn: Path,
     combos_df: pd.DataFrame,
     num_vars_taken: int,
+    parsed_filter_list: List[Dict[str, str]]
 ) -> pd.DataFrame:
     df = pd.read_csv(fn, low_memory=False)
     print(df)
@@ -93,25 +94,154 @@ def filter_one_result_file(
         if req not in merged.columns:
             raise KeyError(f"Required column '{req}' not found after merge in {fn}")
 
-    # Compose mask (mirrors the R filter)
-    mask = (
-        (pd.to_numeric(merged["max_abs_cor"], errors="coerce") < 0.9)
-        & (pd.to_numeric(merged["R_Squared"],   errors="coerce") > 0.5)
-        & (pd.to_numeric(merged["MAPE"],        errors="coerce") < 0.5)
-    )
+    # Start with a mask of all True (no filtering initially)
+    mask = pd.Series([True] * len(merged), index=merged.index)
 
-    # if_all(starts_with("p-value"), ~ (.x < 0.1))
+    # Helper function to find filter value from parsed_filter_list
+    def get_filter_value(column_name: str, default_value: float = None) -> float | None:
+        """Get filter value for a column, or return None if not found or value is "0"."""
+        if not parsed_filter_list:
+            return default_value
+        
+        for filter_rule in parsed_filter_list:
+            filter_col = filter_rule.get("column", "").strip()
+            if filter_col.lower() == column_name.lower():
+                value_str = str(filter_rule.get("value", "0")).strip()
+                if value_str and value_str != "0":
+                    try:
+                        return float(value_str)
+                    except (ValueError, TypeError):
+                        pass
+                break
+        return default_value
+
+    # Apply default filters for max_abs_cor, R_Squared, and MAPE if not in parsed_filter_list
+    max_abs_cor_threshold = get_filter_value("max_abs_cor", default_value=0.9)
+    if max_abs_cor_threshold is not None:
+        mask &= pd.to_numeric(merged["max_abs_cor"], errors="coerce") < max_abs_cor_threshold
+
+    r_squared_threshold = get_filter_value("R_Squared", default_value=0.5)
+    if r_squared_threshold is not None:
+        mask &= pd.to_numeric(merged["R_Squared"], errors="coerce") > r_squared_threshold
+
+    mape_threshold = get_filter_value("MAPE", default_value=0.5)
+    if mape_threshold is not None:
+        mask &= pd.to_numeric(merged["MAPE"], errors="coerce") < mape_threshold
+
+    # Apply "if_all" logic for p-value columns
+    # Check if any p-value filter exists in parsed_filter_list
+    pval_filters = []
+    if parsed_filter_list:
+        pval_filters = [f for f in parsed_filter_list 
+                       if f.get("column", "").strip().lower().startswith("p-value") 
+                       or f.get("column", "").strip().lower().startswith("p_value")]
+    
     if pval_cols:
-        mask &= rowwise_all(to_float_df(merged[pval_cols]), lambda d: d < 0.1)
+        pval_threshold = None
+        if pval_filters:
+            # Get the threshold from the first p-value filter with non-zero value
+            for f in pval_filters:
+                val = str(f.get("value", "0")).strip()
+                if val and val != "0":
+                    try:
+                        pval_threshold = float(val)
+                        break
+                    except (ValueError, TypeError):
+                        pass
+        
+        # Apply default if no valid p-value filter found
+        if pval_threshold is None:
+            pval_threshold = 0.1  # Default threshold
+        
+        mask &= rowwise_all(to_float_df(merged[pval_cols]), lambda d: d < pval_threshold)
 
-    # if_all(starts_with("vif"), ~ (.x < 5))
-    # Temporarily commented to have values
-    # if vif_cols:
-    #     mask &= rowwise_all(to_float_df(merged[vif_cols]), lambda d: d < 5.0)
+    # Apply "if_all" logic for vif columns
+    # Check if any vif filter exists in parsed_filter_list
+    vif_filters = []
+    if parsed_filter_list:
+        vif_filters = [f for f in parsed_filter_list 
+                      if f.get("column", "").strip().lower().startswith("vif")]
+    
+    if vif_cols:
+        vif_threshold = None
+        if vif_filters:
+            # Get the threshold from the first vif filter with non-zero value
+            for f in vif_filters:
+                val = str(f.get("value", "0")).strip()
+                if val and val != "0":
+                    try:
+                        vif_threshold = float(val)
+                        break
+                    except (ValueError, TypeError):
+                        pass
+        
+        # Apply default if no valid vif filter found
+        if vif_threshold is None:
+            vif_threshold = 5.0  # Default threshold
+        
+        mask &= rowwise_all(to_float_df(merged[vif_cols]), lambda d: d < vif_threshold)
 
-    # # if_all(starts_with("X"), ~ str_detect(.lag_)) — literal '.lag_' as per your convention
-    # if x_cols:
-    #     mask &= rowwise_all_str_contains(merged[x_cols], ".lag_")
+    # Apply other filters from parsed_filter_list (excluding the ones we already handled)
+    if parsed_filter_list:
+        handled_columns = {"max_abs_cor", "r_squared", "mape", "adj_r_squared"}
+        for filter_rule in parsed_filter_list:
+            column_name = filter_rule.get("column", "").strip()
+            value_str = str(filter_rule.get("value", "0")).strip()
+            
+            # Skip if value is "0" or empty (no filter)
+            if not value_str or value_str == "0":
+                continue
+            
+            # Skip columns we already handled with defaults
+            if column_name.lower() in handled_columns:
+                continue
+            
+            # Skip p-value and vif columns (handled above)
+            col_lower = column_name.lower()
+            if col_lower.startswith("p-value") or col_lower.startswith("p_value") or col_lower.startswith("vif"):
+                continue
+            
+            # Convert value to float
+            try:
+                threshold = float(value_str)
+            except (ValueError, TypeError):
+                print(f"Warning: Invalid filter value '{value_str}' for column '{column_name}', skipping")
+                continue
+            
+            # Find matching column in merged dataframe (case-insensitive, exact match preferred)
+            matching_col = None
+            for col in merged.columns:
+                if col == column_name:
+                    matching_col = col
+                    break
+                elif col.lower() == column_name.lower():
+                    matching_col = col
+                    break
+            
+            if matching_col is None:
+                print(f"Warning: Column '{column_name}' not found in merged dataframe, skipping filter")
+                continue
+            
+            # Apply filter based on column type
+            matching_col_lower = matching_col.lower()
+            if matching_col_lower in ["r_squared", "adj_r_squared"]:
+                # R_Squared and Adj_R_Squared: filter > threshold
+                mask &= pd.to_numeric(merged[matching_col], errors="coerce") > threshold
+            elif matching_col.startswith("X") and matching_col[1:].isdigit():
+                # X1, X2, etc. columns: special handling (skip for now, handled separately)
+                pass
+            else:
+                # Default: apply > threshold for other columns (e.g., Y)
+                mask &= pd.to_numeric(merged[matching_col], errors="coerce") > threshold
+
+    # Apply X column filter (exclude rows where X columns contain ".lag_")
+    x_filters = [f for f in parsed_filter_list if f.get("column", "").startswith("X")]
+    if x_cols and x_filters:
+        # Check if any X filter has a non-zero value (meaning we should apply the lag filter)
+        should_apply_lag_filter = any(f.get("value", "0") != "0" for f in x_filters)
+        if should_apply_lag_filter:
+            # Exclude rows where X columns contain ".lag_"
+            mask &= ~rowwise_all_str_contains(merged[x_cols], ".lag_")
 
     filtered = merged.loc[mask].copy()
 
@@ -143,7 +273,8 @@ def run_filter_models(
     num_vars_taken: int,
     data_transformation_path: str,
     data_multifactor_analysis_path: str,
-    data_filtering_of_models_path: str
+    data_filtering_of_models_path: str,
+    parsed_filter_list: List[Dict[str, str]]
 ) -> None:
     data_transformation_path = Path(data_transformation_path)
     data_transformation_path_file = max(
@@ -155,16 +286,47 @@ def run_filter_models(
 
     combos_df = load_combinations_df(data_transformation_path_file)
     
+    # Find the latest folder in multifactor analysis path
     data_multifactor_analysis_path = Path(data_multifactor_analysis_path)
-    data_multifactor_analysis_file = max(
-        data_multifactor_analysis_path.glob(f"{portfolio}_mfa_{y_var}_{num_vars_taken}-var_*"),
-        key=lambda p: p.stat().st_mtime,   # last modified time
-        default=None
-    )
-    print(data_multifactor_analysis_file)
-
-    out_df = filter_one_result_file(data_multifactor_analysis_file, combos_df, num_vars_taken)
-    print(out_df)
-
+    
+    # Look for folders matching the pattern (folder-based approach)
+    # Pattern: {portfolio}_mfa_*_*-var_*
+    mfa_folders = list(data_multifactor_analysis_path.glob(f"{portfolio}_mfa_*_*-var_*"))
+    
+    if not mfa_folders:
+        raise FileNotFoundError(f"No MFA results folder found for portfolio {portfolio} in {data_multifactor_analysis_path}")
+    
+    # Get the most recent folder (by modification time)
+    latest_folder = max(mfa_folders, key=lambda p: p.stat().st_mtime)
+    print(f"Processing files from latest folder: {latest_folder}")
+    
+    # Find all CSV files in the folder (001.csv, 002.csv, etc.)
+    csv_files = sorted(latest_folder.glob("*.csv"), key=lambda p: p.name)
+    
+    if not csv_files:
+        raise FileNotFoundError(f"No CSV files found in MFA results folder: {latest_folder}")
+    
+    print(f"Found {len(csv_files)} CSV files to process")
+    
+    # Create output file path
     output_file = Path(data_filtering_of_models_path) / f"{portfolio}_mfa_filtered_{y_var}_{num_vars_taken}_var_{get_time_date()}.csv"
-    append_to_final_csv(out_df, output_file)
+    
+    # Loop through each CSV file and process it
+    for csv_file in csv_files:
+        print(f"Processing file: {csv_file.name}")
+        try:
+            # Filter the current file
+            filtered_df = filter_one_result_file(csv_file, combos_df, num_vars_taken, parsed_filter_list)
+            
+            # Append filtered results to the final CSV
+            if not filtered_df.empty:
+                append_to_final_csv(filtered_df, output_file)
+                print(f"  -> Added {len(filtered_df)} filtered rows from {csv_file.name}")
+            else:
+                print(f"  -> No rows passed filters for {csv_file.name}")
+        except Exception as e:
+            print(f"  -> Error processing {csv_file.name}: {str(e)}")
+            # Continue processing other files even if one fails
+            continue
+    
+    print(f"Filtering complete. Results saved to: {output_file}")
