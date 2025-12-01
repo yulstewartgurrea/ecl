@@ -5,7 +5,7 @@ import type { ModelSpec } from "../../../../components/overlay/development/candi
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
-import { postFinalModel } from "../../../../services/finalModels";   // ← uses your existing service
+import { postFinalModel } from "../../../../services/finalModels"; // ← uses your existing service
 
 const LS_KEY = "ecl:selectedModel";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
@@ -40,7 +40,9 @@ const Step7: React.FC = () => {
       return;
     }
     if (!Number.isFinite(Number(selectedWorkflowId))) {
-      setErr("Missing or invalid workflow id. Please select a workflow in Step 1.");
+      setErr(
+        "Missing or invalid workflow id. Please select a workflow in Step 1."
+      );
       return;
     }
 
@@ -63,9 +65,9 @@ const Step7: React.FC = () => {
         apiBase: API_BASE,
         token,
         workflowId: Number(selectedWorkflowId),
-        model: rawPayload,        // single object
+        model: rawPayload, // single object
         payloadKey: "final_models",
-        asArray: true,            // send as array [rawPayload]
+        asArray: true, // send as array [rawPayload]
         // useFormData: true,      // enable only if backend needs multipart
       });
 
@@ -90,13 +92,15 @@ const Step7: React.FC = () => {
       (model.metrics as any)?.R_Squared ?? (model as any)?.R_Squared ?? null;
     const adjR2 =
       model.metrics?.Adj_R_Squared ?? (model as any)?.Adj_R_Squared ?? null;
-    const mape =
-      model.metrics?.MAPE ?? (model as any)?.MAPE ?? null;
+    const mape = model.metrics?.MAPE ?? (model as any)?.MAPE ?? null;
 
     const vars = model.variables ?? [];
 
     const esc = (v: unknown) =>
-      String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
 
     const html = `
 <!DOCTYPE html>
@@ -125,19 +129,17 @@ const Step7: React.FC = () => {
       <th>P-Value</th>
       <th>VIF</th>
     </tr>
-    ${
-      vars
-        .map(
-          (v) => `
+    ${vars
+      .map(
+        (v) => `
       <tr>
         <td>${esc(v.name)}</td>
         <td>${esc(v.coeff_X1)}</td>
         <td>${esc((v as any)["p-value_X1"])}</td>
         <td>${esc((v as any).vif_X1)}</td>
       </tr>`
-        )
-        .join("")
-    }
+      )
+      .join("")}
   </table>
 </body>
 </html>`.trim();
@@ -152,7 +154,9 @@ const Step7: React.FC = () => {
   if (!model) {
     return (
       <div className="rounded-2xl bg-white p-8 shadow-sm">
-        <h2 className="text-2xl font-semibold tracking-tight">No model selected</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">
+          No model selected
+        </h2>
         <p className="mt-2 text-neutral-600">
           Please go back to Step 6 and choose a model to proceed.
         </p>
@@ -171,9 +175,12 @@ const Step7: React.FC = () => {
       <div className="space-y-6">
         {/* Title */}
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Selected Model Summary</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Selected Model Summary
+          </h1>
           <p className="mt-1 text-neutral-700">
-            You chose <span className="font-semibold">{model.title}</span> in Step 6.
+            You chose <span className="font-semibold">{model.title}</span> in
+            Step 6.
           </p>
         </div>
 
@@ -190,8 +197,8 @@ const Step7: React.FC = () => {
               ✓
             </span>
             <p className="text-base">
-              <span className="font-medium">{model.title}</span> is locked in for your ECL
-              computation.
+              <span className="font-medium">{model.title}</span> is locked in
+              for your ECL computation.
             </p>
           </div>
         </div>
@@ -202,9 +209,15 @@ const Step7: React.FC = () => {
             <thead className="bg-gray-700 text-white">
               <tr>
                 <th className="px-4 py-3 text-sm font-medium">Variable</th>
-                <th className="px-4 py-3 text-right text-sm font-medium">Coefficient</th>
-                <th className="px-4 py-3 text-right text-sm font-medium">P-Value</th>
-                <th className="px-4 py-3 text-right text-sm font-medium">VIF</th>
+                <th className="px-4 py-3 text-right text-sm font-medium">
+                  Coefficient
+                </th>
+                <th className="px-4 py-3 text-right text-sm font-medium">
+                  P-Value
+                </th>
+                <th className="px-4 py-3 text-right text-sm font-medium">
+                  VIF
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -253,9 +266,7 @@ const Step7: React.FC = () => {
           />
           <StatTile
             label="MAPE"
-            value={fmtPctOrVal(
-              model.metrics?.MAPE ?? (model as any)?.MAPE
-            )}
+            value={fmtPctOrVal(model.metrics?.MAPE ?? (model as any)?.MAPE)}
           />
         </div>
 
@@ -269,7 +280,7 @@ const Step7: React.FC = () => {
           </button>
 
           <button
-            onClick={saveSelectedModel}     // ← POST to server
+            onClick={saveSelectedModel} // ← POST to server
             disabled={saving}
             className="cursor-pointer rounded-xl bg-neutral-900 px-4 py-2 font-semibold text-white hover:bg-neutral-800 disabled:opacity-50"
           >
@@ -284,8 +295,10 @@ const Step7: React.FC = () => {
           <div className="space-y-3 text-center">
             <h3 className="text-lg font-semibold">Model saved successfully</h3>
             <p className="text-sm text-neutral-700">
-              Please click the <span className="font-medium">Execution</span> toggle at the
-              <span className="font-medium"> top-right</span> of the screen to continue.
+              Please click the <span className="font-medium">Execution</span>{" "}
+              toggle at the
+              <span className="font-medium"> top-right</span> of the screen to
+              continue.
             </p>
             <div className="flex items-center justify-center gap-2 pt-2">
               <button
@@ -309,7 +322,13 @@ const Step7: React.FC = () => {
 };
 
 /* ---------- Modal ---------- */
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function Modal({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -351,34 +370,19 @@ function fmtNumber(v?: number): string {
 }
 function fmtPercent(v?: number): string {
   if (v == null || Number.isNaN(Number(v))) return "—";
-  return (Number(v) * 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) + "%";
+  return (
+    (Number(v) * 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) +
+    "%"
+  );
 }
 function fmtPctOrVal(v: number | string | undefined): string {
   if (v == null) return "—";
   if (typeof v === "string") return v;
   if (v >= 0 && v <= 1)
-    return (v * 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) + "%";
+    return (
+      (v * 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) + "%"
+    );
   return v.toLocaleString(undefined, { maximumFractionDigits: 3 });
-}
-
-// (kept, even if unused, to avoid deleting anything)
-function downloadJsonFile(data: unknown, filename: string) {
-  try {
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    console.error("Failed to download file", e);
-  }
 }
 
 // 🔽 Helper for downloading Excel (.xls) from HTML
