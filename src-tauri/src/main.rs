@@ -16,13 +16,16 @@ mod api;
 use crate::api::folderapi::{create_folder_tree, upload_files, list_folder_contents, get_folder_contents};
 
 //////////////////////////////////////////////////////////////////
-// INSERTED: Windows helper to ensure Python 3.12 is installed
+// Windows helper to ensure Python 3.12 is installed
 //////////////////////////////////////////////////////////////////
 #[cfg(target_os = "windows")]
 fn ensure_python312_installed_and_in_path() {
+    use std::process::Command;
+    use std::path::Path;
+
     // Preferred per-user install location
     let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
-    let py_dir_default = std::path::Path::new(&local)
+    let py_dir_default = Path::new(&local)
         .join("Programs").join("Python").join("Python312");
     let py_exe_default = py_dir_default.join("python.exe");
 
@@ -41,6 +44,7 @@ fn ensure_python312_installed_and_in_path() {
     if py_exe_default.exists() {
         have_312 = true;
     } else {
+        // try "py -3.12"
         let mut c = Command::new("py");
         c.args(["-3.12", "--version"]);
         if ok(c) {
@@ -54,29 +58,36 @@ fn ensure_python312_installed_and_in_path() {
         }
     }
 
-    // If missing, download and install silently (per-user, no admin)
+    // If missing, download and install (with UI, so it DOESN'T auto-close)
     if !have_312 {
-        println!("Python 3.12 not found. Downloading and installing Python 3.12.0 for current user…");
+        println!("Python 3.12 not found. Downloading installer for current user…");
+
         let url = "https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe";
         let tmp = std::env::temp_dir().join("python-3.12.0-amd64.exe");
         let tmp_str = tmp.to_string_lossy().to_string();
 
-        // Download with PowerShell to avoid adding Rust HTTP deps
+        // Download with PowerShell
         let dl = Command::new("powershell")
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy","Bypass",
                 "-Command",
-                &format!("Invoke-WebRequest -UseBasicParsing -Uri '{}' -OutFile '{}'", url, tmp_str.replace('\\', "\\\\")),
+                &format!(
+                    "Invoke-WebRequest -UseBasicParsing -Uri '{}' -OutFile '{}'",
+                    url,
+                    tmp_str.replace('\\', "\\\\")
+                ),
             ])
             .status();
 
         if !dl.as_ref().map(|s| s.success()).unwrap_or(false) {
             eprintln!("Failed to download Python installer from {}", url);
         } else {
+            println!("Starting Python 3.12 installer…");
+            println!("Please complete the installation window that appears.");
+            // NOTE: no "/quiet" here, so the installer shows normal UI
             let inst = Command::new(&tmp)
                 .args([
-                    "/quiet",
                     "InstallAllUsers=0",
                     "PrependPath=1",
                     "Include_test=0",
@@ -85,15 +96,21 @@ fn ensure_python312_installed_and_in_path() {
                 ])
                 .status();
 
-            if !inst.as_ref().map(|s| s.success()).unwrap_or(false) {
-                eprintln!("Python installer failed (exit {:?}).", inst.ok().and_then(|s| s.code()));
-            } else {
-                println!("Python 3.12 installed successfully.");
+            match inst {
+                Ok(status) if status.success() => {
+                    println!("Python 3.12 installed successfully.");
+                }
+                Ok(status) => {
+                    eprintln!("Python installer exited with status: {:?}", status.code());
+                }
+                Err(e) => {
+                    eprintln!("Failed to start Python installer: {}", e);
+                }
             }
         }
     }
 
-    // Ensure PATH for the current process so `Command::new("python")` resolves now
+    // Ensure PATH for the current process so `Command::new("python")` resolves
     let py_dir = if py_exe_default.exists() {
         py_dir_default.clone()
     } else if let Ok(out) = Command::new("py")
@@ -101,7 +118,7 @@ fn ensure_python312_installed_and_in_path() {
         .output()
     {
         let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        let cand = std::path::PathBuf::from(s);
+        let cand = PathBuf::from(s);
         if cand.exists() { cand } else { py_dir_default.clone() }
     } else {
         py_dir_default.clone()
@@ -123,8 +140,9 @@ fn ensure_python312_installed_and_in_path() {
     // no-op on non-Windows platforms
 }
 //////////////////////////////////////////////////////////////////
-// END INSERT
+// END helper
 //////////////////////////////////////////////////////////////////
+
 
 // Updater commands
 #[tauri::command]

@@ -96,59 +96,53 @@ const Step7: React.FC = () => {
 
     const vars = model.variables ?? [];
 
-    const esc = (v: unknown) =>
-      String(v ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+    // CSV escape helper
+    const escCsv = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8" />
-<style>
-  table, th, td { border: 1px solid #000; border-collapse: collapse; }
-  th, td { padding: 4px; font-family: Arial, sans-serif; font-size: 11pt; }
-</style>
-</head>
-<body>
-  <table>
-    <tr><th colspan="2">Model Summary</th></tr>
-    <tr><td>Workflow ID</td><td>${esc(safeWorkflowId ?? "")}</td></tr>
-    <tr><td>Model Title</td><td>${esc(model.title ?? "")}</td></tr>
-    <tr><td>R²</td><td>${esc(r2 != null ? r2 : "")}</td></tr>
-    <tr><td>Adj. R²</td><td>${esc(adjR2 != null ? adjR2 : "")}</td></tr>
-    <tr><td>MAPE</td><td>${esc(mape != null ? mape : "")}</td></tr>
-  </table>
-  <br />
-  <table>
-    <tr>
-      <th>Variable</th>
-      <th>Coefficient</th>
-      <th>P-Value</th>
-      <th>VIF</th>
-    </tr>
-    ${vars
-      .map(
-        (v) => `
-      <tr>
-        <td>${esc(v.name)}</td>
-        <td>${esc(v.coeff_X1)}</td>
-        <td>${esc((v as any)["p-value_X1"])}</td>
-        <td>${esc((v as any).vif_X1)}</td>
-      </tr>`
-      )
-      .join("")}
-  </table>
-</body>
-</html>`.trim();
+    const lines: string[] = [];
+
+    // ---- Model summary section ----
+    lines.push("Section,Field,Value");
+    lines.push(`Model Summary,Workflow ID,${escCsv(safeWorkflowId ?? "")}`);
+    lines.push(`Model Summary,Model Title,${escCsv(model.title ?? "")}`);
+    lines.push(`Model Summary,R²,${escCsv(r2 != null ? r2 : "")}`);
+    lines.push(`Model Summary,Adj. R²,${escCsv(adjR2 != null ? adjR2 : "")}`);
+    lines.push(`Model Summary,MAPE,${escCsv(mape != null ? mape : "")}`);
+
+    // Blank line between sections
+    lines.push("");
+
+    // ---- Variables section ----
+    lines.push("Variable,Coefficient,P-Value,VIF");
+    vars.forEach((v) => {
+      lines.push(
+        [
+          escCsv(v.name),
+          escCsv(v.coeff_X1),
+          escCsv((v as any)["p-value_X1"]),
+          escCsv((v as any).vif_X1),
+        ].join(",")
+      );
+    });
+
+    const csvContent = lines.join("\r\n");
 
     const filename = safeWorkflowId
-      ? `ecl_final_model_wf_${safeWorkflowId}.xls`
-      : `ecl_final_model.xls`;
+      ? `ecl_final_model_wf_${safeWorkflowId}.csv`
+      : `ecl_final_model.csv`;
 
-    downloadExcelFile(html, filename);
+    // Trigger browser download as CSV
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   }
 
   if (!model) {
