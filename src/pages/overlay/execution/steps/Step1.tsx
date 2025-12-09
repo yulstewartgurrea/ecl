@@ -1,14 +1,22 @@
 // src/pages/execution/Step1.tsx
 import { useMemo, useState, useCallback, useEffect } from "react";
 import UploadDropzone from "../../../../components/ui/UploadDropzone";
-import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import {
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+} from "@heroicons/react/24/outline";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 
 import { overlayUploadFile } from "../../../../services/upload";
 
-import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
-import OverlayUploadResultModal, { type IssueRow } from "../../../../components/modals/OverlayUploadResultModal";
+import {
+  useAppDispatch,
+  useAppSelector,
+} from "../../../../redux_toolkit/hooks";
+import OverlayUploadResultModal, {
+  type IssueRow,
+} from "../../../../components/modals/OverlayUploadResultModal";
 import WorkflowPickerModal from "../../../../components/modals/WorkflowPickerModal";
 
 import {
@@ -46,7 +54,10 @@ function inferExecDocTypeFromName(name: string): ExecDocType | null {
 /** Compose the final storage path for this file:
  *  <entity>/<period>/<workflow>/input/overlay/execution/Auto/<DOCTYPE>
  */
-function composeWorkflowPathWithDocType(basePath: string, docType: ExecDocType): string {
+function composeWorkflowPathWithDocType(
+  basePath: string,
+  docType: ExecDocType
+): string {
   // Normalize slashes a bit to avoid '//' when joining
   const base = basePath.replace(/\/+$/g, "");
   return `${base}/${docType}`;
@@ -63,8 +74,10 @@ export default function Step1() {
     selectedPdTransitionMatrixReportingPeriod: period,
     pdTransitionMatrixWfName: workflowName,
     currentPdTransitionMatrixWorkflowId: selectedWorkflowId,
-     selectedPdTransitionMatrixLoanProduct: loanproduct
-  } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper as any);
+    selectedPdTransitionMatrixLoanProduct: loanproduct,
+  } = useSelector(
+    (state: RootState) => state.pdTransitionMatrixWfHelper as any
+  );
 
   const token = useAppSelector((state) => state.auth.token);
 
@@ -121,12 +134,11 @@ export default function Step1() {
 
       if (result?.success && Array.isArray(result.data)) {
         const existing: File[] = result.data.map((doc: any) => {
-          const mime =
-            doc.filename.endsWith(".csv")
-              ? "text/csv"
-              : doc.filename.endsWith(".xlsx")
-                ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                : "application/vnd.ms-excel";
+          const mime = doc.filename.endsWith(".csv")
+            ? "text/csv"
+            : doc.filename.endsWith(".xlsx")
+            ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            : "application/vnd.ms-excel";
 
           const f = new File([], doc.filename, { type: mime }) as File & {
             isExisting?: boolean;
@@ -202,14 +214,17 @@ export default function Step1() {
         }
 
         // 🔗 FINAL PATH now includes the doc type
-        const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
+        const finalWorkflowPath = composeWorkflowPathWithDocType(
+          workflowPathBase,
+          docType
+        );
 
         const result = await overlayUploadFile({
           baseUrl: API_BASE,
           token,
           file,
           workflowPath: finalWorkflowPath, // <-- use base + doctype
-          documentType: docType,           // <-- exact Postman doc type
+          documentType: docType, // <-- exact Postman doc type
           workflowId: effectiveWorkflowId,
           override: false,
           moduleVal: "OVERLAY",
@@ -224,11 +239,17 @@ export default function Step1() {
             return ns;
           });
 
-          // place the file in the right bucket
+          // place the file in the right bucket, avoid duplicates
           if (docType === DOC_MONTHLY) {
-            setMonthlyFiles((prev) => [...prev, file]);
+            setMonthlyFiles((prev) => {
+              if (prev.some((f) => f.name === fileName)) return prev;
+              return [...prev, file];
+            });
           } else if (docType === DOC_QUARTERLY) {
-            setQuarterlyFiles((prev) => [...prev, file]);
+            setQuarterlyFiles((prev) => {
+              if (prev.some((f) => f.name === fileName)) return prev;
+              return [...prev, file];
+            });
           }
 
           setSuccessBanner(`${fileName} uploaded successfully!`);
@@ -246,13 +267,16 @@ export default function Step1() {
           if (docType2 === DOC_MONTHLY) {
             setMonthlyFiles((prev) => prev.filter((f) => f.name !== fileName));
           } else if (docType2 === DOC_QUARTERLY) {
-            setQuarterlyFiles((prev) => prev.filter((f) => f.name !== fileName));
+            setQuarterlyFiles((prev) =>
+              prev.filter((f) => f.name !== fileName)
+            );
           }
 
           setFailedFilesForRetry((prev) => [...prev, file]);
 
           const validationStatus = result.data?.validation_status;
-          const issueKind = validationStatus === "failed" ? "conflict" : "error";
+          const issueKind =
+            validationStatus === "failed" ? "conflict" : "error";
 
           const issue: IssueRow = {
             fileName,
@@ -308,7 +332,13 @@ export default function Step1() {
         });
       }
     },
-    [token, workflowPathBase, effectiveWorkflowId, uploadedFiles, uploadingFiles]
+    [
+      token,
+      workflowPathBase,
+      effectiveWorkflowId,
+      uploadedFiles,
+      uploadingFiles,
+    ]
   );
 
   // Dropzone handlers — upload new files, ignore placeholders from existing docs
@@ -316,7 +346,11 @@ export default function Step1() {
     async (files: File[]) => {
       setMonthlyFiles(files);
       for (const f of files) {
-        if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
+        if (
+          !uploadedFiles.has(f.name) &&
+          !uploadingFiles.has(f.name) &&
+          !(f as any).isExisting
+        ) {
           await uploadIndividualFile(f);
         }
       }
@@ -328,7 +362,11 @@ export default function Step1() {
     async (files: File[]) => {
       setQuarterlyFiles(files);
       for (const f of files) {
-        if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
+        if (
+          !uploadedFiles.has(f.name) &&
+          !uploadingFiles.has(f.name) &&
+          !(f as any).isExisting
+        ) {
           await uploadIndividualFile(f);
         }
       }
@@ -350,26 +388,56 @@ export default function Step1() {
     const uploadingCount = uploadingFiles.size;
     const failedCount = failedFiles.size;
 
-    if (totalFiles === 0) return { status: "empty", message: "No files uploaded yet." };
-    if (uploadingCount > 0) return { status: "uploading", message: `Uploading ${uploadingCount} file(s)...` };
-    if (failedCount > 0) return { status: "error", message: `${failedCount} file(s) failed to upload.` };
-    if (uploadedCount === totalFiles) return { status: "success", message: `All ${uploadedCount} file(s) uploaded successfully!` };
-    return { status: "partial", message: `${uploadedCount}/${totalFiles} files uploaded.` };
-  }, [monthlyFiles.length, quarterlyFiles.length, uploadedFiles.size, uploadingFiles.size, failedFiles.size]);
+    if (totalFiles === 0)
+      return { status: "empty", message: "No files uploaded yet." };
+    if (uploadingCount > 0)
+      return {
+        status: "uploading",
+        message: `Uploading ${uploadingCount} file(s)...`,
+      };
+    if (failedCount > 0)
+      return {
+        status: "error",
+        message: `${failedCount} file(s) failed to upload.`,
+      };
+    if (uploadedCount === totalFiles)
+      return {
+        status: "success",
+        message: `All ${uploadedCount} file(s) uploaded successfully!`,
+      };
+    return {
+      status: "partial",
+      message: `${uploadedCount}/${totalFiles} files uploaded.`,
+    };
+  }, [
+    monthlyFiles.length,
+    quarterlyFiles.length,
+    uploadedFiles.size,
+    uploadingFiles.size,
+    failedFiles.size,
+  ]);
 
   // Workflow picker (status already filtered inside modal to "done")
   const handlePickWorkflow = useCallback(
     (w: Workflow) => {
       const nextEntity = (w as any).entity ?? "";
-      const nextPeriod = (w as any).reporting_period ?? (w as any).reportingPeriod ?? "";
+      const nextPeriod =
+        (w as any).reporting_period ?? (w as any).reportingPeriod ?? "";
       const nextName = (w as any).workflow_name ?? (w as any).name ?? "";
       const nextId = typeof (w as any).id === "number" ? (w as any).id : null;
 
-      console.log(`🎯 WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`);
+      console.log(
+        `🎯 WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`
+      );
 
-      if (nextEntity) dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
-      if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
-      if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
+      if (nextEntity)
+        dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
+      if (nextPeriod)
+        dispatch(
+          setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod })
+        );
+      if (nextName)
+        dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
       dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
 
       setPickerOpen(false);
@@ -404,14 +472,19 @@ export default function Step1() {
         onClose={() => setUploadModalOpen(false)}
         onProceed={async () => {
           const failedNames = Array.from(failedFiles);
-          const retryFiles = failedFilesForRetry.filter((f) => failedNames.includes(f.name));
+          const retryFiles = failedFilesForRetry.filter((f) =>
+            failedNames.includes(f.name)
+          );
 
           for (const file of retryFiles) {
             const docType = inferExecDocTypeFromName(file.name);
             if (!docType) continue;
             try {
               // 🔗 FINAL PATH (retry) includes the doc type
-              const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
+              const finalWorkflowPath = composeWorkflowPathWithDocType(
+                workflowPathBase,
+                docType
+              );
 
               const result = await overlayUploadFile({
                 baseUrl: API_BASE,
@@ -436,13 +509,23 @@ export default function Step1() {
                 });
 
                 if (docType === DOC_MONTHLY) {
-                  setMonthlyFiles((prev) => [...prev, file]);
+                  setMonthlyFiles((prev) => {
+                    if (prev.some((f) => f.name === fileName)) return prev;
+                    return [...prev, file];
+                  });
                 } else if (docType === DOC_QUARTERLY) {
-                  setQuarterlyFiles((prev) => [...prev, file]);
+                  setQuarterlyFiles((prev) => {
+                    if (prev.some((f) => f.name === fileName)) return prev;
+                    return [...prev, file];
+                  });
                 }
 
-                setFailedFilesForRetry((prev) => prev.filter((f) => f.name !== fileName));
-                setSuccessBanner(`${fileName} uploaded successfully with override!`);
+                setFailedFilesForRetry((prev) =>
+                  prev.filter((f) => f.name !== fileName)
+                );
+                setSuccessBanner(
+                  `${fileName} uploaded successfully with override!`
+                );
               }
             } catch (err) {
               console.error(`Retry failed for ${file.name}:`, err);
@@ -454,21 +537,27 @@ export default function Step1() {
         proceedDisabledReason={
           uploadIssues.length === 0
             ? "No issues to retry"
-            : uploadIssues.some((i) => i.payload?.data?.validation_status === "error")
-              ? "Code error detected - cannot retry"
-              : undefined
+            : uploadIssues.some(
+                (i) => i.payload?.data?.validation_status === "error"
+              )
+            ? "Code error detected - cannot retry"
+            : undefined
         }
       />
 
       <div className="rounded-3xl  bg-white/80 backdrop-blur shadow-sm">
         <div className="flex items-center justify-between px-5 py-4 border border-gray-200">
           <div>
-            <h3 className="text-lg font-bold tracking-tight text-gray-900">Execution Input Files</h3>
+            <h3 className="text-lg font-bold tracking-tight text-gray-900">
+              Execution Input Files
+            </h3>
             <p className="text-xs text-gray-500">
-              Upload your datasets. Accepted types: <span className="font-medium">{accept}</span>
+              Upload your datasets. Accepted types:{" "}
+              <span className="font-medium">{accept}</span>
             </p>
             <p className="text-[11px] text-gray-400 mt-1">
-              Workflow ID: <span className="font-mono">{selectedWorkflowId ?? "—"}</span>
+              Workflow ID:{" "}
+              <span className="font-mono">{selectedWorkflowId ?? "—"}</span>
             </p>
           </div>
 
