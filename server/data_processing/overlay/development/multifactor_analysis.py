@@ -357,12 +357,33 @@ def run_mfa(
     """
     Sequentially evaluate each combination, compute stats, and append to CSV.
     Supports optional progress tracking and cancellation checks.
+    Automatically creates new files when current file reaches 200k rows.
+    Files are saved in a folder structure: base_name_folder/001.csv, 002.csv, etc.
     """
-    out_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    # Create folder based on base filename (without extension)
+    base_name = out_csv_path.stem  # filename without extension
+    output_folder = out_csv_path.parent / base_name
+    output_folder.mkdir(parents=True, exist_ok=True)
 
     buffer: List[Dict[str, Any]] = []
     total = combinations.shape[0]
     global_index = 1  # Start index from 1
+    
+    # File rotation tracking
+    MAX_ROWS_PER_FILE = 10000  # 200k rows per file (adjust for testing if needed)
+    current_file_row_count = 0
+    file_sequence = 1
+    
+    # Helper function to get next file path with sequence number inside the folder
+    def get_next_file_path(seq: int) -> Path:
+        """Generate file path with sequence number inside folder: folder_name/001.csv"""
+        filename = f"{seq:03d}.csv"
+        return output_folder / filename
+    
+    # Initialize first file
+    current_file_path = get_next_file_path(file_sequence)
+    print(f"Starting output folder: {output_folder}")
+    print(f"Starting output file: {current_file_path}")
 
     print('combinations shape', combinations)
     print(total)
@@ -403,28 +424,89 @@ def run_mfa(
             message = f"Processing combination {i}/{progress_total}..."
             progress_callback(adjusted_progress, message)
 
+        # Check if we need to rotate file before flushing
         if len(buffer) >= flush_every:
+            # Check if current file would exceed 200k rows after this flush
+            if current_file_row_count + len(buffer) >= MAX_ROWS_PER_FILE:
+                # Flush remaining buffer to current file (up to 200k limit)
+                rows_to_write = MAX_ROWS_PER_FILE - current_file_row_count
+                if rows_to_write > 0:
+                    df_partial = pd.DataFrame(buffer[:rows_to_write])
+                    cols = ['index'] + [col for col in df_partial.columns if col != 'index']
+                    df_partial = df_partial[cols]
+                    write_mode = "a" if current_file_path.exists() else "w"
+                    header = not current_file_path.exists()
+                    df_partial.to_csv(current_file_path, mode=write_mode, header=header, index=False)
+                    current_file_row_count += len(df_partial)
+                    print(f"Flushed {len(df_partial)} rows to {current_file_path} (total: {current_file_row_count} rows)")
+                
+                # Rotate to new file
+                file_sequence += 1
+                current_file_path = get_next_file_path(file_sequence)
+                current_file_row_count = 0
+                print(f"File rotation: Starting new file {file_sequence} -> {current_file_path}")
+                
+                # Write remaining buffer to new file
+                if rows_to_write < len(buffer):
+                    remaining_buffer = buffer[rows_to_write:]
+                    df_remaining = pd.DataFrame(remaining_buffer)
+                    cols = ['index'] + [col for col in df_remaining.columns if col != 'index']
+                    df_remaining = df_remaining[cols]
+                    df_remaining.to_csv(current_file_path, mode="w", header=True, index=False)
+                    current_file_row_count = len(df_remaining)
+                    print(f"Flushed {len(df_remaining)} rows to new file {current_file_path}")
+                
+                buffer.clear()
+            else:
+                # Normal flush - file won't exceed 200k
+                df = pd.DataFrame(buffer)
+                cols = ['index'] + [col for col in df.columns if col != 'index']
+                df = df[cols]
+                write_mode = "a" if current_file_path.exists() else "w"
+                header = not current_file_path.exists()
+                df.to_csv(current_file_path, mode=write_mode, header=header, index=False)
+                current_file_row_count += len(buffer)
+                buffer.clear()
+                print(f"Flushed up to combo {i}/{total} -> {current_file_path} (total: {current_file_row_count} rows)")
+
+    # Final flush
+    if buffer:
+        # Check if we need to rotate for final flush
+        if current_file_row_count + len(buffer) >= MAX_ROWS_PER_FILE:
+            # Write up to limit in current file
+            rows_to_write = MAX_ROWS_PER_FILE - current_file_row_count
+            if rows_to_write > 0:
+                df_partial = pd.DataFrame(buffer[:rows_to_write])
+                cols = ['index'] + [col for col in df_partial.columns if col != 'index']
+                df_partial = df_partial[cols]
+                write_mode = "a" if current_file_path.exists() else "w"
+                header = not current_file_path.exists()
+                df_partial.to_csv(current_file_path, mode=write_mode, header=header, index=False)
+                current_file_row_count += len(df_partial)
+                print(f"Final flush: {len(df_partial)} rows to {current_file_path} (total: {current_file_row_count} rows)")
+            
+            # Rotate and write remaining
+            if rows_to_write < len(buffer):
+                file_sequence += 1
+                current_file_path = get_next_file_path(file_sequence)
+                remaining_buffer = buffer[rows_to_write:]
+                df_remaining = pd.DataFrame(remaining_buffer)
+                cols = ['index'] + [col for col in df_remaining.columns if col != 'index']
+                df_remaining = df_remaining[cols]
+                df_remaining.to_csv(current_file_path, mode="w", header=True, index=False)
+                print(f"Final flush: {len(df_remaining)} rows to new file {current_file_path}")
+        else:
+            # Normal final flush
             df = pd.DataFrame(buffer)
-            # Reorder columns to put 'index' first
             cols = ['index'] + [col for col in df.columns if col != 'index']
             df = df[cols]
-            write_mode = "a" if out_csv_path.exists() else "w"
-            header = not out_csv_path.exists()
-            df.to_csv(out_csv_path, mode=write_mode, header=header, index=False)
-            buffer.clear()
-            print(f"Flushed up to combo {i}/{total} -> {out_csv_path}")
-
-    # # final flush
-    if buffer:
-        df = pd.DataFrame(buffer)
-        # Reorder columns to put 'index' first
-        cols = ['index'] + [col for col in df.columns if col != 'index']
-        df = df[cols]
-        write_mode = "a" if out_csv_path.exists() else "w"
-        header = not out_csv_path.exists()
-        df.to_csv(out_csv_path, mode=write_mode, header=header, index=False)
+            write_mode = "a" if current_file_path.exists() else "w"
+            header = not current_file_path.exists()
+            df.to_csv(current_file_path, mode=write_mode, header=header, index=False)
+            current_file_row_count += len(buffer)
+            print(f"Final flush: {len(buffer)} rows -> {current_file_path} (total: {current_file_row_count} rows)")
+        
         buffer.clear()
-        print(f"Final flush -> {out_csv_path}")
 
 
 # -------------

@@ -505,7 +505,8 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
                                        historical_default_rate_df: pd.DataFrame,
                                        workflow,
                                        progress_callback=None,
-                                       cancellation_check=None):
+                                       cancellation_check=None,
+                                       num_combinations: int = 2):
     """
     Full pipeline: clean -> add .Level/.GR -> transforms -> ADF -> corr -> combos -> combo corr
     """
@@ -580,7 +581,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     
     if progress_callback:
         progress_callback(70, f"Computing correlations for {len(all_combinations)} combinations...")
-    num_vars_taken = 2
+    num_vars_taken = num_combinations
     all_comb_df = compute_correlations_for_combinations(all_combinations, x_cor_mat, num_vars_taken, cancellation_check)
 
     if cancellation_check and cancellation_check():
@@ -612,7 +613,8 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
                                 historical_default_rates_df: pd.DataFrame,
                                 workflow,
                                 progress_callback=None,
-                                cancellation_check=None):
+                                cancellation_check=None,
+                                num_combinations: int = 2):
     """
     Entrypoint used by the app.
     """
@@ -625,7 +627,14 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
             raise Exception("Job cancelled")
         
         df_combined = combine_monthly_mev_data_interpolation(monthly_historical_mev_df, data_interpolation_df)
-        res = process_data_transformation_output(df_combined, historical_default_rates_df, workflow, progress_callback, cancellation_check)
+        res = process_data_transformation_output(
+            df_combined, 
+            historical_default_rates_df, 
+            workflow, 
+            progress_callback, 
+            cancellation_check, 
+            num_combinations
+        )
         end_time = time.time()  # End the timer
         elapsed_time = end_time - start_time  # Calculate elapsed time
         print(f"Data transformation completed in {elapsed_time:.2f} seconds.")

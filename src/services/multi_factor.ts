@@ -226,3 +226,71 @@ export async function getMultiFactorResults(opts: {
     page: current_page,
   };
 }
+
+export type MultiFactorFile = {
+  filename: string;
+  size_bytes: number | null;
+  modified_at: string | null;
+};
+
+export type MultiFactorFilesData = {
+  folder_name: string;
+  folder_path: string;
+  total_files: number;
+  files: MultiFactorFile[];
+  filenames: string[];
+};
+
+/** GET /api/overlay/development/multifactor_analysis/files to get file list */
+export async function getMultiFactorFiles(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+}): Promise<ApiEnvelope<MultiFactorFilesData>> {
+  const { apiBase, token, workflowId } = opts;
+
+  const url = `${base(apiBase)}/api/overlay/development/multifactor_analysis/files?workflow_id=${workflowId}`;
+
+  const res = await xfetch(url, {
+    method: "GET",
+    headers: withAuth(token, { Accept: "application/json" }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiEnvelope<MultiFactorFilesData>;
+  return json;
+}
+
+export type MultiFactorFileData = {
+  filename: string;
+  folder_name: string;
+  rows: Record<string, unknown>[];
+  total_rows: number;
+};
+
+/** GET /api/overlay/development/multifactor_analysis/file to read a specific file */
+export async function getMultiFactorFile(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+  filename: string;
+}): Promise<ApiEnvelope<MultiFactorFileData>> {
+  const { apiBase, token, workflowId, filename } = opts;
+
+  const url = `${base(apiBase)}/api/overlay/development/multifactor_analysis/file?workflow_id=${workflowId}&filename=${encodeURIComponent(filename)}`;
+
+  const res = await xfetch(url, {
+    method: "GET",
+    headers: withAuth(token, { Accept: "application/json" }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiEnvelope<MultiFactorFileData>;
+  return json;
+}

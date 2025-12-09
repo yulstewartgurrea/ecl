@@ -6,7 +6,10 @@ import {
   postMultiFactorTrigger,
   getMultiFactorStatus,
   cancelMultiFactorAnalysis,
+  getMultiFactorFiles,
+  getMultiFactorFile,
   type MultiFactorStatus,
+  type MultiFactorFilesData,
 } from "../../../../services/multi_factor";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
@@ -17,6 +20,7 @@ import {
   ArrowDownTrayIcon,   // ✅ NEW
   ChevronLeftIcon,     // ✅ NEW (for Prev)
   XCircleIcon,
+  FolderIcon,
 } from "@heroicons/react/24/outline";
 
 // NEW: headers storage helper
@@ -80,6 +84,12 @@ const Step4: React.FC<Step4Props> = ({
   const [filteredRows, setFilteredRows] = useState<Row[]>([]);
   const [total, setTotal] = useState<number | undefined>(undefined);
   const [pages, setPages] = useState<number | undefined>(undefined);
+  
+  // File-based data (when files are selected)
+  const [fileBasedRows, setFileBasedRows] = useState<Row[]>([]);
+  const [fileRowMap, setFileRowMap] = useState<Map<string, Row[]>>(new Map()); // Track rows per file
+  const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set());
+  const MAX_FILE_ROWS = 100000; // 100k row limit
 
   const [hasTriggered, setHasTriggered] = useState(false);
 
@@ -88,58 +98,45 @@ const Step4: React.FC<Step4Props> = ({
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
 
+  // Files dropdown state
+  const [showFilesDropdown, setShowFilesDropdown] = useState(false);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [filesData, setFilesData] = useState<MultiFactorFilesData | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+
   const totalPages = useMemo(() => {
+    // If files are selected, calculate pages from file-based rows
+    if (selectedFiles.size > 0 && fileBasedRows.length > 0) {
+      return Math.max(1, Math.ceil(fileBasedRows.length / pageSize));
+    }
+    
+    // Otherwise use server pagination
     if (pages && pages > 0) return pages;
     if (total && pageSize) return Math.max(1, Math.ceil(total / pageSize));
     if (!pages && !total && serverRows?.length) {
       return Math.max(1, Math.ceil(serverRows.length / pageSize));
     }
     return undefined;
-  }, [pages, total, pageSize, serverRows]);
+  }, [pages, total, pageSize, serverRows, selectedFiles, fileBasedRows]);
 
   const canPrev = page > 1;
 
   const canNext = totalPages ? page < totalPages : serverRows.length === pageSize;
   console.log(canNext)
   const displayRows = useMemo(() => {
+    // If files are selected, use file-based rows
+    if (selectedFiles.size > 0 && fileBasedRows.length > 0) {
+      // Apply pagination to file-based rows
+      const start = (page - 1) * pageSize;
+      return fileBasedRows.slice(start, start + pageSize);
+    }
+    
+    // Otherwise use server pagination
     const usingServerPaging = Boolean(pages || total);
     if (usingServerPaging) return serverRows;
     const start = (page - 1) * pageSize;
     return serverRows.slice(start, start + pageSize);
-  }, [serverRows, page, pageSize, pages, total]);
-
-  async function fetchPage(nextPage = page, nextPageSize = pageSize) {
-    setLoading(true);
-    setErrMsg(null);
-    try {
-      const res = await getMultiFactorResults({
-        apiBase: API_BASE,
-        token,
-        workflowId: Number(selectedWorkflowId),
-        page: nextPage,
-        pageSize: nextPageSize, // mapped to ?page_size= in service
-      });
-      setHasTriggered(true);
-      setServerRows(res.rows ?? []);
-      setTotal(res.total_items);
-      setPages(res.pages);
-
-      // persist headers for Step5
-      if (Array.isArray(res?.rows) && res.rows.length > 0 && Number.isFinite(selectedWorkflowId)) {
-        const headers = deriveHeaders(res.rows);
-        saveHeaders(Number(selectedWorkflowId), headers);
-      } else if (Number.isFinite(selectedWorkflowId)) {
-        saveHeaders(Number(selectedWorkflowId), []);
-      }
-    } catch (e: any) {
-      setServerRows([]);
-      setTotal(undefined);
-      setPages(undefined);
-      setErrMsg(e?.message || "Failed to fetch results.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [serverRows, page, pageSize, pages, total, selectedFiles, fileBasedRows]);
 
   // Refresh with status check
   const onRefresh = async () => {
@@ -193,22 +190,20 @@ const Step4: React.FC<Step4Props> = ({
         // If job is cancelled, show message and clear table data
         if (statusResponse.data.status === "cancelled") {
           setErrMsg("Job was cancelled.");
-          // Clear table data when job is not completed
-          setServerRows([]);
-          setTotal(undefined);
-          setPages(undefined);
           setLoading(false);
           setStatusLoading(false);
+          // Fetch files instead of results (don't open dropdown on refresh)
+          await fetchFiles(false);
           return;
         }
 
-        // If job is completed, fetch the results
+        // If job is completed, fetch the files (don't open dropdown on refresh)
         if (statusResponse.data.status === "completed") {
-          await fetchPage(page, pageSize);
+          await fetchFiles(false);
         }
       } else {
-        // If status check fails, try to fetch results anyway (might be old data)
-        await fetchPage(page, pageSize);
+        // If status check fails, try to fetch files anyway (might be old data)
+        await fetchFiles(false);
       }
     } catch (err: any) {
       setErrMsg(err?.message || "Failed to refresh multifactor analysis");
@@ -263,6 +258,155 @@ const Step4: React.FC<Step4Props> = ({
       setPosting(false);
     }
   }
+
+  // Fetch files list
+  const fetchFiles = async (openDropdown: boolean = true) => {
+    if (!Number.isFinite(selectedWorkflowId)) {
+      setErrMsg("Please select a workflow on Step 1 before fetching files.");
+      return;
+    }
+
+    setFilesLoading(true);
+    setErrMsg(null);
+    try {
+      const filesResponse = await getMultiFactorFiles({
+        apiBase: API_BASE,
+        token,
+        workflowId: Number(selectedWorkflowId),
+      });
+
+      if (filesResponse?.success && filesResponse?.data) {
+        setFilesData(filesResponse.data);
+        if (openDropdown) {
+          setShowFilesDropdown(true);
+        }
+      } else {
+        setErrMsg(filesResponse?.msg || "Failed to fetch files");
+      }
+    } catch (err: any) {
+      setErrMsg(err?.message || "Failed to fetch files");
+    } finally {
+      setFilesLoading(false);
+    }
+  };
+
+  // Toggle file selection and load/unload file data
+  const toggleFileSelection = async (filename: string) => {
+    const isCurrentlySelected = selectedFiles.has(filename);
+    
+    if (isCurrentlySelected) {
+      // Uncheck: Remove file data from array
+      setSelectedFiles((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(filename);
+        return newSet;
+      });
+      
+      // Remove rows from this file
+      setFileRowMap((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(filename);
+        
+        // Rebuild fileBasedRows from remaining files
+        const remainingRows: Row[] = [];
+        newMap.forEach((rows) => {
+          remainingRows.push(...rows);
+        });
+        setFileBasedRows(remainingRows);
+        
+        return newMap;
+      });
+    } else {
+      // Check: Load file data
+      if (!Number.isFinite(selectedWorkflowId)) {
+        setErrMsg("Please select a workflow on Step 1 before loading files.");
+        return;
+      }
+      
+      // Check if adding this file would exceed the limit
+      if (fileBasedRows.length >= MAX_FILE_ROWS) {
+        setErrMsg(`Maximum limit of ${MAX_FILE_ROWS.toLocaleString()} rows reached. Please uncheck some files first.`);
+        return;
+      }
+      
+      setLoadingFiles((prev) => new Set(prev).add(filename));
+      setSelectedFiles((prev) => new Set(prev).add(filename));
+      
+      try {
+        const fileResponse = await getMultiFactorFile({
+          apiBase: API_BASE,
+          token,
+          workflowId: Number(selectedWorkflowId),
+          filename: filename,
+        });
+        
+        if (fileResponse?.success && fileResponse?.data) {
+          const newRows = fileResponse.data.rows as Row[];
+          
+          // Check if adding these rows would exceed limit
+          const currentTotal = Array.from(fileRowMap.values()).reduce((sum, rows) => sum + rows.length, 0);
+          const totalAfterAdd = currentTotal + newRows.length;
+          
+          if (totalAfterAdd > MAX_FILE_ROWS) {
+            // Add only up to the limit
+            const rowsToAdd = MAX_FILE_ROWS - currentTotal;
+            const rowsToStore = newRows.slice(0, rowsToAdd);
+            
+            setFileRowMap((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(filename, rowsToStore);
+              return newMap;
+            });
+            
+            setFileBasedRows((prev) => {
+              const newTotal = prev.length + rowsToStore.length;
+              return newTotal <= MAX_FILE_ROWS ? [...prev, ...rowsToStore] : prev;
+            });
+            
+            setErrMsg(`Added ${rowsToAdd.toLocaleString()} rows (limit of ${MAX_FILE_ROWS.toLocaleString()} reached).`);
+          } else {
+            // Store rows for this file
+            setFileRowMap((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(filename, newRows);
+              return newMap;
+            });
+            
+            setFileBasedRows((prev) => [...prev, ...newRows]);
+            setErrMsg(null);
+          }
+        } else {
+          setErrMsg(fileResponse?.msg || "Failed to load file");
+          setSelectedFiles((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(filename);
+            return newSet;
+          });
+        }
+      } catch (err: any) {
+        setErrMsg(err?.message || "Failed to load file");
+        setSelectedFiles((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(filename);
+          return newSet;
+        });
+      } finally {
+        setLoadingFiles((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(filename);
+          return newSet;
+        });
+      }
+    }
+  };
+  
+  // Clear file-based data when no files are selected
+  useEffect(() => {
+    if (selectedFiles.size === 0) {
+      setFileBasedRows([]);
+      setFileRowMap(new Map());
+    }
+  }, [selectedFiles]);
 
   // Cancel multifactor analysis
   const onCancel = async () => {
@@ -377,7 +521,7 @@ const Step4: React.FC<Step4Props> = ({
 
   useEffect(() => {
     if (!hasTriggered) return;
-    fetchPage(page, pageSize);
+    // fetchPage(page, pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
@@ -393,88 +537,89 @@ const Step4: React.FC<Step4Props> = ({
     if (Number.isFinite(selectedWorkflowId)) saveHeaders(Number(selectedWorkflowId), []);
   }, [selectedWorkflowId]);
 
+
   // Load data and check status on page load
-  useEffect(() => {
-    const loadDataOnMount = async () => {
-      // Only run if we have a workflow selected and token
-      if ((!selectedWorkflowId && selectedWorkflowId !== 0) || !token) {
-        return;
-      }
+  // useEffect(() => {
+  //   const loadDataOnMount = async () => {
+  //     // Only run if we have a workflow selected and token
+  //     if ((!selectedWorkflowId && selectedWorkflowId !== 0) || !token) {
+  //       return;
+  //     }
 
-      setStatusLoading(true);
-      setLoading(true);
-      try {
-        // First, check the job status
-        const statusResponse = await getMultiFactorStatus({
-          apiBase: API_BASE,
-          token,
-          workflowId: Number(selectedWorkflowId),
-        });
+  //     setStatusLoading(true);
+  //     setLoading(true);
+  //     try {
+  //       // First, check the job status
+  //       const statusResponse = await getMultiFactorStatus({
+  //         apiBase: API_BASE,
+  //         token,
+  //         workflowId: Number(selectedWorkflowId),
+  //       });
 
-        if (statusResponse?.success && statusResponse?.data) {
-          setStatus(statusResponse.data);
+  //       if (statusResponse?.success && statusResponse?.data) {
+  //         setStatus(statusResponse.data);
           
-          // If job is still processing, show status but clear table data
-          if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
-            setErrMsg(
-              `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
-            );
-            // Clear table data when job is not completed
-            setServerRows([]);
-            setTotal(undefined);
-            setPages(undefined);
-            setLoading(false);
-            setStatusLoading(false);
-            return;
-          }
+  //         // If job is still processing, show status but clear table data
+  //         if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
+  //           setErrMsg(
+  //             `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
+  //           );
+  //           // Clear table data when job is not completed
+  //           setServerRows([]);
+  //           setTotal(undefined);
+  //           setPages(undefined);
+  //           setLoading(false);
+  //           setStatusLoading(false);
+  //           return;
+  //         }
 
-          // If job failed, show error and clear table data
-          if (statusResponse.data.status === "failed") {
-            setErrMsg(
-              `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`
-            );
-            // Clear table data when job is not completed
-            setServerRows([]);
-            setTotal(undefined);
-            setPages(undefined);
-            setLoading(false);
-            setStatusLoading(false);
-            return;
-          }
+  //         // If job failed, show error and clear table data
+  //         if (statusResponse.data.status === "failed") {
+  //           setErrMsg(
+  //             `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`
+  //           );
+  //           // Clear table data when job is not completed
+  //           setServerRows([]);
+  //           setTotal(undefined);
+  //           setPages(undefined);
+  //           setLoading(false);
+  //           setStatusLoading(false);
+  //           return;
+  //         }
 
-          // If job is cancelled, show message and clear table data
-          if (statusResponse.data.status === "cancelled") {
-            setErrMsg("Job was cancelled.");
-            // Clear table data when job is not completed
-            setServerRows([]);
-            setTotal(undefined);
-            setPages(undefined);
-            setLoading(false);
-            setStatusLoading(false);
-            return;
-          }
+  //         // If job is cancelled, show message and clear table data
+  //         if (statusResponse.data.status === "cancelled") {
+  //           setErrMsg("Job was cancelled.");
+  //           // Clear table data when job is not completed
+  //           setServerRows([]);
+  //           setTotal(undefined);
+  //           setPages(undefined);
+  //           setLoading(false);
+  //           setStatusLoading(false);
+  //           return;
+  //         }
 
-          // If job is completed, fetch the results (start from page 1 on mount)
-          if (statusResponse.data.status === "completed") {
-            await fetchPage(1, pageSize);
-          }
-        } else {
-          // If status check fails, silently fail on mount - user can manually refresh if needed
-          setServerRows([]);
-          setTotal(undefined);
-          setPages(undefined);
-        }
-      } catch (err: any) {
-        // Silently fail on mount - user can manually refresh if needed
-        console.error("Failed to load data on mount:", err);
-      } finally {
-        setLoading(false);
-        setStatusLoading(false);
-      }
-    };
+  //         // If job is completed, fetch the results (start from page 1 on mount)
+  //         if (statusResponse.data.status === "completed") {
+  //           // await fetchPage(1, pageSize);
+  //         }
+  //       } else {
+  //         // If status check fails, silently fail on mount - user can manually refresh if needed
+  //         setServerRows([]);
+  //         setTotal(undefined);
+  //         setPages(undefined);
+  //       }
+  //     } catch (err: any) {
+  //       // Silently fail on mount - user can manually refresh if needed
+  //       console.error("Failed to load data on mount:", err);
+  //     } finally {
+  //       setLoading(false);
+  //       setStatusLoading(false);
+  //     }
+  //   };
 
-    loadDataOnMount();
-  }, [selectedWorkflowId, token, API_BASE]);
+  //   loadDataOnMount();
+  // }, [selectedWorkflowId, token, API_BASE]);
 
   useEffect(() => {
     if (!totalPages) return;
@@ -482,13 +627,25 @@ const Step4: React.FC<Step4Props> = ({
   }, [totalPages]);
 
   const headerMeta = useMemo(
-    () => ({
-      total: total ?? serverRows.length,
-      page,
-      pageSize,
-      totalPages,
-    }),
-    [total, serverRows.length, page, pageSize, totalPages]
+    () => {
+      // If files are selected, use file-based data
+      if (selectedFiles.size > 0 && fileBasedRows.length > 0) {
+        return {
+          total: fileBasedRows.length,
+          page,
+          pageSize,
+          totalPages: Math.max(1, Math.ceil(fileBasedRows.length / pageSize)),
+        };
+      }
+      // Otherwise use server data
+      return {
+        total: total ?? serverRows.length,
+        page,
+        pageSize,
+        totalPages,
+      };
+    },
+    [total, serverRows.length, page, pageSize, totalPages, selectedFiles, fileBasedRows]
   );
 
   return (
@@ -542,7 +699,22 @@ const Step4: React.FC<Step4Props> = ({
             </button>
           )}
 
-
+          {/* Files Button */}
+          <button
+            onClick={() => {
+              if (showFilesDropdown) {
+                setShowFilesDropdown(false);
+              } else {
+                fetchFiles();
+              }
+            }}
+            disabled={filesLoading || !Number.isFinite(selectedWorkflowId)}
+            className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+            title={!selectedWorkflowId ? "Pick a workflow on Step 1" : "View available files"}
+          >
+            <FolderIcon className="h-4 w-4" />
+            {filesLoading ? "Loading…" : "Files"}
+          </button>
 
         </div>
       </div>
@@ -688,9 +860,111 @@ const Step4: React.FC<Step4Props> = ({
 
       {/* Footer / counts */}
       <p className="mt-3 text-sm text-neutral-600">
-        Showing {filteredRows.length} of {headerMeta.total ?? 0} (page {headerMeta.page} of{" "}
-        {headerMeta.totalPages ?? "?"}).
+        {selectedFiles.size > 0 && fileBasedRows.length > 0 ? (
+          <>
+            Showing {filteredRows.length} of {fileBasedRows.length.toLocaleString()} rows
+            {fileBasedRows.length >= MAX_FILE_ROWS && (
+              <span className="ml-2 text-amber-600">(Limit reached)</span>
+            )}
+            {" "}(page {headerMeta.page} of {headerMeta.totalPages ?? "?"})
+          </>
+        ) : (
+          <>Showing {filteredRows.length} of {headerMeta.total ?? 0} (page {headerMeta.page} of{" "}
+          {headerMeta.totalPages ?? "?"}).</>
+        )}
       </p>
+
+      {/* Files Modal */}
+      {showFilesDropdown && filesData && (
+        <div className="fixed inset-0 z-50">
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowFilesDropdown(false)} />
+
+          {/* Modal */}
+          <div className="absolute left-1/2 top-1/2 w-[min(100vw-2rem,600px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b p-4">
+              <div>
+                <h3 className="text-lg font-semibold">Files</h3>
+                <p className="text-xs text-neutral-600 mt-1">{filesData.folder_name}</p>
+                <p className="text-xs text-neutral-600">{filesData.total_files} file(s)</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowFilesDropdown(false);
+                }}
+                className="rounded-md p-2 hover:bg-neutral-100"
+                title="Close"
+              >
+                <XCircleIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body (scrollable) */}
+            <div className="flex-1 overflow-auto p-4">
+              <div className="space-y-2">
+                {filesData.files.map((file) => {
+                  const isSelected = selectedFiles.has(file.filename);
+                  const isLoading = loadingFiles.has(file.filename);
+                  return (
+                    <label
+                      key={file.filename}
+                      className={`flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer border ${
+                        isSelected ? "bg-yellow-50 border-yellow-300" : "border-gray-200"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleFileSelection(file.filename)}
+                        disabled={isLoading}
+                        className="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500 disabled:opacity-50"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                          {file.filename}
+                          {isLoading && (
+                            <span className="text-xs text-gray-500">Loading...</span>
+                          )}
+                        </div>
+                        {file.size_bytes !== null && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {(file.size_bytes / 1024).toFixed(2)} KB
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer */}
+            {selectedFiles.size > 0 && (
+              <div className="flex items-center justify-between border-t p-4 bg-gray-50">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    {selectedFiles.size} file(s) selected
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {fileBasedRows.length.toLocaleString()} / {MAX_FILE_ROWS.toLocaleString()} rows loaded
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedFiles(new Set());
+                    setFileBasedRows([]);
+                    setFileRowMap(new Map());
+                  }}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

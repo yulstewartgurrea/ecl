@@ -91,8 +91,9 @@ export async function postDataTransformation(opts: {
   apiBase: string;
   token?: string | null;
   workflowId: number;
+  numCombinations?: number;
 }): Promise<ApiEnvelope<unknown>> {
-  const { apiBase, token, workflowId } = opts;
+  const { apiBase, token, workflowId, numCombinations } = opts;
 
   if (!Number.isFinite(workflowId)) {
     throw new Error("workflowId must be a finite number");
@@ -104,6 +105,9 @@ export async function postDataTransformation(opts: {
 
   const form = new FormData();
   form.append("workflow_id", String(workflowId));
+  if (numCombinations !== undefined && Number.isInteger(numCombinations) && numCombinations > 0) {
+    form.append("num_combinations", String(numCombinations));
+  }
 
   const res = await xfetch(url, {
     method: "POST",
