@@ -7,11 +7,17 @@ import pdTransitionMatrixWfHelper from './features/probability_of_default/transi
 import pdMatrixWfHelper from './features/probability_of_default/transition_matrix/pdMatrixWfHelper';
 import eclEntitiesReducer from "./features/ecl/eclConfigSlice";
 import eclBaselinesReducer from "./features/ecl/eclBaselinesSlice";
+import eclDpdBucketsSlice from "./features/ecl/eclDpdBucketsSlice";
+import eclLoanProductsReducer from "./features/ecl/eclLoanProductsSlice";
+import eclReportingPeriodsReducer from "./features/ecl/eclReportingPeriodsSlice";
 export const rootReducer = combineReducers({
   auth,
   navUIState,
   pdTransitionMatrixWfHelper,
   pdMatrixWfHelper,
   eclEntitiesReducer,
-  eclBaselinesReducer
+  eclBaselinesReducer,
+  eclDpdBucketsSlice,
+  eclLoanProductsReducer,
+  eclReportingPeriodsReducer
 })
