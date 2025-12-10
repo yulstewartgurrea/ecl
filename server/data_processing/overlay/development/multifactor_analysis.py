@@ -45,8 +45,30 @@ def load_transformed_data(
     folder_path: str
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, List[str], List[str]]:
     """
-    Load X and Y transformed data, drop columns matching the R regex filters,
-    left-join on 'Time', and prepare lists of X/Y names (excluding 'Time').
+    Load transformed independent (X) and dependent (Y) variable data.
+    
+    This function:
+    1. Finds the latest transformed data files for the portfolio
+    2. Loads independent and dependent variable DataFrames
+    3. Drops columns matching forbidden patterns (".asinh.diff_12.lag", ".ln.diff_12.lag")
+    4. Left-joins X and Y data on 'Time' column
+    5. Excludes predefined columns (from excluded_columns list)
+    6. Returns separate X, Y DataFrames, merged regression data, and variable name lists
+    
+    Args:
+        workflow: Workflow object containing loan_product attribute
+        folder_path (str): Path to folder containing transformed data files
+    
+    Returns:
+        tuple: (x_df, y_df, regression_data, x_names, y_names)
+            - x_df: Independent variables DataFrame
+            - y_df: Dependent variables DataFrame
+            - regression_data: Merged DataFrame ready for regression (X + Y on Time)
+            - x_names: List of independent variable names (excluding excluded columns)
+            - y_names: List of dependent variable names (excluding excluded columns)
+    
+    Raises:
+        ValueError: If 'Time' column is missing from X or Y DataFrames
     """
 
     portfolio = workflow.loan_product
@@ -103,8 +125,24 @@ def load_combinations(
     limit: int | None = None,
 ) -> np.ndarray:
     """
-    Load the precomputed combinations file and return a matrix of shape (n, k)
-    with variable names (strings). Filters out any X that contains the lag patterns.
+    Load precomputed variable combinations from CSV file.
+    
+    This function:
+    1. Finds the latest combinations file for the portfolio and number of variables
+    2. Extracts columns starting with "X" (X1, X2, ..., Xk)
+    3. Optionally limits the number of combinations (for testing)
+    4. Filters out combinations containing forbidden lag patterns
+    5. Returns as numpy array of strings (shape: n_combinations × num_vars_taken)
+    
+    Args:
+        portfolio (str): Portfolio/loan product name
+        num_vars_taken (int): Number of variables per combination (k)
+        folder_path (str): Path to folder containing combinations file
+        limit (int | None): Optional limit on number of combinations to load (for testing)
+    
+    Returns:
+        np.ndarray: Array of shape (n, k) containing variable name combinations as strings.
+                   Each row is one combination, each column is a variable name.
     """
 
     folder_path = Path(folder_path)
@@ -145,11 +183,33 @@ def load_combinations(
 # ------------------------------------
 
 def _logistic(x: np.ndarray | float) -> np.ndarray | float:
-    """Stable logistic transform."""
+    """
+    Apply stable logistic (sigmoid) transformation.
+    
+    Converts values from linear/logit space to probability space [0, 1].
+    Formula: 1 / (1 + exp(-x))
+    
+    Args:
+        x (np.ndarray | float): Input value(s) in logit space
+    
+    Returns:
+        np.ndarray | float: Transformed value(s) in probability space [0, 1]
+    """
     return 1.0 / (1.0 + np.exp(-np.asarray(x)))
 
 
 def _safe_mean(values: Iterable[float]) -> float:
+    """
+    Calculate mean of values, handling empty arrays and NaN values.
+    
+    Returns NaN if input is empty, otherwise returns mean ignoring NaN values.
+    
+    Args:
+        values (Iterable[float]): Iterable of numeric values (may contain NaN)
+    
+    Returns:
+        float: Mean value, or NaN if input is empty
+    """
     arr = np.asarray(list(values), dtype=float)
     if arr.size == 0:
         return np.nan
@@ -158,8 +218,18 @@ def _safe_mean(values: Iterable[float]) -> float:
 
 def _compute_vif(exog: pd.DataFrame) -> List[float]:
     """
-    Compute VIF for each column in exog (no intercept column expected).
-    If matrix is singular or too few cols, return NaNs.
+    Compute Variance Inflation Factor (VIF) for each independent variable.
+    
+    VIF measures multicollinearity - how much the variance of a coefficient
+    increases due to correlation with other variables. VIF > 5-10 indicates
+    high multicollinearity.
+    
+    Args:
+        exog (pd.DataFrame): DataFrame of independent variables (no intercept)
+    
+    Returns:
+        List[float]: VIF values for each column. Returns [np.nan] for single
+                    regressor or if computation fails (singular matrix).
     """
     try:
         if exog.shape[1] == 0:
@@ -177,7 +247,18 @@ def _compute_vif(exog: pd.DataFrame) -> List[float]:
 
 
 def _alias_present(exog: pd.DataFrame) -> bool:
-    """Detect rank deficiency (aliasing)."""
+    """
+    Detect rank deficiency (aliasing) in the design matrix.
+    
+    Aliasing occurs when columns are linearly dependent, making the design matrix
+    rank-deficient. This prevents unique coefficient estimation.
+    
+    Args:
+        exog (pd.DataFrame): DataFrame of independent variables
+    
+    Returns:
+        bool: True if aliasing is present (rank < number of columns), False otherwise
+    """
     try:
         rank = np.linalg.matrix_rank(exog.values.astype(float))
         return rank < exog.shape[1]
@@ -192,9 +273,40 @@ def write_model_stats_for_combo(
     max_bg_order: int,
 ) -> Dict[str, Any]:
     """
-    Fit OLS: dep_var ~ indep_vars (with missing='drop'), compute diagnostics,
-    and return a flat dict mirroring the R outputs.
-    Note: Durbin-Watson p-value is not directly available in statsmodels; we return NaN for it.
+    Fit OLS regression model and compute comprehensive diagnostic statistics.
+    
+    This function:
+    1. Fits an OLS regression: dep_var ~ indep_vars
+    2. Computes coefficients, standard errors, t-values, p-values
+    3. Calculates VIF for multicollinearity detection
+    4. Computes goodness-of-fit metrics (R², Adj R², AIC, BIC, MSE, RMSE)
+    5. Calculates MAPE in probability space (logistic transform)
+    6. Performs diagnostic tests:
+       - Shapiro-Wilk (normality of residuals)
+       - Ljung-Box (autocorrelation)
+       - Breusch-Pagan (heteroskedasticity)
+       - Durbin-Watson (autocorrelation)
+       - Breusch-Godfrey (autocorrelation up to max_bg_order)
+    
+    Args:
+        indep_vars (List[str]): List of independent variable names
+        dep_var (str): Dependent variable name
+        lr_data (pd.DataFrame): Regression data with all variables and 'Time' column
+        max_bg_order (int): Maximum lag order for Breusch-Godfrey test
+    
+    Returns:
+        Dict[str, Any]: Dictionary containing all model statistics:
+            - Y, X1, X2, ...: Variable names
+            - intercept, coeff_X1, coeff_X2, ...: Coefficients
+            - stderr_intercept, stderr_X1, ...: Standard errors
+            - t-value_*, p-value_*: t-statistics and p-values
+            - vif_X1, vif_X2, ...: Variance Inflation Factors
+            - R_Squared, Adj_R_Squared: Goodness of fit
+            - MSE, RMSE, MAPE: Error metrics
+            - AIC, BIC: Information criteria
+            - ST_pval, BT_pval, BP_pval: Test p-values
+            - DW_stat, DW_pval: Durbin-Watson statistics
+            - BG_order1_pval, BG_order2_pval, ...: Breusch-Godfrey p-values
     """
     # Build formula like: "Y ~ X1 + X2 + ..."
     # Use Q() function directly in formula string to handle variable names with dots
@@ -355,10 +467,31 @@ def run_mfa(
     total_combinations: int | None = None,  # Optional: total count for progress calculation
 ) -> None:
     """
-    Sequentially evaluate each combination, compute stats, and append to CSV.
-    Supports optional progress tracking and cancellation checks.
-    Automatically creates new files when current file reaches 200k rows.
-    Files are saved in a folder structure: base_name_folder/001.csv, 002.csv, etc.
+    Run Multifactor Analysis (MFA) on all variable combinations.
+    
+    This function:
+    1. Creates an output folder based on the base filename
+    2. Processes each combination sequentially
+    3. For each combination, fits OLS model and computes statistics
+    4. Buffers results and flushes to CSV periodically (every flush_every rows)
+    5. Automatically rotates to new files when current file reaches MAX_ROWS_PER_FILE (10,000)
+    6. Files are named sequentially: 001.csv, 002.csv, etc. inside the output folder
+    7. Supports progress tracking (maps 0-100% to 30-100% of overall job progress)
+    8. Supports cancellation checks between combinations
+    
+    Args:
+        dep_var (str): Dependent variable name
+        combinations (np.ndarray): Array of shape (n_combos, k) with variable combinations
+        regression_data (pd.DataFrame): DataFrame with all variables for regression
+        max_bg_order (int): Maximum lag order for Breusch-Godfrey test
+        out_csv_path (Path): Base path for output (folder will be created from stem)
+        flush_every (int): Number of rows to buffer before writing to disk (default: 100)
+        progress_callback (Optional[Callable]): Function to call with (progress%, message) for updates
+        cancellation_check (Optional[Callable]): Function that returns True if job should be cancelled
+        total_combinations (int | None): Total combination count for accurate progress calculation
+    
+    Raises:
+        Exception: If cancellation_check returns True ("Job cancelled by user")
     """
     # Create folder based on base filename (without extension)
     base_name = out_csv_path.stem  # filename without extension
