@@ -25,8 +25,33 @@ BUCKETS = [
 EMPTY_PRODUCT_VALUE = 1.0
 
 def creditloss_rate_main(flowrate_output_data):
+    """
+    Main entry point for credit loss rate calculation.
+    
+    This function takes the output from flow rate calculations and computes credit loss rates
+    by calculating tail products (cumulative flow rate products) and weighted credit loss rates.
+    The tail products represent the probability that loans will reach each aging stage, which
+    is used to estimate expected credit losses.
+    
+    Args:
+        flowrate_output_data (dict): Dictionary containing three DataFrames from flow_rate_main():
+            - 'Flow of Loan Balance Principal Matrix': Original loan balance data
+            - 'Flow of Loan Balance Principal Matrix (Distribution)': Percentage distributions
+            - 'Flow Rate Calculation': Flow rates for each bucket and date
+    
+    Returns:
+        dict: Result dictionary with:
+            - 'code': Status code (1 for success, -1 for error)
+            - 'success': Boolean indicating success status
+            - 'msg': Status message
+            - 'data': DataFrame with aging bucket calculations including:
+                * Tail products for each bucket (credit loss rates)
+                * Monotonicity check (whether tail products are strictly increasing)
+                * Weighted credit loss rate per month
+                * Average row with mean values
+    """
     try:
-        # Load inputs (kept even if not used yet)
+        # Load inputs from flowrate output data
         flow_of_loan_balance_principal_matrix = pd.DataFrame(
             flowrate_output_data.get('Flow of Loan Balance Principal Matrix', [])
         )
@@ -35,17 +60,19 @@ def creditloss_rate_main(flowrate_output_data):
         )
         flow_rate = pd.DataFrame(flowrate_output_data.get('Flow Rate Calculation', []))
 
-        # Validate required columns
+        # Validate that flow rate DataFrame has all required columns
         req = ["date"] + BUCKETS
         missing = [c for c in req if c not in flow_rate.columns]
         if missing:
             return {"code": -1, "success": False, "msg": f"Missing columns: {missing}"}
 
+        # Calculate aging buckets with tail products and weighted credit loss rates
         aging_buckets_res = calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rate)
 
-        # commented aging category, overlay is prerequisite
+        # Aging category calculation is commented out as overlay is a prerequisite
         # aging_category_res = calculate_aging_category(aging_buckets_res['data'], flow_of_loan_balance_principal_matrix_dist)
 
+        # Return successful result with aging buckets data
         res = {
             'code': 1,
             'success': True,
@@ -54,6 +81,7 @@ def creditloss_rate_main(flowrate_output_data):
         }
         return res
     except Exception as e:
+        # Print full traceback for debugging
         traceback.print_exc()
         res = {
             'code': -1,
@@ -63,20 +91,49 @@ def creditloss_rate_main(flowrate_output_data):
         return res
 
 def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rate):
+    """
+    Calculates tail products (cumulative flow rate products) and weighted credit loss rates.
+    
+    This function computes tail products for each aging bucket, which represent the cumulative
+    probability that loans will reach each aging stage. Tail products are calculated as the
+    product of flow rates from a given bucket to the end (e.g., for bucket 0: flow[0] × flow[1] × ... × flow[8]).
+    These tail products are then weighted by the distribution of loan balances to calculate
+    the weighted credit loss rate per month.
+    
+    Args:
+        flow_of_loan_balance_principal_matrix_dist (pd.DataFrame): DataFrame with percentage
+            distributions of loan balances across aging buckets. Used as weights for calculating
+            weighted credit loss rates.
+        flow_rate (pd.DataFrame): DataFrame with flow rates for each bucket and date. Must contain
+            'date' column and all BUCKETS columns.
+    
+    Returns:
+        dict: Result dictionary with:
+            - 'code': Status code (1 for success, -1 for error)
+            - 'msg': Status message
+            - 'data': DataFrame containing:
+                * Date column
+                * 9 bucket columns with tail products (credit loss rates for each bucket)
+                * 'Monotonic?' column indicating if tail products are strictly increasing
+                * 'Weighted Credit Loss Rate per Month' column (SUMPRODUCT of tail products × distributions)
+                * Average row with mean values for all numeric columns
+    """
     try:
-        # Validate required columns
+        # Validate that flow rate DataFrame has all required columns
         req = ["date"] + BUCKETS
         missing = [c for c in req if c not in flow_rate.columns]
         if missing:
             return {"code": -1, "success": False, "msg": f"Missing columns: {missing}"}
 
-        # Work on a copy; coerce bucket columns to numeric (handles strings like '8.77E-05')
+        # Work on a copy to avoid modifying original data
+        # Coerce bucket columns to numeric (handles scientific notation strings like '8.77E-05')
         df = flow_rate[req].copy()
         for c in BUCKETS:
             df[c] = pd.to_numeric(df[c], errors="coerce")
 
         # Compute tail products per row (offset products)
-        # check if row has all data. if not skip the row.
+        # Tail product for bucket i = product of flow rates from bucket i to the end
+        # Example: For bucket 0, tail product = flow_rate[0] × flow_rate[1] × ... × flow_rate[8]
         bucket_vals = (
             df[BUCKETS]
             .apply(lambda r: _offset_products(r.values.astype(float)), axis=1)
@@ -84,31 +141,35 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
         )
         bucket_vals.columns = BUCKETS
         
-        # Monotonic? (strictly increasing across the 9 products)
+        # Check monotonicity: tail products should be strictly increasing
+        # This ensures logical progression (higher buckets have higher credit loss risk)
         mono = bucket_vals.apply(lambda r: "Yes" if _strictly_increasing(r.tolist()) else "No", axis=1)
 
         # Calculate Weighted Credit Loss Rate per Month
         # Need distribution percentages from Flow of Loan Balance Principal Matrix (Distribution)
+        # These act as weights for the tail products
 
+        # Standardize bucket column names to match BUCKETS list
         distribution_df = rename_bucket_cols(flow_of_loan_balance_principal_matrix_dist)
         distribution_df = distribution_df[BUCKETS].copy()
         print('distribution_d \n', distribution_df)
         
-        # Calculate SUMPRODUCT for each row
+        # Calculate SUMPRODUCT for each row: weighted average of tail products
         weighted_credit_loss = []
         for idx in range(len(bucket_vals)):
             # Get tail products (credit loss rates) for this date
             tail_products = bucket_vals.iloc[idx].values
             
             # Get distribution percentages (weights) for this date
-            # Owlution: use row idx to match corresponding date in distribution
+            # Use row index to match corresponding date in distribution DataFrame
             dist_weights = distribution_df.iloc[idx].values
             
             # Calculate SUMPRODUCT: sum(tail_product[i] * dist_weight[i])
+            # This gives the expected credit loss rate weighted by loan balance distribution
             weighted_rate = np.sum(tail_products * dist_weights)
             weighted_credit_loss.append(weighted_rate)
 
-        # Build output
+        # Build output DataFrame with date, tail products, monotonicity check, and weighted rate
         out = pd.concat([df[["date"]].reset_index(drop=True), bucket_vals.reset_index(drop=True)], axis=1)
         out["Monotonic?"] = mono
         out["Weighted Credit Loss Rate per Month"] = weighted_credit_loss
@@ -119,16 +180,16 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
         # Calculate averages for numeric columns (excluding 'date' and 'Monotonic?')
         numeric_cols = [col for col in out.columns if col not in ['date', 'Monotonic?']]
         
-        # Create average row
+        # Create average row with mean values
         avg_row = {'date': 'Average'}
         for col in numeric_cols:
             avg_row[col] = out[col].mean()
-        avg_row['Monotonic?'] = ''  # Empty for average row
+        avg_row['Monotonic?'] = ''  # Empty for average row (not applicable)
         
-        # Create average DataFrame rows
+        # Create average DataFrame row
         avg_rows_df = pd.DataFrame([avg_row])
         
-        # Concatenate original data with average rows
+        # Concatenate original data with average row
         final_out = pd.concat([out, avg_rows_df], ignore_index=True)
         
         # print('final_out with averages \n', final_out)
@@ -141,6 +202,7 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
             'data': final_out
         }
     except Exception as e:
+        # Print full traceback for debugging
         traceback.print_exc()
         return {
             'code': -1,
@@ -152,13 +214,33 @@ def calculate_aging_category(aging_buckets_df, distribution_df, scalar=-0.999620
     """
     Calculate aging category table based on the aging buckets results.
     
+    This function creates a summary table that aggregates historical credit loss rates by aging
+    category and applies a scalar adjustment to calculate forward-looking credit loss rates.
+    It extracts average values from the aging buckets results and combines them with distribution
+    percentages to create a comprehensive aging category analysis.
+    
+    Note: This function is currently commented out in the main flow as overlay is a prerequisite.
+    
     Parameters:
-    - aging_buckets_df: DataFrame from calculate_aging_buckets with all the tail products
-    - distribution_df: DataFrame with distribution percentages (Flow of Loan Balance Principal Matrix Distribution)
-    - scalar: Adjustme nt scalar (default from Excel file)
+        aging_buckets_df (pd.DataFrame): DataFrame from calculate_aging_buckets containing
+            tail products and average rows. Must have an 'Average' row in the 'date' column.
+        distribution_df (pd.DataFrame): DataFrame with distribution percentages from
+            Flow of Loan Balance Principal Matrix (Distribution). Used to weight calculations.
+        scalar (float): Adjustment scalar for forward-looking rates (default: -0.999620893082456).
+            Applied as: historical_rate * (1 + scalar)
     
     Returns:
-    - DataFrame with aging category calculations
+        dict: Result dictionary with:
+            - 'code': Status code (1 for success, -1 for error)
+            - 'success': Boolean indicating success status
+            - 'msg': Status message
+            - 'data': DataFrame with aging category calculations including:
+                * Aging Category: Category name (0 day, PAR 1, PAR 30, etc.)
+                * Historical Credit Loss Rate: Average tail product for the category
+                * Average Historical Distribution of balances: Mean distribution percentage
+                * Historical Credit Loss Rate + Scalar: Adjusted historical rate
+                * Forward-looking Credit Loss Rate: Forward-looking estimate (1.0 for PAR 360+)
+                * Summary row with SUMPRODUCT calculations
     """
     try:
         # Get aging bucket categories (PAR buckets)
@@ -249,17 +331,69 @@ def calculate_aging_category(aging_buckets_df, distribution_df, scalar=-0.999620
         } 
 
 def _safe_prod_nonzero(arr: np.ndarray) -> float:
-    """Product of non-zero, non-NaN values; if none, return 1.0 (Excel PRODUCT(IF(...)) behavior)."""
+    """
+    Calculate product of non-zero, non-NaN values.
+    
+    This helper function mimics Excel's PRODUCT(IF(...)) behavior by:
+    - Filtering out zero and NaN values
+    - Calculating the product of remaining values
+    - Returning 0 if all values are zero or NaN (empty array)
+    
+    This is used when calculating tail products to ignore invalid flow rate values.
+    
+    Args:
+        arr (np.ndarray): Array of numeric values (may contain zeros or NaNs)
+    
+    Returns:
+        float: Product of non-zero, non-NaN values. Returns 0 if no valid values exist.
+    """
     a = np.asarray(arr, dtype=float)
+    # Filter out zeros and NaNs
     a = a[(a != 0) & ~np.isnan(a)]
+    # Return 0 if no valid values, otherwise return product
     return 0 if a.size == 0 else float(np.prod(a))
 
 def _offset_products(row_vals: np.ndarray) -> list[float]:
-    """For 9 horizons, return 9 tail products (start..end), ignoring 0/NaN."""
+    """
+    Calculate tail products (offset products) for all 9 aging buckets.
+    
+    For each bucket position i, calculates the cumulative product of flow rates from
+    that position to the end. This represents the probability that a loan will reach
+    each aging stage.
+    
+    Example: For bucket 0 (0 day to PAR 1):
+        tail_product[0] = flow_rate[0] × flow_rate[1] × ... × flow_rate[8]
+    
+    For bucket 8 (PAR 360+):
+        tail_product[8] = flow_rate[8] (only the last bucket)
+    
+    Args:
+        row_vals (np.ndarray): Array of 9 flow rate values (one for each bucket)
+    
+    Returns:
+        list[float]: List of 9 tail products, one for each bucket. Each tail product
+                     represents the cumulative probability of reaching that aging stage.
+    """
     out = []
+    # For each bucket position, calculate product from that position to the end
     for i in range(len(BUCKETS)):
         out.append(_safe_prod_nonzero(row_vals[i:]))
     return out
 
 def _strictly_increasing(vals: list[float]) -> bool:
+    """
+    Check if a list of values is strictly increasing.
+    
+    This function verifies that each value in the list is less than the next value.
+    Used to validate that tail products are monotonically increasing, which ensures
+    logical progression of credit loss risk (higher aging buckets should have higher
+    tail products/credit loss rates).
+    
+    Args:
+        vals (list[float]): List of numeric values to check
+    
+    Returns:
+        bool: True if values are strictly increasing (each value < next value),
+              False otherwise
+    """
     return all(vals[i] < vals[i+1] for i in range(len(vals)-1))
