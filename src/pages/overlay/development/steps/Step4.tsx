@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Multi_Table, type Row } from "../../../../components/overlay/development/multi_factor/Multi_Table";
 import { 
-  getMultiFactorResults, 
+  // getMultiFactorResults, 
   postMultiFactorTrigger,
   getMultiFactorStatus,
   cancelMultiFactorAnalysis,

@@ -380,24 +380,24 @@ function fmtPctOrVal(v: number | string | undefined): string {
 }
 
 // 🔽 Helper for downloading Excel (.xls) from HTML
-function downloadExcelFile(html: string, filename: string) {
-  try {
-    const blob = new Blob([html], {
-      type: "application/vnd.ms-excel;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
+// function downloadExcelFile(html: string, filename: string) {
+//   try {
+//     const blob = new Blob([html], {
+//       type: "application/vnd.ms-excel;charset=utf-8;",
+//     });
+//     const url = URL.createObjectURL(blob);
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+//     const a = document.createElement("a");
+//     a.href = url;
+//     a.download = filename;
+//     document.body.appendChild(a);
+//     a.click();
+//     a.remove();
 
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    console.error("Failed to download Excel file", e);
-  }
-}
+//     URL.revokeObjectURL(url);
+//   } catch (e) {
+//     console.error("Failed to download Excel file", e);
+//   }
+// }
 
 export default Step7;
