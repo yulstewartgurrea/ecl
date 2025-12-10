@@ -43,9 +43,6 @@ const TransitionMatrixLanding = () => {
   const entities = useAppSelector(
     (state: any) => state.eclEntitiesReducer.items
   );
-  const reportingPeriods = useAppSelector(
-    (state: any) => state.eclReportingPeriodsReducer.items
-  );
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -58,28 +55,16 @@ const TransitionMatrixLanding = () => {
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
 
-  // 🔥 Default Reporting Period = Monthly (or first item)
+  // 🔥 Always default reporting period to "Monthly" (once)
   useEffect(() => {
-    if (!reportingPeriods || reportingPeriods.length === 0) return;
-    if (selectedPdTransitionMatrixReportingPeriod) return;
-
-    const monthly =
-      reportingPeriods.find(
-        (p: any) => p.name?.toLowerCase() === "monthly"
-      ) || reportingPeriods[0];
-
-    if (monthly?.name) {
+    if (!selectedPdTransitionMatrixReportingPeriod) {
       dispatch(
         setPdTransitionMatrixSelectedReportingPeriod({
-          period: monthly.name,
+          period: "Monthly",
         })
       );
     }
-  }, [
-    reportingPeriods,
-    selectedPdTransitionMatrixReportingPeriod,
-    dispatch,
-  ]);
+  }, [selectedPdTransitionMatrixReportingPeriod, dispatch]);
 
   /**
    * Called when a folder is selected from WorkflowFolderList.
@@ -107,9 +92,10 @@ const TransitionMatrixLanding = () => {
       })
     );
 
+    // still store the period in helper (existing workflows may have it)
     dispatch(
       setPdTransitionMatrixSelectedReportingPeriod({
-        period: reportingPeriod || "",
+        period: reportingPeriod || "Monthly",
       })
     );
 
@@ -441,14 +427,6 @@ const TransitionMatrixLanding = () => {
     );
   };
 
-  const handleReportingPeriodChange = (e: any) => {
-    dispatch(
-      setPdTransitionMatrixSelectedReportingPeriod({
-        period: e.target.value,
-      })
-    );
-  };
-
   const handleLoanProductChange = (e: any) => {
     dispatch(
       setPdTransitionMatrixSelectedLoanProduct({
@@ -561,38 +539,25 @@ const TransitionMatrixLanding = () => {
               )}
             </div>
 
-            {/* Reporting Period */}
+            {/* Reporting Period - fixed Monthly, disabled */}
             <div className="px-10 pt-6 text-start">
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-gray-700 font-medium text-sm">
                   Reporting Frequency
                 </label>
               </div>
-              <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
+              <div className="flex flex-row border border-gray-300 rounded-xl bg-gray-100">
                 <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
                   <CalendarIcon className="w-5 h-5 text-gray-500" />
                 </div>
-                <select
-                  id="period"
-                  value={selectedPdTransitionMatrixReportingPeriod}
-                  onChange={handleReportingPeriodChange}
-                  className="flex-1 text-gray-800 py-2.5 pl-2 pr-3 focus:outline-none bg-gray-50 rounded-r-xl"
-                >
-                  <option value="">Select Period</option>
-                  {Array.isArray(reportingPeriods) &&
-                    reportingPeriods.map((rp: any) => (
-                      <option key={rp.id} value={rp.name}>
-                        {rp.name}
-                      </option>
-                    ))}
-                </select>
+                <input
+                  type="text"
+                  value="Monthly"
+                  disabled
+                  className="flex-1 text-gray-500 py-2.5 pl-2 pr-3 bg-gray-100 rounded-r-xl cursor-not-allowed"
+                />
               </div>
-              {(!reportingPeriods || reportingPeriods.length === 0) && (
-                <p className="text-xs text-amber-600 mt-2">
-                  No reporting periods found. Go to{" "}
-                  <b>Configuration → Reporting Periods</b> to add one.
-                </p>
-              )}
+           
             </div>
 
             {/* Report Date Start */}

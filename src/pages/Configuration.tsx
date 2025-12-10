@@ -36,13 +36,13 @@ import {
   type EclLoanProduct,
 } from "../redux_toolkit/features/ecl/eclLoanProductsSlice";
 
-import {
-  addReportingPeriod,
-  updateReportingPeriod,
-  deleteReportingPeriod,
-  resetReportingPeriods,
-  type EclReportingPeriod,
-} from "../redux_toolkit/features/ecl/eclReportingPeriodsSlice";
+// import {
+//   addReportingPeriod,
+//   updateReportingPeriod,
+//   deleteReportingPeriod,
+//   resetReportingPeriods,
+//   type EclReportingPeriod,
+// } from "../redux_toolkit/features/ecl/eclReportingPeriodsSlice";
 
 /* ================================= Icons ================================== */
 import {
@@ -226,7 +226,7 @@ export default function EclConfigurationPage() {
         </h1>
         <p className="text-sm text-gray-600">
           Manage your <strong>Entities</strong>, 
-          <strong> Loan Products</strong>, <strong>Reporting Periods</strong>
+          <strong> Loan Products</strong>
         </p>
 
         <div className="flex flex-wrap items-center gap-2 pt-2">
@@ -248,12 +248,12 @@ export default function EclConfigurationPage() {
           >
             Loan Products
           </TabButton>
-          <TabButton
+          {/* <TabButton
             active={tab === "reportingPeriods"}
             onClick={() => setTab("reportingPeriods")}
           >
             Reporting Periods
-          </TabButton>
+          </TabButton> */}
           {/* <TabButton active={tab === "dpd"} onClick={() => setTab("dpd")}>
             DPD Buckets
           </TabButton> */}
@@ -264,7 +264,7 @@ export default function EclConfigurationPage() {
       {tab === "entities" && <EntitiesSection />}
       {/* {tab === "baselines" && <BaselinesSection />} */}
       {tab === "loanProducts" && <LoanProductsSection />}
-      {tab === "reportingPeriods" && <ReportingPeriodsSection />}
+      {/* {tab === "reportingPeriods" && <ReportingPeriodsSection />} */}
       {/* {tab === "dpd" && <DpdBucketsSection />} */}
     </div>
   );
@@ -856,235 +856,235 @@ function LoanProductsSection() {
 
 /* ========================== REPORTING PERIODS ============================= */
 
-function ReportingPeriodsSection() {
-  const dispatch = useAppDispatch();
-  const items = useAppSelector((s) => s.eclReportingPeriodsReducer.items);
+// function ReportingPeriodsSection() {
+//   const dispatch = useAppDispatch();
+//   const items = useAppSelector((s) => s.eclReportingPeriodsReducer.items);
 
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [description, setDescription] = useState("");
-  const [query, setQuery] = useState("");
+//   const [name, setName] = useState("");
+//   const [code, setCode] = useState("");
+//   const [description, setDescription] = useState("");
+//   const [query, setQuery] = useState("");
 
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editCode, setEditCode] = useState("");
-  const [editDescription, setEditDescription] = useState("");
+//   const [editingId, setEditingId] = useState<string | null>(null);
+//   const [editName, setEditName] = useState("");
+//   const [editCode, setEditCode] = useState("");
+//   const [editDescription, setEditDescription] = useState("");
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
-      (i) =>
-        i.name.toLowerCase().includes(q) ||
-        (i.code ?? "").toLowerCase().includes(q) ||
-        (i.description ?? "").toLowerCase().includes(q)
-    );
-  }, [items, query]);
+//   const filtered = useMemo(() => {
+//     const q = query.trim().toLowerCase();
+//     if (!q) return items;
+//     return items.filter(
+//       (i) =>
+//         i.name.toLowerCase().includes(q) ||
+//         (i.code ?? "").toLowerCase().includes(q) ||
+//         (i.description ?? "").toLowerCase().includes(q)
+//     );
+//   }, [items, query]);
 
-  const onAdd: React.FormEventHandler = (e) => {
-    e.preventDefault();
-    if (!name.trim()) return alert("Reporting period name is required.");
-    dispatch(
-      addReportingPeriod({
-        name: name.trim(),
-        code: code.trim() || undefined,
-        description: description.trim() || undefined,
-      })
-    );
-    setName("");
-    setCode("");
-    setDescription("");
-  };
+//   const onAdd: React.FormEventHandler = (e) => {
+//     e.preventDefault();
+//     if (!name.trim()) return alert("Reporting period name is required.");
+//     dispatch(
+//       addReportingPeriod({
+//         name: name.trim(),
+//         code: code.trim() || undefined,
+//         description: description.trim() || undefined,
+//       })
+//     );
+//     setName("");
+//     setCode("");
+//     setDescription("");
+//   };
 
-  const beginEdit = (row: EclReportingPeriod) => {
-    setEditingId(row.id);
-    setEditName(row.name);
-    setEditCode(row.code ?? "");
-    setEditDescription(row.description ?? "");
-  };
+//   const beginEdit = (row: EclReportingPeriod) => {
+//     setEditingId(row.id);
+//     setEditName(row.name);
+//     setEditCode(row.code ?? "");
+//     setEditDescription(row.description ?? "");
+//   };
 
-  const saveEdit = () => {
-    if (!editingId) return;
-    if (!editName.trim()) return alert("Reporting period name is required.");
-    dispatch(
-      updateReportingPeriod({
-        id: editingId,
-        patch: {
-          name: editName.trim(),
-          code: editCode.trim() || null,
-          description: editDescription.trim() || null,
-        },
-      })
-    );
-    setEditingId(null);
-  };
+//   const saveEdit = () => {
+//     if (!editingId) return;
+//     if (!editName.trim()) return alert("Reporting period name is required.");
+//     dispatch(
+//       updateReportingPeriod({
+//         id: editingId,
+//         patch: {
+//           name: editName.trim(),
+//           code: editCode.trim() || null,
+//           description: editDescription.trim() || null,
+//         },
+//       })
+//     );
+//     setEditingId(null);
+//   };
 
-  const cancelEdit = () => setEditingId(null);
+//   const cancelEdit = () => setEditingId(null);
 
-  const remove = (id: string) => {
-    if (confirm("Delete this reporting period?")) {
-      dispatch(deleteReportingPeriod(id));
-    }
-  };
+//   const remove = (id: string) => {
+//     if (confirm("Delete this reporting period?")) {
+//       dispatch(deleteReportingPeriod(id));
+//     }
+//   };
 
-  return (
-    <SectionCard
-      title="Reporting Periods"
-      subtitle="Define the reporting frequencies available in workflows (e.g., Monthly, Quarterly)."
-      right={
-        <QuietBtn onClick={() => dispatch(resetReportingPeriods())}>
-          <ArrowPathIcon className="w-4 h-4" />
-          Reset defaults
-        </QuietBtn>
-      }
-    >
-      <Toolbar>
-        <form
-          onSubmit={onAdd}
-          className="grid grid-cols-1 sm:grid-cols-6 gap-3 flex-1"
-        >
-          <div className="sm:col-span-2">
-            <InlineTextInput
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder='Name (e.g., "Monthly")'
-            />
-          </div>
-          <div>
-            <InlineTextInput
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder='Code (e.g., "M")'
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <InlineTextInput
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Description (optional)"
-            />
-          </div>
-          <div className="sm:col-span-1 flex">
-            <PrimaryBtn type="submit" className="w-full">
-              <PlusIcon className="w-5 h-5" />
-              Add
-            </PrimaryBtn>
-          </div>
-        </form>
+//   return (
+//     <SectionCard
+//       title="Reporting Periods"
+//       subtitle="Define the reporting frequencies available in workflows (e.g., Monthly, Quarterly)."
+//       right={
+//         <QuietBtn onClick={() => dispatch(resetReportingPeriods())}>
+//           <ArrowPathIcon className="w-4 h-4" />
+//           Reset defaults
+//         </QuietBtn>
+//       }
+//     >
+//       <Toolbar>
+//         <form
+//           onSubmit={onAdd}
+//           className="grid grid-cols-1 sm:grid-cols-6 gap-3 flex-1"
+//         >
+//           <div className="sm:col-span-2">
+//             <InlineTextInput
+//               value={name}
+//               onChange={(e) => setName(e.target.value)}
+//               placeholder='Name (e.g., "Monthly")'
+//             />
+//           </div>
+//           <div>
+//             <InlineTextInput
+//               value={code}
+//               onChange={(e) => setCode(e.target.value)}
+//               placeholder='Code (e.g., "M")'
+//             />
+//           </div>
+//           <div className="sm:col-span-2">
+//             <InlineTextInput
+//               value={description}
+//               onChange={(e) => setDescription(e.target.value)}
+//               placeholder="Description (optional)"
+//             />
+//           </div>
+//           <div className="sm:col-span-1 flex">
+//             <PrimaryBtn type="submit" className="w-full">
+//               <PlusIcon className="w-5 h-5" />
+//               Add
+//             </PrimaryBtn>
+//           </div>
+//         </form>
 
-        <div className="w-full sm:w-64">
-          <InlineTextInput
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter reporting periods…"
-          />
-        </div>
-      </Toolbar>
+//         <div className="w-full sm:w-64">
+//           <InlineTextInput
+//             value={query}
+//             onChange={(e) => setQuery(e.target.value)}
+//             placeholder="Filter reporting periods…"
+//           />
+//         </div>
+//       </Toolbar>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50/80">
-            <tr className="text-left text-gray-700">
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Code</th>
-              <th className="px-4 py-3 font-medium">Description</th>
-              <th className="px-4 py-3 font-medium w-32">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr>
-                <td className="px-4 py-6 text-gray-500" colSpan={4}>
-                  {items.length === 0
-                    ? "No reporting periods yet."
-                    : "No results match your filter."}
-                </td>
-              </tr>
-            )}
+//       <div className="overflow-x-auto">
+//         <table className="min-w-full text-sm">
+//           <thead className="bg-gray-50/80">
+//             <tr className="text-left text-gray-700">
+//               <th className="px-4 py-3 font-medium">Name</th>
+//               <th className="px-4 py-3 font-medium">Code</th>
+//               <th className="px-4 py-3 font-medium">Description</th>
+//               <th className="px-4 py-3 font-medium w-32">Actions</th>
+//             </tr>
+//           </thead>
+//           <tbody>
+//             {filtered.length === 0 && (
+//               <tr>
+//                 <td className="px-4 py-6 text-gray-500" colSpan={4}>
+//                   {items.length === 0
+//                     ? "No reporting periods yet."
+//                     : "No results match your filter."}
+//                 </td>
+//               </tr>
+//             )}
 
-            {filtered.map((row) => {
-              const isEditing = editingId === row.id;
-              return (
-                <tr key={row.id} className="border-t border-gray-100">
-                  <td className="px-4 py-3">
-                    {isEditing ? (
-                      <InlineTextInput
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                      />
-                    ) : (
-                      <span className="text-gray-900">{row.name}</span>
-                    )}
-                  </td>
+//             {filtered.map((row) => {
+//               const isEditing = editingId === row.id;
+//               return (
+//                 <tr key={row.id} className="border-t border-gray-100">
+//                   <td className="px-4 py-3">
+//                     {isEditing ? (
+//                       <InlineTextInput
+//                         value={editName}
+//                         onChange={(e) => setEditName(e.target.value)}
+//                       />
+//                     ) : (
+//                       <span className="text-gray-900">{row.name}</span>
+//                     )}
+//                   </td>
 
-                  <td className="px-4 py-3">
-                    {isEditing ? (
-                      <InlineTextInput
-                        value={editCode}
-                        onChange={(e) => setEditCode(e.target.value)}
-                      />
-                    ) : (
-                      <span className="text-gray-900">
-                        {row.code ?? "—"}
-                      </span>
-                    )}
-                  </td>
+//                   <td className="px-4 py-3">
+//                     {isEditing ? (
+//                       <InlineTextInput
+//                         value={editCode}
+//                         onChange={(e) => setEditCode(e.target.value)}
+//                       />
+//                     ) : (
+//                       <span className="text-gray-900">
+//                         {row.code ?? "—"}
+//                       </span>
+//                     )}
+//                   </td>
 
-                  <td className="px-4 py-3">
-                    {isEditing ? (
-                      <InlineTextInput
-                        value={editDescription}
-                        onChange={(e) => setEditDescription(e.target.value)}
-                      />
-                    ) : (
-                      <span className="text-gray-900">
-                        {row.description ?? "—"}
-                      </span>
-                    )}
-                  </td>
+//                   <td className="px-4 py-3">
+//                     {isEditing ? (
+//                       <InlineTextInput
+//                         value={editDescription}
+//                         onChange={(e) => setEditDescription(e.target.value)}
+//                       />
+//                     ) : (
+//                       <span className="text-gray-900">
+//                         {row.description ?? "—"}
+//                       </span>
+//                     )}
+//                   </td>
 
-                  <td className="px-4 py-2">
-                    {isEditing ? (
-                      <div className="flex items-center gap-2">
-                        <IconButton
-                          tone="green"
-                          title="Save"
-                          onClick={saveEdit}
-                        >
-                          <CheckIcon className="w-5 h-5" />
-                        </IconButton>
-                        <IconButton title="Cancel" onClick={cancelEdit}>
-                          <XMarkIcon className="w-5 h-5" />
-                        </IconButton>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <IconButton
-                          tone="yellow"
-                          title="Edit"
-                          onClick={() => beginEdit(row)}
-                        >
-                          <PencilSquareIcon className="w-5 h-5" />
-                        </IconButton>
-                        <IconButton
-                          tone="red"
-                          title="Delete"
-                          onClick={() => remove(row.id)}
-                        >
-                          <TrashIcon className="w-5 h-5" />
-                        </IconButton>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </SectionCard>
-  );
-}
+//                   <td className="px-4 py-2">
+//                     {isEditing ? (
+//                       <div className="flex items-center gap-2">
+//                         <IconButton
+//                           tone="green"
+//                           title="Save"
+//                           onClick={saveEdit}
+//                         >
+//                           <CheckIcon className="w-5 h-5" />
+//                         </IconButton>
+//                         <IconButton title="Cancel" onClick={cancelEdit}>
+//                           <XMarkIcon className="w-5 h-5" />
+//                         </IconButton>
+//                       </div>
+//                     ) : (
+//                       <div className="flex items-center gap-2">
+//                         <IconButton
+//                           tone="yellow"
+//                           title="Edit"
+//                           onClick={() => beginEdit(row)}
+//                         >
+//                           <PencilSquareIcon className="w-5 h-5" />
+//                         </IconButton>
+//                         <IconButton
+//                           tone="red"
+//                           title="Delete"
+//                           onClick={() => remove(row.id)}
+//                         >
+//                           <TrashIcon className="w-5 h-5" />
+//                         </IconButton>
+//                       </div>
+//                     )}
+//                   </td>
+//                 </tr>
+//               );
+//             })}
+//           </tbody>
+//         </table>
+//       </div>
+//     </SectionCard>
+//   );
+// }
 
 /* =============================== DPD BUCKETS ============================== */
 
