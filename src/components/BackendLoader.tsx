@@ -22,7 +22,7 @@ useEffect(() => {
     message: string;
     error?: string | null;
   }>("backend-status", (event) => {
-    console.log("[BackendLoader] status:", event.payload);
+    console.log("[BackendLoader] status:", event.payload, setStatus);
     // you can update local UI state here using event.payload.step/message/error
   });
 
