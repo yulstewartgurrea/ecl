@@ -151,7 +151,7 @@ const demoRows: AgingPortfolioRow[] = [
 export default function Step3() {
   const reduxToken = useAppSelector((s) => s.auth.token);
   const token = reduxToken ?? undefined; // reserved for real API calls later
-
+console.log(token)
   return (
     <div className="min-h-dvh bg-slate-50">
       <div className="mx-auto max-w-[1600px] space-y-6 p-6">

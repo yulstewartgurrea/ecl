@@ -117,6 +117,7 @@ export default function Step2() {
 
       setSummaryRows(demoSummaryRows); // demo only
     } catch (e) {
+        console.log(token)
       console.error(e);
       // you can surface an error toast here if you like
     } finally {
