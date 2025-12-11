@@ -1,26 +1,35 @@
 import "./App.css";
 
-//components
+// components
 import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import TransitionMatrixLanding from "./pages/transition_matrix";
 import PdTransitionMatrixWorkflow from "./pages/transition_matrix/Workflow";
 import Settings from "./pages/Settings";
 import Configuration from "./pages/Configuration";
-//redux toolkit
-import { useAppSelector, useAppDispatch } from "./redux_toolkit/hooks";
-import { Navigate, Route, Routes } from "react-router-dom";
 import PdLandingPage from "./pages/PdLandingPage";
-import WorkflowLists from "./pages/flowrate_approach/index";
+import WorkflowLists from "./pages/flowrate_approach";
 import OverlayLandingPage from "./pages/overlay/Overlay";
 import FlowrateApproachPage from "./pages/flowrate_approach/FlowrateApproach";
+import EclUpload from "./pages/ecl/EclUpload";
+import BackendLoader from "./components/BackendLoader";
+
+// redux toolkit
+import { useAppSelector, useAppDispatch } from "./redux_toolkit/hooks";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { login as loginAction } from "./redux_toolkit/features/general/auth";
-import { useEffect } from "react";
+
+import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core"; // 🔹 NEW
 
 function App() {
   const { isLoggedIn } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
 
+  const [backendReady, setBackendReady] = useState(false);
+
+  // Restore auth state from localStorage
   useEffect(() => {
     const token = localStorage.getItem("token");
     const username = localStorage.getItem("username") || "";
@@ -29,7 +38,55 @@ function App() {
       dispatch(loginAction({ username, token, role }));
     }
   }, [dispatch, isLoggedIn]);
-  console.log('isLoggedIn: ', isLoggedIn)
+
+  // Listen for backend-ready from Tauri (event-based)
+  useEffect(() => {
+    const unlistenPromise = listen("backend-ready", () => {
+      console.log("[App] Received backend-ready event");
+      setBackendReady(true);
+    });
+
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, []);
+
+  // 🔹 Poll the backend_is_ready command as a fallback (covers missed events)
+  useEffect(() => {
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        const ok = await invoke<boolean>("backend_is_ready");
+        if (!cancelled && ok) {
+          console.log("[App] backend_is_ready() returned true");
+          setBackendReady(true);
+        }
+      } catch (e) {
+        // Ignore errors; probably backend not ready yet
+        console.warn("[App] backend_is_ready() failed:", e);
+      }
+    };
+
+    // initial check
+    check();
+    // repeat every 2s
+    const id = setInterval(check, 2000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  console.log("isLoggedIn: ", isLoggedIn);
+  console.log("backendReady: ", backendReady);
+
+  // Block the whole app until FastAPI/backend is ready
+  if (!backendReady) {
+    return <BackendLoader />;
+  }
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -42,9 +99,11 @@ function App() {
         <Route path="pd_landing" element={<PdLandingPage />} />
         <Route path="overlay" element={<OverlayLandingPage />} />
         <Route path="settings" element={<Settings />} />
-         <Route path="ecl_configuration" element={<Configuration />} />
+        <Route path="ecl_configuration" element={<Configuration />} />
         <Route path="transition_matrix" element={<TransitionMatrixLanding />} />
         <Route path="page/flowrate" element={<FlowrateApproachPage />} />
+        <Route path="page/upload" element={<EclUpload />} />
+        <Route path="ecl" element={<EclUpload />} />
         <Route
           path="transition_matrix/workflow"
           element={<PdTransitionMatrixWorkflow />}
