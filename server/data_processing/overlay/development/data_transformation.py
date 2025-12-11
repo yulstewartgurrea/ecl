@@ -118,6 +118,25 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
         if 'month_y' in df_combined.columns: rename_map['month_y'] = 'month'
         df_combined = df_combined.rename(columns=rename_map)
 
+        # Extract year and month from 'id' column if they're missing (for periods beyond MEV data)
+        if 'id' in df_combined.columns:
+            month_map = {
+                'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+            }
+            # Fill missing year from id (format: "2025-Dec")
+            if 'year' in df_combined.columns:
+                mask_year = df_combined['year'].isna()
+                if mask_year.any():
+                    df_combined.loc[mask_year, 'year'] = pd.to_numeric(
+                        df_combined.loc[mask_year, 'id'].str[:4], errors='coerce'
+                    )
+            # Fill missing month (int) from id
+            if 'month (int)' in df_combined.columns:
+                mask_month = df_combined['month (int)'].isna()
+                if mask_month.any():
+                    df_combined.loc[mask_month, 'month (int)'] = df_combined.loc[mask_month, 'id'].str[5:].map(month_map)
+
         # Reorder identifiers first if present
         id_cols = [c for c in ['year', 'month (int)', 'month', 'quarter', 'id', 'x'] if c in df_combined.columns]
         other_cols = [c for c in df_combined.columns if c not in id_cols]
