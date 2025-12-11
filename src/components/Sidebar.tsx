@@ -38,7 +38,7 @@ const sidebarOptions: any[] = [
   { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
   // { tabName: "Loss Given Default (LGD)", icon: ArrowTrendingDownIcon, subTabs: [] },
   // { tabName: "Exposure at Default (EAD)", icon: ChartPieIcon, subTabs: [] },
-  // { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
+  { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
   { tabName: "Configuration", icon: AdjustmentsHorizontalIcon, subTabs: [] },
   { tabName: "General Settings", icon: Cog6ToothIcon, subTabs: [] },
 ];
@@ -48,9 +48,10 @@ const TAB_TO_ROUTE: Record<string, string> = {
   // "Probability of Default (PD)": "/pd_landing",
   "Overlay": "/overlay",
   "Flowrate Approach": "/flowrate",
+
   // "Loss Given Default (LGD)": "/lgd",
   // "Exposure at Default (EAD)": "/ead",
-  // "Expected Credit Loss (ECL)": "/ecl",
+  "Expected Credit Loss (ECL)": "/ecl",
   "Configuration": "/ecl_configuration", // <- keep consistent with your router
   "General Settings": "/settings",
 };
