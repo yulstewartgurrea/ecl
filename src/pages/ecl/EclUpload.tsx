@@ -14,6 +14,8 @@ import {
   setPdTransitionMatrixCurrentStep,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 import Step2 from "./steps/Step2";
+import Step3 from "./steps/Step3";
+import Step4 from "./steps/Step4";
 
 const FlowrateApproachPage = () => {
   const dispatch = useAppDispatch();
@@ -99,10 +101,10 @@ const FlowrateApproachPage = () => {
         return <Step1 />;
       case 1:
         return <Step2 />;
-    //   case 2:
-    //     return <Step5 />;
-    //   case 3:
-    //     return <Step6 />;
+      case 2:
+        return <Step3 />;
+      case 3:
+        return <Step4 />;
       default:
         return null;
     }

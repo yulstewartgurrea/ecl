@@ -57,22 +57,22 @@ const AgingCategorySummaryTable: FC<AgingCategorySummaryTableProps> = ({
             </th>
           </tr>
           <tr className="text-[10px] font-semibold uppercase tracking-wide">
-            <th className="border-b border-r border-slate-200 bg-sky-100 px-3 py-2 text-right text-slate-700">
+            <th className="border-b border-r border-slate-200 bg-emerald-100 px-3 py-2 text-right text-slate-700">
               Upside
             </th>
-            <th className="border-b border-r border-slate-200 bg-sky-100 px-3 py-2 text-right text-slate-700">
+            <th className="border-b border-r border-slate-200 bg-yellow-100 px-3 py-2 text-right text-slate-700">
               Baseline
             </th>
-            <th className="border-b border-r border-slate-200 bg-sky-100 px-3 py-2 text-right text-slate-700">
+            <th className="border-b border-r border-slate-200 bg-amber-200 px-3 py-2 text-right text-slate-700">
               Downside
             </th>
-            <th className="border-b border-r border-slate-200 bg-amber-100 px-3 py-2 text-right text-slate-800">
+            <th className="border-b border-r border-slate-200 bg-emerald-100 px-3 py-2 text-right text-slate-800">
               Upside
             </th>
-            <th className="border-b border-r border-slate-200 bg-amber-100 px-3 py-2 text-right text-slate-800">
+            <th className="border-b border-r border-slate-200 bg-yellow-100 px-3 py-2 text-right text-slate-800">
               Baseline
             </th>
-            <th className="border-b border-r border-slate-200 bg-amber-100 px-3 py-2 text-right text-slate-800">
+            <th className="border-b border-r border-slate-200 bg-amber-200 px-3 py-2 text-right text-slate-800">
               Downside
             </th>
             <th className="border-b border-slate-200 bg-amber-200 px-3 py-2 text-right text-amber-900">
