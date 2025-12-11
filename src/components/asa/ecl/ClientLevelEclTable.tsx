@@ -38,10 +38,10 @@ const formatCurrency = (value: number | null | undefined) => {
   });
 };
 
-const formatPercent = (value: number | null | undefined) => {
-  if (value == null || Number.isNaN(value)) return "-";
-  return `${value.toFixed(2)}%`;
-};
+// const formatPercent = (value: number | null | undefined) => {
+//   if (value == null || Number.isNaN(value)) return "-";
+//   return `${value.toFixed(2)}%`;
+// };
 
 const ClientLevelEclTable: FC<ClientLevelEclTableProps> = ({
   rows,
