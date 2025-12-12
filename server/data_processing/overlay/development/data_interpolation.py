@@ -8,7 +8,23 @@ warnings.filterwarnings('ignore')
 
 def extract_data(df, target_columns):
     """
-    Extract only the specified columns from quarterly_historical_mev.csv
+    Extract specified columns from quarterly historical MEV DataFrame.
+    
+    This function:
+    1. Identifies the data type row (contains "in levels (rates)", etc.)
+    2. Finds target columns that match both column names and valid data types
+    3. Extracts only those columns
+    4. Removes rows where all values are empty/NaN
+    
+    Valid data types include: 'in levels (rates)', 'in levels (million PHP)',
+    'year', 'quarter', 'month', 'id', 'x'
+    
+    Args:
+        df (pd.DataFrame): Quarterly historical MEV DataFrame
+        target_columns (list): List of column names to extract
+    
+    Returns:
+        pd.DataFrame | None: Extracted DataFrame with only valid columns, or None if error
     """
     try:
 
@@ -103,7 +119,26 @@ def extract_data(df, target_columns):
 
 def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
     """
-    Process quarterly data and generate monthly interpolated data with proper x-based start date
+    Convert quarterly data to monthly interpolated data.
+    
+    This comprehensive function:
+    1. Extracts target columns from quarterly data
+    2. Cleans and validates quarterly data (removes non-numeric years, handles percentages)
+    3. Finds the first quarter with x value (starting point for interpolation)
+    4. Creates monthly date index from data range
+    5. Interpolates all numeric variables from quarterly to monthly using linear interpolation
+    6. Sets x values starting from 0 at first data date, incrementing by 0.1
+    7. Calculates 12-month growth rates for all variables
+    8. Preserves definition rows (non-numeric year rows) and adds them back to output
+    
+    The interpolation uses linear method, filling forward/backward for edge cases.
+    Variables start from 0 before the first data date.
+    
+    Args:
+        quarterly_hist_mev_df (pd.DataFrame): Quarterly historical MEV DataFrame
+    
+    Returns:
+        pd.DataFrame | None: Monthly interpolated DataFrame with growth rates, or None if error
     """
     target_columns = [
         'year', 'quarter', 'month', 'id', 'x', 'gdp', 'gni', 'household_cons', 

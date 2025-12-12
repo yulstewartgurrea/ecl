@@ -23,11 +23,19 @@ import time
 
 def clean_numeric_like_series(s: pd.Series) -> pd.Series:
     """
-    Make a best-effort parse of a column that might contain numbers in any of:
-      - "1,234.56"
-      - "(1,234.56)"  -> -1234.56
-      - "12%"         -> 0.12
-      - " -  "        -> NaN
+    Parse a Series containing numeric values in various formats.
+    
+    Handles multiple numeric formats:
+    - Standard numbers: "1,234.56" -> 1234.56
+    - Negative in parentheses: "(1,234.56)" -> -1234.56
+    - Percentages: "12%" -> 0.12
+    - Empty/whitespace: " -  " -> NaN
+    
+    Args:
+        s (pd.Series): Series with potentially formatted numeric strings
+    
+    Returns:
+        pd.Series: Series with parsed numeric values (NaN for invalid entries)
     """
     s = s.astype(str).str.strip()
     # (1234) -> -1234
@@ -49,8 +57,18 @@ def clean_numeric_like_series(s: pd.Series) -> pd.Series:
 
 def clean_percentage_data(df: pd.DataFrame, excluded_columns: list) -> pd.DataFrame:
     """
-    Clean all non-excluded columns with robust numeric parser.
-    Leaves truly non-numeric columns unchanged.
+    Clean all numeric columns in a DataFrame using robust parsing.
+    
+    Applies clean_numeric_like_series() to all columns except those in excluded_columns.
+    Handles percentages, parentheses for negatives, and thousands separators.
+    Leaves non-numeric columns unchanged.
+    
+    Args:
+        df (pd.DataFrame): DataFrame to clean
+        excluded_columns (list): List of column names to skip
+    
+    Returns:
+        pd.DataFrame: DataFrame with cleaned numeric columns
     """
     df = df.copy()
     for col in df.columns:
@@ -68,8 +86,20 @@ def clean_percentage_data(df: pd.DataFrame, excluded_columns: list) -> pd.DataFr
 def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFrame,
                                            data_interpolation_df: pd.DataFrame) -> pd.DataFrame | None:
     """
-    Left-join on 'id', strip definitions rows (index 1 & 2), and normalize columns.
-    More defensive drops/renames to survive slight column name differences.
+    Combine monthly historical MEV data with interpolated data.
+    
+    This function:
+    1. Left-joins data_interpolation_df with monthly_historical_mev_df on 'id' column
+    2. Removes definition rows (indices 1 and 2) that contain metadata
+    3. Cleans up merge artifacts (duplicate year/month columns)
+    4. Reorders columns to put identifiers first
+    
+    Args:
+        monthly_historical_mev_df (pd.DataFrame): Monthly historical MEV data
+        data_interpolation_df (pd.DataFrame): Interpolated data with 'id' column
+    
+    Returns:
+        pd.DataFrame | None: Combined DataFrame, or None if error occurs
     """
     try:
         df_interpolation = data_interpolation_df.copy()
@@ -88,6 +118,25 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
         if 'month_y' in df_combined.columns: rename_map['month_y'] = 'month'
         df_combined = df_combined.rename(columns=rename_map)
 
+        # Extract year and month from 'id' column if they're missing (for periods beyond MEV data)
+        if 'id' in df_combined.columns:
+            month_map = {
+                'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+            }
+            # Fill missing year from id (format: "2025-Dec")
+            if 'year' in df_combined.columns:
+                mask_year = df_combined['year'].isna()
+                if mask_year.any():
+                    df_combined.loc[mask_year, 'year'] = pd.to_numeric(
+                        df_combined.loc[mask_year, 'id'].str[:4], errors='coerce'
+                    )
+            # Fill missing month (int) from id
+            if 'month (int)' in df_combined.columns:
+                mask_month = df_combined['month (int)'].isna()
+                if mask_month.any():
+                    df_combined.loc[mask_month, 'month (int)'] = df_combined.loc[mask_month, 'id'].str[5:].map(month_map)
+
         # Reorder identifiers first if present
         id_cols = [c for c in ['year', 'month (int)', 'month', 'quarter', 'id', 'x'] if c in df_combined.columns]
         other_cols = [c for c in df_combined.columns if c not in id_cols]
@@ -103,7 +152,22 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
 
 def prepare_independent_variables(df: pd.DataFrame, excluded_columns: list) -> pd.DataFrame:
     """
-    Build Time = YYYY-MM, drop first 2 rows (definitions), and clean numerics.
+    Prepare independent variables DataFrame for transformation.
+    
+    This function:
+    1. Creates 'Time' column from 'year' and 'month (int)' as YYYY-MM format
+    2. Removes first 2 rows (definition/metadata rows)
+    3. Cleans all numeric columns using clean_percentage_data()
+    
+    Args:
+        df (pd.DataFrame): Raw independent variables DataFrame
+        excluded_columns (list): Columns to exclude from cleaning
+    
+    Returns:
+        pd.DataFrame: Prepared DataFrame with Time column and cleaned numerics
+    
+    Raises:
+        ValueError: If required columns for Time creation are missing
     """
     print("Preparing independent variables...")
     x_raw = df.copy()
@@ -128,8 +192,21 @@ def prepare_independent_variables(df: pd.DataFrame, excluded_columns: list) -> p
 
 def add_level_gr_columns(x_raw: pd.DataFrame, excluded_columns: list) -> pd.DataFrame:
     """
-    Create .Level (the level itself) and .GR (YoY growth) for each *raw* base var.
-    This mirrors the R pipeline assumption that .Level/.GR columns may exist.
+    Add .Level and .GR (Year-over-Year growth) columns for each raw variable.
+    
+    For each base variable (without dot suffixes), creates:
+    - {var}.Level: The level value itself (same as raw variable)
+    - {var}.GR: Year-over-year growth rate = (current / value_12_months_ago) - 1
+    
+    Only creates columns if they don't already exist. This mirrors R pipeline
+    behavior where .Level/.GR columns may already exist.
+    
+    Args:
+        x_raw (pd.DataFrame): DataFrame with raw independent variables
+        excluded_columns (list): Columns to exclude from processing
+    
+    Returns:
+        pd.DataFrame: DataFrame with added .Level and .GR columns
     """
     x = x_raw.copy()
     # base vars = non-excluded and no dot suffix
@@ -147,8 +224,24 @@ def add_level_gr_columns(x_raw: pd.DataFrame, excluded_columns: list) -> pd.Data
 
 def prepare_dependent_variables(df: pd.DataFrame, excluded_columns: list) -> pd.DataFrame:
     """
-    Clean numerics, clip the FIRST non-excluded series (mirrors y_raw[,2] in R),
-    (0 -> 0.001, 1 -> 0.99999), then build Time from 'time' column.
+    Prepare dependent variables DataFrame for transformation.
+    
+    This function:
+    1. Cleans all numeric columns using clean_percentage_data()
+    2. Clips the first non-excluded dependent variable:
+       - 0 -> 0.001 (to avoid logit issues at boundary)
+       - 1 -> 0.99999 (to avoid logit issues at boundary)
+    3. Creates 'Time' column from 'time' column as YYYY-MM format
+    
+    Args:
+        df (pd.DataFrame): Raw dependent variables DataFrame
+        excluded_columns (list): Columns to exclude from processing
+    
+    Returns:
+        pd.DataFrame: Prepared DataFrame with Time column and clipped dependent variable
+    
+    Raises:
+        ValueError: If no dependent variable column found or 'time' column missing
     """
     print("Preparing dependent variables...")
     y_raw = df.copy()
@@ -178,10 +271,24 @@ def apply_transformations_to_independent_variables(x_raw: pd.DataFrame,
                                                    x_raw_vars: list,
                                                    excluded_columns: list) -> pd.DataFrame:
     """
-    - ln to raw vars with strictly positive min
-    - asinh to raw vars with non-positive values
-    - diff_12 to ALL columns (raw + transformed)
-    - lags 3/6/9/12 to ALL columns (raw + transformed)
+    Apply comprehensive transformations to independent variables.
+    
+    This function creates multiple transformed versions of variables:
+    1. Log transformation (.ln): Applied to variables with strictly positive minimum
+    2. Inverse hyperbolic sine (.asinh): Applied to variables with non-positive values
+    3. 12-month differencing (.diff_12): Applied to ALL columns (raw + transformed)
+    4. Lag transformations (.lag_3, .lag_6, .lag_9, .lag_12): Applied to ALL columns
+    
+    Transformations are applied sequentially, so later transformations can use
+    earlier transformed columns (e.g., diff_12 can be applied to .ln columns).
+    
+    Args:
+        x_raw (pd.DataFrame): DataFrame with raw independent variables
+        x_raw_vars (list): List of raw variable names (base variables without suffixes)
+        excluded_columns (list): Columns to exclude from transformation
+    
+    Returns:
+        pd.DataFrame: DataFrame with all transformed columns added
     """
     print("Applying transformations to independent variables...")
     x_transformed = x_raw.copy()
@@ -239,7 +346,18 @@ def apply_transformations_to_independent_variables(x_raw: pd.DataFrame,
 
 def apply_transformations_to_dependent_variables(y_raw: pd.DataFrame, y_raw_vars: list) -> pd.DataFrame:
     """
-    logit for all dependent vars in y_raw_vars.
+    Apply logit transformation to dependent variables.
+    
+    Creates .logit columns for each dependent variable in y_raw_vars.
+    Logit transformation: logit(p) = ln(p / (1 - p))
+    Used to convert probabilities/rates from [0,1] to (-∞, +∞) for linear regression.
+    
+    Args:
+        y_raw (pd.DataFrame): DataFrame with raw dependent variables
+        y_raw_vars (list): List of dependent variable names to transform
+    
+    Returns:
+        pd.DataFrame: DataFrame with .logit columns added
     """
     print("Applying transformations to dependent variables...")
     y_transformed = y_raw.copy()
@@ -262,6 +380,25 @@ def perform_adf_tests(x_transformed: pd.DataFrame,
                       workflow,
                       _date_time: str,
                       docs: list):
+    """
+    Perform Augmented Dickey-Fuller (ADF) tests for stationarity.
+    
+    ADF tests check if time series are stationary (no unit root). Stationary series
+    are required for reliable regression analysis. Tests are performed on all
+    transformed independent and dependent variables.
+    
+    Args:
+        x_transformed (pd.DataFrame): Transformed independent variables
+        y_transformed (pd.DataFrame): Transformed dependent variables
+        excluded_columns (list): Columns to exclude from testing
+        output_dir (str): Directory to save ADF test results
+        workflow: Workflow object (for portfolio name)
+        _date_time (str): Timestamp for output filenames
+        docs (list): List to append output filenames to
+    
+    Returns:
+        tuple: (adf_df_x, adf_df_y) DataFrames with test results (p-value, statistic)
+    """
     def adf_tester(series, alt_hyp="stationary", lag_order=None, trend='c'):
         try:
             s = pd.to_numeric(pd.Series(series), errors='coerce').dropna()
@@ -307,7 +444,22 @@ def compute_correlation_matrix(x_transformed: pd.DataFrame,
                                _date_time: str,
                                docs: list) -> pd.DataFrame:
     """
-    Corr on numeric-only subset (pairwise complete obs).
+    Compute Pearson correlation matrix for independent variables.
+    
+    Calculates pairwise correlations between all numeric independent variables.
+    Used to identify multicollinearity and compute max_abs_cor for combinations.
+    Uses pairwise complete observations (drops NaN pairs).
+    
+    Args:
+        x_transformed (pd.DataFrame): Transformed independent variables
+        excluded_columns (list): Columns to exclude from correlation
+        output_dir (str): Directory to save correlation matrix
+        workflow: Workflow object (for portfolio name)
+        _date_time (str): Timestamp for output filename
+        docs (list): List to append output filename to
+    
+    Returns:
+        pd.DataFrame: Correlation matrix (symmetric, values in [-1, 1])
     """
     print("Computing correlation matrix...")
     X = x_transformed.drop(columns=excluded_columns, errors='ignore')
@@ -329,11 +481,29 @@ def generate_variable_combinations(x_raw_vars: list,
                                    excluded_columns: list,
                                    cancellation_check=None) -> list[list[str]]:
     """
-    Mirrors the R expansion:
-      base (raw) -> append "", ".Level", ".GR" -> filter exists
-                   -> append "", ".ln", ".asinh" -> filter exists
-                   -> append "", ".diff_12" -> filter exists
-                   -> append "", ".lag_3/_6/_9/_12" -> filter exists
+    Generate all valid variable combinations with transformations.
+    
+    This function creates all possible 2-variable combinations by:
+    1. Starting with base variable combinations (C(n,2) for n base vars)
+    2. Applying Level/GR permutations: "", ".Level", ".GR" for each variable
+    3. Applying transformation permutations: "", ".ln", ".asinh" for each variable
+    4. Applying differencing permutations: "", ".diff_12" for each variable
+    5. Applying lag permutations: "", ".lag_3", ".lag_6", ".lag_9", ".lag_12" for each
+    
+    Only combinations where all variables exist in x_transformed are kept.
+    Supports cancellation checks during processing.
+    
+    Args:
+        x_raw_vars (list): List of base variable names (without suffixes)
+        x_transformed (pd.DataFrame): DataFrame with all transformed columns
+        excluded_columns (list): Columns to exclude
+        cancellation_check (callable, optional): Function returning True to cancel
+    
+    Returns:
+        list[list[str]]: List of 2-variable combinations (each is a list of 2 variable names)
+    
+    Raises:
+        Exception: If cancellation_check returns True
     """
     print("Generating variable combinations...")
 
@@ -428,7 +598,18 @@ def generate_variable_combinations(x_raw_vars: list,
 
 def process_combination_with_cor_mat(cor_mat: pd.DataFrame, combination: list[str]) -> tuple[list[str], float]:
     """
-    Return (combination, max_abs_cor) for a given set of variables.
+    Compute maximum absolute correlation for a variable combination.
+    
+    Extracts the correlation submatrix for the combination and finds the maximum
+    absolute correlation among off-diagonal elements. Used to identify multicollinearity.
+    
+    Args:
+        cor_mat (pd.DataFrame): Full correlation matrix
+        combination (list[str]): List of variable names in the combination
+    
+    Returns:
+        tuple: (combination, max_abs_cor) where max_abs_cor is the maximum absolute
+               correlation, or NaN if variables are missing or computation fails
     """
     try:
         missing = [v for v in combination if v not in cor_mat.index]
@@ -459,8 +640,22 @@ def compute_correlations_for_combinations(all_combinations: list[list[str]],
                                           num_vars_taken: int,
                                           cancellation_check=None) -> pd.DataFrame:
     """
-    Parallel compute max |corr| per combination (Windows-safe: function is global).
-    Processes in batches to allow cancellation checks.
+    Compute maximum absolute correlations for all variable combinations in parallel.
+    
+    Processes combinations in batches using multiprocessing to compute max_abs_cor
+    for each combination. Supports cancellation checks between batches.
+    
+    Args:
+        all_combinations (list[list[str]]): List of variable combinations
+        x_cor_mat (pd.DataFrame): Correlation matrix for all variables
+        num_vars_taken (int): Number of variables per combination (typically 2)
+        cancellation_check (callable, optional): Function returning True to cancel
+    
+    Returns:
+        pd.DataFrame: DataFrame with columns X1, X2, ..., Xk, max_abs_cor
+    
+    Raises:
+        Exception: If cancellation_check returns True
     """
     print("Computing maximum correlations for all combinations...")
     if not all_combinations:
@@ -508,7 +703,33 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
                                        cancellation_check=None,
                                        num_combinations: int = 2):
     """
-    Full pipeline: clean -> add .Level/.GR -> transforms -> ADF -> corr -> combos -> combo corr
+    Execute the complete data transformation pipeline.
+    
+    This function orchestrates the full data transformation process:
+    1. Prepare independent and dependent variables (clean, add Time, add .Level/.GR)
+    2. Apply transformations (ln, asinh, diff_12, lags for X; logit for Y)
+    3. Save transformed data files
+    4. Perform ADF tests for stationarity
+    5. Compute correlation matrix
+    6. Generate all variable combinations
+    7. Compute max_abs_cor for each combination
+    8. Save combinations file with correlations
+    
+    Supports progress tracking and cancellation checks throughout.
+    
+    Args:
+        combine_monthly_mev_data_interpolation_df (pd.DataFrame): Combined MEV/interpolation data
+        historical_default_rate_df (pd.DataFrame): Historical default rate data
+        workflow: Workflow object (for entity, reporting_period, workflow_name, loan_product)
+        progress_callback (callable, optional): Function(progress%, message) for updates
+        cancellation_check (callable, optional): Function returning True to cancel
+        num_combinations (int): Number of variables per combination (default: 2)
+    
+    Returns:
+        dict: Dictionary with 'docs' (list of output filenames) and 'file_path' (output directory)
+    
+    Raises:
+        Exception: If cancellation_check returns True
     """
     _date_time = get_time_date()
 
@@ -616,7 +837,25 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
                                 cancellation_check=None,
                                 num_combinations: int = 2):
     """
-    Entrypoint used by the app.
+    Main entry point for data transformation process.
+    
+    This is the entry point called by the application. It:
+    1. Combines monthly MEV data with interpolated data
+    2. Executes the full transformation pipeline
+    3. Tracks execution time
+    4. Handles errors and cancellation
+    
+    Args:
+        monthly_historical_mev_df (pd.DataFrame): Monthly historical MEV data
+        data_interpolation_df (pd.DataFrame): Interpolated data
+        historical_default_rates_df (pd.DataFrame): Historical default rate data
+        workflow: Workflow object
+        progress_callback (callable, optional): Function for progress updates
+        cancellation_check (callable, optional): Function to check for cancellation
+        num_combinations (int): Number of variables per combination (default: 2)
+    
+    Returns:
+        dict | None: Result dictionary with 'docs' and 'file_path', or None if error
     """
     print("Starting dataframe combination process...")
     start_time = time.time()  # Start the timer

@@ -21,6 +21,22 @@ from helpers.get_time_date import get_time_date
 # ---------------------------------------------------
 
 def load_combinations_df(combos_csv: Path) -> pd.DataFrame:
+    """
+    Load the combinations CSV file containing variable combinations and their maximum absolute correlations.
+    
+    This function reads a CSV file that contains pre-computed variable combinations (X1, X2, ..., Xk)
+    along with their maximum absolute correlation values (max_abs_cor). This file is generated during
+    the data transformation step and is used to filter models based on correlation thresholds.
+    
+    Args:
+        combos_csv (Path): Path to the combinations CSV file
+    
+    Returns:
+        pd.DataFrame: DataFrame containing variable combinations and max_abs_cor values
+    
+    Raises:
+        FileNotFoundError: If the combinations file does not exist
+    """
     if not combos_csv.exists():
         raise FileNotFoundError(f"Combinations file not found: {combos_csv}")
     # Expected to contain X1..Xk and max_abs_cor
@@ -33,16 +49,53 @@ def load_combinations_df(combos_csv: Path) -> pd.DataFrame:
 # -------------------------------------------------------
 
 def cols_starting_with(df: pd.DataFrame, prefix: str) -> List[str]:
+    """
+    Find all column names that start with a given prefix.
+    
+    Used to identify columns like "p-value", "vif", etc. that may have variations
+    in naming (e.g., "p-value_X1", "p-value_X2").
+    
+    Args:
+        df (pd.DataFrame): DataFrame to search
+        prefix (str): Prefix to match
+    
+    Returns:
+        List[str]: List of column names starting with the prefix
+    """
     return [c for c in df.columns if c.startswith(prefix)]
 
 def all_values_lt(series: pd.Series, threshold: float) -> pd.Series:
-    """Return a boolean Series for (values < threshold), NaN treated as False."""
+    """
+    Check if all values in a series are less than a threshold.
+    
+    Returns a boolean Series where True indicates values < threshold.
+    NaN values are treated as False (fail the condition).
+    
+    Args:
+        series (pd.Series): Series to check
+        threshold (float): Threshold value
+    
+    Returns:
+        pd.Series: Boolean Series indicating which values are < threshold
+    """
     return series.astype(float) < threshold
 
 def rowwise_all(df_subset: pd.DataFrame, predicate) -> pd.Series:
     """
     Apply a predicate elementwise and require all True per row.
-    NaNs count as False (i.e., will fail the 'all' unless handled beforehand).
+    
+    This function applies a predicate function to each element in a DataFrame subset,
+    then checks if all values in each row are True. NaNs count as False, meaning rows
+    with any NaN will fail the 'all' check.
+    
+    Used for "if_all" filtering logic where all columns must meet a condition.
+    
+    Args:
+        df_subset (pd.DataFrame): DataFrame subset to check
+        predicate: Function that takes a DataFrame and returns a boolean DataFrame
+    
+    Returns:
+        pd.Series: Boolean Series where True means all values in that row passed the predicate
     """
     mask = predicate(df_subset)
     # Ensure boolean DataFrame
@@ -50,9 +103,34 @@ def rowwise_all(df_subset: pd.DataFrame, predicate) -> pd.Series:
     return mask.all(axis=1)
 
 def rowwise_all_str_contains(df_subset: pd.DataFrame, needle: str) -> pd.Series:
+    """
+    Check if all columns in each row contain a specific string.
+    
+    Used to filter rows where all specified columns contain a substring (e.g., ".lag_"
+    to exclude lagged variables).
+    
+    Args:
+        df_subset (pd.DataFrame): DataFrame subset to check
+        needle (str): String to search for in each cell
+    
+    Returns:
+        pd.Series: Boolean Series where True means all columns in that row contain the needle
+    """
     return df_subset.apply(lambda s: s.astype(str).str.contains(needle, regex=False)).all(axis=1)
 
 def to_float_df(d: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert all columns in a DataFrame to numeric (float) type.
+    
+    Attempts to convert each column to numeric, coercing errors to NaN.
+    Used to ensure numeric operations can be performed on filter columns.
+    
+    Args:
+        d (pd.DataFrame): DataFrame to convert
+    
+    Returns:
+        pd.DataFrame: DataFrame with all columns converted to float (NaN for non-numeric values)
+    """
     return d.apply(pd.to_numeric, errors="coerce")
     
 # -------------------------------------------------------
@@ -65,6 +143,31 @@ def filter_one_result_file(
     num_vars_taken: int,
     parsed_filter_list: List[Dict[str, str]]
 ) -> pd.DataFrame:
+    """
+    Filter a single MFA result file based on specified criteria.
+    
+    This function applies multiple filtering criteria to MFA (Multifactor Analysis) results:
+    - Scalar filters: max_abs_cor, R_Squared, MAPE, Adj_R_Squared
+    - "If all" filters: p-value columns (all must be < threshold), VIF columns (all must be < threshold)
+    - X column filters: Exclude rows with lagged variables (containing ".lag_")
+    - Custom filters from parsed_filter_list
+    
+    The function merges the result file with combinations data to get max_abs_cor values,
+    then applies all filters sequentially, and finally sorts by Adj_R_Squared descending.
+    
+    Args:
+        fn (Path): Path to the MFA result CSV file to filter
+        combos_df (pd.DataFrame): DataFrame with variable combinations and max_abs_cor values
+        num_vars_taken (int): Number of variables in each combination (determines X1..Xk columns)
+        parsed_filter_list (List[Dict[str, str]]): List of filter rules with 'column' and 'value' keys.
+            Values of "0" or empty mean no filter. Supports custom thresholds for any column.
+    
+    Returns:
+        pd.DataFrame: Filtered DataFrame sorted by Adj_R_Squared descending, with 'index' column first
+    
+    Raises:
+        KeyError: If required columns are missing after merge
+    """
     df = pd.read_csv(fn, low_memory=False)
     print(df)
 
@@ -99,7 +202,19 @@ def filter_one_result_file(
 
     # Helper function to find filter value from parsed_filter_list
     def get_filter_value(column_name: str, default_value: float = None) -> float | None:
-        """Get filter value for a column, or return None if not found or value is "0"."""
+        """
+        Get filter value for a column from parsed_filter_list.
+        
+        Searches the parsed_filter_list for a matching column name (case-insensitive).
+        Returns the threshold value if found and not "0", otherwise returns default_value.
+        
+        Args:
+            column_name (str): Name of the column to find filter for
+            default_value (float, optional): Default threshold if not found in filter list
+        
+        Returns:
+            float | None: Filter threshold value, or None if no filter should be applied
+        """
         if not parsed_filter_list:
             return default_value
         
@@ -261,6 +376,16 @@ def filter_one_result_file(
 # -------------------------------------------------------------
 
 def append_to_final_csv(df: pd.DataFrame, out_csv: Path) -> None:
+    """
+    Append a DataFrame to a CSV file, creating it if it doesn't exist.
+    
+    If the output file exists, appends data without header. If it doesn't exist,
+    creates a new file with header. Skips if DataFrame is empty.
+    
+    Args:
+        df (pd.DataFrame): DataFrame to append
+        out_csv (Path): Path to output CSV file
+    """
     if df.empty:
         return
     mode = "a" if out_csv.exists() else "w"
@@ -276,6 +401,30 @@ def run_filter_models(
     data_filtering_of_models_path: str,
     parsed_filter_list: List[Dict[str, str]]
 ) -> None:
+    """
+    Main orchestration function to filter MFA results across all result files.
+    
+    This function:
+    1. Loads the combinations file (with max_abs_cor) from data transformation output
+    2. Finds the latest MFA results folder for the portfolio
+    3. Processes all CSV files in that folder (001.csv, 002.csv, etc.)
+    4. Applies filters to each file using filter_one_result_file()
+    5. Appends all filtered results to a single output CSV file
+    
+    The output file is named: {portfolio}_mfa_filtered_{y_var}_{num_vars_taken}_var_{timestamp}.csv
+    
+    Args:
+        portfolio (str): Portfolio/loan product name (e.g., "AFC")
+        y_var (str): Dependent variable name (e.g., "AFC_ODR.logit")
+        num_vars_taken (int): Number of variables in combinations (2, 3, etc.)
+        data_transformation_path (str): Path to data transformation output folder
+        data_multifactor_analysis_path (str): Path to MFA results folder
+        data_filtering_of_models_path (str): Path where filtered results will be saved
+        parsed_filter_list (List[Dict[str, str]]): List of filter rules to apply
+    
+    Raises:
+        FileNotFoundError: If combinations file or MFA results folder not found
+    """
     data_transformation_path = Path(data_transformation_path)
     data_transformation_path_file = max(
         data_transformation_path.glob(f"{portfolio}_{num_vars_taken}-var_combinations*"),
