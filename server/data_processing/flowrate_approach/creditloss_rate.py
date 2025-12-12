@@ -10,17 +10,17 @@ from helpers.routers.rename_bucket_cols import rename_bucket_cols
 import warnings
 warnings.filterwarnings('ignore')
 
-BUCKETS = [
-    "0 day to PAR 1",
-    "PAR 1 to PAR 30",
-    "PAR 30 to PAR 60",
-    "PAR 60 to PAR 90",
-    "PAR 90 to PAR 120",
-    "PAR 120 to PAR 180",
-    "PAR 180 to PAR 240",
-    "PAR 240 to PAR 360",
-    "PAR 360 above",
-]
+# BUCKETS = [
+#     "0 day to PAR 1",
+#     "PAR 1 to PAR 30",
+#     "PAR 30 to PAR 60",
+#     "PAR 60 to PAR 90",
+#     "PAR 90 to PAR 120",
+#     "PAR 120 to PAR 180",
+#     "PAR 180 to PAR 240",
+#     "PAR 240 to PAR 360",
+#     "PAR 360 above",
+# ]
 
 EMPTY_PRODUCT_VALUE = 1.0
 
@@ -59,6 +59,13 @@ def creditloss_rate_main(flowrate_output_data):
             flowrate_output_data.get('Flow of Loan Balance Principal Matrix (Distribution)', [])
         )
         flow_rate = pd.DataFrame(flowrate_output_data.get('Flow Rate Calculation', []))
+
+        BUCKETS = flow_of_loan_balance_principal_matrix.columns.tolist()
+        BUCKETS = [col for col in BUCKETS if col not in ['date', 'total loan balance with c/p']]
+
+        print('BUCKETS \n', BUCKETS)
+        print('flow_rate.columns \n', flow_rate.columns)
+
 
         # Validate that flow rate DataFrame has all required columns
         req = ["date"] + BUCKETS
@@ -119,6 +126,9 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
                 * Average row with mean values for all numeric columns
     """
     try:
+        BUCKETS = flow_of_loan_balance_principal_matrix_dist.columns.tolist()
+        BUCKETS = [col for col in BUCKETS if col not in ['date', 'total loan balance with c/p']]
+
         # Validate that flow rate DataFrame has all required columns
         req = ["date"] + BUCKETS
         missing = [c for c in req if c not in flow_rate.columns]
@@ -136,7 +146,7 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
         # Example: For bucket 0, tail product = flow_rate[0] × flow_rate[1] × ... × flow_rate[8]
         bucket_vals = (
             df[BUCKETS]
-            .apply(lambda r: _offset_products(r.values.astype(float)), axis=1)
+            .apply(lambda r: _offset_products(r.values.astype(float), BUCKETS), axis=1)
             .apply(pd.Series)
         )
         bucket_vals.columns = BUCKETS
@@ -255,6 +265,8 @@ def calculate_aging_category(aging_buckets_df, distribution_df, scalar=-0.999620
             "PAR 240  (241 & 360 days)",
             "PAR 360  (361 & Up days)",
         ]
+
+        print('aging_buckets_df \n', aging_buckets_df)
         
         # Get average rows from aging buckets
         avg_row_idx = aging_buckets_df[aging_buckets_df['date'] == 'Average'].index
@@ -353,7 +365,7 @@ def _safe_prod_nonzero(arr: np.ndarray) -> float:
     # Return 0 if no valid values, otherwise return product
     return 0 if a.size == 0 else float(np.prod(a))
 
-def _offset_products(row_vals: np.ndarray) -> list[float]:
+def _offset_products(row_vals: np.ndarray, BUCKETS: list[str]) -> list[float]:
     """
     Calculate tail products (offset products) for all 9 aging buckets.
     
@@ -369,6 +381,7 @@ def _offset_products(row_vals: np.ndarray) -> list[float]:
     
     Args:
         row_vals (np.ndarray): Array of 9 flow rate values (one for each bucket)
+        BUCKETS (list[str]): List of bucket names
     
     Returns:
         list[float]: List of 9 tail products, one for each bucket. Each tail product
