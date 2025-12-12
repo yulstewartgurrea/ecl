@@ -216,6 +216,31 @@ def _safe_mean(values: Iterable[float]) -> float:
     return np.nanmean(arr)
 
 
+def _replace_inf_with_nan(value: Any) -> Any:
+    """
+    Replace infinity values with NaN to ensure JSON compliance.
+    
+    JSON doesn't support infinity values, so we convert them to NaN.
+    This function handles both float values and dictionary/iterable structures.
+    
+    Args:
+        value: Any value that might contain infinity
+    
+    Returns:
+        Value with infinity replaced by NaN (or original value if not infinity)
+    """
+    if isinstance(value, (float, np.floating)):
+        if np.isinf(value):
+            return np.nan
+        return value
+    elif isinstance(value, dict):
+        return {k: _replace_inf_with_nan(v) for k, v in value.items()}
+    elif isinstance(value, (list, tuple)):
+        return type(value)(_replace_inf_with_nan(item) for item in value)
+    else:
+        return value
+
+
 def _compute_vif(exog: pd.DataFrame) -> List[float]:
     """
     Compute Variance Inflation Factor (VIF) for each independent variable.
@@ -448,6 +473,9 @@ def write_model_stats_for_combo(
     for order, p in enumerate(bg_pvals, start=1):
         result[f"BG_order{order}_pval"] = p
 
+    # Replace infinity values with NaN for JSON compliance
+    result = _replace_inf_with_nan(result)
+
     return result
 
 
@@ -565,6 +593,8 @@ def run_mfa(
                 rows_to_write = MAX_ROWS_PER_FILE - current_file_row_count
                 if rows_to_write > 0:
                     df_partial = pd.DataFrame(buffer[:rows_to_write])
+                    # Replace infinity values with NaN for JSON compliance
+                    df_partial = df_partial.replace([np.inf, -np.inf], np.nan)
                     cols = ['index'] + [col for col in df_partial.columns if col != 'index']
                     df_partial = df_partial[cols]
                     write_mode = "a" if current_file_path.exists() else "w"
@@ -583,6 +613,8 @@ def run_mfa(
                 if rows_to_write < len(buffer):
                     remaining_buffer = buffer[rows_to_write:]
                     df_remaining = pd.DataFrame(remaining_buffer)
+                    # Replace infinity values with NaN for JSON compliance
+                    df_remaining = df_remaining.replace([np.inf, -np.inf], np.nan)
                     cols = ['index'] + [col for col in df_remaining.columns if col != 'index']
                     df_remaining = df_remaining[cols]
                     df_remaining.to_csv(current_file_path, mode="w", header=True, index=False)
@@ -593,6 +625,8 @@ def run_mfa(
             else:
                 # Normal flush - file won't exceed 200k
                 df = pd.DataFrame(buffer)
+                # Replace infinity values with NaN for JSON compliance
+                df = df.replace([np.inf, -np.inf], np.nan)
                 cols = ['index'] + [col for col in df.columns if col != 'index']
                 df = df[cols]
                 write_mode = "a" if current_file_path.exists() else "w"
@@ -610,6 +644,8 @@ def run_mfa(
             rows_to_write = MAX_ROWS_PER_FILE - current_file_row_count
             if rows_to_write > 0:
                 df_partial = pd.DataFrame(buffer[:rows_to_write])
+                # Replace infinity values with NaN for JSON compliance
+                df_partial = df_partial.replace([np.inf, -np.inf], np.nan)
                 cols = ['index'] + [col for col in df_partial.columns if col != 'index']
                 df_partial = df_partial[cols]
                 write_mode = "a" if current_file_path.exists() else "w"
@@ -624,6 +660,8 @@ def run_mfa(
                 current_file_path = get_next_file_path(file_sequence)
                 remaining_buffer = buffer[rows_to_write:]
                 df_remaining = pd.DataFrame(remaining_buffer)
+                # Replace infinity values with NaN for JSON compliance
+                df_remaining = df_remaining.replace([np.inf, -np.inf], np.nan)
                 cols = ['index'] + [col for col in df_remaining.columns if col != 'index']
                 df_remaining = df_remaining[cols]
                 df_remaining.to_csv(current_file_path, mode="w", header=True, index=False)
@@ -631,6 +669,8 @@ def run_mfa(
         else:
             # Normal final flush
             df = pd.DataFrame(buffer)
+            # Replace infinity values with NaN for JSON compliance
+            df = df.replace([np.inf, -np.inf], np.nan)
             cols = ['index'] + [col for col in df.columns if col != 'index']
             df = df[cols]
             write_mode = "a" if current_file_path.exists() else "w"
