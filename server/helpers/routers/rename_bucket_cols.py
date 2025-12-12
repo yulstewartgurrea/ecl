@@ -7,7 +7,7 @@ def rename_bucket_cols(df):
     """
     # Create a mapping of current column names to new transition names
     column_mapping = {
-        '0 day': '0 day to PAR 1',
+        '0 day to par 1': '0 day to PAR 1',
         'par 1 (1 & 30 days)': 'PAR 1 to PAR 30',
         'par 30 (31 & 60 days)': 'PAR 30 to PAR 60',
         'par 60 (61 & 90 days)': 'PAR 60 to PAR 90',
