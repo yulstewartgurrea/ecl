@@ -144,7 +144,7 @@ def calculate_flow_rate(flow_of_loan_balance_principal_matrix_dist_df):
         for row_idx in range(1, len(df)):
             for col_idx, col in enumerate(process_cols):
                 # PAR 360+ bucket is always 100% (complete write-off)
-                if col == 'par 360  (361 & up days)':
+                if "par 360" in col:
                     df.loc[row_idx, col] = 1.0
                 else:
                     # Get the next column index (next aging bucket)
