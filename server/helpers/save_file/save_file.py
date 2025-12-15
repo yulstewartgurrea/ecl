@@ -4,9 +4,12 @@ from sqlalchemy.orm import Session
 from database import SessionLocal
 
 from helpers.get_time_date import get_time_date
+
+# FLOWRATE
 from .flowrate_approach.flowrate import save_flowrate_output
 from .flowrate_approach.creditloss_rate import save_creditloss_rate_output
 
+# OVERLAY
 from helpers.save_file.overlay.data_interpolation import save_data_interpolation_output
 from helpers.save_file.overlay.data_transformation import save_data_transformation_output
 from helpers.save_file.overlay.candidate_models import save_candidate_models_output
@@ -16,6 +19,10 @@ from helpers.save_file.overlay.execution.save_transform_forecasted_mevs import s
 from helpers.save_file.overlay.execution.forecasted_pd_calc import save_forecasted_pd_calc_output
 from helpers.save_file.overlay.execution.overlay_multiplier import save_overlay_multiplier_output
 from helpers.save_file.overlay.execution.pd_calibration import save_pd_calibration_output
+
+# ECL
+from helpers.save_file.ecl.creditloss_rates import save_creditloss_rates_output
+# from helpers.save_file.ecl.ecl import save_ecl_output
 
 def save_csv_data_in_folder(
     workflow_path: str,
@@ -53,7 +60,9 @@ def save_csv_data_in_folder(
             "OVERLAY_EXECUTION_TRANSFORM_FORECASTED_MEVS_OUTPUT": save_transform_forecasted_mevs_output,
             "OVERLAY_EXECUTION_FORECASTED_PD_CALC_OUTPUT": save_forecasted_pd_calc_output,
             "OVERLAY_EXECUTION_OVERLAY_MULTIPLIER_OUTPUT": save_overlay_multiplier_output,
-            "OVERLAY_EXECUTION_PD_CALIBRATION_OUTPUT": save_pd_calibration_output
+            "OVERLAY_EXECUTION_PD_CALIBRATION_OUTPUT": save_pd_calibration_output,
+
+            "ECL_CREDIT_LOSS_RATES_OUTPUT": save_creditloss_rates_output,
         }
         
         # Get the appropriate model class
