@@ -4,6 +4,8 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  BarController,
+  LineController,
   BarElement,
   PointElement,
   LineElement,
@@ -16,15 +18,17 @@ import { Chart as ReactChart } from "react-chartjs-2";
 
 import type { AgingPortfolioRow } from "./AgingCategoryPortfolioEclTable";
 
-// register chart.js pieces once
+// ✅ IMPORTANT: register BOTH controllers + elements (production build needs this)
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  BarController,
+  LineController,
   BarElement,
   PointElement,
   LineElement,
   Tooltip,
-  Legend,
+  Legend
 );
 
 type MixedChartType = "bar" | "line";
@@ -40,14 +44,12 @@ const formatShortPeso = (value: number) => {
   return `₱${value.toFixed(0)}`;
 };
 
-const PortfolioEclByAgingChart: FC<PortfolioEclByAgingChartProps> = ({
-  rows,
-}) => {
+const PortfolioEclByAgingChart: FC<PortfolioEclByAgingChartProps> = ({ rows }) => {
   const labels = rows.map((r) => r.agingCategory);
 
   const loanBalances = rows.map((r) => r.loanBalance);
   const eclRates = rows.map((r) =>
-    r.loanBalance > 0 ? (r.weightedEcl / r.loanBalance) * 100 : 0,
+    r.loanBalance > 0 ? (r.weightedEcl / r.loanBalance) * 100 : 0
   );
 
   const data: ChartData<MixedChartType, number[], string> = {
@@ -114,12 +116,8 @@ const PortfolioEclByAgingChart: FC<PortfolioEclByAgingChartProps> = ({
     },
     scales: {
       x: {
-        grid: {
-          display: false,
-        },
-        ticks: {
-          font: { size: 10 },
-        },
+        grid: { display: false },
+        ticks: { font: { size: 10 } },
       },
       y: {
         type: "linear",
@@ -140,9 +138,7 @@ const PortfolioEclByAgingChart: FC<PortfolioEclByAgingChartProps> = ({
       y1: {
         type: "linear",
         position: "right",
-        grid: {
-          drawOnChartArea: false,
-        },
+        grid: { drawOnChartArea: false },
         ticks: {
           font: { size: 10 },
           callback: (value) => `${Number(value).toFixed(1)}%`,
