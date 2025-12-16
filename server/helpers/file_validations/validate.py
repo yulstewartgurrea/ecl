@@ -35,6 +35,9 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp
         "FLOWRATE_APPROACH_MIS_DATA": "flowrate",
         "FLOWRATE_APPROACH_REPORTS_GENERATED_EXTRACTED_CAMS": "flowrate",
         
+        # ECL types - use specialized validation
+        "ECL_CLIENT_LOAN_BALANCES": "ecl",
+        
         # Default to generic validation
         "general": "generic"
     }
@@ -45,6 +48,8 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp
     # Route to appropriate validation function
     if validation_type == "flowrate":
         return validate_flowrate_document(df, document_type, file_name, temp_path)
+    elif validation_type == "ecl":
+        return validate_ecl_document(df, document_type, file_name, temp_path)
     else:
         return validate_generic_document(df, document_type, file_name)
 
