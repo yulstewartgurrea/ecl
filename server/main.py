@@ -39,6 +39,11 @@ from api.routers.overlay.execution import (
     final_pit_pd as overlay_execution_final_pit_pd
 )
 
+from api.routers.ecl import (
+    credit_loss_rates as ecl_credit_loss_rates,
+    ecl as ecl_ecl
+)
+
 from core.dependencies import get_password_hash
 
 app = FastAPI()
@@ -148,3 +153,7 @@ app.include_router(overlay_execution_forecasted_pd_calc.router)
 app.include_router(overlay_execution_overlay_multiplier.router)
 app.include_router(overlay_execution_pd_calibration.router)
 app.include_router(overlay_execution_final_pit_pd.router)
+
+# ECL
+app.include_router(ecl_credit_loss_rates.router)
+app.include_router(ecl_ecl.router)
