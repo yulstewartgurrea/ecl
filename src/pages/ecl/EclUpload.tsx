@@ -16,6 +16,7 @@ import {
 import Step2 from "./steps/Step2";
 import Step3 from "./steps/Step3";
 import Step4 from "./steps/Step4";
+import Step5 from "./steps/Step5";
 
 const FlowrateApproachPage = () => {
   const dispatch = useAppDispatch();
@@ -77,6 +78,7 @@ const FlowrateApproachPage = () => {
 
   const developmentSteps = [
     { label: "Inputs", completed: false },
+       { label: "Credit Loss Rate", completed: false },
     { label: "ECL Calculations", completed: false },
     { label: "Credit Loss Rate Approach", completed: false },
     { label: "Output", completed: false },
@@ -100,10 +102,12 @@ const FlowrateApproachPage = () => {
       case 0:
         return <Step1 />;
       case 1:
-        return <Step2 />;
+        return <Step5 />;
       case 2:
-        return <Step3 />;
+        return <Step2 />;
       case 3:
+        return <Step3 />;
+      case 4:
         return <Step4 />;
       default:
         return null;

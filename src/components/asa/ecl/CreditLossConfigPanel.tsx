@@ -87,8 +87,8 @@ const AgingCategorySummaryTable: FC<AgingCategorySummaryTableProps> = ({
                 colSpan={8}
                 className="px-4 py-6 text-center text-xs text-slate-500"
               >
-                No output yet. Click <span className="font-semibold">Configure</span>{" "}
-                and apply the client-level sheet to generate this summary.
+                No output yet. Click <span className="font-semibold">Run</span>{" "}
+                to generate the client-level sheet summary.
               </td>
             </tr>
           )}

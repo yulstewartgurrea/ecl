@@ -1,159 +1,205 @@
 // pages/ecl/steps/Step3.tsx
-import { InformationCircleIcon } from "@heroicons/react/24/outline";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  InformationCircleIcon,
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
+  PlayIcon,
+} from "@heroicons/react/24/outline";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
+
 import AgingCategoryPortfolioEclTable, {
   type AgingPortfolioRow,
 } from "../../../components/asa/ecl/AgingCategoryPortfolioEclTable";
 
-const demoRows: AgingPortfolioRow[] = [
-  {
-    agingCategory: "0 day",
-    count: 1151,
-    loanBalance: 9604900,
-    distribution: 0.53,
-    eclUpside: 93.18,
-    eclBaseline: 186.37,
-    eclDownside: 838.66,
-    weightedEcl: 288.87,
-  },
-  {
-    agingCategory: "PAR 1",
-    count: 2671,
-    loanBalance: 38626330,
-    distribution: 2.14,
-    eclUpside: 204371.78,
-    eclBaseline: 408743.56,
-    eclDownside: 1839346.02,
-    weightedEcl: 633552.52,
-  },
-  {
-    agingCategory: "PAR 30",
-    count: 6852,
-    loanBalance: 118371972,
-    distribution: 6.55,
-    eclUpside: 675555.28,
-    eclBaseline: 1351110.56,
-    eclDownside: 6079991.37,
-    weightedEcl: 2094221.37,
-  },
-  {
-    agingCategory: "PAR 60",
-    count: 7934,
-    loanBalance: 121050250,
-    distribution: 6.70,
-    eclUpside: 733606.78,
-    eclBaseline: 1467213.55,
-    eclDownside: 6602460.99,
-    weightedEcl: 2274181.01,
-  },
-  {
-    agingCategory: "PAR 90",
-    count: 3662,
-    loanBalance: 50329365,
-    distribution: 2.79,
-    eclUpside: 316810.8,
-    eclBaseline: 633602.01,
-    eclDownside: 2851924.02,
-    weightedEcl: 982083.12,
-  },
-  {
-    agingCategory: "PAR 120",
-    count: 8979,
-    loanBalance: 155828600,
-    distribution: 8.63,
-    eclUpside: 1007502.91,
-    eclBaseline: 2015005.82,
-    eclDownside: 9067526.2,
-    weightedEcl: 3123259.03,
-  },
-  {
-    agingCategory: "PAR 150",
-    count: 9763,
-    loanBalance: 172913010,
-    distribution: 9.58,
-    eclUpside: 1144483.06,
-    eclBaseline: 2288966.12,
-    eclDownside: 10300347.53,
-    weightedEcl: 3547897.48,
-  },
-  {
-    agingCategory: "PAR 180",
-    count: 10653,
-    loanBalance: 187064360,
-    distribution: 10.35,
-    eclUpside: 1263392.68,
-    eclBaseline: 2526785.36,
-    eclDownside: 11730534.14,
-    weightedEcl: 3916571.31,
-  },
-  {
-    agingCategory: "PAR 210",
-    count: 11302,
-    loanBalance: 201080900,
-    distribution: 11.13,
-    eclUpside: 1356165.78,
-    eclBaseline: 2712331.57,
-    eclDownside: 12594926.42,
-    weightedEcl: 4294013.92,
-  },
-  {
-    agingCategory: "PAR 240",
-    count: 12700,
-    loanBalance: 221941100,
-    distribution: 12.27,
-    eclUpside: 1560819.75,
-    eclBaseline: 3121639.5,
-    eclDownside: 14407377.74,
-    weightedEcl: 4838541.22,
-  },
-  {
-    agingCategory: "PAR 270",
-    count: 13048,
-    loanBalance: 223290500,
-    distribution: 12.36,
-    eclUpside: 1577387.38,
-    eclBaseline: 3154774.75,
-    eclDownside: 14519636.44,
-    weightedEcl: 5138985.29,
-  },
-  {
-    agingCategory: "PAR 300",
-    count: 12365,
-    loanBalance: 210866200,
-    distribution: 11.68,
-    eclUpside: 1656619.8,
-    eclBaseline: 3313239.6,
-    eclDownside: 15104578.18,
-    weightedEcl: 5135251.37,
-  },
-  {
-    agingCategory: "PAR 330",
-    count: 5765,
-    loanBalance: 93854600,
-    distribution: 5.19,
-    eclUpside: 791457.56,
-    eclBaseline: 1582915.11,
-    eclDownside: 7221180.08,
-    weightedEcl: 2531543.42,
-  },
-  {
-    agingCategory: "PAR 360",
-    count: 76,
-    loanBalance: 931700,
-    distribution: 0.05,
-    eclUpside: 9317,
-    eclBaseline: 18634,
-    eclDownside: 83853,
-    weightedEcl: 28882.7,
-  },
-];
+type ApiRowRaw = Record<string, any>;
+
+function toNumber(v: any): number {
+  const n = typeof v === "string" ? Number(v) : Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toUpperAging(s: any) {
+  return String(s ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+function normalizeSummaryRows(data: ApiRowRaw[]): AgingPortfolioRow[] {
+  return (data ?? []).map((r) => {
+    const aging = r["aging category"] ?? r.aging_category ?? r.agingCategory ?? "";
+    return {
+      agingCategory: toUpperAging(aging),
+      count: toNumber(r["count"] ?? r.count),
+      loanBalance: toNumber(r["loan balance"] ?? r.loan_balance ?? r.loanBalance),
+      // summary endpoint doesn't provide distribution; leave 0 (table may compute/ignore)
+      distribution: toNumber(r["distribution"] ?? r.distribution),
+      eclUpside: toNumber(
+        r["expected credit loss upside"] ?? r.expected_credit_loss_upside ?? r.eclUpside
+      ),
+      eclBaseline: toNumber(
+        r["expected credit loss baseline"] ?? r.expected_credit_loss_baseline ?? r.eclBaseline
+      ),
+      eclDownside: toNumber(
+        r["expected credit loss downside"] ?? r.expected_credit_loss_downside ?? r.eclDownside
+      ),
+      weightedEcl: toNumber(r["weighted ecl"] ?? r.weighted_ecl ?? r.weightedEcl),
+    } as AgingPortfolioRow;
+  });
+}
+
+function calcOverallEclRatePercent(allRows: AgingPortfolioRow[]): number {
+  // Prefer TOTAL row if backend provides it (your sample does)
+  const total = allRows.find((r) => r.agingCategory === "TOTAL");
+  if (total && total.loanBalance > 0) {
+    return (total.weightedEcl / total.loanBalance) * 100;
+  }
+
+  // Fallback: sum over non-meta rows
+  const usable = allRows.filter(
+    (r) => r.agingCategory !== "TOTAL" && r.agingCategory !== "ECL RATE"
+  );
+  const sumLoan = usable.reduce((acc, r) => acc + toNumber(r.loanBalance), 0);
+  const sumWeighted = usable.reduce((acc, r) => acc + toNumber(r.weightedEcl), 0);
+  return sumLoan > 0 ? (sumWeighted / sumLoan) * 100 : 0;
+}
 
 export default function Step3() {
-  const reduxToken = useAppSelector((s) => s.auth.token);
-  const token = reduxToken ?? undefined; // reserved for real API calls later
-console.log(token)
+  const reduxToken = useAppSelector((s: any) => s.auth.token);
+  const token = reduxToken ?? undefined;
+
+  const { currentPdTransitionMatrixWorkflowId } = useAppSelector(
+    (state: any) => state.pdTransitionMatrixWfHelper
+  );
+
+  const workflowId = useMemo(() => {
+    const fromRedux = currentPdTransitionMatrixWorkflowId;
+    if (fromRedux) return Number(fromRedux);
+
+    if (typeof window !== "undefined") {
+      const raw = window.localStorage.getItem("current_workflow_id");
+      const parsed = raw ? Number(raw) : NaN;
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+
+    // fallback sample
+    return 35;
+  }, [currentPdTransitionMatrixWorkflowId]);
+
+  const [rows, setRows] = useState<AgingPortfolioRow[]>([]);
+  const [overallEclRatePercent, setOverallEclRatePercent] = useState<number>(0);
+
+  const [loading, setLoading] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [hasInitialFetched, setHasInitialFetched] = useState(false);
+  const [needsRun, setNeedsRun] = useState(false);
+
+  const busy = loading || posting;
+
+  const GET_URL = useMemo(
+    () => `http://localhost:8000/api/ecl/summary/?workflow_id=${workflowId}`,
+    [workflowId]
+  );
+  const POST_URL = "http://localhost:8000/api/ecl/summary/";
+
+  const lastInitialFetchRef = useRef<number | null>(null);
+
+  const fetchSummary = async (opts?: { markInitial?: boolean }) => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch(GET_URL, {
+        method: "GET",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : {};
+
+      if (!json?.success) {
+        throw new Error(json?.msg || "Failed to fetch summary.");
+      }
+
+      const normalizedAll = normalizeSummaryRows(json?.data ?? []);
+
+      // Table rows: exclude TOTAL + ECL RATE
+      const tableRows = normalizedAll.filter(
+        (r) => r.agingCategory !== "TOTAL" && r.agingCategory !== "ECL RATE"
+      );
+
+      setRows(tableRows);
+      setOverallEclRatePercent(calcOverallEclRatePercent(normalizedAll));
+
+      // if no usable rows, require user to run
+      setNeedsRun(tableRows.length === 0);
+
+      if (opts?.markInitial) setHasInitialFetched(true);
+    } catch (e: any) {
+      setRows([]);
+      setOverallEclRatePercent(0);
+      setNeedsRun(false);
+      setError(e?.message || "Failed to fetch summary.");
+      if (opts?.markInitial) setHasInitialFetched(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runThenGet = async () => {
+    if (posting) return;
+
+    setError(null);
+    setPosting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("workflow_id", String(workflowId));
+
+      const res = await fetch(POST_URL, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : {};
+
+      if (!json?.success) {
+        throw new Error(json?.msg || "POST failed.");
+      }
+
+      // after POST success, GET again
+      await fetchSummary();
+    } catch (e: any) {
+      setError(e?.message || "Failed to run summary compute.");
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  // ✅ Initial: GET only (once per workflowId)
+  useEffect(() => {
+    if (!workflowId) return;
+
+    if (lastInitialFetchRef.current === workflowId) return;
+    lastInitialFetchRef.current = workflowId;
+
+    setHasInitialFetched(false);
+    setNeedsRun(false);
+    setRows([]);
+    setOverallEclRatePercent(0);
+    setError(null);
+
+    fetchSummary({ markInitial: true }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflowId]);
+
   return (
-    <div className="min-h-dvh bg-slate-50">
+    <div className={`min-h-dvh bg-slate-50 ${busy ? "cursor-wait" : ""}`}>
       <div className="mx-auto max-w-[1600px] space-y-6 p-6">
         {/* Description */}
         <section className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 shadow-sm">
@@ -161,33 +207,102 @@ console.log(token)
             <div className="mt-0.5">
               <InformationCircleIcon className="h-5 w-5 text-amber-700" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-sm font-semibold text-amber-900">
                 Step 3 – Portfolio-Level ECL
               </h1>
               <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                This table summarizes the Expected Credit Loss by aging category
-                at the portfolio level, including loan balance, distribution,
-                scenario ECL, and the overall ECL rate.
+                This page first loads existing summary results using GET. If there is no computed
+                data yet, click <b>Run</b> to POST and compute, then it will GET again.
               </p>
+              <div className="mt-2 text-xs text-amber-900/80">
+                workflow_id: <b>{workflowId}</b>
+              </div>
             </div>
           </div>
         </section>
 
+        {error ? (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+            <div className="flex items-center gap-2 font-semibold">
+              <ExclamationTriangleIcon className="h-4 w-4" />
+              Error
+            </div>
+            <div className="mt-1">{error}</div>
+          </div>
+        ) : null}
+
         {/* Main table */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">
                 Portfolio ECL by Aging Category
               </h2>
               <p className="text-xs text-slate-500">
-                Derived from the loan-level ECL computation in previous steps.
+                {loading && !hasInitialFetched
+                  ? "Loading initial data…"
+                  : needsRun
+                  ? "No computed data found. Click Run to compute."
+                  : "Derived from the loan-level ECL computation in previous steps."}
               </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={runThenGet}
+                disabled={busy || !hasInitialFetched || !needsRun}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm disabled:opacity-60 disabled:cursor-not-allowed ${
+                  busy || !hasInitialFetched || !needsRun
+                    ? "bg-amber-200 text-slate-700"
+                    : "bg-amber-400 text-slate-900 hover:brightness-95"
+                }`}
+                title={
+                  !hasInitialFetched
+                    ? "Waiting for initial GET…"
+                    : needsRun
+                    ? "Compute (POST) then reload (GET)"
+                    : "Already has data"
+                }
+              >
+                {posting ? (
+                  <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                ) : (
+                  <PlayIcon className="h-4 w-4" />
+                )}
+                {posting ? "Running…" : "Run"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fetchSummary()}
+                disabled={busy || !hasInitialFetched}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                title="GET again"
+              >
+                <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
             </div>
           </div>
 
-          <AgingCategoryPortfolioEclTable rows={demoRows} overallEclRatePercent={2.13} />
+          <div className="p-4">
+            {rows.length === 0 ? (
+              <div className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+                {loading
+                  ? "Loading…"
+                  : needsRun
+                  ? "No summary yet. Click Run to compute."
+                  : "No rows."}
+              </div>
+            ) : (
+              <AgingCategoryPortfolioEclTable
+                rows={rows}
+                overallEclRatePercent={overallEclRatePercent}
+              />
+            )}
+          </div>
         </section>
       </div>
     </div>

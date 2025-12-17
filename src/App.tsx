@@ -21,7 +21,7 @@ import { login as loginAction } from "./redux_toolkit/features/general/auth";
 
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core"; // 🔹 NEW
+import { invoke } from "@tauri-apps/api/core";
 
 function App() {
   const { isLoggedIn } = useAppSelector((state) => state.auth);
@@ -51,33 +51,37 @@ function App() {
     };
   }, []);
 
-  // 🔹 Poll the backend_is_ready command as a fallback (covers missed events)
+  // ✅ Poll backend_is_ready as a fallback — stops automatically once true
   useEffect(() => {
+    // if already ready, don't start polling
+    if (backendReady) return;
+
     let cancelled = false;
 
     const check = async () => {
+      if (cancelled) return;
       try {
         const ok = await invoke<boolean>("backend_is_ready");
         if (!cancelled && ok) {
           console.log("[App] backend_is_ready() returned true");
-          setBackendReady(true);
+          setBackendReady(true); // triggers cleanup below (clears interval)
         }
       } catch (e) {
-        // Ignore errors; probably backend not ready yet
         console.warn("[App] backend_is_ready() failed:", e);
       }
     };
 
     // initial check
     check();
-    // repeat every 2s
+
+    // repeat every 2s until ready
     const id = setInterval(check, 2000);
 
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [backendReady]);
 
   console.log("isLoggedIn: ", isLoggedIn);
   console.log("backendReady: ", backendReady);
