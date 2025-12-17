@@ -22,6 +22,8 @@ from .overlay.development import (
     OverlayDevelopmentFinalModelOutput
 )
 
+from .ecl import EclLogs
+
 __all__ = ["User", 
             "Workflow",
             "Document",
@@ -47,4 +49,8 @@ __all__ = ["User",
             "OverlayDevelopmentMultiFactorAnalysisOutput",
             "OverlayDevelopmenFilteringOfModelsOutput",
             "OverlayDevelopmenCandidateModelsOutput",
-            "OverlayDevelopmentFinalModelOutput"]
+            "OverlayDevelopmentFinalModelOutput",
+            
+            # ECL Models
+            "EclLogs"
+            ]

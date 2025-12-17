@@ -41,7 +41,8 @@ from api.routers.overlay.execution import (
 
 from api.routers.ecl import (
     credit_loss_rates as ecl_credit_loss_rates,
-    ecl as ecl_ecl
+    ecl as ecl_ecl,
+    summary as ecl_summary
 )
 
 from core.dependencies import get_password_hash
@@ -157,3 +158,4 @@ app.include_router(overlay_execution_final_pit_pd.router)
 # ECL
 app.include_router(ecl_credit_loss_rates.router)
 app.include_router(ecl_ecl.router)
+app.include_router(ecl_summary.router)

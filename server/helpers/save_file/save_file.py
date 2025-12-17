@@ -22,7 +22,8 @@ from helpers.save_file.overlay.execution.pd_calibration import save_pd_calibrati
 
 # ECL
 from helpers.save_file.ecl.creditloss_rates import save_creditloss_rates_output
-# from helpers.save_file.ecl.ecl import save_ecl_output
+from helpers.save_file.ecl.ecl import save_ecl_output
+from helpers.save_file.ecl.summary import save_ecl_summary
 
 def save_csv_data_in_folder(
     workflow_path: str,
@@ -63,6 +64,8 @@ def save_csv_data_in_folder(
             "OVERLAY_EXECUTION_PD_CALIBRATION_OUTPUT": save_pd_calibration_output,
 
             "ECL_CREDIT_LOSS_RATES_OUTPUT": save_creditloss_rates_output,
+            "ECL_OUTPUT": save_ecl_output,
+            "ECL_SUMMARY": save_ecl_summary
         }
         
         # Get the appropriate model class

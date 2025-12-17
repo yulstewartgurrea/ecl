@@ -36,7 +36,10 @@ def clean_document(df: pd.DataFrame, document_type: str, file_name: str, temp_pa
         "FLOWRATE_APPROACH_FS_CURRENT_BALANCE",
         "FLOWRATE_APPROACH_MIS_DATA",
         "FLOWRATE_APPROACH_REPORTS_GENERATED_EXTRACTED_CAMS",
-        "FLOWRATE_APPROACH_AGING_REPORT"
+        "FLOWRATE_APPROACH_AGING_REPORT",
+
+        # ECL INPUT FILES
+        "ECL_CLIENT_LOAN_BALANCES"
     ]
 
     overlay_development_document_types = [
