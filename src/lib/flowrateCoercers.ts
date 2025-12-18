@@ -4,11 +4,13 @@ import type {
   MonthRow,
   RatesColumnSet,
   DistributionBy,
+  AgingKey,
 } from "../components/asa/credit/CreditLossRateMatrix";
 import type { CreditLossRateRow } from "../components/asa/graph/CreditLossRateCharts";
 
 /* ---------- helpers ---------- */
 const clean = (s: string) => (s ?? "").toLowerCase().replace(/\s+/g, "");
+
 export function pick(o: any, candidates: string[]) {
   for (const k of candidates) {
     if (o && Object.prototype.hasOwnProperty.call(o, k)) return o[k];
@@ -17,19 +19,25 @@ export function pick(o: any, candidates: string[]) {
   }
   return undefined;
 }
-/** "331.31%" -> 3.3131 ; "" / "-" / "#N/A" -> 0 */
+
+/** "331.31%" -> 3.3131 ; "" / "-" / "#N/A" -> 0 ; numbers passthrough */
 export function pctToDecimal(v: any): number {
   if (v == null) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+
   const raw = String(v).trim();
   if (!raw || raw === "-" || raw.toUpperCase() === "#N/A") return 0;
+
   const s = raw.replace(/,/g, "").replace(/\s+/g, "");
   if (s.endsWith("%")) {
     const n = Number(s.slice(0, -1));
     return Number.isFinite(n) ? n / 100 : 0;
   }
+
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
+
 export function latestByDate<T extends { Date?: string; date?: string }>(
   arr: T[]
 ): T | undefined {
@@ -39,33 +47,94 @@ export function latestByDate<T extends { Date?: string; date?: string }>(
   return sorted[0];
 }
 
-/* ---------- labels ---------- */
+function parseBool(v: any): boolean | undefined {
+  if (v === null || v === undefined || v === "") return undefined;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "yes" || s === "true") return true;
+    if (s === "no" || s === "false") return false;
+  }
+  return Boolean(v);
+}
+
+/* ---------- Step 5 (backend-aligned) categories ---------- */
+/**
+ * ✅ IMPORTANT: These must match the backend response keys.
+ * This fixes the wrong header like "0 day to PAR 1".
+ */
 export const CATS: AgingCategory[] = [
-  { key: "d0", label: "0 day to PAR 1" },
-  { key: "par1_30", label: "PAR 1 to PAR 30" },
-  { key: "par30_60", label: "PAR 30 to PAR 60" },
-  { key: "par60_90", label: "PAR 60 to PAR 90" },
-  { key: "par90_120", label: "PAR 90 to PAR 120" },
-  { key: "par120_180", label: "PAR 120 to PAR 180" },
-  { key: "par180_240", label: "PAR 180 to PAR 240" },
-  { key: "par240_360", label: "PAR 240 to PAR 360" },
-  { key: "par360p", label: "PAR 360 above" },
+  { key: "0 day" as AgingKey, label: "0 day" },
+  { key: "par 1" as AgingKey, label: "par 1" },
+  { key: "par 30" as AgingKey, label: "par 30" },
+  { key: "par 60" as AgingKey, label: "par 60" },
+  { key: "par 90" as AgingKey, label: "par 90" },
+  { key: "par 120" as AgingKey, label: "par 120" },
+  { key: "par 150" as AgingKey, label: "par 150" },
+  { key: "par 180" as AgingKey, label: "par 180" },
+  { key: "par 210" as AgingKey, label: "par 210" },
+  { key: "par 240" as AgingKey, label: "par 240" },
+  { key: "par 270" as AgingKey, label: "par 270" },
+  { key: "par 300" as AgingKey, label: "par 300" },
+  { key: "par 330" as AgingKey, label: "par 330" },
+  { key: "par 360" as AgingKey, label: "par 360" },
 ];
 
-type KeyMap = Record<AgingCategory["key"], string[]>;
-export const FLOW_KEYS: KeyMap = {
-  d0: ["0 Day to PAR 1", "0 day to PAR 1", "0 day→PAR 1", "d0topar1"],
-  par1_30: ["PAR 1 to PAR 30", "par 1 to par 30", "par1topar30"],
-  par30_60: ["PAR 30 to PAR 60", "par 30 to par 60", "par30topar60"],
-  par60_90: ["PAR 60 to PAR 90", "par 60 to par 90", "par60topar90"],
-  par90_120: ["PAR 90 to PAR 120", "par 90 to par 120", "par90topar120"],
-  par120_180: ["PAR 120 to PAR 180", "par 120 to par 180", "par120topar180"],
-  par180_240: ["PAR 180 to PAR 240", "par 180 to par 240", "par180topar240"],
-  par240_360: ["PAR 240 to PAR 360", "par 240 to par 360", "par240topar360"],
-  par360p: ["PAR 360 above", "par 360 above", "par360+"],
+/**
+ * Candidates for each backend key (robust to casing / minor variants)
+ */
+type KeyMap = Record<AgingKey, string[]>;
+export const STEP5_KEYS: KeyMap = {
+  "0 day": ["0 day", "0 Day", "0day"],
+  "par 1": ["par 1", "PAR 1", "par1"],
+  "par 30": ["par 30", "PAR 30", "par30"],
+  "par 60": ["par 60", "PAR 60", "par60"],
+  "par 90": ["par 90", "PAR 90", "par90"],
+  "par 120": ["par 120", "PAR 120", "par120"],
+  "par 150": ["par 150", "PAR 150", "par150"],
+  "par 180": ["par 180", "PAR 180", "par180"],
+  "par 210": ["par 210", "PAR 210", "par210"],
+  "par 240": ["par 240", "PAR 240", "par240"],
+  "par 270": ["par 270", "PAR 270", "par270"],
+  "par 300": ["par 300", "PAR 300", "par300"],
+  "par 330": ["par 330", "PAR 330", "par330"],
+  "par 360": ["par 360", "PAR 360", "par360"],
 };
 
+function emptyCols(): Record<AgingKey, number> {
+  return {
+    "0 day": 0,
+    "par 1": 0,
+    "par 30": 0,
+    "par 60": 0,
+    "par 90": 0,
+    "par 120": 0,
+    "par 150": 0,
+    "par 180": 0,
+    "par 210": 0,
+    "par 240": 0,
+    "par 270": 0,
+    "par 300": 0,
+    "par 330": 0,
+    "par 360": 0,
+  };
+}
+
 /* ---------- coercers ---------- */
+
+/**
+ * ✅ Step 5 rows (backend-aligned)
+ * Accepts payload shapes:
+ * - payload.data = [...]
+ * - payload.data.flow_rate_calculation = [...]
+ * - payload = [...]
+ *
+ * Builds MonthRow with:
+ * - cols using exact backend bucket keys
+ * - monotonic from "Monotonic?"
+ * - weighted from "Weighted Credit Loss Rate per Month"
+ */
 export function coerceRowsFromStep5(payload: any): MonthRow[] {
   const block =
     payload?.data?.flow_rate_calculation ??
@@ -75,50 +144,39 @@ export function coerceRowsFromStep5(payload: any): MonthRow[] {
     payload;
 
   const arr: any[] = Array.isArray(block) ? block : [];
+
   return arr.map((r) => {
     const date = (
       pick(r, ["Date", "Report Date", "date", "report_date"]) ?? ""
     ).toString();
-    const cols: MonthRow["cols"] = {
-      d0: pctToDecimal(pick(r, FLOW_KEYS.d0)),
-      par1_30: pctToDecimal(pick(r, FLOW_KEYS.par1_30)),
-      par30_60: pctToDecimal(pick(r, FLOW_KEYS.par30_60)),
-      par60_90: pctToDecimal(pick(r, FLOW_KEYS.par60_90)),
-      par90_120: pctToDecimal(pick(r, FLOW_KEYS.par90_120)),
-      par120_180: pctToDecimal(pick(r, FLOW_KEYS.par120_180)),
-      par180_240: pctToDecimal(pick(r, FLOW_KEYS.par180_240)),
-      par240_360: pctToDecimal(pick(r, FLOW_KEYS.par240_360)),
-      par360p: pctToDecimal(pick(r, FLOW_KEYS.par360p)),
-    };
 
-    const monotonicStr = pick(r, ["Monotonic?", "Monotonic", "monotonic"]);
-    let monotonic: boolean | undefined = undefined;
-    if (
-      monotonicStr !== undefined &&
-      monotonicStr !== null &&
-      monotonicStr !== ""
-    ) {
-      const str = String(monotonicStr).toLowerCase().trim();
-      monotonic = str === "yes" || monotonicStr === true;
-    }
-    const weightedRate = pick(r, [
+    const cols = emptyCols();
+    (Object.keys(cols) as AgingKey[]).forEach((k) => {
+      cols[k] = pctToDecimal(pick(r, STEP5_KEYS[k]));
+    });
+
+    const monotonic = parseBool(pick(r, ["Monotonic?", "Monotonic", "monotonic"]));
+
+    const weightedRaw = pick(r, [
       "Weighted Credit Loss Rate per Month",
       "Weighted credit loss rate / month",
       "weighted_credit_loss_rate",
+      "weighted",
     ]);
     const weighted =
-      weightedRate != null && weightedRate !== ""
-        ? pctToDecimal(weightedRate)
+      weightedRaw !== undefined && weightedRaw !== null && weightedRaw !== ""
+        ? pctToDecimal(weightedRaw)
         : undefined;
 
     return { date, cols, monotonic, weighted };
   });
 }
 
-export function coerceRateSets(
-  payload: any,
-  rows: MonthRow[]
-): RatesColumnSet[] {
+/**
+ * Optional: Rate sets (only if backend provides it).
+ * If none provided, we return [] (Step5 table can render without it).
+ */
+export function coerceRateSets(payload: any, rows: MonthRow[]): RatesColumnSet[] {
   const explicit =
     payload?.data?.historical_credit_loss_rate ??
     payload?.data?.historical_rates ??
@@ -126,77 +184,52 @@ export function coerceRateSets(
     null;
 
   if (explicit && !Array.isArray(explicit) && typeof explicit === "object") {
-    const values = {
-      d0: pctToDecimal(pick(explicit, FLOW_KEYS.d0)),
-      par1_30: pctToDecimal(pick(explicit, FLOW_KEYS.par1_30)),
-      par30_60: pctToDecimal(pick(explicit, FLOW_KEYS.par30_60)),
-      par60_90: pctToDecimal(pick(explicit, FLOW_KEYS.par60_90)),
-      par90_120: pctToDecimal(pick(explicit, FLOW_KEYS.par90_120)),
-      par120_180: pctToDecimal(pick(explicit, FLOW_KEYS.par120_180)),
-      par180_240: pctToDecimal(pick(explicit, FLOW_KEYS.par180_240)),
-      par240_360: pctToDecimal(pick(explicit, FLOW_KEYS.par240_360)),
-      par360p: pctToDecimal(pick(explicit, FLOW_KEYS.par360p)),
-    };
+    const values = emptyCols();
+    (Object.keys(values) as AgingKey[]).forEach((k) => {
+      values[k] = pctToDecimal(pick(explicit, STEP5_KEYS[k]));
+    });
     return [{ name: "Historical Credit Loss Rate", values }];
   }
 
   if (Array.isArray(explicit)) {
-    const sets: RatesColumnSet[] = explicit.map((obj: any, i: number) => ({
-      name: obj?.name ?? `Rate Set ${i + 1}`,
-      values: {
-        d0: pctToDecimal(pick(obj, FLOW_KEYS.d0)),
-        par1_30: pctToDecimal(pick(obj, FLOW_KEYS.par1_30)),
-        par30_60: pctToDecimal(pick(obj, FLOW_KEYS.par30_60)),
-        par60_90: pctToDecimal(pick(obj, FLOW_KEYS.par60_90)),
-        par90_120: pctToDecimal(pick(obj, FLOW_KEYS.par90_120)),
-        par120_180: pctToDecimal(pick(obj, FLOW_KEYS.par120_180)),
-        par180_240: pctToDecimal(pick(obj, FLOW_KEYS.par180_240)),
-        par240_360: pctToDecimal(pick(obj, FLOW_KEYS.par240_360)),
-        par360p: pctToDecimal(pick(obj, FLOW_KEYS.par360p)),
-      },
-    }));
-    if (sets.length) return sets;
+    const sets: RatesColumnSet[] = explicit.map((obj: any, i: number) => {
+      const values = emptyCols();
+      (Object.keys(values) as AgingKey[]).forEach((k) => {
+        values[k] = pctToDecimal(pick(obj, STEP5_KEYS[k]));
+      });
+      return { name: obj?.name ?? `Rate Set ${i + 1}`, values };
+    });
+    return sets.filter(Boolean);
   }
 
-  if (!rows.length) return [];
-  const keys = CATS.map((c) => c.key);
-  const sums: Record<string, number> = Object.fromEntries(
-    keys.map((k) => [k, 0])
-  );
-  rows.forEach((r) =>
-    keys.forEach((k) => (sums[k] += r.cols[k as keyof MonthRow["cols"]] || 0))
-  );
-  const avg: Record<any, number> = Object.fromEntries(
-    keys.map((k) => [k, (sums[k] || 0) / rows.length])
-  );
-  return [{ name: "Historical (avg of months)", values: avg as any }];
+  // Do not invent/transform: return empty when not provided.
+  // (If you want fallback avg, you can add it back.)
+  void rows;
+  return [];
 }
 
-export function coerceDistribution(
-  step5: any,
-  step3?: any
-): DistributionBy | undefined {
+/**
+ * Distribution (if you still need it for other steps/charts).
+ * Returns backend-aligned keys; missing buckets default to 0.
+ */
+export function coerceDistribution(step5: any, step3?: any): DistributionBy | undefined {
+  // 1) Step5 explicit distribution block (if exists)
   const d1 =
     step5?.data?.distribution ??
     step5?.data?.["distribution"] ??
     step5?.data?.["Distribution"] ??
     null;
+
   if (d1 && typeof d1 === "object" && !Array.isArray(d1)) {
-    const asOf = d1?.asOfLabel ?? d1?.asOf ?? "";
-    const values = {
-      d0: pctToDecimal(pick(d1, FLOW_KEYS.d0)),
-      par1_30: pctToDecimal(pick(d1, FLOW_KEYS.par1_30)),
-      par30_60: pctToDecimal(pick(d1, FLOW_KEYS.par30_60)),
-      par60_90: pctToDecimal(pick(d1, FLOW_KEYS.par60_90)),
-      par90_120: pctToDecimal(pick(d1, FLOW_KEYS.par90_120)),
-      par120_180: pctToDecimal(pick(d1, FLOW_KEYS.par120_180)),
-      par180_240: pctToDecimal(pick(d1, FLOW_KEYS.par180_240)),
-      par240_360: pctToDecimal(pick(d1, FLOW_KEYS.par240_360)),
-      par360p: pctToDecimal(pick(d1, FLOW_KEYS.par360p)),
-    };
+    const asOf = (d1?.asOfLabel ?? d1?.asOf ?? "").toString();
+    const values = emptyCols();
+    (Object.keys(values) as AgingKey[]).forEach((k) => {
+      values[k] = pctToDecimal(pick(d1, STEP5_KEYS[k]));
+    });
     return { type: "asOf", asOfLabel: asOf || "", values };
   }
 
+  // 2) Step3 distribution table (common)
   const distBlock =
     step3?.data?.["flow_of_balance_principal_matrix (distribution)"] ??
     step3?.data?.flow_of_balance_principal_matrix_distribution ??
@@ -204,41 +237,42 @@ export function coerceDistribution(
 
   if (Array.isArray(distBlock) && distBlock.length) {
     const latest = latestByDate(distBlock as any[]);
-    const date = (
-      latest?.Date ??
-      latest?.date ??
-      latest?.["Report Date"] ??
-      ""
-    ).toString();
-    const values = {
-      d0: pctToDecimal(pick(latest, ["0 day", "0 Day"])),
-      par1_30: pctToDecimal(
-        pick(latest, ["PAR 1  (1 & 30 days)", "PAR 1 (1 & 30 days)"])
-      ),
-      par30_60: pctToDecimal(
-        pick(latest, ["PAR 30  (31 & 60 days)", "PAR 30 (31 & 60 days)"])
-      ),
-      par60_90: pctToDecimal(
-        pick(latest, ["PAR 60  (61 & 90 days)", "PAR 60 (61 & 90 days)"])
-      ),
-      par90_120: pctToDecimal(
-        pick(latest, ["PAR 90  (91 & 120 days)", "PAR 90 (91 & 120 days)"])
-      ),
-      par120_180: pctToDecimal(
-        pick(latest, ["PAR 120  (121 & 180 days)", "PAR 120 (121 & 180 days)"])
-      ),
-      par180_240: pctToDecimal(
-        pick(latest, ["PAR 180  (181 & 240 days)", "PAR 180 (181 & 240 days)"])
-      ),
-      par240_360: pctToDecimal(
-        pick(latest, ["PAR 240  (241 & 360 days)", "PAR 240 (241 & 360 days)"])
-      ),
-      par360p: pctToDecimal(
-        pick(latest, ["PAR 360  (361 & Up days)", "PAR 360 (361 & Up days)"])
-      ),
-    };
+    const date =
+      (latest?.Date ?? latest?.date ?? latest?.["Report Date"] ?? "").toString();
+
+    const values = emptyCols();
+
+    // step3 distribution usually has these labels:
+    values["0 day"] = pctToDecimal(pick(latest, ["0 day", "0 Day"]));
+    values["par 1"] = pctToDecimal(
+      pick(latest, ["PAR 1  (1 & 30 days)", "PAR 1 (1 & 30 days)", "PAR 1"])
+    );
+    values["par 30"] = pctToDecimal(
+      pick(latest, ["PAR 30  (31 & 60 days)", "PAR 30 (31 & 60 days)", "PAR 30"])
+    );
+    values["par 60"] = pctToDecimal(
+      pick(latest, ["PAR 60  (61 & 90 days)", "PAR 60 (61 & 90 days)", "PAR 60"])
+    );
+    values["par 90"] = pctToDecimal(
+      pick(latest, ["PAR 90  (91 & 120 days)", "PAR 90 (91 & 120 days)", "PAR 90"])
+    );
+    values["par 120"] = pctToDecimal(
+      pick(latest, ["PAR 120  (121 & 180 days)", "PAR 120 (121 & 180 days)", "PAR 120"])
+    );
+    values["par 180"] = pctToDecimal(
+      pick(latest, ["PAR 180  (181 & 240 days)", "PAR 180 (181 & 240 days)", "PAR 180"])
+    );
+    values["par 240"] = pctToDecimal(
+      pick(latest, ["PAR 240  (241 & 360 days)", "PAR 240 (241 & 360 days)", "PAR 240"])
+    );
+    values["par 360"] = pctToDecimal(
+      pick(latest, ["PAR 360  (361 & Up days)", "PAR 360 (361 & Up days)", "PAR 360"])
+    );
+
+    // step3 doesn't usually have par150/par210/par270/par300/par330; they remain 0.
     return { type: "asOf", asOfLabel: `as of ${date}`, values };
   }
+
   return undefined;
 }
 
@@ -246,15 +280,15 @@ export function coerceDistribution(
 export function toChartRows(rows: MonthRow[]): CreditLossRateRow[] {
   return (rows || []).map((r) => ({
     date: r.date,
-    par_0_1: r.cols.d0 ?? null,
-    par_1_30: r.cols.par1_30 ?? null,
-    par_30_60: r.cols.par30_60 ?? null,
-    par_60_90: r.cols.par60_90 ?? null,
-    par_90_120: r.cols.par90_120 ?? null,
-    par_120_180: r.cols.par120_180 ?? null,
-    par_180_240: r.cols.par180_240 ?? null,
-    par_240_360: r.cols.par240_360 ?? null,
-    par_360_plus: r.cols.par360p ?? null,
+    par_0_1: r.cols["0 day"] ?? null,
+    par_1_30: r.cols["par 1"] ?? null,
+    par_30_60: r.cols["par 30"] ?? null,
+    par_60_90: r.cols["par 60"] ?? null,
+    par_90_120: r.cols["par 90"] ?? null,
+    par_120_180: r.cols["par 120"] ?? null,
+    par_180_240: r.cols["par 180"] ?? null,
+    par_240_360: r.cols["par 240"] ?? null,
+    par_360_plus: r.cols["par 360"] ?? null,
     weighted_loss_rate: r.weighted ?? null,
   }));
 }

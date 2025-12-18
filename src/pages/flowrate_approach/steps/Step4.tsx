@@ -81,116 +81,56 @@ function numOrNA(v: any): number | "#N/A" {
   return Number.isFinite(n) ? n : "#N/A";
 }
 
-/** Coerce backend data -> AgingRow[] used by principal + distribution tables */
 function coercePrincipalMatrix(payload: any, view: ViewKey): AgingRow[] {
   const data = payload?.data ?? payload;
 
-  // Get the correct block based on view
   let block: any[] = [];
   if (view === "principal") {
-    block = data?.["Flow of Loan Balance Principal Matrix"] ?? data?.rows ?? [];
+    block = data?.["Flow of Loan Balance Principal Matrix"] ?? [];
   } else if (view === "distribution") {
-    block =
-      data?.["Flow of Loan Balance Principal Matrix (Distribution)"] ??
-      data?.rows ??
-      [];
+    block = data?.["Flow of Loan Balance Principal Matrix (Distribution)"] ?? [];
   } else {
-    // for safety; real flowrate handled separately
-    block = data?.rows ?? [];
+    block = [];
   }
 
   const arr: any[] = Array.isArray(block) ? block : [];
 
-  const out: AgingRow[] = arr.map((r) => {
-    const product = (pick(r, ["Product", "product"]) ?? "").toString();
-    const date = (pick(r, ["Date", "date"]) ?? "").toString();
+  return arr.map((r) => {
+    const date = (pick(r, ["date", "Date"]) ?? "").toString();
 
     const tlb = pick(r, [
-      "Total Loan Balance with C/P",
-      "Total Loan Balance with CP",
-      "Loan Balance w/ CP",
       "total loan balance with c/p",
+      "Total Loan Balance with C/P",
       "total_loan_balance_with_cp",
     ]);
 
-    const d0 = pick(r, ["0 day", "0 Day", "d0"]);
-    const par1 = pick(r, [
-      "PAR 1 (1 & 30 days)",
-      "PAR 1  (1 & 30 days)",
-      "par 1 (1 & 30 days)",
-      "par 1  (1 & 30 days)",
-      "par1",
-    ]);
-    const par30 = pick(r, [
-      "PAR 30 (31 & 60 days)",
-      "PAR 30  (31 & 60 days)",
-      "par 30 (31 & 60 days)",
-      "par 30  (31 & 60 days)",
-      "par30",
-    ]);
-    const par60 = pick(r, [
-      "PAR 60 (61 & 90 days)",
-      "PAR 60  (61 & 90 days)",
-      "par 60 (61 & 90 days)",
-      "par 60  (61 & 90 days)",
-      "par60",
-    ]);
-    const par90 = pick(r, [
-      "PAR 90 (91 & 120 days)",
-      "PAR 90  (91 & 120 days)",
-      "par 90 (91 & 120 days)",
-      "par 90  (91 & 120 days)",
-      "par90",
-    ]);
-    const par120 = pick(r, [
-      "PAR 120 (121 & 180 days)",
-      "PAR 120  (121 & 180 days)",
-      "par 120 (121 & 180 days)",
-      "par 120  (121 & 180 days)",
-      "par120",
-    ]);
-    const par180 = pick(r, [
-      "PAR 180 (181 & 240 days)",
-      "PAR 180  (181 & 240 days)",
-      "par 180 (181 & 240 days)",
-      "par 180  (181 & 240 days)",
-      "par180",
-    ]);
-    const par240 = pick(r, [
-      "PAR 240 (241 & 360 days)",
-      "PAR 240  (241 & 360 days)",
-      "par 240 (241 & 360 days)",
-      "par 240  (241 & 360 days)",
-      "par240",
-    ]);
-    const par360 = pick(r, [
-      "PAR 360 (361 & Up days)",
-      "PAR 360  (361 & Up days)",
-      "par 360 (361 & up days)",
-      "par 360  (361 & up days)",
-      "par360",
-    ]);
-
-    const row: AgingRow = {
-      product,
+    // Build row using exact backend keys
+    const row: any = {
+      product: (pick(r, ["product", "Product"]) ?? "").toString() || undefined,
       date,
-      total_loan_balance_with_cp: numOrNA(tlb),
-      d0: numOrNA(d0),
-      par1: numOrNA(par1),
-      par30: numOrNA(par30),
-      par60: numOrNA(par60),
-      par90: numOrNA(par90),
-      par120: numOrNA(par120),
-      par180: numOrNA(par180),
-      par240: numOrNA(par240),
-      par360: numOrNA(par360),
+      "total loan balance with c/p": numOrNA(tlb),
     };
 
-    return row;
-  });
+    // buckets
+    row["0 day"] = numOrNA(pick(r, ["0 day", "0 Day"]));
+    row["par 1"] = numOrNA(pick(r, ["par 1", "PAR 1"]));
+    row["par 30"] = numOrNA(pick(r, ["par 30", "PAR 30"]));
+    row["par 60"] = numOrNA(pick(r, ["par 60", "PAR 60"]));
+    row["par 90"] = numOrNA(pick(r, ["par 90", "PAR 90"]));
+    row["par 120"] = numOrNA(pick(r, ["par 120", "PAR 120"]));
+    row["par 150"] = numOrNA(pick(r, ["par 150", "PAR 150"]));
+    row["par 180"] = numOrNA(pick(r, ["par 180", "PAR 180"]));
+    row["par 210"] = numOrNA(pick(r, ["par 210", "PAR 210"]));
+    row["par 240"] = numOrNA(pick(r, ["par 240", "PAR 240"]));
+    row["par 270"] = numOrNA(pick(r, ["par 270", "PAR 270"]));
+    row["par 300"] = numOrNA(pick(r, ["par 300", "PAR 300"]));
+    row["par 330"] = numOrNA(pick(r, ["par 330", "PAR 330"]));
+    row["par 360"] = numOrNA(pick(r, ["par 360", "PAR 360"]));
 
-  return out;
+    return row as AgingRow;
+  });
 }
+
 
 /* ------------------ Page ------------------ */
 type ViewKey = "principal" | "distribution" | "flowrate";
