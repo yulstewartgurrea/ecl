@@ -1,18 +1,13 @@
-// src/redux_toolkit/flowrateStep5Slice.ts
-import { createSlice } from '@reduxjs/toolkit';
-import type { PayloadAction } from '@reduxjs/toolkit';
-import type {
-  MonthRow,
-  RatesColumnSet,
-  DistributionBy,
-} from "../../../components/asa/credit/CreditLossRateMatrix"; // <-- correct source of types
+// src/redux_toolkit/features/asa/flowrateStep5Slice.ts
+import { createSlice } from "@reduxjs/toolkit";
+import type { PayloadAction } from "@reduxjs/toolkit";
 
 type Step5Bundle = {
   workflowId: number;
-  rows?: MonthRow[];
-  rateSets?: RatesColumnSet[];
-  distribution?: DistributionBy;
-  fetchedAt: string; // ISO
+  rows?: any[];                 // dynamic
+  rateSets?: any[];             // dynamic
+  distribution?: any;           // dynamic
+  fetchedAt: string;
 };
 
 type State = {
@@ -38,6 +33,5 @@ const slice = createSlice({
 export const { setStep5Bundle, clearStep5Bundle } = slice.actions;
 export default slice.reducer;
 
-// selectors
 export const selectStep5ByWorkflow = (s: any, workflowId: number) =>
   (s.flowrateStep5?.byWorkflowId ?? {})[workflowId] as Step5Bundle | undefined;

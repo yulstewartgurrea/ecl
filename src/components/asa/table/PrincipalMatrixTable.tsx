@@ -1,40 +1,42 @@
 // components/asa/table/PrincipalMatrixTable.tsx
+import { useMemo } from "react";
 import { SpreadsheetTable, type Column } from "./SpreadsheetTable";
-import type { AgingRow } from "./aging.types";
-import { BUCKET_KEYS, fmtDate, fmtNum } from "./aging.types";
-
-const cols: Column<AgingRow>[] = [
-  { key: "date", header: "date", width: 140, formatter: (v) => fmtDate(v as any) },
-  {
-    key: "total loan balance with c/p",
-    header: "total loan balance with c/p",
-    width: 240,
-    align: "right",
-    formatter: fmtNum,
-  },
-  ...BUCKET_KEYS.map<Column<AgingRow>>((k) => ({
-    key: k,
-    header: k,
-    width: 140,
-    align: "right",
-    formatter: fmtNum,
-  })),
-];
+import type { AnyRow } from "./aging.types";
+import { deriveKeys, sortKeysSmart, fmtDate, fmtNum, isProbablyDateKey, isProbablyNumericColumn } from "./aging.types";
 
 export default function PrincipalMatrixTable({
   rows,
   height = 420,
 }: {
-  rows: AgingRow[];
+  rows: AnyRow[];
   height?: number | string;
 }) {
+  const columns = useMemo(() => {
+    const keys = sortKeysSmart(deriveKeys(rows));
+
+    const cols: Column<AnyRow>[] = keys.map((k) => {
+      const isDate = isProbablyDateKey(k);
+      const isNum = !isDate && isProbablyNumericColumn(rows, k);
+
+      return {
+        key: k,
+        header: k, // exactly what backend returns
+        width: isDate ? 140 : isNum ? 180 : 220,
+        align: isNum ? "right" : "left",
+        formatter: (v) => (isDate ? fmtDate(v) : isNum ? fmtNum(v) : (v ?? "")),
+      };
+    });
+
+    return cols;
+  }, [rows]);
+
   return (
-    <SpreadsheetTable<AgingRow>
-      columns={cols}
+    <SpreadsheetTable<AnyRow>
+      columns={columns}
       rows={rows}
       height={height}
-      rowKey={(r, i) => `${r.product ?? ""}-${String(r.date)}-${i}`}
       zebra
+      rowKey={(r, i) => `${JSON.stringify(r)}-${i}`}
       emptyText="No data"
     />
   );
