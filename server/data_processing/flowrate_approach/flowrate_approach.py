@@ -50,7 +50,6 @@ def flow_rate_main(aging_report):
     # Calculate flow rates (probability of loans moving between buckets)
     flow_rate_df = calculate_flow_rate(loan_balance_matrix_df)
     
-    # Return all three datasets as dictionaries
     return {
         'Flow of Loan Balance Principal Matrix': loan_balance_matrix_df.to_dict(orient='records'),
         'Flow of Loan Balance Principal Matrix (Distribution)': flow_of_loan_balance_principal_matrix_dist_df.to_dict(orient='records'),
@@ -108,12 +107,11 @@ def calculate_flow_rate(flow_of_loan_balance_principal_matrix_dist_df):
     """
     Calculates flow rates for each aging bucket across time periods.
     
-    Flow rate represents the probability that loans in a bucket will remain or transition.
-    It's calculated as the ratio of loans that "survived" from the previous period's next
-    bucket to the current period's current bucket. This measures how loans flow through
-    the aging buckets over time.
+    Flow rate represents the probability that loans in a bucket will transition to the next bucket.
+    It's calculated as the ratio of the current period's next bucket value to the next period's
+    current bucket value. This measures how loans flow through the aging buckets over time.
     
-    Formula: flow_rate = previous_period_next_bucket / current_period_current_bucket
+    Formula: flow_rate = current_period_next_bucket / next_period_current_bucket
     
     Args:
         flow_of_loan_balance_principal_matrix_dist_df (pd.DataFrame): DataFrame with percentage
@@ -121,8 +119,8 @@ def calculate_flow_rate(flow_of_loan_balance_principal_matrix_dist_df):
     
     Returns:
         pd.DataFrame: DataFrame with flow rates for each bucket and date. Flow rates are
-                     capped at 1.0 (100%). The PAR 360+ bucket is always set to 1.0.
-                     Returns None if an error occurs.
+                     capped at 1.0 (100%). The last bucket column is always set to 1.0.
+                     The last row is skipped (no next period to compare). Returns None if an error occurs.
     """
     try:
         # Create a copy to avoid modifying the original DataFrame
@@ -140,11 +138,11 @@ def calculate_flow_rate(flow_of_loan_balance_principal_matrix_dist_df):
         for col in process_cols:
             df[col] = 0.0
         
-        # Process each row (skip first row as there's no previous period to compare)
-        for row_idx in range(1, len(df)):
+        # Process each row (skip last row as there's no next period to compare)
+        for row_idx in range(0, len(df) - 1):
             for col_idx, col in enumerate(process_cols):
-                # PAR 360+ bucket is always 100% (complete write-off)
-                if "par 360" in col:
+                # Last column is always 100% (complete write-off)
+                if col_idx == len(process_cols) - 1:
                     df.loc[row_idx, col] = 1.0
                 else:
                     # Get the next column index (next aging bucket)
@@ -152,19 +150,19 @@ def calculate_flow_rate(flow_of_loan_balance_principal_matrix_dist_df):
                     if next_col_idx < len(process_cols):
                         next_col = process_cols[next_col_idx]
                         
-                        # Calculate flow rate: previous_row_next_column / current_row_current_column
-                        # This represents: loans that moved from previous period's next bucket
-                        # divided by loans in current period's current bucket
-                        prev_row_next_col_val = flow_of_loan_balance_principal_matrix_dist_copy.loc[row_idx-1, next_col]
-                        curr_row_curr_col_val = flow_of_loan_balance_principal_matrix_dist_copy.loc[row_idx, col]
-
+                        # Calculate flow rate: current_row_next_column / next_row_current_column
+                        # This represents: current period's next bucket value divided by
+                        # next period's current bucket value
+                        curr_row_next_col_val = flow_of_loan_balance_principal_matrix_dist_copy.loc[row_idx, next_col]
+                        next_row_curr_col_val = flow_of_loan_balance_principal_matrix_dist_copy.loc[row_idx + 1, col]
+                        
                         # Avoid division by zero
-                        if curr_row_curr_col_val != 0:
-                            ratio = prev_row_next_col_val / curr_row_curr_col_val
+                        if next_row_curr_col_val != 0:
+                            ratio = curr_row_next_col_val / next_row_curr_col_val
                             # Cap flow rate at 1.0 (100%)
                             df.loc[row_idx, col] = min(ratio, 1.0)
                         else:
-                            # If current bucket has zero balance, assume 100% flow rate
+                            # If next period's current bucket has zero balance, assume 100% flow rate
                             df.loc[row_idx, col] = 1.0
         
         # Clean up column names (remove double spaces)
@@ -176,6 +174,7 @@ def calculate_flow_rate(flow_of_loan_balance_principal_matrix_dist_df):
         return df
     except Exception as e:
         # Print full traceback for debugging
+        print('error in calculate_flow_rate', e)
         traceback.print_exc()
         return None
 
