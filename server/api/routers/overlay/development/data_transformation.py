@@ -186,15 +186,15 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
         
         monthly_historical_mev = db.query(OverlayDevelopmentMonthlyHistoricalMevInput).filter(
             OverlayDevelopmentMonthlyHistoricalMevInput.workflow_id == workflow_id
-        ).first()
+        ).order_by(OverlayDevelopmentMonthlyHistoricalMevInput.created_at.desc()).first()
         
         data_interpolation = db.query(OverlayDevelopmentDataInterpolationOutput).filter(
             OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id
-        ).first()
+        ).order_by(OverlayDevelopmentDataInterpolationOutput.created_at.desc()).first()
         
         historical_default_rates = db.query(OverlayDevelopmentHistoricalDefaultRateInput).filter(
             OverlayDevelopmentHistoricalDefaultRateInput.workflow_id == workflow_id
-        ).first()
+        ).order_by(OverlayDevelopmentHistoricalDefaultRateInput.created_at.desc()).first()
         
         if not all([workflow, log_record, monthly_historical_mev, data_interpolation, historical_default_rates]):
             set_running_time()
@@ -383,15 +383,17 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
 
             monthly_historical_mev = db.query(OverlayDevelopmentMonthlyHistoricalMevInput).filter(
                 OverlayDevelopmentMonthlyHistoricalMevInput.workflow_id == workflow_id
-            ).first()
+            ).order_by(OverlayDevelopmentMonthlyHistoricalMevInput.created_at.desc()).first()
 
             data_interpolation = db.query(OverlayDevelopmentDataInterpolationOutput).filter(
                 OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id
-            ).first()
+            ).order_by(OverlayDevelopmentDataInterpolationOutput.created_at.desc()).first()
 
             historical_default_rates = db.query(OverlayDevelopmentHistoricalDefaultRateInput).filter(
                 OverlayDevelopmentHistoricalDefaultRateInput.workflow_id == workflow_id
-            ).first()
+            ).order_by(OverlayDevelopmentHistoricalDefaultRateInput.created_at.desc()).first()
+
+            print(historical_default_rates.json_data)
 
             if not workflow:
                 return JSONResponse(
