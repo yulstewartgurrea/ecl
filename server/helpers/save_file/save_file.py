@@ -19,6 +19,10 @@ from helpers.save_file.overlay.execution.save_transform_forecasted_mevs import s
 from helpers.save_file.overlay.execution.forecasted_pd_calc import save_forecasted_pd_calc_output
 from helpers.save_file.overlay.execution.overlay_multiplier import save_overlay_multiplier_output
 from helpers.save_file.overlay.execution.pd_calibration import save_pd_calibration_output
+from helpers.save_file.overlay.execution.mev_arima_forecast import (
+    save_mev_monthly_arima_forecast_output,
+    save_mev_quarterly_arima_forecast_output
+)
 
 # ECL
 from helpers.save_file.ecl.creditloss_rates import save_creditloss_rates_output
@@ -62,6 +66,8 @@ def save_csv_data_in_folder(
             "OVERLAY_EXECUTION_FORECASTED_PD_CALC_OUTPUT": save_forecasted_pd_calc_output,
             "OVERLAY_EXECUTION_OVERLAY_MULTIPLIER_OUTPUT": save_overlay_multiplier_output,
             "OVERLAY_EXECUTION_PD_CALIBRATION_OUTPUT": save_pd_calibration_output,
+            "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA_FORECAST_OUTPUT": save_mev_monthly_arima_forecast_output,
+            "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA_FORECAST_OUTPUT": save_mev_quarterly_arima_forecast_output,
 
             "ECL_CREDIT_LOSS_RATES_OUTPUT": save_creditloss_rates_output,
             "ECL_OUTPUT": save_ecl_output,
