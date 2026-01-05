@@ -1,5 +1,5 @@
 // pages/ecl/steps/Step2.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import  { useEffect, useMemo, useRef, useState } from "react";
 import {
   InformationCircleIcon,
   ArrowPathIcon,
