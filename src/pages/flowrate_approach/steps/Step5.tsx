@@ -114,6 +114,7 @@ function deriveRateSets(step5: any) {
 function deriveDistribution(step5: any, step3: any) {
   // keep as undefined for now unless you know the shape.
   // This avoids breaking when backend changes.
+  console.log(step5, step3)
   return undefined;
 }
 
@@ -163,7 +164,7 @@ const Step5: React.FC = () => {
           setRows(arr);
           setRateSets(rs);
           setDistribution(dist);
-
+          console.log(error)
           // cache for Step6 (store raw; no static types)
           dispatch(
             setStep5Bundle({

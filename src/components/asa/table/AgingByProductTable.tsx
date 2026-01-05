@@ -3,7 +3,7 @@
 // ==========================
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SpreadsheetTable, type Column } from "./SpreadsheetTable";
-import type { AgingRow } from "./aging.types";
+import type { AnyRow as AgingRow } from "./aging.types";
 import { fmtDate, fmtNum } from "./aging.types";
 import {
   ChevronLeftIcon,

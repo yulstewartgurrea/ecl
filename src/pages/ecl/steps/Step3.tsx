@@ -1,5 +1,5 @@
 // pages/ecl/steps/Step3.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   InformationCircleIcon,
   ExclamationTriangleIcon,
