@@ -162,7 +162,7 @@ async def calculate_data_interpolation(
         try:
             quarterly_record = db.query(OverlayDevelopmentQuarterlyHistoricalMevInput).filter(
                 OverlayDevelopmentQuarterlyHistoricalMevInput.workflow_id == workflow_id
-            ).first()
+            ).order_by(OverlayDevelopmentQuarterlyHistoricalMevInput.created_at.desc()).first()
 
             workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
 
