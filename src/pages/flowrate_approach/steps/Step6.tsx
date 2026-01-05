@@ -6,7 +6,7 @@ import { useAppSelector } from "../../../redux_toolkit/hooks";
 import { useAsaApi } from "../../../lib/asaApi";
 
 import CreditLossRateCharts, {
-  type CreditLossRateRow,
+  type CreditLossRateAnyRow,
 } from "../../../components/asa/graph/CreditLossRateCharts";
 
 import {
@@ -18,14 +18,12 @@ import {
   coerceRowsFromStep5,
   coerceRateSets,
   coerceDistribution,
-  toChartRows,
 } from "../../../lib/flowrateCoercers";
 
 export default function Step6() {
   const dispatch = useDispatch();
-  const { getStep5Data } = useAsaApi(); // Step5 only
+  const { getStep5Data } = useAsaApi();
 
-  // Resolve workflowId
   const reduxId = useAppSelector(
     (s: any) => s.pdTransitionMatrixWfHelper?.currentPdTransitionMatrixWorkflowId
   );
@@ -52,11 +50,9 @@ export default function Step6() {
     (Number(firstCachedKey) > 0 && Number(firstCachedKey)) ||
     0;
 
-  // Cached bundle (if reducer is mounted at flowrateStep5)
-  const cached = useSelector((s) => selectStep5ByWorkflow(s, workflowId));
+  const cached = useSelector((s: any) => selectStep5ByWorkflow(s, workflowId));
 
-  // 🔑 Local fallback to guarantee rendering
-  const [rowsLocal, setRowsLocal] = useState<any[] | undefined>(undefined);
+  const [rowsLocal, setRowsLocal] = useState<CreditLossRateAnyRow[] | undefined>(undefined);
   const [rateSetsLocal, setRateSetsLocal] = useState<any[] | undefined>(undefined);
 
   const [loading, setLoading] = useState(!cached?.rows && !rowsLocal);
@@ -78,15 +74,14 @@ export default function Step6() {
     (async () => {
       try {
         const s5 = await getStep5Data(workflowId);
-        // console.log("s5", s5);
 
+        // ✅ IMPORTANT: keep rows dynamic; do NOT convert to fixed par_* keys
         const r = coerceRowsFromStep5(s5);
-        const rs = coerceRateSets(s5, r);
-        const dist = coerceDistribution(s5); // ok if undefined
+        const rs = coerceRateSets(s5);
+        const dist = coerceDistribution(s5);
 
         if (!mounted) return;
 
-        // feed Redux (if reducer is mounted)
         dispatch(
           setStep5Bundle({
             workflowId,
@@ -97,7 +92,6 @@ export default function Step6() {
           })
         );
 
-        // local mirror for rendering even without Redux
         setRowsLocal(r);
         setRateSetsLocal(rs);
 
@@ -117,15 +111,9 @@ export default function Step6() {
     };
   }, [workflowId, cached?.rows, rowsLocal, getStep5Data, dispatch]);
 
-  const sourceRows = cached?.rows ?? rowsLocal ?? [];
-  const chartRows: CreditLossRateRow[] = useMemo(
-    () => toChartRows(sourceRows),
-    [sourceRows]
-  );
+  // ✅ pass raw/dynamic rows to charts
+  const sourceRows: CreditLossRateAnyRow[] = (cached?.rows ?? rowsLocal ?? []) as any[];
   const rateSetNames = (cached?.rateSets ?? rateSetsLocal ?? []).map((s: any) => s.name);
-
-  // Debug if needed:
-  // console.log("workflowId", workflowId, "sourceRows", sourceRows.length, "chartRows", chartRows.length);
 
   return (
     <>
@@ -134,9 +122,7 @@ export default function Step6() {
       <div className="min-h-dvh p-6 space-y-6">
         <div>
           <h2 className="text-lg font-bold text-gray-900">Credit Loss Rate — (Charts)</h2>
-          <p className="text-xs text-gray-700">
-            Visualize the flow-rate credit loss output from Step 3.
-          </p>
+          <p className="text-xs text-gray-700">Visualize the flow-rate credit loss output.</p>
         </div>
 
         {!workflowId ? (
@@ -147,13 +133,13 @@ export default function Step6() {
           <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">
             Loading…
           </div>
-        ) : chartRows.length === 0 ? (
+        ) : sourceRows.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">
             No data for workflow #{workflowId}. Run Step 5 first.
           </div>
         ) : (
           <CreditLossRateCharts
-            data={chartRows}
+            data={sourceRows}
             rateSets={rateSetNames.length ? rateSetNames : ["Historical (avg of months)"]}
             title="Credit Loss Rate Approach – Visuals"
             enableExport={false}

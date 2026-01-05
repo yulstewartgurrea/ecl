@@ -1,6 +1,4 @@
-// ==========================
-// components/asa/table/SpreadsheetTable.tsx (UPDATED)
-// ==========================
+// components/asa/table/SpreadsheetTable.tsx
 import React from "react";
 
 export type Column<T> = {
@@ -22,21 +20,17 @@ export type SpreadsheetTableProps<T> = {
   emptyText?: string;
   className?: string;
 
-  // Header styling (preferred names)
-  headerBg?: string;    // CSS color, e.g. "#EAB308" (Tailwind yellow-500)
-  headerText?: string;  // CSS color, e.g. "#111827"
+  headerBg?: string; // CSS color
+  headerText?: string; // CSS color
 
-  // Backward-compatible aliases
   /** @deprecated use headerBg */
   headerColor?: string;
   /** @deprecated use headerText */
   headerTextColor?: string;
 
-  // Optional toolbar area above the table (e.g., filters)
   toolbar?: React.ReactNode;
 };
 
-/** Small Excel-like green corner indicator for “N/A” or flagged values */
 function NAIndicator() {
   return (
     <span
@@ -45,7 +39,7 @@ function NAIndicator() {
       style={{
         width: 0,
         height: 0,
-        borderLeft: "10px solid #22c55e", // emerald-500
+        borderLeft: "10px solid #22c55e",
         borderTop: "10px solid transparent",
       }}
     />
@@ -71,15 +65,13 @@ export function SpreadsheetTable<T>({
   const headPad = dense ? "px-2 py-2" : "px-3 py-3";
   const rowClass = zebra ? "odd:bg-white even:bg-gray-50" : "bg-white";
 
-  // FIX: default must be a CSS color, not a Tailwind class
-  const resolvedHeaderBg = headerBg ?? headerColor ?? "#F8F8F8"; // Tailwind yellow-500
-  const resolvedHeaderText = headerText ?? headerTextColor ?? "#111827"; // near-black
+  const resolvedHeaderBg = headerBg ?? headerColor ?? "#F8F8F8";
+  const resolvedHeaderText = headerText ?? headerTextColor ?? "#111827";
 
   return (
     <div className={`rounded-2xl border border-gray-200 shadow-sm bg-white ${className}`}>
       {toolbar && (
         <div className="px-3 py-2 border-b bg-white rounded-t-2xl flex items-center justify-between">
-          {/* <div className="text-sm font-medium text-gray-700">Filters</div> */}
           <div>{toolbar}</div>
         </div>
       )}
@@ -108,7 +100,7 @@ export function SpreadsheetTable<T>({
                     style={{
                       width: c.width ?? 160,
                       minWidth: c.width ?? 160,
-                      maxWidth: c.width ?? 400,
+                      maxWidth: c.width ?? 600,
                       background: resolvedHeaderBg,
                       color: resolvedHeaderText,
                     }}
@@ -122,10 +114,7 @@ export function SpreadsheetTable<T>({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td
-                    className="px-4 py-6 text-gray-600 text-center bg-white"
-                    colSpan={columns.length}
-                  >
+                  <td className="px-4 py-6 text-gray-600 text-center bg-white" colSpan={columns.length}>
                     {emptyText}
                   </td>
                 </tr>
@@ -141,13 +130,8 @@ export function SpreadsheetTable<T>({
                           ? (row as any)[c.key]
                           : (row as any)[c.key as any];
 
-                      const content = c.formatter
-                        ? c.formatter(raw, row, rIdx)
-                        : (raw ?? "");
-
-                      const showNA =
-                        typeof raw === "string" &&
-                        raw.trim().toUpperCase() === "#N/A";
+                      const content = c.formatter ? c.formatter(raw, row, rIdx) : (raw ?? "");
+                      const showNA = typeof raw === "string" && raw.trim().toUpperCase() === "#N/A";
 
                       return (
                         <td
@@ -162,7 +146,7 @@ export function SpreadsheetTable<T>({
                           style={{
                             width: c.width ?? 160,
                             minWidth: c.width ?? 160,
-                            maxWidth: c.width ?? 400,
+                            maxWidth: c.width ?? 600,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",

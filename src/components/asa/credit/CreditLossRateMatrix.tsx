@@ -8,33 +8,9 @@ import {
 } from "@heroicons/react/24/outline";
 
 /* ===================== Types (exported) ===================== */
-/**
- * ✅ MUST match backend keys exactly (including spaces)
- */
-export type AgingKey =
-  | "0 day"
-  | "par 1"
-  | "par 30"
-  | "par 60"
-  | "par 90"
-  | "par 120"
-  | "par 150"
-  | "par 180"
-  | "par 210"
-  | "par 240"
-  | "par 270"
-  | "par 300"
-  | "par 330"
-  | "par 360";
-
+export type AgingKey = string;
 export type AgingCategory = { key: AgingKey; label: string };
-
-export type MonthRow = {
-  date: string; // backend: "date"
-  cols: Record<AgingKey, number>; // backend bucket columns
-  monotonic?: boolean; // backend: "Monotonic?"
-  weighted?: number; // backend: "Weighted Credit Loss Rate per Month"
-};
+export type MonthRow = Record<string, any>;
 
 export type RatesColumnSet = {
   name: string;
@@ -50,44 +26,69 @@ export type CreditLossRateMatrixProps = {
   subtitle?: string;
   categories?: AgingCategory[];
   rows?: MonthRow[];
-  historicalRateSets?: RatesColumnSet[]; // optional now
-  distribution?: DistributionBy; // optional
+  historicalRateSets?: RatesColumnSet[];
+  distribution?: DistributionBy;
   defaultRateSetIndex?: number;
   showNotes?: boolean;
   onExportCsv?: (csv: string) => void;
   className?: string;
 };
 
-/* ===================== Defaults (exact backend labels) ===================== */
-export const DEFAULT_CATEGORIES: AgingCategory[] = [
-  { key: "0 day", label: "0 day" },
-  { key: "par 1", label: "par 1" },
-  { key: "par 30", label: "par 30" },
-  { key: "par 60", label: "par 60" },
-  { key: "par 90", label: "par 90" },
-  { key: "par 120", label: "par 120" },
-  { key: "par 150", label: "par 150" },
-  { key: "par 180", label: "par 180" },
-  { key: "par 210", label: "par 210" },
-  { key: "par 240", label: "par 240" },
-  { key: "par 270", label: "par 270" },
-  { key: "par 300", label: "par 300" },
-  { key: "par 330", label: "par 330" },
-  { key: "par 360", label: "par 360" },
-];
-
 /* ===================== Utils ===================== */
-const pct = (v: number, digits = 6) =>
-  `${((v ?? 0) * 100).toLocaleString(undefined, {
+const clean = (s: string) => (s ?? "").toLowerCase().replace(/\s+/g, "").trim();
+
+function pickKey(keys: string[], candidates: string[]) {
+  for (const cand of candidates) {
+    const c = clean(cand);
+    const found = keys.find((k) => clean(k) === c);
+    if (found) return found;
+  }
+  for (const cand of candidates) {
+    const c = clean(cand);
+    const found = keys.find((k) => clean(k).includes(c));
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function toFraction(v: any): number | null {
+  if (v === null || v === undefined || v === "" || v === "-") return 0;
+  if (typeof v === "string" && v.trim().toUpperCase() === "#N/A") return null;
+
+  if (typeof v === "number") {
+    if (!Number.isFinite(v)) return 0;
+    if (Math.abs(v) > 1.5) return v / 100;
+    return v;
+  }
+
+  const raw = String(v).replace(/,/g, "").trim();
+  if (!raw) return 0;
+  if (raw.toUpperCase() === "#DIV/0!") return 0;
+  if (raw.toUpperCase() === "#N/A") return null;
+
+  const hasPct = raw.endsWith("%");
+  const numStr = hasPct ? raw.slice(0, -1) : raw;
+  const n = Number(numStr);
+  if (!Number.isFinite(n)) return 0;
+
+  if (hasPct) return n / 100;
+  if (Math.abs(n) > 1.5) return n / 100;
+  return n;
+}
+
+const pct = (fraction: number | null, digits = 6) => {
+  if (fraction === null) return "#N/A";
+  const v = Number(fraction ?? 0) * 100;
+  return `${v.toLocaleString(undefined, {
     style: "decimal",
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })}%`;
+};
 
 const isMonotonicNonDecreasing = (arr: number[]) =>
   arr.every((v, i) => (i === 0 ? true : v >= arr[i - 1]));
 
-/* ===================== CSV helpers ===================== */
 const toCSV = (headers: string[], rows: (string | number)[][]) => {
   const esc = (s: string | number) => `"${String(s).replace(/"/g, '""')}"`;
   return [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n");
@@ -103,50 +104,52 @@ const download = (filename: string, text: string) => {
   URL.revokeObjectURL(url);
 };
 
-/* ===================== Backend helpers ===================== */
-export function backendRowToCols(r: any): Record<AgingKey, number> {
-  return {
-    "0 day": Number(r?.["0 day"] ?? 0),
-    "par 1": Number(r?.["par 1"] ?? 0),
-    "par 30": Number(r?.["par 30"] ?? 0),
-    "par 60": Number(r?.["par 60"] ?? 0),
-    "par 90": Number(r?.["par 90"] ?? 0),
-    "par 120": Number(r?.["par 120"] ?? 0),
-    "par 150": Number(r?.["par 150"] ?? 0),
-    "par 180": Number(r?.["par 180"] ?? 0),
-    "par 210": Number(r?.["par 210"] ?? 0),
-    "par 240": Number(r?.["par 240"] ?? 0),
-    "par 270": Number(r?.["par 270"] ?? 0),
-    "par 300": Number(r?.["par 300"] ?? 0),
-    "par 330": Number(r?.["par 330"] ?? 0),
-    "par 360": Number(r?.["par 360"] ?? 0),
-  };
-}
-
-function parseMonotonic(v: any): boolean | undefined {
+function parseBool(v: any): boolean | undefined {
   if (v === null || v === undefined) return undefined;
   if (typeof v === "boolean") return v;
-  if (typeof v === "string") {
-    const s = v.trim().toLowerCase();
-    if (s === "yes" || s === "true") return true;
-    if (s === "no" || s === "false") return false;
-  }
-  return Boolean(v);
+  const s = String(v).trim().toLowerCase();
+  if (s === "yes" || s === "true" || s === "1") return true;
+  if (s === "no" || s === "false" || s === "0") return false;
+  return undefined;
 }
 
 /**
- * ✅ Build MonthRow[] from your backend "data": [...]
- * Includes monotonic + weighted from backend fields.
+ * ✅ FIXED TYPES: rows is explicitly an ARRAY
  */
-export function buildRowsFromBackendArray(arr: any[]): MonthRow[] {
-  return (Array.isArray(arr) ? arr : []).map((r: any) => ({
-    date: String(r?.date ?? ""),
-    cols: backendRowToCols(r),
-    monotonic: parseMonotonic(r?.["Monotonic?"]),
-    weighted: r?.["Weighted Credit Loss Rate per Month"] != null
-      ? Number(r?.["Weighted Credit Loss Rate per Month"])
-      : undefined,
-  }));
+function deriveSchema(rows: ReadonlyArray<MonthRow>) {
+  const keySet = rows.reduce<Set<string>>((set, r) => {
+    Object.keys(r || {}).forEach((k) => set.add(k));
+    return set;
+  }, new Set<string>());
+
+  const keys = Array.from(keySet);
+
+  const dateKey = pickKey(keys, ["date", "Date", "report date", "report_date", "as_of_date", "month", "period"]);
+  const monotonicKey = pickKey(keys, ["monotonic", "Monotonic?", "monotonic?"]);
+  const weightedKey = pickKey(keys, [
+    "weighted credit loss rate per month",
+    "Weighted Credit Loss Rate per Month",
+    "weighted",
+    "weighted_rate",
+  ]);
+
+  const bucketKeys = keys.filter(
+    (k) => k !== dateKey && k !== monotonicKey && k !== weightedKey
+  );
+
+  const bucketSort = (a: string, b: string) => {
+    const na = Number(a.match(/(\d+(\.\d+)?)/)?.[1] ?? "NaN");
+    const nb = Number(b.match(/(\d+(\.\d+)?)/)?.[1] ?? "NaN");
+    const aHas = Number.isFinite(na);
+    const bHas = Number.isFinite(nb);
+    if (aHas && bHas) return na - nb;
+    if (aHas && !bHas) return -1;
+    if (!aHas && bHas) return 1;
+    return clean(a).localeCompare(clean(b));
+  };
+  bucketKeys.sort(bucketSort);
+
+  return { dateKey, monotonicKey, weightedKey, bucketKeys };
 }
 
 /* ===================== Small UI bits ===================== */
@@ -156,12 +159,12 @@ const Card: React.FC<React.PropsWithChildren<{ title: string; subtitle?: string 
   children,
 }) => (
   <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-    <div className="flex items-center justify-between px-4 py-3 border-b border-yellow-600/30 bg-yellow-500 backdrop-blur rounded-t-2xl">
+    <div className="flex items-center justify-between px-4 py-3 border-b border-yellow-600/30 bg-yellow-500 rounded-t-2xl">
       <div className="flex items-center gap-2">
         <CalculatorIcon className="h-5 w-5 text-gray-700" />
         <div>
           <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-          {subtitle && <p className="text-xs text-gray-500 -mt-0.5">{subtitle}</p>}
+          {subtitle && <p className="text-xs text-gray-700 -mt-0.5">{subtitle}</p>}
         </div>
       </div>
     </div>
@@ -186,13 +189,13 @@ const Badge: React.FC<React.PropsWithChildren<{ tone?: "green" | "red" | "gray" 
   );
 };
 
-/* ===================== Reusable Matrix ===================== */
+/* ===================== Component ===================== */
 const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
   title = "Credit Loss Rate Approach",
-  subtitle = "Backend-aligned results (exact keys/labels).",
-  categories = DEFAULT_CATEGORIES,
+  subtitle = "Backend-driven keys (no static headers).",
+  categories,
   rows,
-  historicalRateSets, // optional
+  historicalRateSets,
   defaultRateSetIndex = 0,
   showNotes = true,
   onExportCsv,
@@ -210,30 +213,50 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
     );
   }
 
+  const schema = useMemo(() => deriveSchema(rows), [rows]);
+
+  const autoCategories = useMemo<AgingCategory[]>(() => {
+    if (categories && categories.length) return categories;
+    return schema.bucketKeys.map((k) => ({ key: k, label: k }));
+  }, [categories, schema.bucketKeys]);
+
   const [rateSetIndex, setRateSetIndex] = useState(defaultRateSetIndex || 0);
 
   const tableRows = useMemo(() => {
-    // We prefer backend-provided monotonic & weighted.
-    // If missing, we compute monotonic as fallback; weighted stays 0 unless you want to compute it.
     return rows.map((r) => {
-      const ordered = categories.map((c) => r.cols?.[c.key] ?? 0);
-      const monotonic =
-        r.monotonic !== undefined ? r.monotonic : isMonotonicNonDecreasing(ordered);
+      const bucketFractions = autoCategories.map((c) => toFraction(r?.[c.key]) ?? 0);
+      const fallbackMonotonic = isMonotonicNonDecreasing(bucketFractions);
 
-      const weighted = r.weighted ?? 0;
+      const mono =
+        schema.monotonicKey
+          ? (parseBool(r?.[schema.monotonicKey]) ?? fallbackMonotonic)
+          : fallbackMonotonic;
 
-      return { ...r, monotonic, weighted };
+      const weighted = schema.weightedKey ? toFraction(r?.[schema.weightedKey]) : null;
+
+      return { _raw: r, _monotonic: mono, _weighted: weighted };
     });
-  }, [rows, categories]);
+  }, [rows, autoCategories, schema.monotonicKey, schema.weightedKey]);
 
   const doExport = () => {
-    const headers = ["Date", ...categories.map((c) => c.label), "Monotonic?", "Weighted Credit Loss Rate per Month"];
-    const data = tableRows.map((r) => [
-      r.date,
-      ...categories.map((c) => pct(r.cols?.[c.key] ?? 0, 6)),
-      r.monotonic ? "Yes" : "No",
-      pct(r.weighted ?? 0, 6),
-    ]);
+    const headers: string[] = [];
+    headers.push(schema.dateKey ?? "Row");
+    autoCategories.forEach((c) => headers.push(c.label));
+    if (schema.monotonicKey) headers.push(schema.monotonicKey);
+    if (schema.weightedKey) headers.push(schema.weightedKey);
+
+    const data = tableRows.map((t, idx) => {
+      const r = t._raw;
+      const out: (string | number)[] = [];
+
+      out.push(schema.dateKey ? String(r?.[schema.dateKey] ?? "") : String(idx + 1));
+      autoCategories.forEach((c) => out.push(pct(toFraction(r?.[c.key]), 6)));
+      if (schema.monotonicKey) out.push(t._monotonic ? "Yes" : "No");
+      if (schema.weightedKey) out.push(pct(t._weighted, 6));
+
+      return out;
+    });
+
     const csv = toCSV(headers, data);
     if (onExportCsv) onExportCsv(csv);
     else download("credit_loss_rate_step5.csv", csv);
@@ -247,13 +270,12 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
             <InformationCircleIcon className="h-4 w-4 text-gray-500" />
             {showNotes && (
               <p className="text-xs text-gray-600">
-                Display is aligned to backend response keys/labels (no extra transformations).
+                Columns are derived from backend response keys (no static headers).
               </p>
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            {/* keep selector only if you pass rate sets; otherwise it won't show */}
             {historicalRateSets && historicalRateSets.length > 0 && (
               <div className="flex items-center gap-1 text-xs">
                 <span className="text-gray-600">Rate set:</span>
@@ -286,51 +308,69 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
           <table className="w-full text-xs">
             <thead className="bg-gray-50 sticky top-0">
               <tr className="text-gray-700">
-                <th className="px-3 py-2 text-left font-semibold border-b">Date</th>
-                {categories.map((c) => (
+                <th className="px-3 py-2 text-left font-semibold border-b">
+                  {schema.dateKey ?? "Row"}
+                </th>
+
+                {autoCategories.map((c) => (
                   <th key={c.key} className="px-3 py-2 text-right font-semibold border-b">
                     {c.label}
                   </th>
                 ))}
-                <th className="px-3 py-2 text-center font-semibold border-b">Monotonic?</th>
-                <th className="px-3 py-2 text-right font-semibold border-b">
-                  Weighted Credit Loss Rate per Month
-                </th>
+
+                {schema.monotonicKey && (
+                  <th className="px-3 py-2 text-center font-semibold border-b">
+                    {schema.monotonicKey}
+                  </th>
+                )}
+
+                {schema.weightedKey && (
+                  <th className="px-3 py-2 text-right font-semibold border-b">
+                    {schema.weightedKey}
+                  </th>
+                )}
               </tr>
             </thead>
 
             <tbody>
-              {tableRows.map((r, idx) => (
-                <tr key={`${r.date}-${idx}`} className="odd:bg-white even:bg-gray-50/50">
-                  <td className="px-3 py-2 border-b text-gray-900">{r.date}</td>
-
-                  {/* ✅ FIXED: show actual bucket values */}
-                  {categories.map((c) => (
-                    <td key={c.key} className="px-3 py-2 border-b text-right tabular-nums">
-                      {pct(r.cols?.[c.key] ?? 0, 6)}
+              {tableRows.map((t, idx) => {
+                const r = t._raw;
+                return (
+                  <tr key={`${idx}`} className="odd:bg-white even:bg-gray-50/50">
+                    <td className="px-3 py-2 border-b text-gray-900">
+                      {schema.dateKey ? String(r?.[schema.dateKey] ?? "") : String(idx + 1)}
                     </td>
-                  ))}
 
-                  <td className="px-3 py-2 border-b text-center">
-                    {r.monotonic ? (
-                      <Badge tone="green">
-                        <CheckCircleIcon className="h-4 w-4 mr-1" />
-                        Yes
-                      </Badge>
-                    ) : (
-                      <Badge tone="red">
-                        <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
-                        No
-                      </Badge>
+                    {autoCategories.map((c) => (
+                      <td key={c.key} className="px-3 py-2 border-b text-right tabular-nums">
+                        {pct(toFraction(r?.[c.key]), 6)}
+                      </td>
+                    ))}
+
+                    {schema.monotonicKey && (
+                      <td className="px-3 py-2 border-b text-center">
+                        {t._monotonic ? (
+                          <Badge tone="green">
+                            <CheckCircleIcon className="h-4 w-4 mr-1" />
+                            Yes
+                          </Badge>
+                        ) : (
+                          <Badge tone="red">
+                            <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+                            No
+                          </Badge>
+                        )}
+                      </td>
                     )}
-                  </td>
 
-                  {/* ✅ Weighted from backend */}
-                  <td className="px-3 py-2 border-b text-right font-medium text-gray-900 tabular-nums">
-                    {pct(r.weighted ?? 0, 6)}
-                  </td>
-                </tr>
-              ))}
+                    {schema.weightedKey && (
+                      <td className="px-3 py-2 border-b text-right font-medium text-gray-900 tabular-nums">
+                        {pct(t._weighted, 6)}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

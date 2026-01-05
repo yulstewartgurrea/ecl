@@ -1,5 +1,4 @@
-// src/components/asa/graph/CreditLossRateCharts.tsx
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -11,25 +10,16 @@ import {
   CartesianGrid,
 } from "recharts";
 
-// 👇 Allows compiling even if you don't install html2canvas.
-declare module "html2canvas";
+/**
+ * If you DON'T install html2canvas, keep this so TS compiles.
+ * If you DO install it, you can delete this block.
+ */
 
-export type CreditLossRateRow = {
-  date: string; // e.g. "2025-08-31" or "Average"
-  par_0_1: number | null;
-  par_1_30: number | null;
-  par_30_60: number | null;
-  par_60_90: number | null;
-  par_90_120: number | null;
-  par_120_180: number | null;
-  par_180_240: number | null;
-  par_240_360: number | null;
-  par_360_plus: number | null;
-  weighted_loss_rate?: number | null;
-};
+export type CreditLossRateAnyRow = Record<string, any>;
 
 type Props = {
-  data: CreditLossRateRow[];
+  data: CreditLossRateAnyRow[];
+
   title?: string;
   rateSets?: string[];
   selectedRateSet?: string;
@@ -37,33 +27,118 @@ type Props = {
   loading?: boolean;
   className?: string;
   enableExport?: boolean;
+
+  dateKeyCandidates?: string[];
+  weightedKeyCandidates?: string[];
+  excludeKeyCandidates?: string[];
 };
 
-const BUCKETS = [
-  { key: "par_0_1", label: "0→1" },
-  { key: "par_1_30", label: "1→30" },
-  { key: "par_30_60", label: "30→60" },
-  { key: "par_60_90", label: "60→90" },
-  { key: "par_90_120", label: "90→120" },
-  { key: "par_120_180", label: "120→180" },
-  { key: "par_180_240", label: "180→240" },
-  { key: "par_240_360", label: "240→360" },
-  { key: "par_360_plus", label: "360+" },
-] as const;
+const clean = (s: string) => (s ?? "").toLowerCase().replace(/\s+/g, "").trim();
 
-type BucketKey = typeof BUCKETS[number]["key"];
+function pickKey(keys: string[], candidates: string[]) {
+  for (const cand of candidates) {
+    const c = clean(cand);
+    const found = keys.find((k) => clean(k) === c);
+    if (found) return found;
+  }
+  for (const cand of candidates) {
+    const c = clean(cand);
+    const found = keys.find((k) => clean(k).includes(c));
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function toFraction(v: any): number | null {
+  if (v === null || v === undefined || v === "" || v === "-") return 0;
+  if (typeof v === "string" && v.trim().toUpperCase() === "#N/A") return null;
+
+  if (typeof v === "number") {
+    if (!Number.isFinite(v)) return 0;
+    if (Math.abs(v) > 1.5) return v / 100;
+    return v;
+  }
+
+  const raw = String(v).replace(/,/g, "").trim();
+  if (!raw) return 0;
+  if (raw.toUpperCase() === "#DIV/0!") return 0;
+  if (raw.toUpperCase() === "#N/A") return null;
+
+  const hasPct = raw.endsWith("%");
+  const numStr = hasPct ? raw.slice(0, -1) : raw;
+  const n = Number(numStr);
+  if (!Number.isFinite(n)) return 0;
+
+  if (hasPct) return n / 100;
+  if (Math.abs(n) > 1.5) return n / 100;
+  return n;
+}
 
 function toPct(v: number | null | undefined) {
   if (v == null) return null;
   return v * 100;
 }
+
 function fmtPct(v: number | null | undefined, digits = 4) {
   if (v == null) return "—";
   return `${v.toFixed(v >= 1 ? 2 : digits)}%`;
 }
 
+function labelFromKey(k: string) {
+  const m = k.match(/(\d+)\D+(\d+)/);
+  if (m) return `${m[1]}→${m[2]}`;
+  return k;
+}
 
+function bucketSort(a: string, b: string) {
+  const na = Number((a.match(/(\d+(\.\d+)?)/)?.[1] ?? "NaN"));
+  const nb = Number((b.match(/(\d+(\.\d+)?)/)?.[1] ?? "NaN"));
+  const aHas = Number.isFinite(na);
+  const bHas = Number.isFinite(nb);
+  if (aHas && bHas) return na - nb;
+  if (aHas && !bHas) return -1;
+  if (!aHas && bHas) return 1;
+  return clean(a).localeCompare(clean(b));
+}
 
+function deriveSchema(rows: CreditLossRateAnyRow[], opts?: Partial<Props>) {
+  const set = new Set<string>();
+  (rows ?? []).forEach((r) => {
+    Object.keys(r || {}).forEach((k) => set.add(k));
+  });
+  const keys = Array.from(set);
+
+  const dateKey = pickKey(
+    keys,
+    opts?.dateKeyCandidates ?? ["date", "Date", "report_date", "Report Date", "month", "period"]
+  );
+
+  const weightedKey = pickKey(
+    keys,
+    opts?.weightedKeyCandidates ?? [
+      "Weighted Credit Loss Rate per Month",
+      "weighted credit loss rate per month",
+      "weighted_loss_rate",
+      "weighted",
+      "weighted_rate",
+    ]
+  );
+
+  const monotonicKey = pickKey(keys, ["Monotonic?", "monotonic", "Monotonic"]);
+
+  const extraExclude = (opts?.excludeKeyCandidates ?? []).map(clean);
+
+  const excludeSet = new Set<string>();
+  [dateKey, weightedKey, monotonicKey].filter(Boolean).forEach((k) => excludeSet.add(String(k)));
+
+  const bucketKeys = keys
+    .filter((k) => !excludeSet.has(k))
+    .filter((k) => !extraExclude.includes(clean(k)));
+
+  bucketKeys.sort(bucketSort);
+
+  return { dateKey, weightedKey, monotonicKey, bucketKeys };
+}
 
 export default function CreditLossRateCharts({
   data,
@@ -74,44 +149,76 @@ export default function CreditLossRateCharts({
   loading,
   className = "",
   enableExport = false,
+  dateKeyCandidates,
+  weightedKeyCandidates,
+  excludeKeyCandidates,
 }: Props) {
-  const [tab, setTab] = useState<"weighted" | "bucket" >("weighted");
-  const [bucketKey, setBucketKey] = useState<BucketKey>("par_90_120");
-  const [visibleBuckets, setVisibleBuckets] = useState<string[]>([
-    "par_30_60",
-    "par_60_90",
-    "par_90_120",
-  ]);
-  const shotRef = useRef<HTMLDivElement>(null);
+  const rows = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
-  const rows = useMemo(() => data ?? [], [data]);
-
-  // ----- Series for charts (null stays null so the chart behaves the same)
-  const weightedSeries = useMemo(
+  const schema = useMemo(
     () =>
-      rows.map((r) => ({
-        date: r.date,
-        weighted: toPct(r.weighted_loss_rate ?? null),
-      })),
-    [rows]
+      deriveSchema(rows, {
+        dateKeyCandidates,
+        weightedKeyCandidates,
+        excludeKeyCandidates,
+      }),
+    [rows, dateKeyCandidates, weightedKeyCandidates, excludeKeyCandidates]
   );
 
+  const [tab, setTab] = useState<"weighted" | "bucket">("weighted");
+  const [bucketKey, setBucketKey] = useState<string>("");
+  const [visibleBuckets, setVisibleBuckets] = useState<string[]>([]);
+  const shotRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!schema.bucketKeys.length) {
+      setBucketKey("");
+      setVisibleBuckets([]);
+      return;
+    }
+    setBucketKey((prev) =>
+      prev && schema.bucketKeys.includes(prev) ? prev : schema.bucketKeys[0]
+    );
+    setVisibleBuckets((prev) => {
+      const keep = prev.filter((k) => schema.bucketKeys.includes(k));
+      if (keep.length) return keep;
+      return schema.bucketKeys.slice(0, 3);
+    });
+  }, [schema.bucketKeys]);
+
+  const weightedSeries = useMemo(() => {
+    const wk = schema.weightedKey;
+    const dk = schema.dateKey;
+
+    if (!wk) return [];
+    return rows.map((r) => ({
+      date: dk ? String(r?.[dk] ?? "") : "",
+      weighted: toPct(toFraction(r?.[wk])),
+    }));
+  }, [rows, schema.dateKey, schema.weightedKey]);
+
   const multiBucketSeries = useMemo(() => {
+    const dk = schema.dateKey;
+
+    if (!schema.bucketKeys.length) return [];
     return rows.map((r) => {
-      const o: any = { date: r.date };
-      for (const b of BUCKETS) {
-        o[b.key] = toPct((r as any)[b.key]);
+      const o: any = { date: dk ? String(r?.[dk] ?? "") : "" };
+      for (const k of schema.bucketKeys) {
+        o[k] = toPct(toFraction(r?.[k]));
       }
       return o;
     });
-  }, [rows]);
+  }, [rows, schema.dateKey, schema.bucketKeys]);
 
   async function exportPNG() {
     if (!enableExport) return;
     try {
       const { default: html2canvas } = await import("html2canvas");
       if (!shotRef.current) return;
-      const canvas = await html2canvas(shotRef.current, { backgroundColor: "#ffffff", scale: 2 });
+      const canvas = await html2canvas(shotRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+      });
       const url = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = url;
@@ -122,33 +229,20 @@ export default function CreditLossRateCharts({
     }
   }
 
-  // Choose explainer by active tab
-  // const activeExplainer =
-  //   tab === "weighted" ? weightedExplainer : tab === "bucket" ? bucketExplainer : null;
+  const hasWeighted = Boolean(schema.weightedKey);
+  const hasBuckets = schema.bucketKeys.length > 0;
 
   return (
     <div className={`w-full ${className}`}>
-      {/* Header */}
       <div className="flex items-center justify-between bg-yellow-400 rounded-t-lg px-4 py-3 shadow-sm">
         <div>
           <div className="text-base font-semibold text-gray-900">{title}</div>
           <div className="text-xs text-gray-800 opacity-80 -mt-0.5">
-            Values are decimals → rendered as percentages.
+            Values are decimals → rendered as percentages. Columns are derived from backend keys.
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* {tab !== "heatmap" && (
-            <button
-              type="button"
-              onClick={() => setShowExplainer((s) => !s)}
-              className="rounded-md border border-black/10 bg-white text-xs px-2.5 py-1 shadow-sm hover:bg-gray-50"
-              title="Toggle explanation"
-            >
-              {showExplainer ? "Hide" : "Explain"}
-            </button>
-          )} */}
-
           <label className="text-sm ml-2">Rate set:</label>
           <select
             className="text-sm rounded-md border border-black/10 bg-white px-3 py-1 shadow-sm focus:outline-none"
@@ -175,24 +269,22 @@ export default function CreditLossRateCharts({
         </div>
       </div>
 
-      {/* Body */}
       <div className="border border-gray-200 border-t-0 rounded-b-lg">
-        {/* Tab-scoped explainer */}
-
-
-        {/* Tabs */}
         <div className="px-3 pt-3">
           <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1">
             {[
-              { id: "weighted", label: "Weighted" },
-              { id: "bucket", label: "Bucket trend" }
+              { id: "weighted", label: "Weighted", disabled: !hasWeighted },
+              { id: "bucket", label: "Bucket trend", disabled: !hasBuckets },
             ].map((t) => (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id as any)}
-                className={`px-3 py-1.5 text-sm rounded-lg ${
-                  tab === (t.id as any) ? "bg-yellow-500 text-white" : "hover:bg-gray-50"
-                }`}
+                onClick={() => !t.disabled && setTab(t.id as any)}
+                disabled={t.disabled}
+                className={`px-3 py-1.5 text-sm rounded-lg transition ${
+                  tab === (t.id as any)
+                    ? "bg-yellow-500 text-white"
+                    : "hover:bg-gray-50"
+                } ${t.disabled ? "opacity-40 cursor-not-allowed hover:bg-white" : ""}`}
               >
                 {t.label}
               </button>
@@ -203,114 +295,135 @@ export default function CreditLossRateCharts({
         <div className="p-4">
           {loading ? (
             <div className="h-64 rounded-md bg-gray-100 animate-pulse" />
+          ) : !rows.length ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
+              <p className="text-sm text-gray-600">No data available</p>
+            </div>
           ) : (
             <div ref={shotRef} className="w-full">
               {tab === "weighted" && (
-                <div className="w-full h-[380px]">
-                  <ResponsiveContainer>
-                    <LineChart data={weightedSeries}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" tick={{ fontSize: 12 }} minTickGap={24} height={38} />
-                      <YAxis tickFormatter={(v) => `${v}%`} width={60} tick={{ fontSize: 12 }} />
-                      <Tooltip
-                        formatter={(v: any) => fmtPct(v as number)}
-                        labelFormatter={(l) => `Date: ${l}`}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="weighted"
-                        name="Weighted credit loss / month"
-                        dot={false}
-                        strokeWidth={2}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                <>
+                  {!hasWeighted ? (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
+                      <p className="text-sm text-gray-600">
+                        No weighted column detected in backend response.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="w-full h-[380px]">
+                      <ResponsiveContainer>
+                        <LineChart data={weightedSeries}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" tick={{ fontSize: 12 }} minTickGap={24} height={38} />
+                          <YAxis tickFormatter={(v) => `${v}%`} width={60} tick={{ fontSize: 12 }} />
+                          <Tooltip
+                            formatter={(v: any) => fmtPct(v as number)}
+                            labelFormatter={(l) => `Date: ${l}`}
+                          />
+                          <Legend />
+                          <Line
+                            type="monotone"
+                            dataKey="weighted"
+                            name={schema.weightedKey ?? "Weighted"}
+                            dot={false}
+                            strokeWidth={2}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </>
               )}
 
               {tab === "bucket" && (
-                <div className="space-y-3">
-                  {/* Controls */}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">Bucket:</span>
-                      <select
-                        value={bucketKey}
-                        onChange={(e) => setBucketKey(e.target.value as BucketKey)}
-                        className="text-sm rounded-md border border-gray-200 px-3 py-1"
-                      >
-                        {BUCKETS.map((b) => (
-                          <option key={b.key} value={b.key}>
-                            {b.label}
-                          </option>
-                        ))}
-                      </select>
+                <>
+                  {!hasBuckets ? (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
+                      <p className="text-sm text-gray-600">
+                        No bucket columns detected in backend response.
+                      </p>
                     </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-600">Bucket:</span>
+                          <select
+                            value={bucketKey}
+                            onChange={(e) => setBucketKey(e.target.value)}
+                            className="text-sm rounded-md border border-gray-200 px-3 py-1"
+                          >
+                            {schema.bucketKeys.map((k) => (
+                              <option key={k} value={k}>
+                                {labelFromKey(k)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
 
-                    <div className="hidden sm:flex items-center gap-2 flex-wrap">
-                      <span className="text-sm text-gray-600">Compare:</span>
-                      {BUCKETS.map((b) => (
-                        <label key={b.key} className="text-xs flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            className="rounded border-gray-300"
-                            checked={visibleBuckets.includes(b.key)}
-                            onChange={(e) =>
-                              setVisibleBuckets((prev) =>
-                                e.target.checked
-                                  ? Array.from(new Set([...prev, b.key]))
-                                  : prev.filter((k) => k !== b.key)
-                              )
-                            }
-                          />
-                          {b.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Main chart */}
-                  <div className="w-full h-[420px]">
-                    <ResponsiveContainer>
-                      <LineChart data={multiBucketSeries}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tick={{ fontSize: 12 }} minTickGap={24} height={38} />
-                        <YAxis tickFormatter={(v) => `${v}%`} width={60} tick={{ fontSize: 12 }} />
-                        <Tooltip
-                          formatter={(v: any, name: any) => [fmtPct(v as number), name]}
-                          labelFormatter={(l) => `Date: ${l}`}
-                        />
-                        <Legend />
-                        {/* Primary selected bucket in thicker stroke */}
-                        <Line
-                          type="monotone"
-                          dataKey={bucketKey}
-                          name={`Bucket ${BUCKETS.find((b) => b.key === bucketKey)?.label}`}
-                          dot={false}
-                          strokeWidth={3}
-                        />
-                        {/* Optional multi-lines */}
-                        {visibleBuckets
-                          .filter((k) => k !== bucketKey)
-                          .map((k) => (
-                            <Line
-                              key={k}
-                              type="monotone"
-                              dataKey={k}
-                              name={`Bucket ${BUCKETS.find((b) => b.key === k)?.label}`}
-                              dot={false}
-                              strokeWidth={1.75}
-                              strokeOpacity={0.9}
-                            />
+                        <div className="hidden sm:flex items-center gap-2 flex-wrap">
+                          <span className="text-sm text-gray-600">Compare:</span>
+                          {schema.bucketKeys.map((k) => (
+                            <label key={k} className="text-xs flex items-center gap-1">
+                              <input
+                                type="checkbox"
+                                className="rounded border-gray-300"
+                                checked={visibleBuckets.includes(k)}
+                                onChange={(e) =>
+                                  setVisibleBuckets((prev) =>
+                                    e.target.checked
+                                      ? Array.from(new Set([...prev, k]))
+                                      : prev.filter((x) => x !== k)
+                                  )
+                                }
+                              />
+                              {labelFromKey(k)}
+                            </label>
                           ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
+                        </div>
+                      </div>
 
-            
+                      <div className="w-full h-[420px]">
+                        <ResponsiveContainer>
+                          <LineChart data={multiBucketSeries}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="date" tick={{ fontSize: 12 }} minTickGap={24} height={38} />
+                            <YAxis tickFormatter={(v) => `${v}%`} width={60} tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              formatter={(v: any, name: any) => [
+                                fmtPct(v as number),
+                                labelFromKey(String(name)),
+                              ]}
+                              labelFormatter={(l) => `Date: ${l}`}
+                            />
+                            <Legend />
+                            <Line
+                              type="monotone"
+                              dataKey={bucketKey}
+                              name={`Bucket ${labelFromKey(bucketKey)}`}
+                              dot={false}
+                              strokeWidth={3}
+                            />
+                            {visibleBuckets
+                              .filter((k) => k !== bucketKey)
+                              .map((k) => (
+                                <Line
+                                  key={k}
+                                  type="monotone"
+                                  dataKey={k}
+                                  name={`Bucket ${labelFromKey(k)}`}
+                                  dot={false}
+                                  strokeWidth={1.75}
+                                  strokeOpacity={0.9}
+                                />
+                              ))}
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
