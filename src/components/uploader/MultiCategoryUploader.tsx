@@ -372,6 +372,7 @@ export default function MultiCategoryUploader({
 
   const uploadSingleCategory = useCallback(
     async (key: string, files: File[], override = false): Promise<UploadOutcome> => {
+      console.log('files: ', files)
       if (!files.length) return { ok: true, results: [] }; // nothing to do
       const token = tokenGetter?.() ?? undefined;
       setUploading(true);
@@ -582,6 +583,7 @@ export default function MultiCategoryUploader({
   const assignFiles = useCallback(
     (files: File[]) => {
       if ((bulk.assign ?? "selected") === "selected") {
+        console.log('586',files)
         const key = selectedKey || categories[0]?.key;
         if (!key) return;
         appendCategoryFiles(key, files);

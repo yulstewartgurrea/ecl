@@ -19,6 +19,8 @@ import time
 import itertools
 from pathlib import Path
 from typing import List, Dict, Any, Iterable, Callable, Optional
+from multiprocessing import Pool, cpu_count
+import platform
 
 import numpy as np
 import pandas as pd
@@ -483,6 +485,65 @@ def write_model_stats_for_combo(
 # Step 4 — run MFA (loop)
 # -----------------------
 
+# Global variables for worker processes (initialized once per worker)
+_worker_regression_data = None
+_worker_dep_var = None
+_worker_max_bg_order = None
+
+
+def _init_worker(regression_data: pd.DataFrame, dep_var: str, max_bg_order: int):
+    """
+    Initialize worker process with shared data.
+    
+    This function is called once when each worker process starts.
+    It stores the DataFrame and parameters in global variables,
+    avoiding the need to pickle/unpickle the DataFrame for every task.
+    
+    Args:
+        regression_data: DataFrame with all variables for regression
+        dep_var: Dependent variable name
+        max_bg_order: Maximum lag order for Breusch-Godfrey test
+    """
+    global _worker_regression_data, _worker_dep_var, _worker_max_bg_order
+    _worker_regression_data = regression_data
+    _worker_dep_var = dep_var
+    _worker_max_bg_order = max_bg_order
+
+
+def _process_single_combination(args: tuple) -> tuple[int, Dict[str, Any] | None]:
+    """
+    Worker function for multiprocessing - processes a single combination.
+    
+    This function must be at module level to be picklable for multiprocessing.
+    Uses global variables set by _init_worker to avoid pickling DataFrame for each task.
+    
+    Args:
+        args: Tuple of (index, combo)
+            - index: Global index for this combination (1-based)
+            - combo: Array of variable names for this combination
+    
+    Returns:
+        tuple: (index, result_dict) where result_dict is None if processing failed
+    """
+    global _worker_regression_data, _worker_dep_var, _worker_max_bg_order
+    index, combo = args
+    
+    try:
+        indep_vars = list(combo)
+        row = write_model_stats_for_combo(
+            indep_vars=indep_vars,
+            dep_var=_worker_dep_var,
+            lr_data=_worker_regression_data,
+            max_bg_order=_worker_max_bg_order,
+        )
+        row["index"] = index
+        return (index, row)
+    except Exception as e:
+        # Return None to indicate failure, but keep the index for ordering
+        print(f"[Index {index}] Failed on {list(combo)}: {e}", file=sys.stderr)
+        return (index, None)
+
+
 def run_mfa(
     dep_var: str,
     combinations: np.ndarray,  # shape: (n_combos, k)
@@ -549,92 +610,112 @@ def run_mfa(
     print('combinations shape', combinations)
     print(total)
 
-    for i, combo in enumerate(combinations, start=1):
-        # Check for cancellation before processing each combination
-        if cancellation_check and cancellation_check():
-            raise Exception("Job cancelled by user")
+    # Use multiprocessing for all combinations
+    # Determine number of workers (increased for better parallelism)
+    if platform.system() == 'Windows':
+        num_workers = max(1, min(cpu_count(), 8))  # Increased limit on Windows
+    else:
+        num_workers = max(1, cpu_count())  # Use all cores on Unix
+    print(f"Using {num_workers} worker processes for multiprocessing")
+    
+    # Prepare arguments for each combination (only index and combo, not DataFrame)
+    args_list = [
+        (i + 1, combo)
+        for i, combo in enumerate(combinations)
+    ]
+    
+    # Use process pool with initializer to share DataFrame once per worker
+    # This avoids pickling the DataFrame for every combination
+    with Pool(processes=num_workers, initializer=_init_worker, initargs=(regression_data, dep_var, max_bg_order)) as pool:
+        # Use smaller chunksize for better load balancing
+        chunksize = max(1, min(50, total // (num_workers * 10))) if total > 0 else 1
+        results_iter = pool.imap(_process_single_combination, args_list, chunksize=chunksize)
         
-        indep_vars = list(combo)
         try:
-            row = write_model_stats_for_combo(
-                indep_vars=indep_vars,
-                dep_var=dep_var,
-                lr_data=regression_data,
-                max_bg_order=max_bg_order,
-            )
-            # Add custom index starting from 1
-            row["index"] = global_index
-            buffer.append(row)
-            global_index += 1
+            for i, result in enumerate(results_iter, start=1):
+                # Check for cancellation periodically
+                if cancellation_check and cancellation_check():
+                    pool.terminate()
+                    pool.join()
+                    raise Exception("Job cancelled by user")
+                
+                index, row = result
+                
+                # Only add successful results to buffer
+                if row is not None:
+                    buffer.append(row)
+                
+                # Update progress if callback is provided
+                if progress_callback:
+                    # Calculate progress percentage
+                    progress_total = total_combinations if total_combinations is not None else total
+                    progress_pct = int((i / progress_total) * 100) if progress_total > 0 else 0
+                    # Map MFA progress (0-100%) to overall job progress (30-100%)
+                    # The router sets progress to 30% before calling run_mfa
+                    base_progress = 30
+                    progress_range = 70  # 100% - 30% = 70%
+                    adjusted_progress = base_progress + int((progress_pct / 100) * progress_range)
+                    # Ensure progress doesn't exceed 100%
+                    adjusted_progress = min(adjusted_progress, 100)
+                    message = f"Processing combination {i}/{progress_total}..."
+                    progress_callback(adjusted_progress, message)
+
+                # Check if we need to rotate file before flushing
+                if len(buffer) >= flush_every:
+                    # Check if current file would exceed 200k rows after this flush
+                    if current_file_row_count + len(buffer) >= MAX_ROWS_PER_FILE:
+                        # Flush remaining buffer to current file (up to 200k limit)
+                        rows_to_write = MAX_ROWS_PER_FILE - current_file_row_count
+                        if rows_to_write > 0:
+                            df_partial = pd.DataFrame(buffer[:rows_to_write])
+                            df_partial = df_partial.replace([np.inf, -np.inf], np.nan)
+                            cols = ['index'] + [col for col in df_partial.columns if col != 'index']
+                            df_partial = df_partial[cols]
+                            write_mode = "a" if current_file_path.exists() else "w"
+                            header = not current_file_path.exists()
+                            df_partial.to_csv(current_file_path, mode=write_mode, header=header, index=False)
+                            current_file_row_count += len(df_partial)
+                            print(f"Flushed {len(df_partial)} rows to {current_file_path} (total: {current_file_row_count} rows)")
+                        
+                        # Rotate to new file
+                        file_sequence += 1
+                        current_file_path = get_next_file_path(file_sequence)
+                        current_file_row_count = 0
+                        print(f"File rotation: Starting new file {file_sequence} -> {current_file_path}")
+                        
+                        # Write remaining buffer to new file
+                        if rows_to_write < len(buffer):
+                            remaining_buffer = buffer[rows_to_write:]
+                            df_remaining = pd.DataFrame(remaining_buffer)
+                            df_remaining = df_remaining.replace([np.inf, -np.inf], np.nan)
+                            cols = ['index'] + [col for col in df_remaining.columns if col != 'index']
+                            df_remaining = df_remaining[cols]
+                            df_remaining.to_csv(current_file_path, mode="w", header=True, index=False)
+                            current_file_row_count = len(df_remaining)
+                            print(f"Flushed {len(df_remaining)} rows to new file {current_file_path}")
+                        
+                        buffer.clear()
+                    else:
+                        # Normal flush - file won't exceed 200k
+                        df = pd.DataFrame(buffer)
+                        df = df.replace([np.inf, -np.inf], np.nan)
+                        cols = ['index'] + [col for col in df.columns if col != 'index']
+                        df = df[cols]
+                        write_mode = "a" if current_file_path.exists() else "w"
+                        header = not current_file_path.exists()
+                        df.to_csv(current_file_path, mode=write_mode, header=header, index=False)
+                        rows_flushed = len(buffer)
+                        current_file_row_count += rows_flushed
+                        buffer.clear()
+                        print(f"Flushed {rows_flushed} rows -> {current_file_path} (total: {current_file_row_count} rows)")
+        except KeyboardInterrupt:
+            pool.terminate()
+            pool.join()
+            raise
         except Exception as e:
-            # Keep going — log minimally to stdout
-            print(f"[{i}/{total}] Failed on {indep_vars}: {e}", file=sys.stderr)
-
-        # Update progress if callback is provided
-        if progress_callback:
-            # Calculate progress percentage
-            progress_total = total_combinations if total_combinations is not None else total
-            progress_pct = int((i / progress_total) * 100) if progress_total > 0 else 0
-            # Map MFA progress (0-100%) to overall job progress (30-100%)
-            # The router sets progress to 30% before calling run_mfa
-            base_progress = 30
-            progress_range = 70  # 100% - 30% = 70%
-            adjusted_progress = base_progress + int((progress_pct / 100) * progress_range)
-            # Ensure progress doesn't exceed 100%
-            adjusted_progress = min(adjusted_progress, 100)
-            message = f"Processing combination {i}/{progress_total}..."
-            progress_callback(adjusted_progress, message)
-
-        # Check if we need to rotate file before flushing
-        if len(buffer) >= flush_every:
-            # Check if current file would exceed 200k rows after this flush
-            if current_file_row_count + len(buffer) >= MAX_ROWS_PER_FILE:
-                # Flush remaining buffer to current file (up to 200k limit)
-                rows_to_write = MAX_ROWS_PER_FILE - current_file_row_count
-                if rows_to_write > 0:
-                    df_partial = pd.DataFrame(buffer[:rows_to_write])
-                    # Replace infinity values with NaN for JSON compliance
-                    df_partial = df_partial.replace([np.inf, -np.inf], np.nan)
-                    cols = ['index'] + [col for col in df_partial.columns if col != 'index']
-                    df_partial = df_partial[cols]
-                    write_mode = "a" if current_file_path.exists() else "w"
-                    header = not current_file_path.exists()
-                    df_partial.to_csv(current_file_path, mode=write_mode, header=header, index=False)
-                    current_file_row_count += len(df_partial)
-                    print(f"Flushed {len(df_partial)} rows to {current_file_path} (total: {current_file_row_count} rows)")
-                
-                # Rotate to new file
-                file_sequence += 1
-                current_file_path = get_next_file_path(file_sequence)
-                current_file_row_count = 0
-                print(f"File rotation: Starting new file {file_sequence} -> {current_file_path}")
-                
-                # Write remaining buffer to new file
-                if rows_to_write < len(buffer):
-                    remaining_buffer = buffer[rows_to_write:]
-                    df_remaining = pd.DataFrame(remaining_buffer)
-                    # Replace infinity values with NaN for JSON compliance
-                    df_remaining = df_remaining.replace([np.inf, -np.inf], np.nan)
-                    cols = ['index'] + [col for col in df_remaining.columns if col != 'index']
-                    df_remaining = df_remaining[cols]
-                    df_remaining.to_csv(current_file_path, mode="w", header=True, index=False)
-                    current_file_row_count = len(df_remaining)
-                    print(f"Flushed {len(df_remaining)} rows to new file {current_file_path}")
-                
-                buffer.clear()
-            else:
-                # Normal flush - file won't exceed 200k
-                df = pd.DataFrame(buffer)
-                # Replace infinity values with NaN for JSON compliance
-                df = df.replace([np.inf, -np.inf], np.nan)
-                cols = ['index'] + [col for col in df.columns if col != 'index']
-                df = df[cols]
-                write_mode = "a" if current_file_path.exists() else "w"
-                header = not current_file_path.exists()
-                df.to_csv(current_file_path, mode=write_mode, header=header, index=False)
-                current_file_row_count += len(buffer)
-                buffer.clear()
-                print(f"Flushed up to combo {i}/{total} -> {current_file_path} (total: {current_file_row_count} rows)")
+            pool.terminate()
+            pool.join()
+            raise
 
     # Final flush
     if buffer:

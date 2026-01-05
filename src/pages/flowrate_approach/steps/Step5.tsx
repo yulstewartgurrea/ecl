@@ -1,26 +1,13 @@
-// ==========================
-// pages/flowrate/steps/Step5.tsx (API-DRIVEN)
-// ==========================
+// pages/flowrate/steps/Step5.tsx (API-DRIVEN, DYNAMIC)
 import React, { useEffect, useState } from "react";
 import { PlayIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
-import CreditLossRateMatrix, {
-  type AgingCategory,
-  type MonthRow,
-  type RatesColumnSet,
-  type DistributionBy,
-} from "../../../components/asa/credit/CreditLossRateMatrix";
+import CreditLossRateMatrix from "../../../components/asa/credit/CreditLossRateMatrix";
 import { useAsaApi } from "../../../lib/asaApi";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 import { useDispatch } from "react-redux";
 import { setStep5Bundle } from "../../../redux_toolkit/features/asa/flowrateStep5Slice";
-import {
-  CATS,
-  coerceRowsFromStep5,
-  coerceRateSets,
-  coerceDistribution,
-} from "../../../lib/flowrateCoercers";
 
 /* -------- workflow id helpers (URL ?workflow_id=, route state, or localStorage) -------- */
 function useWorkflowId(): number {
@@ -35,24 +22,116 @@ function useWorkflowId(): number {
   const ls = Number(localStorage.getItem("current_workflow_id") || "");
   if (!Number.isNaN(ls) && ls > 0) return ls;
 
-  return 1; // sensible dev fallback
+  return 1; // dev fallback
+}
+
+/* -------- helpers to safely extract array rows from unknown backend shape -------- */
+function isPlainObject(v: any): v is Record<string, any> {
+  return v != null && typeof v === "object" && !Array.isArray(v);
+}
+
+export function findFirstRowArray(payload: any): any[] {
+  const data = payload?.data ?? payload;
+
+  if (Array.isArray(data)) return data;
+  if (!isPlainObject(data)) return [];
+
+  const obj: Record<string, any> = data;
+
+  // direct candidates
+  const directCandidates = [
+    "flow_rate_calculation",
+    "credit_loss_calculation",
+    "credit_loss_rate",
+    "rows",
+    "data",
+  ];
+
+  for (const k of directCandidates) {
+    if (Array.isArray(obj[k])) return obj[k];
+  }
+
+  // scan top-level arrays
+  for (const [, v] of Object.entries(obj) as [string, any][]) {
+    if (Array.isArray(v)) return v;
+  }
+
+  // scan 1 level deep (✅ fixed typing here)
+  for (const [, v] of Object.entries(obj) as [string, any][]) {
+    if (isPlainObject(v)) {
+      for (const vv of Object.values(v)) {
+        if (Array.isArray(vv)) return vv;
+      }
+    }
+  }
+
+  return [];
+}
+
+
+/**
+ * Optional: derive rate sets if backend provides them.
+ * If not found, returns undefined and UI won’t show the selector.
+ */
+function deriveRateSets(step5: any) {
+  const data = step5?.data ?? step5;
+  if (!isPlainObject(data)) return undefined;
+
+  // try some likely keys
+  const candidates = [
+    "historical_rate_sets",
+    "historicalRateSets",
+    "rate_sets",
+    "rateSets",
+  ];
+
+  for (const k of candidates) {
+    const v = (data as any)[k];
+    if (Array.isArray(v)) {
+      // Expect items like { name, ...bucketKeys }
+      return v
+        .filter(Boolean)
+        .map((item: any, idx: number) => {
+          const name = String(item?.name ?? item?.label ?? `Rate Set ${idx + 1}`);
+          const values: Record<string, number> = {};
+          Object.keys(item || {}).forEach((kk) => {
+            if (kk === "name" || kk === "label") return;
+            const n = Number(String(item[kk]).replace(/,/g, "").replace("%", ""));
+            values[kk] = Number.isFinite(n) ? (String(item[kk]).includes("%") ? n / 100 : n) : 0;
+          });
+          return { name, values };
+        });
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Optional distribution passthrough (if you already use it in Step6).
+ * If you don’t need distribution, you can remove this entirely.
+ */
+function deriveDistribution(step5: any, step3: any) {
+  // keep as undefined for now unless you know the shape.
+  // This avoids breaking when backend changes.
+  return undefined;
 }
 
 /* ---------------- page ---------------- */
 const Step5: React.FC = () => {
   const dispatch = useDispatch();
-  // Get workflow ID from Redux (fallback to URL/localStorage helper)
+
   const currentPdTransitionMatrixWorkflowId = useAppSelector(
     (state: any) => state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowId
   );
   const workflowId = currentPdTransitionMatrixWorkflowId || useWorkflowId();
-  const authToken = useAppSelector((s) => s.auth.token);
+
+  const authToken = useAppSelector((s: any) => s.auth.token);
   const { getStep5Data, getStep3Data } = useAsaApi();
 
-  const [categories, setCategories] = useState<AgingCategory[] | undefined>(undefined);
-  const [rows, setRows] = useState<MonthRow[] | undefined>(undefined);
-  const [rateSets, setRateSets] = useState<RatesColumnSet[] | undefined>(undefined);
-  const [distribution, setDistribution] = useState<DistributionBy | undefined>(undefined);
+  const [rows, setRows] = useState<any[] | undefined>(undefined);
+  const [rateSets, setRateSets] = useState<any[] | undefined>(undefined);
+  const [distribution, setDistribution] = useState<any | undefined>(undefined);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,37 +153,28 @@ const Step5: React.FC = () => {
         const step5 = s5.status === "fulfilled" ? s5.value : undefined;
         const step3 = s3.status === "fulfilled" ? s3.value : undefined;
 
-        // Check if data exists in the response
-        const data = step5?.data;
-        const hasData =
-          data &&
-          ((Array.isArray(data) && data.length > 0) ||
-            (typeof data === "object" &&
-              (data.flow_rate_calculation || data["flow_rate_calculation"])));
+        const arr = step5 ? findFirstRowArray(step5) : [];
+        const hasData = Array.isArray(arr) && arr.length > 0;
 
         if (hasData) {
-          const r = step5 ? coerceRowsFromStep5(step5) : [];
-          const rs = coerceRateSets(step5, r);
-          const dist = coerceDistribution(step5, step3);
+          const rs = step5 ? deriveRateSets(step5) : undefined;
+          const dist = deriveDistribution(step5, step3);
 
-          setCategories(CATS);
-          setRows(r.length ? r : undefined);
-          setRateSets(rs.length ? rs : undefined);
+          setRows(arr);
+          setRateSets(rs);
           setDistribution(dist);
 
-          // 🔐 cache for Step6
+          // cache for Step6 (store raw; no static types)
           dispatch(
             setStep5Bundle({
               workflowId,
-              rows: r,
+              rows: arr,
               rateSets: rs,
               distribution: dist,
               fetchedAt: new Date().toISOString(),
             })
           );
         } else {
-          // No data exists, don't set defaults
-          setCategories(undefined);
           setRows(undefined);
           setRateSets(undefined);
           setDistribution(undefined);
@@ -112,8 +182,6 @@ const Step5: React.FC = () => {
       })
       .catch(() => {
         if (!mounted) return;
-        // Silent: no existing data
-        setCategories(undefined);
         setRows(undefined);
         setRateSets(undefined);
         setDistribution(undefined);
@@ -153,25 +221,22 @@ const Step5: React.FC = () => {
 
       const result = await response.json();
 
-      // If successful, fetch the updated data using the API helper
       if (result.success || result.code === 1) {
-        const getResult = await getStep5Data(workflowId);
-        const step3Result = await getStep3Data(workflowId);
+        const step5Res = await getStep5Data(workflowId);
+        const step3Res = await getStep3Data(workflowId);
 
-        const r = getResult ? coerceRowsFromStep5(getResult) : [];
-        const rs = coerceRateSets(getResult, r);
-        const dist = coerceDistribution(getResult, step3Result);
+        const arr = findFirstRowArray(step5Res);
+        const rs = deriveRateSets(step5Res);
+        const dist = deriveDistribution(step5Res, step3Res);
 
-        setCategories(CATS);
-        setRows(r.length ? r : undefined);
-        setRateSets(rs.length ? rs : undefined);
+        setRows(arr.length ? arr : undefined);
+        setRateSets(rs);
         setDistribution(dist);
 
-        // cache for Step6
         dispatch(
           setStep5Bundle({
             workflowId,
-            rows: r,
+            rows: arr,
             rateSets: rs,
             distribution: dist,
             fetchedAt: new Date().toISOString(),
@@ -225,7 +290,6 @@ const Step5: React.FC = () => {
         throw new Error(errorMsg);
       }
 
-      // Get filename from Content-Disposition header or use default
       const contentDisposition = response.headers.get("Content-Disposition");
       let filename = "credit_loss_calculation_output.xlsx";
       if (contentDisposition) {
@@ -233,7 +297,6 @@ const Step5: React.FC = () => {
         if (match) filename = match[1];
       }
 
-      // Create blob and download
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -247,7 +310,6 @@ const Step5: React.FC = () => {
       setToasterStatus("success");
       setToasterMessage("File exported successfully!");
     } catch (e: any) {
-      console.log(error)
       const errorMsg = e?.message || "Failed to export file.";
       setToasterStatus("error");
       setToasterMessage(errorMsg);
@@ -276,15 +338,10 @@ const Step5: React.FC = () => {
       />
 
       <div className="min-h-dvh p-6 space-y-6">
-        {/* Top heading + Run/Export */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">
-              Credit Loss Rate
-            </h2>
-            <p className="text-xs text-gray-700">
-              Explore credit loss rate calculations.
-            </p>
+            <h2 className="text-lg font-bold text-gray-900">Credit Loss Rate</h2>
+            <p className="text-xs text-gray-700">Dynamic backend-driven matrix (no static PAR headers).</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -310,9 +367,7 @@ const Step5: React.FC = () => {
           </div>
         </div>
 
-        {/* Matrix */}
         <CreditLossRateMatrix
-          categories={categories}
           rows={rows}
           historicalRateSets={rateSets}
           distribution={distribution}
