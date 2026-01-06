@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import AgingByProductTable from "../../../components/asa/table/AgingByProductTable";
 import TableFilterPopover from "../../../components/asa/table/ui/TableFilterPopover";
-import type { AgingRow } from "../../../components/asa/table/aging.types";
+import type { AnyRow as AgingRow } from "../../../components/asa/table/aging.types";
 import { useAsaApi } from "../../../lib/asaApi";
 import { useLocation, useSearchParams } from "react-router-dom";
 

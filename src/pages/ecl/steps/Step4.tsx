@@ -1,10 +1,8 @@
 // pages/ecl/steps/Step4.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   InformationCircleIcon,
-  ExclamationTriangleIcon,
-  ArrowPathIcon,
-  PlayIcon,
+  ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
 
@@ -91,7 +89,7 @@ export default function Step4() {
     () => `http://localhost:8000/api/ecl/summary/?workflow_id=${workflowId}`,
     [workflowId]
   );
-  const POST_URL = "http://localhost:8000/api/ecl/summary/";
+  // const POST_URL = "http://localhost:8000/api/ecl/summary/";
 
   const lastInitialFetchRef = useRef<number | null>(null);
 
@@ -110,6 +108,7 @@ export default function Step4() {
 
       if (!json?.success) {
         throw new Error(json?.msg || "Failed to fetch summary.");
+       
       }
 
       const normalized = normalizeSummaryRows(json?.data ?? []);
@@ -122,6 +121,7 @@ export default function Step4() {
     } catch (e: any) {
       setRows([]);
       setNeedsRun(false);
+       setPosting(false)
       setError(e?.message || "Failed to fetch summary.");
       if (opts?.markInitial) setHasInitialFetched(true);
     } finally {
