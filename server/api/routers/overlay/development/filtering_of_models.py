@@ -188,6 +188,124 @@ async def get_filtered_results(
         )
 
 
+@router.get("/filtering_models/mfa_file/headers")
+async def get_mfa_file_headers(
+    workflow_id: int = Query(..., description="Workflow ID"),
+    filename: str = Query("001.csv", description="Filename to read (e.g., 001.csv)"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get the column headers (column names) from a specific MFA CSV file.
+    
+    Returns the headers/column names from a CSV file in the latest MFA results folder.
+    This is useful for getting the structure of the MFA CSV file without loading all the data.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id, 
+                Workflow.user_id == current_user.id
+            ).first()
+            if not workflow:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "Workflow not found",
+                        "data": None
+                    }
+                )
+
+            portfolio = workflow.loan_product
+
+            multifactor_analysis_output_path = (
+                f"{get_root_folder()}/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{portfolio}/multifactor_analysis"
+            )
+
+            if not os.path.exists(multifactor_analysis_output_path):
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Multifactor analysis directory not found: {multifactor_analysis_output_path}",
+                        "data": None
+                    }
+                )
+
+            folder_path = Path(multifactor_analysis_output_path)
+            
+            # Look for folders matching the pattern
+            mfa_folders = list(folder_path.glob(f"{portfolio}_mfa_*_*-var_*"))
+            
+            if not mfa_folders:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"No MFA results folder found for portfolio {portfolio}",
+                        "data": None
+                    }
+                )
+            
+            # Get the most recent folder
+            mfa_folder = max(mfa_folders, key=lambda p: p.stat().st_mtime)
+            
+            # Construct file path
+            file_path = mfa_folder / filename
+            
+            # Security: ensure filename doesn't contain path traversal
+            if not file_path.exists() or not str(file_path).startswith(str(mfa_folder)):
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"File not found: {filename}",
+                        "data": None
+                    }
+                )
+            
+            # Read just the headers (first row) from the CSV
+            headers = pd.read_csv(file_path, nrows=0).columns.tolist()
+            
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "msg": "Headers retrieved successfully",
+                    "data": {
+                        "headers": headers,
+                        "total_columns": len(headers),
+                        "filename": filename,
+                        "folder_name": mfa_folder.name
+                    }
+                }
+            )
+        finally:
+            db.close()
+        
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Unexpected error retrieving headers: {str(e)}",
+                "data": None
+            }
+        )
+
+
 @router.get("/filtering_models/export")
 async def export_filtered_results(
     workflow_id: int = Query(..., description="Workflow ID"),

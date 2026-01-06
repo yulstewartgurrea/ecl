@@ -98,6 +98,7 @@ const Step5: React.FC<Step5Props> = ({
 
   // split selected vs payload
   const [headers, setHeaders] = useState<string[]>([]);
+  const [mfaHeaders, setMfaHeaders] = useState<string[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<FilterRule[]>([]);
   const [payloadFilters, setPayloadFilters] = useState<FilterRule[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
@@ -142,6 +143,36 @@ const Step5: React.FC<Step5Props> = ({
     }
   }, [selectedWorkflowId, token]);
 
+  // Fetch MFA headers from API when modal opens
+  const fetchMfaHeaders = useCallback(async () => {
+    const wf = Number(selectedWorkflowId);
+    if (!Number.isFinite(wf) || !token) return;
+
+    try {
+      const url = `${API_BASE}/api/overlay/development/filtering_models/mfa_file/headers?workflow_id=${encodeURIComponent(wf)}`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        console.warn("Failed to fetch MFA headers, using fallback headers");
+        setMfaHeaders([]);
+        return;
+      }
+
+      const data = await res.json();
+      const apiHeaders = data?.data?.headers || [];
+      setMfaHeaders(apiHeaders);
+    } catch (e: any) {
+      console.warn("Error fetching MFA headers:", e);
+      setMfaHeaders([]);
+    }
+  }, [selectedWorkflowId, token]);
+
   // Load headers + selected on workflow change; ensure REQUIRED present; derive payload for initial render
   useEffect(() => {
     if (!Number.isFinite(selectedWorkflowId)) {
@@ -176,6 +207,13 @@ const Step5: React.FC<Step5Props> = ({
     if (!Number.isFinite(wf)) return;
     fetchResults();
   }, [selectedWorkflowId, fetchResults]);
+
+  // Fetch MFA headers when modal opens
+  useEffect(() => {
+    if (configOpen) {
+      fetchMfaHeaders();
+    }
+  }, [configOpen, fetchMfaHeaders]);
 
   // Optional: re-fetch when tab gains focus
   useEffect(() => {
@@ -502,7 +540,7 @@ const Step5: React.FC<Step5Props> = ({
       {/* Config Modal */}
       <FilteringConfigModal
         workflowId={Number(selectedWorkflowId)}
-        headers={headers}
+        headers={uniqCaseInsensitive([...headers, ...mfaHeaders])}
         open={configOpen}
         onClose={() => setConfigOpen(false)}
         onApply={handleApplyFilters} // gets FULL payload; badge reads selected from storage
