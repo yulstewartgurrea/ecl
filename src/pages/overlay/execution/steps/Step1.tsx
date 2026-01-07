@@ -863,7 +863,7 @@ export default function Step1() {
                     : "text-gray-700 hover:bg-gray-50",
                 ].join(" ")}
               >
-                Generated Arima
+                Forecast MEV
               </button>
               <button
                 type="button"
