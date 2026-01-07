@@ -126,7 +126,7 @@ export default function Step4() {
 
       const getResult = await getFlowRateDataGET({ apiBase: API_BASE, token: authToken, workflowId: wf });
       setApiData(getResult);
-
+      console.log('getResult: ', getResult)
       setToasterStatus("success");
       setToasterMessage("Flow rate calculation completed successfully!");
     } catch (e: any) {

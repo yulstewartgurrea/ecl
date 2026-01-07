@@ -74,6 +74,7 @@ export default function FlowRateCalcTable({
       zebra
       rowKey={(r, i) => `${JSON.stringify(r)}-${i}`}
       emptyText="No data"
+      autoSortParHeaders
     />
   );
 }
