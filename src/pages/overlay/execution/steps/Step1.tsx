@@ -730,7 +730,7 @@ export default function Step1() {
                     : "text-gray-700 hover:bg-gray-50",
                 ].join(" ")}
               >
-                Auto-generate (Recommended)
+                Generated Arima
               </button>
               <button
                 type="button"
