@@ -179,7 +179,7 @@ async def calculate_mev_monthly_arima_forecast(
         filename = f"mev_monthly_arima_forecast_{get_time_date()}.xlsx"
         output_folder_path = (
             f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/"
-            f"output/overlay/execution/{workflow.loan_product}/mev_monthly_arima_forecast"
+            f"output/overlay/execution/{workflow.loan_product}/generated/mev_monthly_arima_forecast"
         )
         
         # Save to files folder
@@ -349,7 +349,7 @@ async def calculate_mev_quarterly_arima_forecast(
         filename = f"mev_quarterly_arima_forecast_{get_time_date()}.xlsx"
         output_folder_path = (
             f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/"
-            f"output/overlay/execution/{workflow.loan_product}/mev_quarterly_arima_forecast"
+            f"output/overlay/execution/{workflow.loan_product}/generated/mev_quarterly_arima_forecast"
         )
         
         # Save to files folder
@@ -437,7 +437,7 @@ async def get_mev_monthly_arima_forecast(
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/mev_monthly_arima_forecast"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_monthly_arima_forecast"
             )
             
             # Get the latest file
@@ -522,7 +522,7 @@ async def get_mev_quarterly_arima_forecast(
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/mev_quarterly_arima_forecast"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_quarterly_arima_forecast"
             )
             
             # Get the latest file
@@ -598,7 +598,7 @@ async def export_mev_monthly_arima_forecast(
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/mev_monthly_arima_forecast"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_monthly_arima_forecast"
             )
             
             # Get the latest file
@@ -692,7 +692,7 @@ async def export_mev_quarterly_arima_forecast(
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/mev_quarterly_arima_forecast"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_quarterly_arima_forecast"
             )
             
             # Get the latest file
