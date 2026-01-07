@@ -463,19 +463,19 @@ async def get_mev_monthly_arima_forecast(
                     }
                 )
             
-            # Read file
-            file_ext = os.path.splitext(forecast_file)[1].lower()
-            if file_ext in ['.xlsx', '.xls']:
-                data = pd.read_excel(forecast_file)
-            elif file_ext == '.csv':
-                data = pd.read_csv(forecast_file)
-            else:
-                raise ValueError(f"Unsupported file format: {file_ext}")
+            # # Read file
+            # file_ext = os.path.splitext(forecast_file)[1].lower()
+            # if file_ext in ['.xlsx', '.xls']:
+            #     data = pd.read_excel(forecast_file)
+            # elif file_ext == '.csv':
+            #     data = pd.read_csv(forecast_file)
+            # else:
+            #     raise ValueError(f"Unsupported file format: {file_ext}")
             
             return {
                 "code": 1,
                 "success": True,
-                "data": data.to_dict(orient='records')
+                "data": forecast_file.name
             }
             
         finally:
@@ -548,19 +548,10 @@ async def get_mev_quarterly_arima_forecast(
                     }
                 )
             
-            # Read file
-            file_ext = os.path.splitext(forecast_file)[1].lower()
-            if file_ext in ['.xlsx', '.xls']:
-                data = pd.read_excel(forecast_file)
-            elif file_ext == '.csv':
-                data = pd.read_csv(forecast_file)
-            else:
-                raise ValueError(f"Unsupported file format: {file_ext}")
-            
             return {
                 "code": 1,
                 "success": True,
-                "data": data.to_dict(orient='records')
+                "data": forecast_file.name
             }
             
         finally:

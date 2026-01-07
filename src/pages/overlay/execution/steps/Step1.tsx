@@ -4,6 +4,7 @@ import UploadDropzone from "../../../../components/ui/UploadDropzone";
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
+  DocumentIcon,
 } from "@heroicons/react/24/outline";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
@@ -142,6 +143,8 @@ export default function Step1() {
   const [autoMonthlyOk, setAutoMonthlyOk] = useState<boolean | null>(null);
   const [autoQuarterlyOk, setAutoQuarterlyOk] = useState<boolean | null>(null);
   const [autoError, setAutoError] = useState<string | null>(null);
+  const [existingMonthlyFilename, setExistingMonthlyFilename] = useState<string | null>(null);
+  const [existingQuarterlyFilename, setExistingQuarterlyFilename] = useState<string | null>(null);
 
   const accept = ".csv,.xlsx,.xls";
   const maxSizeMB = 20;
@@ -238,6 +241,8 @@ export default function Step1() {
     setAutoMonthlyOk(null);
     setAutoQuarterlyOk(null);
     setAutoError(null);
+    setExistingMonthlyFilename(null);
+    setExistingQuarterlyFilename(null);
   }, []);
 
   useEffect(() => {
@@ -249,6 +254,130 @@ export default function Step1() {
       fetchExistingDocuments();
     }
   }, [selectedWorkflowId, fetchExistingDocuments]);
+
+  /* -----------------------------------------------------------
+     Download forecast files
+  ----------------------------------------------------------- */
+  const downloadMonthlyForecast = useCallback(async () => {
+    if (!token || !effectiveWorkflowId) return;
+    
+    try {
+      const response = await fetch(
+        `${overlayExecApiBase}/mev_monthly_arima_forecast/export/?workflow_id=${effectiveWorkflowId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = existingMonthlyFilename || "monthly_arima_forecast.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        console.error("Failed to download monthly forecast");
+      }
+    } catch (err) {
+      console.error("Error downloading monthly forecast:", err);
+    }
+  }, [token, effectiveWorkflowId, overlayExecApiBase, existingMonthlyFilename]);
+
+  const downloadQuarterlyForecast = useCallback(async () => {
+    if (!token || !effectiveWorkflowId) return;
+    
+    try {
+      const response = await fetch(
+        `${overlayExecApiBase}/mev_quarterly_arima_forecast/export/?workflow_id=${effectiveWorkflowId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = existingQuarterlyFilename || "quarterly_arima_forecast.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        console.error("Failed to download quarterly forecast");
+      }
+    } catch (err) {
+      console.error("Error downloading quarterly forecast:", err);
+    }
+  }, [token, effectiveWorkflowId, overlayExecApiBase, existingQuarterlyFilename]);
+
+  /* -----------------------------------------------------------
+     Check for existing forecast files
+  ----------------------------------------------------------- */
+  const checkExistingForecasts = useCallback(async () => {
+    if (!token || !effectiveWorkflowId) return;
+    
+    try {
+      // Check monthly forecast
+      const monthlyRes = await fetch(
+        `${overlayExecApiBase}/mev_monthly_arima_forecast?workflow_id=${effectiveWorkflowId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+      
+      if (monthlyRes.ok) {
+        const monthlyData = await monthlyRes.json();
+        if (monthlyData?.success && monthlyData?.data) {
+          setExistingMonthlyFilename(monthlyData.data);
+        } else {
+          setExistingMonthlyFilename(null);
+        }
+      } else {
+        setExistingMonthlyFilename(null);
+      }
+      
+      // Check quarterly forecast
+      const quarterlyRes = await fetch(
+        `${overlayExecApiBase}/mev_quarterly_arima_forecast?workflow_id=${effectiveWorkflowId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+      
+      if (quarterlyRes.ok) {
+        const quarterlyData = await quarterlyRes.json();
+        if (quarterlyData?.success && quarterlyData?.data) {
+          setExistingQuarterlyFilename(quarterlyData.data);
+        } else {
+          setExistingQuarterlyFilename(null);
+        }
+      } else {
+        setExistingQuarterlyFilename(null);
+      }
+    } catch (err) {
+      console.error("Error checking existing forecasts:", err);
+    }
+  }, [token, effectiveWorkflowId, overlayExecApiBase]);
 
   /* -----------------------------------------------------------
      AUTO-GENERATE: call both endpoints then refresh docs
@@ -280,7 +409,8 @@ export default function Step1() {
       setAutoQuarterlyOk(true);
 
       setSuccessBanner("Auto-generated Monthly & Quarterly ARIMA inputs successfully.");
-      await fetchExistingDocuments(); // show placeholders as “existing”
+      await fetchExistingDocuments(); // show placeholders as "existing"
+      await checkExistingForecasts(); // refresh filenames
     } catch (e: any) {
       const msg = e?.message || "Auto-generation failed.";
       setAutoError(msg);
@@ -291,7 +421,7 @@ export default function Step1() {
     } finally {
       setAutoRunning(false);
     }
-  }, [token, effectiveWorkflowId, overlayExecApiBase, fetchExistingDocuments]);
+  }, [token, effectiveWorkflowId, overlayExecApiBase, fetchExistingDocuments, checkExistingForecasts]);
 
   /* -----------------------------------------------------------
      Single-file upload helper
@@ -722,7 +852,10 @@ export default function Step1() {
             <div className="inline-flex rounded-2xl border border-gray-200 bg-white p-1 shadow-sm">
               <button
                 type="button"
-                onClick={() => setMode("AUTO_GENERATE")}
+                onClick={() => {
+                  setMode("AUTO_GENERATE");
+                  checkExistingForecasts();
+                }}
                 className={[
                   "cursor-pointer px-3 py-2 text-sm font-semibold rounded-xl transition",
                   isAuto
@@ -771,6 +904,7 @@ export default function Step1() {
                       ].join(" ")}
                     >
                       {autoMonthlyOk === true ? "✓" : autoMonthlyOk === false ? "!" : "•"} Monthly
+                      
                     </span>
 
                     <span
@@ -784,6 +918,7 @@ export default function Step1() {
                       ].join(" ")}
                     >
                       {autoQuarterlyOk === true ? "✓" : autoQuarterlyOk === false ? "!" : "•"} Quarterly
+                      
                     </span>
 
                     {autoRunning && (
@@ -793,6 +928,33 @@ export default function Step1() {
                       </span>
                     )}
                   </div>
+
+                  {(existingMonthlyFilename || existingQuarterlyFilename) && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {existingMonthlyFilename && (
+                        <button
+                          type="button"
+                          onClick={downloadMonthlyForecast}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+                          title={`Download: ${existingMonthlyFilename}`}
+                        >
+                          <DocumentIcon className="h-4 w-4 text-gray-500" />
+                          <span className="truncate max-w-[200px]">{existingMonthlyFilename}</span>
+                        </button>
+                      )}
+                      {existingQuarterlyFilename && (
+                        <button
+                          type="button"
+                          onClick={downloadQuarterlyForecast}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+                          title={`Download: ${existingQuarterlyFilename}`}
+                        >
+                          <DocumentIcon className="h-4 w-4 text-gray-500" />
+                          <span className="truncate max-w-[200px]">{existingQuarterlyFilename}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
