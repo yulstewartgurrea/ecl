@@ -117,63 +117,113 @@ async def start_model_filtering(
 @router.get("/filtering_models")
 async def get_filtered_results(
     workflow_id: int = Query(..., description="Workflow ID"),
+    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+    page_size: int = Query(100, ge=1, le=1000, description="Number of rows per page (max 1000)"),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get filtered model results
+    Get filtered model results with pagination
     
     Returns the best performing models that passed all filtering criteria.
+    Supports pagination to handle large datasets efficiently.
     """
     try:
         db = SessionLocal()
-        
-        workflow = db.query(Workflow).filter(
-            Workflow.id == workflow_id, 
-            Workflow.user_id == current_user.id
-        ).first()
-        if not workflow:
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id, 
+                Workflow.user_id == current_user.id
+            ).first()
+            if not workflow:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "Workflow not found",
+                        "data": None
+                    }
+                )
+
+            portfolio = workflow.loan_product
+            ODR = "odr.logit"
+            num_of_vars = 2
+            
+            filtering_of_models_path = (
+                f"{get_root_folder()}/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{portfolio}/filtering_of_models"
+            )
+            
+            filtering_of_models_file = max(
+                Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{num_of_vars}_var*"),
+                key=lambda p: p.stat().st_mtime,   # last modified time
+                default=None
+            )
+            
+            if not filtering_of_models_file:
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "code": 1,
+                        "success": True,
+                        "data": [],
+                        "pagination": {
+                            "page": page,
+                            "page_size": page_size,
+                            "total_rows": 0,
+                            "total_pages": 0
+                        }
+                    }
+                )
+            
+            # Read CSV file
+            df = pd.read_csv(filtering_of_models_file)
+            
+            # Calculate pagination
+            total_rows = len(df)
+            total_pages = (total_rows + page_size - 1) // page_size if total_rows > 0 else 0
+            
+            # Validate page number
+            if page > total_pages and total_pages > 0:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Page {page} exceeds total pages {total_pages}",
+                        "data": None
+                    }
+                )
+            
+            # Slice DataFrame based on pagination
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            df_page = df.iloc[start_idx:end_idx]
+            
+            # Convert to dict records
+            data = make_json_serializable(df_page.to_dict('records'))
+
             return JSONResponse(
-                status_code=404,
+                status_code=200,
                 content={
-                    "code": -1,
-                    "success": False,
-                    "msg": "Workflow not found",
-                    "data": None
+                    "code": 1,
+                    "success": True,
+                    "data": data,
+                    "pagination": {
+                        "page": page,
+                        "page_size": page_size,
+                        "total_rows": total_rows,
+                        "total_pages": total_pages,
+                        "has_next": page < total_pages,
+                        "has_previous": page > 1
+                    }
                 }
             )
-
-        portfolio = workflow.loan_product
-        ODR = "odr.logit"
-        num_of_vars = 2
-        
-        filtering_of_models_path = (
-            f"{get_root_folder()}/files/"
-            f"{workflow.entity}/"
-            f"{workflow.reporting_period}/"
-            f"{workflow.workflow_name}/"
-            f"output/overlay/development/{portfolio}/filtering_of_models"
-        )
-        
-        filtering_of_models_file = max(
-            Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{num_of_vars}_var*"),
-            key=lambda p: p.stat().st_mtime,   # last modified time
-            default=None
-        )
-        print(filtering_of_models_file)
-        
-        df = []
-        if filtering_of_models_file:
-            df = pd.read_csv(filtering_of_models_file)
-            df = make_json_serializable(df.to_dict('records'))
-
-        return JSONResponse(
-            status_code=200,
-            content={
-                "code": 1,
-                "success": True,
-                "data": df
-            }
-        )
+        finally:
+            db.close()
         
     except Exception as e:
         traceback.print_exc()

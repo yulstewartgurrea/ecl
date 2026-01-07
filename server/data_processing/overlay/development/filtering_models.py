@@ -184,18 +184,30 @@ def filter_one_result_file(
     print(merged)
     print('merged.columns', merged.columns)
 
-    # Build subsets for “if_all” logic
-    # Keep the exact prefixes used in your CSVs; add underscore variants as fallback.
-    pval_cols = [c for c in merged.columns if c.startswith("p-value")]
+    # Build subsets for "if_all" logic
+    # Keep the exact prefixes used in your CSVs; add underscore variants as fallback (case-insensitive).
+    pval_cols = [c for c in merged.columns if c.lower().startswith("p-value")]
     if not pval_cols:
-        pval_cols = [c for c in merged.columns if c.startswith("p_value")]
-    vif_cols = [c for c in merged.columns if c.startswith("vif")]
+        pval_cols = [c for c in merged.columns if c.lower().startswith("p_value")]
+    vif_cols = [c for c in merged.columns if c.lower().startswith("vif")]
     x_cols   = on_cols  # check X1..Xk names for '.lag_'
 
-    # Required columns for scalar filters
+    # Helper function to find column case-insensitively
+    def find_column(df: pd.DataFrame, col_name: str) -> str | None:
+        """Find column name in DataFrame case-insensitively."""
+        col_lower = col_name.lower()
+        for col in df.columns:
+            if col.lower() == col_lower:
+                return col
+        return None
+
+    # Required columns for scalar filters (check case-insensitively)
+    required_cols_map = {}
     for req in ["max_abs_cor", "R_Squared", "MAPE", "Adj_R_Squared"]:
-        if req not in merged.columns:
+        found_col = find_column(merged, req)
+        if found_col is None:
             raise KeyError(f"Required column '{req}' not found after merge in {fn}")
+        required_cols_map[req.lower()] = found_col
 
     # Start with a mask of all True (no filtering initially)
     mask = pd.Series([True] * len(merged), index=merged.index)
@@ -207,6 +219,7 @@ def filter_one_result_file(
         
         Searches the parsed_filter_list for a matching column name (case-insensitive).
         Returns the threshold value if found and not "0", otherwise returns default_value.
+        If value is "0", returns None to indicate no filter should be applied.
         
         Args:
             column_name (str): Name of the column to find filter for
@@ -219,29 +232,33 @@ def filter_one_result_file(
             return default_value
         
         for filter_rule in parsed_filter_list:
-            filter_col = filter_rule.get("column", "").strip()
-            if filter_col.lower() == column_name.lower():
+            filter_col = filter_rule.get("column", "").strip().lower()
+            if filter_col == column_name.lower():
                 value_str = str(filter_rule.get("value", "0")).strip()
                 if value_str and value_str != "0":
                     try:
                         return float(value_str)
                     except (ValueError, TypeError):
                         pass
-                break
+                # If value is "0", return None to disable filter
+                return None
         return default_value
 
     # Apply default filters for max_abs_cor, R_Squared, and MAPE if not in parsed_filter_list
     max_abs_cor_threshold = get_filter_value("max_abs_cor", default_value=0.9)
     if max_abs_cor_threshold is not None:
-        mask &= pd.to_numeric(merged["max_abs_cor"], errors="coerce") < max_abs_cor_threshold
+        max_abs_cor_col = required_cols_map["max_abs_cor"]
+        mask &= pd.to_numeric(merged[max_abs_cor_col], errors="coerce") < max_abs_cor_threshold
 
-    r_squared_threshold = get_filter_value("R_Squared", default_value=0.5)
+    r_squared_threshold = get_filter_value("r_squared", default_value=0.5)
     if r_squared_threshold is not None:
-        mask &= pd.to_numeric(merged["R_Squared"], errors="coerce") > r_squared_threshold
+        r_squared_col = required_cols_map["r_squared"]
+        mask &= pd.to_numeric(merged[r_squared_col], errors="coerce") > r_squared_threshold
 
-    mape_threshold = get_filter_value("MAPE", default_value=0.5)
+    mape_threshold = get_filter_value("mape", default_value=0.5)
     if mape_threshold is not None:
-        mask &= pd.to_numeric(merged["MAPE"], errors="coerce") < mape_threshold
+        mape_col = required_cols_map["mape"]
+        mask &= pd.to_numeric(merged[mape_col], errors="coerce") < mape_threshold
 
     # Apply "if_all" logic for p-value columns
     # Check if any p-value filter exists in parsed_filter_list
@@ -264,11 +281,9 @@ def filter_one_result_file(
                     except (ValueError, TypeError):
                         pass
         
-        # Apply default if no valid p-value filter found
-        if pval_threshold is None:
-            pval_threshold = 0.1  # Default threshold
-        
-        mask &= rowwise_all(to_float_df(merged[pval_cols]), lambda d: d < pval_threshold)
+        # Only apply filter if a valid threshold was found (skip if all values are "0")
+        if pval_threshold is not None:
+            mask &= rowwise_all(to_float_df(merged[pval_cols]), lambda d: d < pval_threshold)
 
     # Apply "if_all" logic for vif columns
     # Check if any vif filter exists in parsed_filter_list
@@ -290,17 +305,15 @@ def filter_one_result_file(
                     except (ValueError, TypeError):
                         pass
         
-        # Apply default if no valid vif filter found
-        if vif_threshold is None:
-            vif_threshold = 5.0  # Default threshold
-        
-        mask &= rowwise_all(to_float_df(merged[vif_cols]), lambda d: d < vif_threshold)
+        # Only apply filter if a valid threshold was found (skip if all values are "0")
+        if vif_threshold is not None:
+            mask &= rowwise_all(to_float_df(merged[vif_cols]), lambda d: d < vif_threshold)
 
     # Apply other filters from parsed_filter_list (excluding the ones we already handled)
     if parsed_filter_list:
         handled_columns = {"max_abs_cor", "r_squared", "mape", "adj_r_squared"}
         for filter_rule in parsed_filter_list:
-            column_name = filter_rule.get("column", "").strip()
+            column_name = filter_rule.get("column", "").strip().lower()
             value_str = str(filter_rule.get("value", "0")).strip()
             
             # Skip if value is "0" or empty (no filter)
@@ -308,12 +321,11 @@ def filter_one_result_file(
                 continue
             
             # Skip columns we already handled with defaults
-            if column_name.lower() in handled_columns:
+            if column_name in handled_columns:
                 continue
             
             # Skip p-value and vif columns (handled above)
-            col_lower = column_name.lower()
-            if col_lower.startswith("p-value") or col_lower.startswith("p_value") or col_lower.startswith("vif"):
+            if column_name.startswith("p-value") or column_name.startswith("p_value") or column_name.startswith("vif"):
                 continue
             
             # Convert value to float
@@ -323,15 +335,8 @@ def filter_one_result_file(
                 print(f"Warning: Invalid filter value '{value_str}' for column '{column_name}', skipping")
                 continue
             
-            # Find matching column in merged dataframe (case-insensitive, exact match preferred)
-            matching_col = None
-            for col in merged.columns:
-                if col == column_name:
-                    matching_col = col
-                    break
-                elif col.lower() == column_name.lower():
-                    matching_col = col
-                    break
+            # Find matching column in merged dataframe (case-insensitive)
+            matching_col = find_column(merged, column_name)
             
             if matching_col is None:
                 print(f"Warning: Column '{column_name}' not found in merged dataframe, skipping filter")
@@ -342,7 +347,7 @@ def filter_one_result_file(
             if matching_col_lower in ["r_squared", "adj_r_squared"]:
                 # R_Squared and Adj_R_Squared: filter > threshold
                 mask &= pd.to_numeric(merged[matching_col], errors="coerce") > threshold
-            elif matching_col.startswith("X") and matching_col[1:].isdigit():
+            elif matching_col_lower.startswith("x") and matching_col_lower[1:].isdigit():
                 # X1, X2, etc. columns: special handling (skip for now, handled separately)
                 pass
             else:
@@ -350,7 +355,7 @@ def filter_one_result_file(
                 mask &= pd.to_numeric(merged[matching_col], errors="coerce") > threshold
 
     # Apply X column filter (exclude rows where X columns contain ".lag_")
-    x_filters = [f for f in parsed_filter_list if f.get("column", "").startswith("X")]
+    x_filters = [f for f in parsed_filter_list if f.get("column", "").strip().lower().startswith("x")]
     if x_cols and x_filters:
         # Check if any X filter has a non-zero value (meaning we should apply the lag filter)
         should_apply_lag_filter = any(f.get("value", "0") != "0" for f in x_filters)
@@ -360,8 +365,10 @@ def filter_one_result_file(
 
     filtered = merged.loc[mask].copy()
 
-    # Order by Adj_R_Squared desc
-    filtered = filtered.sort_values("Adj_R_Squared", ascending=False, kind="mergesort")
+    # Order by Adj_R_Squared desc (case-insensitive lookup)
+    adj_r_squared_col = required_cols_map.get("adj_r_squared", find_column(filtered, "adj_r_squared"))
+    if adj_r_squared_col:
+        filtered = filtered.sort_values(adj_r_squared_col, ascending=False, kind="mergesort")
     
     # Ensure index column is preserved and positioned first
     if 'index' in filtered.columns:
@@ -425,6 +432,8 @@ def run_filter_models(
     Raises:
         FileNotFoundError: If combinations file or MFA results folder not found
     """
+
+    print('parsed_filter_list \n', parsed_filter_list)
     data_transformation_path = Path(data_transformation_path)
     data_transformation_path_file = max(
         data_transformation_path.glob(f"{portfolio}_{num_vars_taken}-var_combinations*"),
