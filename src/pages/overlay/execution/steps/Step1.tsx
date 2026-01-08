@@ -4,7 +4,7 @@ import UploadDropzone from "../../../../components/ui/UploadDropzone";
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
-  DocumentIcon,
+  CloudArrowDownIcon,
 } from "@heroicons/react/24/outline";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
@@ -15,6 +15,7 @@ import {
   useAppDispatch,
   useAppSelector,
 } from "../../../../redux_toolkit/hooks";
+import { setExecutionInputFile } from "../../../../redux_toolkit/features/overlay/executionInputFileSlice";
 import OverlayUploadResultModal, {
   type IssueRow,
 } from "../../../../components/modals/OverlayUploadResultModal";
@@ -118,6 +119,9 @@ export default function Step1() {
   );
 
   const token = useAppSelector((state) => state.auth.token);
+  const executionInputFile = useAppSelector(
+    (state) => state.executionInputFile.execution_input_file
+  );
 
   // ✅ new: workflow mode
   const [mode, setMode] = useState<InputMode>("UPLOAD_MANUAL");
@@ -254,6 +258,13 @@ export default function Step1() {
       fetchExistingDocuments();
     }
   }, [selectedWorkflowId, fetchExistingDocuments]);
+
+  // Initialize Redux state on mount if not set
+  useEffect(() => {
+    if (!executionInputFile) {
+      dispatch(setExecutionInputFile("manual_upload"));
+    }
+  }, [dispatch, executionInputFile]);
 
   /* -----------------------------------------------------------
      Download forecast files
@@ -854,6 +865,7 @@ export default function Step1() {
                 type="button"
                 onClick={() => {
                   setMode("AUTO_GENERATE");
+                  dispatch(setExecutionInputFile("forecast_mev"));
                   checkExistingForecasts();
                 }}
                 className={[
@@ -867,7 +879,10 @@ export default function Step1() {
               </button>
               <button
                 type="button"
-                onClick={() => setMode("UPLOAD_MANUAL")}
+                onClick={() => {
+                  setMode("UPLOAD_MANUAL");
+                  dispatch(setExecutionInputFile("manual_upload"));
+                }}
                 className={[
                   "cursor-pointer px-3 py-2 text-sm font-semibold rounded-xl transition",
                   !isAuto
@@ -930,29 +945,34 @@ export default function Step1() {
                   </div>
 
                   {(existingMonthlyFilename || existingQuarterlyFilename) && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {existingMonthlyFilename && (
-                        <button
-                          type="button"
-                          onClick={downloadMonthlyForecast}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
-                          title={`Download: ${existingMonthlyFilename}`}
-                        >
-                          <DocumentIcon className="h-4 w-4 text-gray-500" />
-                          <span className="truncate max-w-[200px]">{existingMonthlyFilename}</span>
-                        </button>
-                      )}
-                      {existingQuarterlyFilename && (
-                        <button
-                          type="button"
-                          onClick={downloadQuarterlyForecast}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
-                          title={`Download: ${existingQuarterlyFilename}`}
-                        >
-                          <DocumentIcon className="h-4 w-4 text-gray-500" />
-                          <span className="truncate max-w-[200px]">{existingQuarterlyFilename}</span>
-                        </button>
-                      )}
+                    <div className="mt-2">
+                      <div className="text-xs font-medium text-gray-600 mb-1.5">
+                        Generated Forecast Results:
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {existingMonthlyFilename && (
+                          <button
+                            type="button"
+                            onClick={downloadMonthlyForecast}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+                            title={`Download: ${existingMonthlyFilename}`}
+                          >
+                            <CloudArrowDownIcon className="h-4 w-4 text-gray-500" />
+                            <span className="truncate max-w-[200px]">{existingMonthlyFilename}</span>
+                          </button>
+                        )}
+                        {existingQuarterlyFilename && (
+                          <button
+                            type="button"
+                            onClick={downloadQuarterlyForecast}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+                            title={`Download: ${existingQuarterlyFilename}`}
+                          >
+                            <CloudArrowDownIcon className="h-4 w-4 text-gray-500" />
+                            <span className="truncate max-w-[200px]">{existingQuarterlyFilename}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

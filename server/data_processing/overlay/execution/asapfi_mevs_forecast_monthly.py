@@ -302,6 +302,13 @@ def forecast_mevs_monthly(
         print(f"\nForecast complete! Results saved to {output_file_path}")
         print(f"Total variables forecasted: {len(forecast_results)}")
         print(f"Total periods: {len(consolidated_forecast)} (historical + forecast)")
+
+
+        # Convert to datetime and move to month-end
+        consolidated_forecast["Date"] = (
+            pd.to_datetime(consolidated_forecast["Date"], format="%Y %b")
+            + pd.offsets.MonthEnd(0)
+        )
         
         return consolidated_forecast
         
@@ -312,15 +319,15 @@ def forecast_mevs_monthly(
         return None
 
 
-if __name__ == "__main__":
-    # Example usage
-    result = forecast_mevs_monthly(
-        input_file_path="Input/MEV Historical Monthly Data.xlsx",
-        output_file_path="Output/ASAPFI Forecasts Monthly MEVs.xlsx",
-        start_year=2012,
-        end_year=2025,
-        start_month=1,
-        end_month=9,
-        months_to_forecast=12
-    )
+# if __name__ == "__main__":
+#     # Example usage
+#     result = forecast_mevs_monthly(
+#         input_file_path="Input/MEV Historical Monthly Data.xlsx",
+#         output_file_path="Output/ASAPFI Forecasts Monthly MEVs.xlsx",
+#         start_year=2012,
+#         end_year=2025,
+#         start_month=1,
+#         end_month=9,
+#         months_to_forecast=12
+#     )
 

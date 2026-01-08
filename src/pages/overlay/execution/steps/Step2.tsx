@@ -32,6 +32,9 @@ export default function OverlayDevelopmentPage2() {
     useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
 
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
+  const executionInputFile = useAppSelector(
+    (state) => (state as any).executionInputFile?.execution_input_file
+  ) as string | null;
 
   const [rows, setRows] = useState<InterpolationRow[]>([]);
   const [loading, setLoading] = useState(false); // GET state
@@ -111,6 +114,7 @@ export default function OverlayDevelopmentPage2() {
           workflowId: Number(selectedWorkflowId),
           frequency, // optional
           mode: MODE,
+          executionInputFile,
         });
         // after POST, read results
         await fetchInterpolation();
@@ -120,7 +124,7 @@ export default function OverlayDevelopmentPage2() {
         setPosting(false);
       }
     },
-    [API_BASE, token, selectedWorkflowId, frequency, MODE, fetchInterpolation]
+    [API_BASE, token, selectedWorkflowId, frequency, MODE, fetchInterpolation, executionInputFile]
   );
 
   // Table data

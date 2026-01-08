@@ -305,8 +305,13 @@ def forecast_mevs_quarterly(
         print(f"Total variables forecasted: {len(forecast_results)}")
         print(f"Total periods: {len(consolidated_forecast)} (historical + forecast)")
         
-        return consolidated_forecast
+        # Convert to datetime and move to month-end
+        consolidated_forecast["Date"] = (
+            pd.to_datetime(consolidated_forecast["Date"], format="%Y %b")
+            + pd.offsets.MonthEnd(0)
+        )
         
+        return consolidated_forecast
     except Exception as e:
         print(f"Error during quarterly MEVs forecast: {str(e)}")
         import traceback
@@ -314,15 +319,15 @@ def forecast_mevs_quarterly(
         return None
 
 
-if __name__ == "__main__":
-    # Example usage
-    result = forecast_mevs_quarterly(
-        input_file_path="Input/MEV Historical Quarterly Data.xlsx",
-        output_file_path="Output/ASAPFI Forecasts Quarterly MEVs.xlsx",
-        start_year=2012,
-        end_year=2025,
-        start_quarter=1,
-        end_quarter=3,
-        quarters_to_forecast=5
-    )
+# if __name__ == "__main__":
+#     # Example usage
+#     result = forecast_mevs_quarterly(
+#         input_file_path="Input/MEV Historical Quarterly Data.xlsx",
+#         output_file_path="Output/ASAPFI Forecasts Quarterly MEVs.xlsx",
+#         start_year=2012,
+#         end_year=2025,
+#         start_quarter=1,
+#         end_quarter=3,
+#         quarters_to_forecast=5
+#     )
 

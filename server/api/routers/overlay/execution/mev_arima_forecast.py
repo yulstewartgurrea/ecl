@@ -23,6 +23,7 @@ from helpers.get_time_date import get_time_date
 from helpers.save_file.save_file import save_csv_data_in_folder
 from helpers.make_json_serializable import make_json_serializable
 from helpers.get_latest_file import get_latest_file
+from helpers.save_log_data_in_database import save_log_data_in_database
 
 router = APIRouter(prefix="/api/overlay/execution", tags=["overlay-execution"])
 
@@ -99,6 +100,21 @@ async def calculate_mev_monthly_arima_forecast(
                         "data": None
                     }
                 )
+            
+            # Create or update log record
+            try:
+                save_log_data_in_database(
+                    module="OVERLAY",
+                    submodule="EXECUTION",
+                    workflow_id=workflow_id,
+                    user_id=user_id.id,
+                    log_data={
+                        "action": "arima_forecast_generated",
+                        "forecast_type": "monthly"
+                    }
+                )
+            except Exception as e:
+                print(f"Warning: Could not save log record: {e}")
             
             # Get input file from uploaded location
             monthly_mev_input_path = (
@@ -269,6 +285,21 @@ async def calculate_mev_quarterly_arima_forecast(
                         "data": None
                     }
                 )
+            
+            # Create or update log record
+            try:
+                save_log_data_in_database(
+                    module="OVERLAY",
+                    submodule="EXECUTION",
+                    workflow_id=workflow_id,
+                    user_id=user_id.id,
+                    log_data={
+                        "action": "arima_forecast_generated",
+                        "forecast_type": "quarterly"
+                    }
+                )
+            except Exception as e:
+                print(f"Warning: Could not save log record: {e}")
             
             # Get input file from uploaded location
             quarterly_mev_input_path = (

@@ -229,6 +229,7 @@ async def export_data_interpolation(
 @router.post("/data_interpolation")
 async def calculate_data_interpolation(
     workflow_id: int = Form(...),
+    execution_input_file: str = Form(...),
     user_id: User = Depends(get_current_user),
 ):
     """
@@ -245,13 +246,22 @@ async def calculate_data_interpolation(
             workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
             
             # get input file from library 
-            quarterly_mev_arima_path = (
+            if execution_input_file == "forecast_mev":
+                quarterly_mev_arima_path = (
                 f"{get_root_folder()}/server/files/"
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_quarterly_arima_forecast"
             )
+            else:
+                quarterly_mev_arima_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA"
+                )
 
             print('quarterly_mev_arima_path', quarterly_mev_arima_path)
             
@@ -296,17 +306,6 @@ async def calculate_data_interpolation(
                         "code": -1,
                         "success": False,
                         "msg": "No log record found for this workflow",
-                        "data": None
-                    }
-                )
-            
-            if not quarterly_record:
-                return JSONResponse(
-                    status_code=404,
-                    content={
-                        "code": -1,
-                        "success": False,
-                        "msg": "No quarterly historical MEV data found for this workflow",
                         "data": None
                     }
                 )
