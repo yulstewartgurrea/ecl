@@ -107,13 +107,13 @@ def forecast_mevs_quarterly(
                 
                 # Create time series object
                 # R: ts(start = c(start_year, start_quarter), end = c(end_year, end_quarter), freq = 4)
-                # Convert quarter to month (Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct)
-                quarter_to_month = {1: 1, 2: 4, 3: 7, 4: 10}
+                # Convert quarter to month (Q1=Mar, Q2=Jun, Q3=Sep, Q4=Dec)
+                quarter_to_month = {1: 3, 2: 6, 3: 9, 4: 12}
                 start_date = pd.Timestamp(year=start_year, month=quarter_to_month[start_quarter], day=1)
                 end_date = pd.Timestamp(year=end_year, month=quarter_to_month[end_quarter], day=1)
                 
                 # Create date range for historical data (quarterly)
-                date_range = pd.date_range(start=start_date, end=end_date, freq='QS')  # Quarter Start
+                date_range = pd.date_range(start=start_date, end=end_date, freq='Q')  # Quarter End
                 
                 # Align data with date range (handle length mismatch)
                 if len(data) > len(date_range):
@@ -221,7 +221,7 @@ def forecast_mevs_quarterly(
                 forecast_dates = pd.date_range(
                     start=last_date + pd.DateOffset(months=3),
                     periods=quarters_to_forecast,
-                    freq='QS'
+                    freq='Q'
                 )
                 
                 # Create forecast DataFrame (similar to R's forecast output)
@@ -281,6 +281,39 @@ def forecast_mevs_quarterly(
         # R: Consolidated_forecast$Date <- rownames(Consolidated_forecast)
         # R uses as.yearmon() which formats as "YYYY MMM", we'll use similar format
         consolidated_forecast['Date'] = consolidated_forecast.index.strftime('%Y %b')
+        
+        # Add month column for x calculation (extract from index)
+        consolidated_forecast['month'] = consolidated_forecast.index.strftime('%b')
+        
+        # Create x column: starts at 0.3 at the second March row and increments by 0.3 cumulatively
+        # Find the second row where month is March
+        second_mar_idx = None
+        mar_count = 0
+        for idx, month in enumerate(consolidated_forecast['month']):
+            if month == 'Mar':
+                mar_count += 1
+                if mar_count == 2:
+                    second_mar_idx = idx
+                    break
+        
+        # Initialize x column with zeros
+        consolidated_forecast['x'] = 0.0
+        
+        if second_mar_idx is not None:
+            # Starting from second March row, set x values: 0.3, 0.6, 0.9, 1.2, etc.
+            x_values = [0.0] * len(consolidated_forecast)
+            for i in range(second_mar_idx, len(consolidated_forecast)):
+                x_values[i] = 0.3 * (i - second_mar_idx + 1)
+            consolidated_forecast['x'] = x_values
+        else:
+            # If no second March found, start from first row (fallback behavior)
+            consolidated_forecast['x'] = (0.3 * (pd.Series(range(len(consolidated_forecast)), dtype=float) + 1.0)).astype(float)
+        
+        # Explicitly set as float to avoid integer conversion errors
+        consolidated_forecast['x'] = consolidated_forecast['x'].astype(float)
+        
+        # Remove month column (temporary, only used for x calculation)
+        consolidated_forecast = consolidated_forecast.drop(columns=['month'])
         
         # Reorder columns to put Date first
         # R: Consolidated_forecast = Consolidated_forecast |> dplyr::select("Date", everything())
