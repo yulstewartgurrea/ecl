@@ -44,8 +44,8 @@ def process_transform_forecasted_mevs(data_interpolation_df: pd.DataFrame,
         transformed_mev_forecasts_df['Period'] = transformed_mev_forecasts_df['Period'] + pd.offsets.MonthEnd(0)
         raw_mev_forecasts_df['Period'] = raw_mev_forecasts_df['Period'] + pd.offsets.MonthEnd(0)
         
-        # Handle lag columns (e.g., "Best unemp_rate lag.6")
-        lag_pattern = re.compile(r'lag\.(\d+)')
+        # Handle lag columns (e.g., "Best unemp_rate lag.6" or "Best unemp_rate lag_6")
+        lag_pattern = re.compile(r'lag[._](\d+)')
         
         for col in transformed_mev_forecasts_df.columns:
             if col == 'Period':
@@ -55,8 +55,8 @@ def process_transform_forecasted_mevs(data_interpolation_df: pd.DataFrame,
             lag_match = lag_pattern.search(col)
             if lag_match:
                 lag_months = int(lag_match.group(1))
-                # Extract base column name (remove lag.6 part)
-                base_col = lag_pattern.sub('', col).strip()
+                # Extract base column name (remove lag.6 or lag_6 part)
+                base_col = lag_pattern.sub('', col).strip().rstrip('._')
                 
                 # Check if base column exists in raw_mev_forecasts_df
                 if base_col in raw_mev_forecasts_df.columns:

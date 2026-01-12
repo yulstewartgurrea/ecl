@@ -341,6 +341,151 @@ function prettyLabel(key: string): string {
     .replace(/\b\(int\)\b/g, "(int)");
 }
 
+// ---- Execution API calls ----------------------------------------------
+
+export async function postDataTransformationExecution(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+  numCombinations?: number;
+}): Promise<ApiEnvelope<unknown>> {
+  const { apiBase, token, workflowId, numCombinations } = opts;
+
+  if (!Number.isFinite(workflowId)) {
+    throw new Error("workflowId must be a finite number");
+  }
+
+  const url = `${base(apiBase)}/api/overlay/execution/data_transformation/`;
+
+  const form = new FormData();
+  form.append("workflow_id", String(workflowId));
+  if (numCombinations !== undefined && Number.isInteger(numCombinations) && numCombinations > 0) {
+    form.append("num_combinations", String(numCombinations));
+  }
+
+  const res = await xfetch(url, {
+    method: "POST",
+    headers: withAuth(token, { Accept: "application/json" }),
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiEnvelope<unknown>;
+  if (!json?.success) throw new Error(json?.msg || "Transformation failed");
+  return json;
+}
+
+export async function getDataTransformationStatusExecution(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+}): Promise<ApiEnvelope<DataTransformationStatus>> {
+  const { apiBase, token, workflowId } = opts;
+
+  const url = `${base(apiBase)}/api/overlay/execution/data_transformation/status/${workflowId}`;
+
+  const res = await xfetch(url, {
+    method: "GET",
+    headers: withAuth(token, { Accept: "application/json" }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiEnvelope<DataTransformationStatus>;
+  return json;
+}
+
+export async function cancelDataTransformationExecution(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+}): Promise<ApiEnvelope<unknown>> {
+  const { apiBase, token, workflowId } = opts;
+
+  if (!Number.isFinite(workflowId)) {
+    throw new Error("workflowId must be a finite number");
+  }
+
+  // Using development endpoint as specified by user
+  const url = `${base(apiBase)}/api/overlay/development/data_transformation/cancel/`;
+
+  const form = new FormData();
+  form.append("workflow_id", String(workflowId));
+
+  const res = await xfetch(url, {
+    method: "POST",
+    headers: withAuth(token, { Accept: "application/json" }),
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiEnvelope<unknown>;
+  if (!json?.success) throw new Error(json?.msg || "Failed to cancel data transformation");
+  return json;
+}
+
+export async function getDataTransformationResultsExecution(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+}): Promise<ApiEnvelope<DataTransformationResults>> {
+  const { apiBase, token, workflowId } = opts;
+
+  const qs = new URLSearchParams({ workflow_id: String(workflowId) });
+  const url = `${base(apiBase)}/api/overlay/execution/data_transformation_results?${qs.toString()}`;
+
+  const res = await xfetch(url, {
+    method: "GET",
+    headers: withAuth(token, { Accept: "application/json" }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiEnvelope<DataTransformationResults>;
+  return json;
+}
+
+export async function exportDataTransformationExecution(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+  fileType?: string;
+}): Promise<Blob> {
+  const { apiBase, token, workflowId, fileType = "both" } = opts;
+
+  if (!Number.isFinite(workflowId)) {
+    throw new Error("workflowId must be a finite number");
+  }
+
+  const qs = new URLSearchParams({ 
+    workflow_id: String(workflowId),
+    file_type: fileType
+  });
+  const url = `${base(apiBase)}/api/overlay/execution/data_transformation/export?${qs.toString()}`;
+
+  const res = await xfetch(url, {
+    method: "GET",
+    headers: withAuth(token, { Accept: "application/zip, application/octet-stream" }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+
+  return await res.blob();
+}
+
 // ---- one-call orchestrator ----------------------------------
 
 // services/dataTransformation.ts
