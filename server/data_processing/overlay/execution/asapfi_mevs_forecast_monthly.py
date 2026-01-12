@@ -251,8 +251,8 @@ def forecast_mevs_monthly(
                 # Rename columns with variable prefix
                 # R: colnames(forecast) <- paste0(x,"_",cnames)
                 cnames = forecast_df.columns.tolist()
-                forecast_df.columns = [f"{var_name}_{col}" for col in cnames]
-                actual_df.columns = [f"{var_name}_{col}" for col in cnames]
+                forecast_df.columns = [f"{var_name}.{col}" for col in cnames]
+                actual_df.columns = [f"{var_name}.{col}" for col in cnames]
                 
                 # Combine actual and forecast
                 # R: alldat = rbind(actual,forecast)
@@ -308,6 +308,16 @@ def forecast_mevs_monthly(
         consolidated_forecast["Date"] = (
             pd.to_datetime(consolidated_forecast["Date"], format="%Y %b")
             + pd.offsets.MonthEnd(0)
+        )
+
+        consolidated_forecast['year'] = consolidated_forecast['Date'].dt.year
+        # name of month as text
+        consolidated_forecast['month'] = consolidated_forecast['Date'].dt.strftime('%b')
+        consolidated_forecast['month (int)'] = consolidated_forecast['Date'].dt.month
+        consolidated_forecast['id'] = (
+            consolidated_forecast['year'].astype(str)
+            + "-"
+            + consolidated_forecast['month']
         )
         
         return consolidated_forecast
