@@ -288,7 +288,12 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         growth_rate_cols = []
         for col in valid_numeric_cols:
             # Create growth rate column name (e.g., "unemp_rate" -> "unemp_rate_growth_12m")
-            growth_rate_col_name = f"{col}_growth_12m"
+            # this is the output from arima, the pattern is base_variable then Point or Hi_80 or Lo_80 or Hi_95 or Lo_95
+            # e.g. gni Point or gni Hi_80 or gni Lo_80 or gni Hi_95 or gni Lo_95
+            col_split = col.split(" ", 1)
+            base = col_split[0]
+            succeding_cols = col_split[1] if len(col_split) > 1 else "Point"
+            growth_rate_col_name = f"{base}_growth_12m {succeding_cols}"
             growth_rate_cols.append(growth_rate_col_name)
             
             # Initialize with 0
