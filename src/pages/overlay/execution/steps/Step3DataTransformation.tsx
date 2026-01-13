@@ -44,6 +44,10 @@ export default function OverlayDevelpmentPage3() {
     (s) => (s as any)?.auth?.token
   ) as string | null;
 
+  const executionInputFile = useAppSelector(
+    (state) => (state as any).executionInputFile?.execution_input_file
+  ) as string | null;
+
   const [busy, setBusy] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
@@ -96,6 +100,7 @@ export default function OverlayDevelpmentPage3() {
             token,
             workflowId: Number(selectedWorkflowId),
             numCombinations: numCombinations,
+            executionInputFile: executionInputFile,
           });
           
           // After starting job, check status instead of fetching results
@@ -146,7 +151,7 @@ export default function OverlayDevelpmentPage3() {
         setBusy(false);
       }
     },
-    [API_BASE, token, selectedWorkflowId, numCombinations]
+    [API_BASE, token, selectedWorkflowId, numCombinations, executionInputFile]
   );
 
   const onRun = () => loadTransformation({ skipPost: false }); // POST
