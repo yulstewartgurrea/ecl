@@ -287,15 +287,15 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         
         growth_rate_cols = []
         for col in valid_numeric_cols:
-            # Create growth rate column name (e.g., "unemp_rate" -> "unemp_rate growth_rate")
-            growth_rate_col_name = f"{col} growth_rate"
+            # Create growth rate column name (e.g., "unemp_rate" -> "unemp_rate_growth_12m")
+            growth_rate_col_name = f"{col}_growth_12m"
             growth_rate_cols.append(growth_rate_col_name)
             
             # Initialize with 0
             monthly_df[growth_rate_col_name] = 0.0
             
             # Calculate growth rate starting from 3rd January
-            # Formula: (current_value / value_12_months_ago - 1)
+            # Formula: ((current_value - value_12_months_ago) / value_12_months_ago * 100)
             for idx in range(start_calc_idx, len(monthly_df)):
                 # Get value 12 months ago (12 rows back)
                 idx_12_months_ago = idx - 12
@@ -304,9 +304,9 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
                     current_value = monthly_df.loc[idx, col]
                     value_12_months_ago = monthly_df.loc[idx_12_months_ago, col]
                     
-                    # Calculate growth rate: (current / value_12_months_ago - 1)
+                    # Calculate growth rate: ((current - prev) / prev * 100) - percentage format
                     if pd.notna(current_value) and pd.notna(value_12_months_ago) and value_12_months_ago != 0:
-                        growth_rate = (current_value / value_12_months_ago) - 1
+                        growth_rate = ((current_value - value_12_months_ago) / value_12_months_ago) * 100
                         monthly_df.loc[idx, growth_rate_col_name] = growth_rate
                     else:
                         monthly_df.loc[idx, growth_rate_col_name] = 0.0
