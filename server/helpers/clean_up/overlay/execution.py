@@ -50,6 +50,8 @@ def clean_monthly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
     # remove row 1
     df = df.drop(1)
     df = df.reset_index(drop=True)
+
+    print('df1', df)
     # combine row 0 and row 2 into a signle row
     df.iloc[0] = df.iloc[0].str.cat(df.iloc[1], sep=' ')
     # remove duplicate words in row
@@ -65,6 +67,8 @@ def clean_monthly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
     df = df.loc[:, df.columns != '']
     df = df.drop(0)
     df = df.reset_index(drop=True)
+
+    print('df2', df.columns)
     
     # create new columns year, month (int), month, ID
     # First, ensure Date column exists and parse it (case-insensitive search)

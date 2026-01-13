@@ -72,12 +72,14 @@ export async function runInterpolationPOST(opts: {
   workflowId: number;
   frequency?: "monthly" | "quarterly";
   mode: Mode;
+  executionInputFile?: string | null;
 }): Promise<ApiEnvelope<InterpolationRow[]>> {
-  const { apiBase, token, workflowId, frequency, mode } = opts;
+  const { apiBase, token, workflowId, frequency, mode, executionInputFile } = opts;
 
   const form = new FormData();
   form.append("workflow_id", String(workflowId));
   if (frequency) form.append("frequency", frequency);
+  if (executionInputFile) form.append("execution_input_file", executionInputFile);
 
   const url = `${base(apiBase)}/api/overlay/${mode}/data_interpolation`;
   const res = await xfetch(url, {

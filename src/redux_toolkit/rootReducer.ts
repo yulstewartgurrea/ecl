@@ -10,6 +10,7 @@ import eclBaselinesReducer from "./features/ecl/eclBaselinesSlice";
 import eclDpdBucketsSlice from "./features/ecl/eclDpdBucketsSlice";
 import eclLoanProductsReducer from "./features/ecl/eclLoanProductsSlice";
 import eclReportingPeriodsReducer from "./features/ecl/eclReportingPeriodsSlice";
+import executionInputFileReducer from "./features/overlay/executionInputFileSlice";
 export const rootReducer = combineReducers({
   auth,
   navUIState,
@@ -19,5 +20,6 @@ export const rootReducer = combineReducers({
   eclBaselinesReducer,
   eclDpdBucketsSlice,
   eclLoanProductsReducer,
-  eclReportingPeriodsReducer
+  eclReportingPeriodsReducer,
+  executionInputFile: executionInputFileReducer,
 })

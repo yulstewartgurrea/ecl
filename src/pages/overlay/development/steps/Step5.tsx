@@ -9,6 +9,7 @@ import {
   PlayCircleIcon,
   Cog6ToothIcon,
   ArrowDownTrayIcon,
+  ChevronLeftIcon,
 } from "@heroicons/react/24/outline";
 
 import FilteringConfigModal from "../../../../components/overlay/development/multi_factor/FilteringConfigModal";
@@ -95,9 +96,22 @@ const Step5: React.FC<Step5Props> = ({
   const [rows, setRows] = useState<Row[]>([]);
   const [filtered, setFiltered] = useState<Row[]>([]);
   const [total, setTotal] = useState<number | undefined>(undefined);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
+  const [pagination, setPagination] = useState<{
+    page: number;
+    page_size: number;
+    total_rows: number;
+    total_pages: number;
+    has_next: boolean;
+    has_previous: boolean;
+  } | null>(null);
 
   // split selected vs payload
   const [headers, setHeaders] = useState<string[]>([]);
+  const [mfaHeaders, setMfaHeaders] = useState<string[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<FilterRule[]>([]);
   const [payloadFilters, setPayloadFilters] = useState<FilterRule[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
@@ -117,7 +131,7 @@ const Step5: React.FC<Step5Props> = ({
   const canRun =
     Number.isFinite(selectedWorkflowId) && selectedCount > 0 && hasAppliedFilters;
 
-  // Stable fetcher
+  // Stable fetcher with pagination
   const fetchResults = useCallback(async () => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
@@ -125,20 +139,54 @@ const Step5: React.FC<Step5Props> = ({
     setLoading(true);
     setErrMsg(null);
     try {
-      const { rows, total } = await getFilteringModels({
+      const { rows, total, pagination } = await getFilteringModels({
         apiBase: API_BASE,
         token,
         workflowId: wf,
+        page: currentPage,
+        page_size: pageSize,
       });
       setRows(rows ?? []);
       setTotal(total);
+      setPagination(pagination ?? null);
     } catch (e: any) {
       console.log(payloadFilters)
       setRows([]);
       setTotal(undefined);
+      setPagination(null);
       setErrMsg(e?.message || "Failed to fetch filtering results.");
     } finally {
       setLoading(false);
+    }
+  }, [selectedWorkflowId, token, currentPage, pageSize]);
+
+  // Fetch MFA headers from API when modal opens
+  const fetchMfaHeaders = useCallback(async () => {
+    const wf = Number(selectedWorkflowId);
+    if (!Number.isFinite(wf) || !token) return;
+
+    try {
+      const url = `${API_BASE}/api/overlay/development/filtering_models/mfa_file/headers?workflow_id=${encodeURIComponent(wf)}`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        console.warn("Failed to fetch MFA headers, using fallback headers");
+        setMfaHeaders([]);
+        return;
+      }
+
+      const data = await res.json();
+      const apiHeaders = data?.data?.headers || [];
+      setMfaHeaders(apiHeaders);
+    } catch (e: any) {
+      console.warn("Error fetching MFA headers:", e);
+      setMfaHeaders([]);
     }
   }, [selectedWorkflowId, token]);
 
@@ -151,6 +199,8 @@ const Step5: React.FC<Step5Props> = ({
       setHasAppliedFilters(false);
       setHasRunAnalysis(false);
       setSelectedRowsCount(0);
+      setCurrentPage(1);
+      setPagination(null);
       return;
     }
     const wf = Number(selectedWorkflowId);
@@ -168,6 +218,8 @@ const Step5: React.FC<Step5Props> = ({
     setHasAppliedFilters(false);
     setHasRunAnalysis(false);
     setSelectedRowsCount(0);
+    setCurrentPage(1);
+    setPagination(null);
   }, [selectedWorkflowId]);
 
   // Auto-fetch results on mount & whenever the workflow changes
@@ -176,6 +228,25 @@ const Step5: React.FC<Step5Props> = ({
     if (!Number.isFinite(wf)) return;
     fetchResults();
   }, [selectedWorkflowId, fetchResults]);
+
+  // Fetch results when page changes (but not on initial mount)
+  useEffect(() => {
+    const wf = Number(selectedWorkflowId);
+    if (!Number.isFinite(wf)) return;
+    // Skip if this is the initial page load (handled by workflow change effect)
+    // Only fetch if page changed after initial load
+    if (currentPage > 1 || pagination) {
+      fetchResults();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
+
+  // Fetch MFA headers when modal opens
+  useEffect(() => {
+    if (configOpen) {
+      fetchMfaHeaders();
+    }
+  }, [configOpen, fetchMfaHeaders]);
 
   // Optional: re-fetch when tab gains focus
   useEffect(() => {
@@ -199,8 +270,9 @@ const Step5: React.FC<Step5Props> = ({
     setHasAppliedFilters(true);
     // ✅ Require re-run after changing filters
     setHasRunAnalysis(false);
-    runFiltering()
-    fetchResults();
+    // Reset to page 1 when filters are applied
+    setCurrentPage(1);
+    runFiltering();
   }
 
   async function runFiltering() {
@@ -227,6 +299,9 @@ const Step5: React.FC<Step5Props> = ({
         workflowId: Number(selectedWorkflowId),
         filter_list: payloadFilters.map((f) => ({ column: f.column, value: f.value })),
       });
+      // Reset to page 1 after applying filters
+      setCurrentPage(1);
+      // Fetch results with pagination (page 1)
       await fetchResults();
       // ✅ Mark that analysis has run successfully with the current filters
       setHasRunAnalysis(true);
@@ -458,6 +533,59 @@ const Step5: React.FC<Step5Props> = ({
         </div>
       )}
 
+      {/* Controls / pagination */}
+      {pagination && (
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              className="cursor-pointer inline-flex items-center gap-1 rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:opacity-50"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={loading || !pagination.has_previous}
+            >
+              <ChevronLeftIcon className="h-4 w-4" />
+              ← Prev
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm">
+            <span>Page</span>
+            <input
+              type="number"
+              min={1}
+              max={pagination.total_pages}
+              value={currentPage}
+              onChange={(e) => {
+                const n = Math.max(1, Number(e.target.value) || 1);
+                setCurrentPage(Math.min(n, pagination.total_pages));
+              }}
+              className="w-16 rounded-md border border-neutral-300 px-2 py-1"
+              disabled={loading}
+            />
+            <span>/ {pagination.total_pages}</span>
+          </div>
+
+          <div className="ml-auto flex items-center gap-2 text-sm">
+            <span>Rows per page</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                setPageSize(n);
+                setCurrentPage(1);
+              }}
+              className="rounded-md border border-neutral-300 px-2 py-1"
+              disabled={loading}
+            >
+              {[10, 20, 50, 100, 1000].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="relative">
         {loading && (
@@ -485,9 +613,13 @@ const Step5: React.FC<Step5Props> = ({
         />
       </div>
 
-      {/* Footer / count */}
+      {/* Footer / counts */}
       <p className="mt-3 text-sm text-neutral-600">
-        Showing {filtered.length} of {total ?? rows.length} rows.
+        {pagination ? (
+          <>Showing {filtered.length} of {pagination.total_rows.toLocaleString()} (page {pagination.page} of {pagination.total_pages}).</>
+        ) : (
+          <>Showing {filtered.length} of {total ?? rows.length} rows.</>
+        )}
       </p>
 
       {/* ✅ Status hint for Step 6 */}
@@ -502,7 +634,7 @@ const Step5: React.FC<Step5Props> = ({
       {/* Config Modal */}
       <FilteringConfigModal
         workflowId={Number(selectedWorkflowId)}
-        headers={headers}
+        headers={uniqCaseInsensitive([...headers, ...mfaHeaders])}
         open={configOpen}
         onClose={() => setConfigOpen(false)}
         onApply={handleApplyFilters} // gets FULL payload; badge reads selected from storage

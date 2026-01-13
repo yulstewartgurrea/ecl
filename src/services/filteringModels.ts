@@ -47,9 +47,29 @@ export type FilteringPayload =
 export function extractFilteringRows(payload: FilteringPayload): {
   rows: FilteringRow[];
   total?: number;
+  pagination?: {
+    page: number;
+    page_size: number;
+    total_rows: number;
+    total_pages: number;
+    has_next: boolean;
+    has_previous: boolean;
+  };
 } {
   if (Array.isArray(payload)) return { rows: payload, total: payload.length };
   const any = payload as any;
+  
+  // Check if this is a paginated response (has pagination object)
+  if (any.pagination) {
+    const rows: FilteringRow[] = Array.isArray(any.data) ? any.data : [];
+    return {
+      rows,
+      total: any.pagination.total_rows,
+      pagination: any.pagination,
+    };
+  }
+  
+  // Fallback to old structure
   const rows: FilteringRow[] = any.items ?? any.results ?? any.rows ?? [];
   const total = any.total ?? any.count ?? (Array.isArray(rows) ? rows.length : undefined);
   return { rows, total };
@@ -104,14 +124,32 @@ export async function postFilteringModels(opts: {
 }
 
 /* ---------------------------------- GET ---------------------------------- */
-// GET: /api/overlay/development/filtering_models?workflow_id=22
+// GET: /api/overlay/development/filtering_models?workflow_id=22&page=1&page_size=100
 export async function getFilteringModels(opts: {
   apiBase: string;
   token?: string | null;
   workflowId: number;
-}): Promise<{ envelope: ApiEnvelope<FilteringPayload>; rows: FilteringRow[]; total?: number }> {
-  const { apiBase, token, workflowId } = opts;
-  const qs = new URLSearchParams({ workflow_id: String(workflowId) }).toString();
+  page?: number;
+  page_size?: number;
+}): Promise<{
+  envelope: ApiEnvelope<FilteringPayload>;
+  rows: FilteringRow[];
+  total?: number;
+  pagination?: {
+    page: number;
+    page_size: number;
+    total_rows: number;
+    total_pages: number;
+    has_next: boolean;
+    has_previous: boolean;
+  };
+}> {
+  const { apiBase, token, workflowId, page = 1, page_size = 100 } = opts;
+  const qs = new URLSearchParams({
+    workflow_id: String(workflowId),
+    page: String(page),
+    page_size: String(page_size),
+  }).toString();
   const url = `${base(apiBase)}/api/overlay/development/filtering_models?${qs}`;
 
   const res = await xfetch(url, {
@@ -123,9 +161,20 @@ export async function getFilteringModels(opts: {
     const text = await res.text();
     throw new Error(`HTTP ${res.status}: ${text}`);
   }
-  const envelope = (await res.json()) as ApiEnvelope<FilteringPayload>;
+  const envelope = (await res.json()) as ApiEnvelope<FilteringPayload> & {
+    pagination?: {
+      page: number;
+      page_size: number;
+      total_rows: number;
+      total_pages: number;
+      has_next: boolean;
+      has_previous: boolean;
+    };
+  };
   const { rows, total } = extractFilteringRows(envelope.data);
-  return { envelope, rows, total };
+  // Extract pagination from envelope level (backend returns it at root level)
+  const pagination = envelope.pagination;
+  return { envelope, rows, total, pagination };
 }
 
 /* -------------------------- one-call orchestrator ------------------------- */
@@ -133,9 +182,11 @@ export async function runFilteringModels(opts: {
   apiBase: string;
   token?: string | null;
   workflowId: number;
-}): Promise<{ rows: FilteringRow[]; total?: number }> {
-  const { apiBase, token, workflowId } = opts;
+  page?: number;
+  page_size?: number;
+}): Promise<{ rows: FilteringRow[]; total?: number; pagination?: any }> {
+  const { apiBase, token, workflowId, page = 1, page_size = 100 } = opts;
   await postFilteringModels({ apiBase, token, workflowId });
-  const { rows, total } = await getFilteringModels({ apiBase, token, workflowId });
-  return { rows, total };
+  const { rows, total, pagination } = await getFilteringModels({ apiBase, token, workflowId, page, page_size });
+  return { rows, total, pagination };
 }

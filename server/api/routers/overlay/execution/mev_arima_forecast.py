@@ -23,6 +23,7 @@ from helpers.get_time_date import get_time_date
 from helpers.save_file.save_file import save_csv_data_in_folder
 from helpers.make_json_serializable import make_json_serializable
 from helpers.get_latest_file import get_latest_file
+from helpers.save_log_data_in_database import save_log_data_in_database
 
 router = APIRouter(prefix="/api/overlay/execution", tags=["overlay-execution"])
 
@@ -99,6 +100,21 @@ async def calculate_mev_monthly_arima_forecast(
                         "data": None
                     }
                 )
+            
+            # Create or update log record
+            try:
+                save_log_data_in_database(
+                    module="OVERLAY",
+                    submodule="EXECUTION",
+                    workflow_id=workflow_id,
+                    user_id=user_id.id,
+                    log_data={
+                        "action": "arima_forecast_generated",
+                        "forecast_type": "monthly"
+                    }
+                )
+            except Exception as e:
+                print(f"Warning: Could not save log record: {e}")
             
             # Get input file from uploaded location
             monthly_mev_input_path = (
@@ -179,7 +195,7 @@ async def calculate_mev_monthly_arima_forecast(
         filename = f"mev_monthly_arima_forecast_{get_time_date()}.xlsx"
         output_folder_path = (
             f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/"
-            f"output/overlay/execution/{workflow.loan_product}/mev_monthly_arima_forecast"
+            f"output/overlay/execution/{workflow.loan_product}/generated/mev_monthly_arima_forecast"
         )
         
         # Save to files folder
@@ -270,6 +286,21 @@ async def calculate_mev_quarterly_arima_forecast(
                     }
                 )
             
+            # Create or update log record
+            try:
+                save_log_data_in_database(
+                    module="OVERLAY",
+                    submodule="EXECUTION",
+                    workflow_id=workflow_id,
+                    user_id=user_id.id,
+                    log_data={
+                        "action": "arima_forecast_generated",
+                        "forecast_type": "quarterly"
+                    }
+                )
+            except Exception as e:
+                print(f"Warning: Could not save log record: {e}")
+            
             # Get input file from uploaded location
             quarterly_mev_input_path = (
                 f"{get_root_folder()}/server/files/"
@@ -349,7 +380,7 @@ async def calculate_mev_quarterly_arima_forecast(
         filename = f"mev_quarterly_arima_forecast_{get_time_date()}.xlsx"
         output_folder_path = (
             f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/"
-            f"output/overlay/execution/{workflow.loan_product}/mev_quarterly_arima_forecast"
+            f"output/overlay/execution/{workflow.loan_product}/generated/mev_quarterly_arima_forecast"
         )
         
         # Save to files folder
@@ -437,7 +468,7 @@ async def get_mev_monthly_arima_forecast(
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/mev_monthly_arima_forecast"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_monthly_arima_forecast"
             )
             
             # Get the latest file
@@ -463,19 +494,19 @@ async def get_mev_monthly_arima_forecast(
                     }
                 )
             
-            # Read file
-            file_ext = os.path.splitext(forecast_file)[1].lower()
-            if file_ext in ['.xlsx', '.xls']:
-                data = pd.read_excel(forecast_file)
-            elif file_ext == '.csv':
-                data = pd.read_csv(forecast_file)
-            else:
-                raise ValueError(f"Unsupported file format: {file_ext}")
+            # # Read file
+            # file_ext = os.path.splitext(forecast_file)[1].lower()
+            # if file_ext in ['.xlsx', '.xls']:
+            #     data = pd.read_excel(forecast_file)
+            # elif file_ext == '.csv':
+            #     data = pd.read_csv(forecast_file)
+            # else:
+            #     raise ValueError(f"Unsupported file format: {file_ext}")
             
             return {
                 "code": 1,
                 "success": True,
-                "data": data.to_dict(orient='records')
+                "data": forecast_file.name
             }
             
         finally:
@@ -522,7 +553,7 @@ async def get_mev_quarterly_arima_forecast(
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/mev_quarterly_arima_forecast"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_quarterly_arima_forecast"
             )
             
             # Get the latest file
@@ -548,19 +579,10 @@ async def get_mev_quarterly_arima_forecast(
                     }
                 )
             
-            # Read file
-            file_ext = os.path.splitext(forecast_file)[1].lower()
-            if file_ext in ['.xlsx', '.xls']:
-                data = pd.read_excel(forecast_file)
-            elif file_ext == '.csv':
-                data = pd.read_csv(forecast_file)
-            else:
-                raise ValueError(f"Unsupported file format: {file_ext}")
-            
             return {
                 "code": 1,
                 "success": True,
-                "data": data.to_dict(orient='records')
+                "data": forecast_file.name
             }
             
         finally:
@@ -607,7 +629,7 @@ async def export_mev_monthly_arima_forecast(
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/mev_monthly_arima_forecast"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_monthly_arima_forecast"
             )
             
             # Get the latest file
@@ -701,7 +723,7 @@ async def export_mev_quarterly_arima_forecast(
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/mev_quarterly_arima_forecast"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_quarterly_arima_forecast"
             )
             
             # Get the latest file

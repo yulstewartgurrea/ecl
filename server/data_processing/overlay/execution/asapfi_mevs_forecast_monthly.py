@@ -251,8 +251,8 @@ def forecast_mevs_monthly(
                 # Rename columns with variable prefix
                 # R: colnames(forecast) <- paste0(x,"_",cnames)
                 cnames = forecast_df.columns.tolist()
-                forecast_df.columns = [f"{var_name}_{col}" for col in cnames]
-                actual_df.columns = [f"{var_name}_{col}" for col in cnames]
+                forecast_df.columns = [f"{var_name}.{col}" for col in cnames]
+                actual_df.columns = [f"{var_name}.{col}" for col in cnames]
                 
                 # Combine actual and forecast
                 # R: alldat = rbind(actual,forecast)
@@ -302,6 +302,23 @@ def forecast_mevs_monthly(
         print(f"\nForecast complete! Results saved to {output_file_path}")
         print(f"Total variables forecasted: {len(forecast_results)}")
         print(f"Total periods: {len(consolidated_forecast)} (historical + forecast)")
+
+
+        # Convert to datetime and move to month-end
+        consolidated_forecast["Date"] = (
+            pd.to_datetime(consolidated_forecast["Date"], format="%Y %b")
+            + pd.offsets.MonthEnd(0)
+        )
+
+        consolidated_forecast['year'] = consolidated_forecast['Date'].dt.year
+        # name of month as text
+        consolidated_forecast['month'] = consolidated_forecast['Date'].dt.strftime('%b')
+        consolidated_forecast['month (int)'] = consolidated_forecast['Date'].dt.month
+        consolidated_forecast['id'] = (
+            consolidated_forecast['year'].astype(str)
+            + "-"
+            + consolidated_forecast['month']
+        )
         
         return consolidated_forecast
         
@@ -312,15 +329,15 @@ def forecast_mevs_monthly(
         return None
 
 
-if __name__ == "__main__":
-    # Example usage
-    result = forecast_mevs_monthly(
-        input_file_path="Input/MEV Historical Monthly Data.xlsx",
-        output_file_path="Output/ASAPFI Forecasts Monthly MEVs.xlsx",
-        start_year=2012,
-        end_year=2025,
-        start_month=1,
-        end_month=9,
-        months_to_forecast=12
-    )
+# if __name__ == "__main__":
+#     # Example usage
+#     result = forecast_mevs_monthly(
+#         input_file_path="Input/MEV Historical Monthly Data.xlsx",
+#         output_file_path="Output/ASAPFI Forecasts Monthly MEVs.xlsx",
+#         start_year=2012,
+#         end_year=2025,
+#         start_month=1,
+#         end_month=9,
+#         months_to_forecast=12
+#     )
 

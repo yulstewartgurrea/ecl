@@ -31,6 +31,7 @@ from api.routers.flowrate_approach import (
 )
 from api.routers.overlay.execution import (
     data_interpolation as overlay_execution_data_interpolation,
+    data_transformation as overlay_execution_data_transformation,
     override_forecasted_mevs as overlay_execution_override_forecasted_mevs,
     transform_forecasted_mevs as overlay_execution_transform_forecasted_mevs,
     forecasted_pd_calc as overlay_execution_forecasted_pd_calc,
@@ -149,6 +150,7 @@ app.include_router(final_models.router)
 
 # OVERLAY EXECUTION
 app.include_router(overlay_execution_data_interpolation.router)
+app.include_router(overlay_execution_data_transformation.router)
 app.include_router(overlay_execution_override_forecasted_mevs.router)
 app.include_router(overlay_execution_transform_forecasted_mevs.router)
 app.include_router(overlay_execution_forecasted_pd_calc.router)

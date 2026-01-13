@@ -75,6 +75,7 @@ export default function PrincipalMatrixDistributionTable({
       zebra
       rowKey={(r, i) => `${JSON.stringify(r)}-${i}`}
       emptyText="No data"
+      autoSortParHeaders
     />
   );
 }
