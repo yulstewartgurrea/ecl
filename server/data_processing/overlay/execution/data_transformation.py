@@ -17,6 +17,7 @@ from helpers.get_time_date import get_time_date
 from data.excluded_columns import excluded_columns
 
 import time
+import re
 
 
 # ----------------------------- Utilities & Cleaning ----------------------------- #
@@ -84,7 +85,8 @@ def clean_percentage_data(df: pd.DataFrame, excluded_columns: list) -> pd.DataFr
 # ----------------------------- Merge & Prep ----------------------------- #
 
 def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFrame,
-                                           data_interpolation_df: pd.DataFrame) -> pd.DataFrame | None:
+                                           data_interpolation_df: pd.DataFrame,
+                                           final_models_df: pd.DataFrame) -> pd.DataFrame | None:
     """
     Combine monthly historical MEV data with interpolated data.
     
@@ -104,6 +106,7 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
     try:
         df_interpolation = data_interpolation_df.copy()
         df_monthly = monthly_historical_mev_df.copy()
+        final_models_df_copy = final_models_df.copy()
 
         # definition rows (first 2 rows) exist in both inputs; keep but will drop post-merge
         df_combined = pd.merge(df_interpolation, df_monthly, on='id', how='left')
@@ -146,7 +149,30 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
         other_cols = [c for c in df_combined.columns if c not in id_cols]
         df_combined = df_combined[id_cols + other_cols]
 
-        return df_combined
+        # get X1 column value from final_models_df_copy
+        # get all values where column headers pattern are X1, X2, X3, and so on
+        x_series = final_models_df_copy.filter(regex='^X\d+$').iloc[0]
+        x_series = [str(v).strip() for v in x_series.tolist() if str(v).strip()]
+        x_series = [col.split('.')[0] for col in x_series]
+
+        print('x_series', x_series)
+
+        def col_base_name(col: str) -> str:
+            # take token before first dot/space
+            token = re.split(r"[.\s]", str(col), maxsplit=1)[0]
+            return token
+        
+        x_set = set(x_series)
+
+        # get columns that have the x_series values in the column headers
+        x_series_cols = [
+            col for col in df_combined.columns
+            if col_base_name(col) in x_set
+        ]
+        print('x_series_cols', x_series_cols)
+        final_cols = ['Date', 'year', 'month (int)', 'month', 'id', 'x'] + x_series_cols
+        final_col = df_combined[final_cols]
+        return final_col
 
     except Exception as e:
         print(f"Error during combination: {str(e)}")
@@ -191,6 +217,7 @@ def prepare_independent_variables(df: pd.DataFrame, excluded_columns: list) -> p
 
     # Clean numerics
     x_raw = clean_percentage_data(x_raw, excluded_columns)
+
     return x_raw
 
 
@@ -619,6 +646,7 @@ def generate_variable_combinations(x_raw_vars: list,
 
     # base names (raw should not have '.')
     x_base_vars = list(set([v.split('.')[0] for v in x_raw_vars]))
+    print('x_base_vars', x_base_vars)
     print(f"Base variables: {len(x_base_vars)}")
 
     num_vars_taken = 2
@@ -842,7 +870,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
         Exception: If cancellation_check returns True
     """
     print('combine_monthly_mev_data_interpolation_df', combine_monthly_mev_data_interpolation_df)
-    combine_monthly_mev_data_interpolation_df.to_csv('combine_monthly_mev_data_interpolation_df.csv', index=False)
+    # combine_monthly_mev_data_interpolation_df.to_csv('combine_monthly_mev_data_interpolation_df.csv', index=False)
     print('historical_default_rate_df', historical_default_rate_df)
     _date_time = get_time_date()
 
@@ -962,6 +990,7 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
                                 data_interpolation_df: pd.DataFrame,
                                 historical_default_rates_df: pd.DataFrame,
                                 workflow,
+                                final_models_df: pd.DataFrame,
                                 progress_callback=None,
                                 cancellation_check=None,
                                 num_combinations: int = 2):
@@ -994,7 +1023,11 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
         if cancellation_check and cancellation_check():
             raise Exception("Job cancelled")
         
-        df_combined = combine_monthly_mev_data_interpolation(monthly_historical_mev_df, data_interpolation_df)
+        df_combined = combine_monthly_mev_data_interpolation(
+            monthly_historical_mev_df, 
+            data_interpolation_df,
+            final_models_df
+        )
         res = process_data_transformation_output(
             df_combined, 
             historical_default_rates_df, 
