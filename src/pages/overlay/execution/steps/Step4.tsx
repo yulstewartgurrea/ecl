@@ -53,9 +53,9 @@ const Step4: React.FC = () => {
 
       const mapScenario = (r: any): ScenarioRow => ({
         date: formatDate(String(r.Period)),
-        best: Number(r.Best ?? 0),
+        upside: Number(r.Upside ?? 0),
         base: Number(r.Base ?? 0),
-        worst: Number(r.Worst ?? 0),
+        downside: Number(r.Downside ?? 0),
       });
 
       const mlrMapped = mlr.map(mapScenario);
@@ -179,14 +179,14 @@ const Step4: React.FC = () => {
 
       // Multiple Linear Regression (all rows)
       lines.push("Multiple Linear Regression (MLR)");
-      lines.push("Date,Best,Base,Worst");
+      lines.push("Date,Upside,Base,Downside");
       mlrRows.forEach((row) => {
         lines.push(
           [
             escape(row.date),
-            escape(row.best),
+            escape(row.upside),
             escape(row.base),
-            escape(row.worst),
+            escape(row.downside),
           ].join(",")
         );
       });
@@ -195,14 +195,14 @@ const Step4: React.FC = () => {
 
       // Forecasted PDs (all rows)
       lines.push("Forecasted PDs");
-      lines.push("Date,Best,Base,Worst");
+      lines.push("Date,Upside,Base,Downside");
       forecastedPdRows.forEach((row) => {
         lines.push(
           [
             escape(row.date),
-            escape(row.best),
+            escape(row.upside),
             escape(row.base),
-            escape(row.worst),
+            escape(row.downside),
           ].join(",")
         );
       });

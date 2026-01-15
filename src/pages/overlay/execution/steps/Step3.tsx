@@ -175,13 +175,13 @@ export default function OverlayExecutionPage3() {
     // Step 2: check if may value ang lend_rates_lo at gni_growth_12m
     const hasImportantValues = prefillRows.some((row) =>
       KEY_VARS.some((k) => {
-        const bestVal = row.best?.[k];
+        const upsideVal = row.upside?.[k];
         const baseVal = row.base?.[k];
-        const worstVal = row.worst?.[k];
+        const downsideVal = row.downside?.[k];
         return (
-          (bestVal && String(bestVal).trim() !== "") ||
+          (upsideVal && String(upsideVal).trim() !== "") ||
           (baseVal && String(baseVal).trim() !== "") ||
-          (worstVal && String(worstVal).trim() !== "")
+          (downsideVal && String(downsideVal).trim() !== "")
         );
       })
     );
@@ -198,9 +198,9 @@ export default function OverlayExecutionPage3() {
         // 2b. May value → i-POST mo yung value (override)
         const payload = prefillRows.map((r) => ({
           period: normalizePeriodOut(r.period),
-          best: r.best,
+          upside: r.upside,
           base: r.base,
-          worst: r.worst,
+          downside: r.downside,
         }));
 
         await overridePostForecastedMevs(selectedWorkflowId, payload, token);
@@ -437,9 +437,9 @@ export default function OverlayExecutionPage3() {
             // normalize period format for POST
             const payload = rows.map((r) => ({
               period: normalizePeriodOut(r.period),
-              best: r.best,
+              upside: r.upside,
               base: r.base,
-              worst: r.worst,
+              downside: r.downside,
             }));
 
             if (!selectedWorkflowId) return;

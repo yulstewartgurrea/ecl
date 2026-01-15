@@ -273,8 +273,10 @@ def add_level_gr_columns(x_raw: pd.DataFrame, excluded_columns: list) -> pd.Data
         
         if preferred_col:
             base = pd.to_numeric(x[preferred_col], errors='coerce')
-            lvl_col = insert_transformation_suffix(base_var, ".Level")
-            gr_col  = insert_transformation_suffix(base_var, ".GR")
+            # Use preferred_col (which may have forecast suffix) instead of base_var
+            # This preserves forecast suffixes like "Point Forecast" in the .Level and .GR columns
+            lvl_col = insert_transformation_suffix(preferred_col, ".Level")
+            gr_col  = insert_transformation_suffix(preferred_col, ".GR")
             if lvl_col not in x.columns:
                 x[lvl_col] = base
             if gr_col not in x.columns:
