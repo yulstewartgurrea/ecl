@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from starlette.responses import StreamingResponse
 from io import BytesIO
 import pandas as pd
+import numpy as np
 import os
 import json
 from typing import List, Dict, Any, Optional
@@ -90,6 +91,9 @@ async def get_data_interpolation(
                 data = pd.read_csv(date_interpolation_output_file)
             else:
                 raise ValueError(f"Unsupported file format: {file_ext}. Supported formats: .csv, .xlsx, .xls")
+            
+            # Replace NaN values with None for JSON serialization
+            data = data.replace({np.nan: None})
             
             return {
                 "code": 1, 
@@ -283,10 +287,13 @@ async def calculate_data_interpolation(
             print('quarterly_mev_arima_file', quarterly_mev_arima_file)
 
 
+            print('workflow', workflow)
             log_record = db.query(OverlayLogs).filter(
                 OverlayLogs.workflow_id == workflow_id,
                 OverlayLogs.submodule == "EXECUTION"
             ).first()
+
+            print('log_record', log_record)
 
             if not workflow:
                 return JSONResponse(
