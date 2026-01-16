@@ -37,7 +37,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 ----------------------------------------------------------- */
 const DOC_MONTHLY = "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA" as const;
 const DOC_QUARTERLY = "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA" as const;
-const DOC_FINAL_MODEL = "OVERLAY_EXECUTION_FINAL_OVERLAY_MODEL" as const;
+const DOC_FINAL_MODEL = "OVERLAY_EXECUTION_FINAL_MODEL" as const;
 const DOC_HISTORICAL_WEIGHTED = "OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE" as const;
 type ExecDocType = typeof DOC_MONTHLY | typeof DOC_QUARTERLY | typeof DOC_FINAL_MODEL | typeof DOC_HISTORICAL_WEIGHTED;
 
@@ -57,7 +57,9 @@ function inferExecDocTypeFromName(name: string): ExecDocType | null {
   const isFinalModel = /final.*model/.test(base) || /model.*final/.test(base);
   const isHistoricalWeighted = /historical.*weighted/.test(base) || 
                                /weighted.*credit.*loss/.test(base) ||
-                               /historical.*credit.*loss/.test(base);
+                               /historical.*credit.*loss/.test(base) ||
+                               /historical.*rates/.test(base) ||
+                               /historical.*weighted.*credit.*loss/.test(base);
   
   if (isMonthly && hasArima) return DOC_MONTHLY;
   if (isQuarterly && hasArima) return DOC_QUARTERLY;
