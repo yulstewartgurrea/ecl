@@ -113,7 +113,7 @@ def calculate_multiple_linear_regression(final_variable_model, data_transformati
         result_df['Period'] = data_transformation_df['Period'].copy()
         
         # Scenarios to calculate
-        scenarios = ['Best', 'Base', 'Worst']
+        scenarios = ['Upside', 'Base', 'Downside']
         
         # Calculate for each scenario
         for scenario in scenarios:
@@ -125,7 +125,7 @@ def calculate_multiple_linear_regression(final_variable_model, data_transformati
                 
                 for variable_name, coefficient in variables.items():
                     # Find the corresponding column in data_transformation_df
-                    # Format: "{scenario} {variable_name}" (e.g., "Best rrp_rate")
+                    # Format: "{scenario} {variable_name}" (e.g., "Upside rrp_rate")
                     column_name = f"{scenario} {variable_name}"
                     
                     if column_name in data_transformation_df.columns:
@@ -162,7 +162,7 @@ def forecasted_pd_calculation(multiple_linear_regression):
         result_df['Period'] = multiple_linear_regression['Period'].copy()
 
         # Scenarios to calculate
-        scenarios = ['Best', 'Base', 'Worst']
+        scenarios = ['Upside', 'Base', 'Downside']
 
         # Apply logistic function: EXP(x) / (1 + EXP(x)) for each scenario
         for scenario in scenarios:
