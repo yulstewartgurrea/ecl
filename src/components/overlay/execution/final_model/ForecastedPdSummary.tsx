@@ -148,13 +148,13 @@ const ForecastedPdSummary: React.FC<ForecastedPdSummaryProps> = ({
                         Date
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Best (%)
+                        Upside (%)
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
                         Base (%)
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Worst (%)
+                        Downside (%)
                       </th>
                     </tr>
                   </thead>
@@ -212,13 +212,13 @@ const ForecastedPdSummary: React.FC<ForecastedPdSummaryProps> = ({
                         Date
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Best (%)
+                        Upside (%)
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
                         Base (%)
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Worst (%)
+                        Downside (%)
                       </th>
                     </tr>
                   </thead>

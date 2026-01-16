@@ -48,6 +48,9 @@ async def calculate_overlay_multiplier(workflow_id: int = Form(...),
             #     OverlayLogs.submodule == "EXECUTION"
             # ).first()
 
+            if not workflow:
+                return JSONResponse(status_code=404, content={"detail": f"Workflow with ID {workflow_id} not found"})
+                
             default_rates_path = (
                 f"{get_root_folder()}/server/files/"
                 f"{workflow.entity}/"

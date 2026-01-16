@@ -46,15 +46,15 @@ def process_overlay_multiplier(default_rates_df: pd.DataFrame,
 
         # Ensure forecasted_pd_df columns are numeric
         forecasted_pd_df = forecasted_pd_df.copy()
-        for col in ['Best', 'Base', 'Worst']:
+        for col in ['Upside', 'Base', 'Downside']:
             if col in forecasted_pd_df.columns:
                 forecasted_pd_df[col] = pd.to_numeric(forecasted_pd_df[col], errors='coerce')
 
         # calculate overlay multiplier
         output_df = forecasted_pd_df.copy()
-        output_df['Best'] = latest_default_rate['odr'] / forecasted_pd_df['Best']
+        output_df['Upside'] = latest_default_rate['odr'] / forecasted_pd_df['Upside']
         output_df['Base'] = latest_default_rate['odr'] / forecasted_pd_df['Base']
-        output_df['Worst'] = latest_default_rate['odr'] / forecasted_pd_df['Worst']
+        output_df['Downside'] = latest_default_rate['odr'] / forecasted_pd_df['Downside']
 
         return output_df
 
