@@ -101,6 +101,38 @@ export default function OverlayExecutionPage3() {
     boot();
   }, [selectedWorkflowId, token]);
 
+  // Load transformed forecasted MEVs on page visit to check if data exists
+  useEffect(() => {
+    const loadTransformedData = async () => {
+      if (!selectedWorkflowId) {
+        setTransformedRows(null);
+        return;
+      }
+      if (!variables.length) {
+        // Wait for variables to load first
+        return;
+      }
+      try {
+        setLoading(true);
+        // Always check for existing transformed data when visiting the page
+        const rows = await getTransformedForecastedMevs(
+          selectedWorkflowId,
+          variables,
+          token
+        );
+        setTransformedRows(rows);
+      } catch (err) {
+        console.error("Failed to load transformed forecasted MEVs:", err);
+        // Don't show alert on initial load, just silently fail
+        setTransformedRows(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadTransformedData();
+  }, [selectedWorkflowId, variables, token]);
+
   const handleOpenConfig = useCallback(() => {
     if (!selectedWorkflowId) return;
     if (!periods.length || !variables.length) {

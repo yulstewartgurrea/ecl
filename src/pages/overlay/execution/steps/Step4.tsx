@@ -71,21 +71,41 @@ const Step4: React.FC = () => {
     [finalModel.length]
   );
 
-  // initial load: coefficients + any existing calc results
+  // Load calc results first every time page is visited
   useEffect(() => {
     if (!selectedWorkflowId) {
-      setFinalModel([]);
       setMlrRows([]);
       setForecastedPdRows([]);
       setExportReady(false);
       return;
     }
 
-    const load = async () => {
+    const loadCalcData = async () => {
+      try {
+        // Always check for existing calc results first when visiting the page
+        const calcData = await getForecastedPdCalc(
+          selectedWorkflowId,
+          token
+        ).catch(() => ({}));
+        mapCalcData(calcData);
+      } catch (err) {
+        console.error("Failed to load forecasted PD calc data:", err);
+      }
+    };
+
+    void loadCalcData();
+  }, [selectedWorkflowId, token, mapCalcData]);
+
+  // Load final model coefficients
+  useEffect(() => {
+    if (!selectedWorkflowId) {
+      setFinalModel([]);
+      return;
+    }
+
+    const loadFinalModel = async () => {
       try {
         setLoading(true);
-
-        // 1) Final overlay model coefficients
         const inputData = await getForecastedPdInput(selectedWorkflowId, token);
         const fm: FinalModelRow[] = Object.entries(inputData).map(
           ([key, value]) => ({
@@ -97,27 +117,17 @@ const Step4: React.FC = () => {
           })
         );
         setFinalModel(fm);
-
-        // 2) Existing calc results (if any)
-        const calcData = await getForecastedPdCalc(
-          selectedWorkflowId,
-          token
-        ).catch(() => ({}));
-        mapCalcData(calcData);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to load forecasted PD input data:", err);
         alert("Failed to load forecasted PD data.");
         setFinalModel([]);
-        setMlrRows([]);
-        setForecastedPdRows([]);
-        setExportReady(false);
       } finally {
         setLoading(false);
       }
     };
 
-    void load();
-  }, [selectedWorkflowId, token, mapCalcData]);
+    void loadFinalModel();
+  }, [selectedWorkflowId, token]);
 
   // reload only calc results after POST
   const reloadCalc = useCallback(async () => {
