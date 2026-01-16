@@ -33,6 +33,7 @@ from helpers.save_file.save_file import save_csv_data_in_folder
 from helpers.make_json_serializable import make_json_serializable
 from helpers.file_utils import read_data_file
 from helpers.get_latest_file import get_latest_file
+from pathlib import Path
 
 router = APIRouter(prefix="/api/overlay/execution", tags=["overlay-execution"])
 
@@ -54,13 +55,16 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
             # ).first()
 
             # Get data interpolation 
-            data_interpolation_path = (
+            # Get data from transformation
+            data_transformation_path = (
                 f"{get_root_folder()}/server/files/"
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/data_interpolation"
+                f"output/overlay/execution/{workflow.loan_product}/data_transformation"
             )
+            data_transformation_path = Path(data_transformation_path)
+            
 
             # Get input file from library (same as GET endpoint)
             override_forecasted_mevs_path = (
@@ -70,14 +74,18 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
                 f"{workflow.workflow_name}/"
                 f"output/overlay/execution/{workflow.loan_product}/override_forecasted_mevs"
             )
-
-            data_interpolation_file = get_latest_file(data_interpolation_path)
+            
+            data_transformation_file = max(
+                data_transformation_path.glob(f"{workflow.loan_product}_Independent - Transformed with Time*"),
+                key=lambda p: p.stat().st_mtime,   # last modified time
+                default=None
+            )
             override_forecasted_mevs_file = get_latest_file(override_forecasted_mevs_path)
 
-            print('data_interpolation_file', data_interpolation_file)
+            print('data_transformation_file', data_transformation_file)
             print('override_forecasted_mevs_file', override_forecasted_mevs_file)
 
-            data_interpolation_df = read_data_file(data_interpolation_file)
+            data_transformation_df = read_data_file(data_transformation_file)
             override_forecasted_mevs_df = read_data_file(override_forecasted_mevs_file)
 
             if not workflow:
@@ -102,13 +110,13 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
             #         }
             #     )
 
-            if data_interpolation_df.empty:
+            if data_transformation_df.empty:
                 return JSONResponse(
                     status_code=404,
                     content= {
                         "code": -1,
                         "success": False,
-                        "msg": "No data interpolation data found for this workflow",
+                        "msg": "No data transformation data found for this workflow",
                         "data": None
                     }
                 )
@@ -127,8 +135,10 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
             db.close()
 
         process_transform_forecasted_mevs_res = process_transform_forecasted_mevs(
-            data_interpolation_df,
+            data_transformation_df,
             override_forecasted_mevs_df)
+
+        print('process_transform_forecasted_mevs_res', process_transform_forecasted_mevs_res)
         
         res = {
             'code': 1,
@@ -181,7 +191,7 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
 async def get_transform_forecasted_mevs_results(workflow_id: int = Query(...),
                                          current_user: User = Depends(get_current_user)):
     """
-    Get data interpolation data from OverlayDevelopmentDataInterpolationOutput table
+    Get data transformation data from transform_forecasted_mevs table
     """
     try:
         db = SessionLocal()
@@ -232,6 +242,7 @@ async def get_transform_forecasted_mevs_results(workflow_id: int = Query(...),
                 raise ValueError(f"Unsupported file format: {file_ext}. Supported formats: .csv, .xlsx, .xls")
             
             print(data)
+            data = data.where(pd.notna(data), None)
             return {
                 "code": 1, 
                 "success": True,

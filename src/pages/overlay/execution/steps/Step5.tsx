@@ -111,19 +111,19 @@ const Step5: React.FC = () => {
             r.odr ??
             0;
 
-          const bestVal =
-            r.best ?? r.Best ?? 0;
+          const upsideVal =
+            r.upside ?? r.Upside ?? r.best ?? r.Best ?? 0;
           const baseVal =
             r.base ?? r.Base ?? 0;
-          const worstVal =
-            r.worst ?? r.Worst ?? 0;
+          const downsideVal =
+            r.downside ?? r.Downside ?? r.worst ?? r.Worst ?? 0;
 
           return {
             reportDate,
             odrPercent,
-            best: bestVal,
+            upside: upsideVal,
             base: baseVal,
-            worst: worstVal,
+            downside: downsideVal,
           };
         });
 
@@ -211,19 +211,19 @@ const Step5: React.FC = () => {
             r.odr ??
             0;
 
-          const bestVal =
-            r.best ?? r.Best ?? 0;
+          const upsideVal =
+            r.upside ?? r.Upside ?? r.best ?? r.Best ?? 0;
           const baseVal =
             r.base ?? r.Base ?? 0;
-          const worstVal =
-            r.worst ?? r.Worst ?? 0;
+          const downsideVal =
+            r.downside ?? r.Downside ?? r.worst ?? r.Worst ?? 0;
 
           return {
             reportDate,
             odrPercent,
-            best: bestVal,
+            upside: upsideVal,
             base: baseVal,
-            worst: worstVal,
+            downside: downsideVal,
           };
         });
 
@@ -259,9 +259,9 @@ const Step5: React.FC = () => {
       const headers = [
         "report_date",
         "odr_percent",
-        "multiplier_best",
+        "multiplier_upside",
         "multiplier_base",
-        "multiplier_worst",
+        "multiplier_downside",
       ];
 
       const escape = (val: unknown) => {
@@ -276,9 +276,9 @@ const Step5: React.FC = () => {
       const csvRows = rows.map((row) => [
         row.reportDate,
         row.odrPercent,
-        row.best,
+        row.upside,
         row.base,
-        row.worst,
+        row.downside,
       ]);
 
       const csv = [

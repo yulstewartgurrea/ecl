@@ -46,6 +46,12 @@ def process_transform_forecasted_mevs(data_interpolation_df: pd.DataFrame,
         
         # Handle lag columns (e.g., "Best unemp_rate lag.6" or "Best unemp_rate lag_6")
         lag_pattern = re.compile(r'lag[._](\d+)')
+
+        print('transformed_mev_forecasts_df.columns', transformed_mev_forecasts_df.columns)
+        print('raw_mev_forecasts_df.columns', raw_mev_forecasts_df.columns)
+
+        raw_mev_forecasts_df.to_csv('raw_mev_forecasts_df.csv', index=False)
+        transformed_mev_forecasts_df.to_csv('transformed_mev_forecasts_df.csv', index=False)
         
         for col in transformed_mev_forecasts_df.columns:
             if col == 'Period':
@@ -53,10 +59,14 @@ def process_transform_forecasted_mevs(data_interpolation_df: pd.DataFrame,
             
             # Check if column name contains lag pattern
             lag_match = lag_pattern.search(col)
+            print(lag_match)
             if lag_match:
                 lag_months = int(lag_match.group(1))
                 # Extract base column name (remove lag.6 or lag_6 part)
-                base_col = lag_pattern.sub('', col).strip().rstrip('._')
+                # base_col = lag_pattern.sub('', col).strip()
+                # base_col = base_col.split('.')[0]
+                base_col = col
+                print('base_col', base_col)
                 
                 # Check if base column exists in raw_mev_forecasts_df
                 if base_col in raw_mev_forecasts_df.columns:
@@ -82,20 +92,24 @@ def process_transform_forecasted_mevs(data_interpolation_df: pd.DataFrame,
                     # Get values from base column and apply natural logarithm for lag columns
                     lag_values = merged[base_col].copy()
                     # Convert to numeric if needed (handle percentage strings)
+                    # Remove "%" character if present before converting to numeric
+                    if lag_values.dtype == 'object':
+                        lag_values = lag_values.astype(str).str.replace('%', '', regex=False)
                     lag_values = pd.to_numeric(lag_values, errors='coerce')
                     # Apply natural logarithm, handling NaN and non-positive values
                     lag_values = np.where(
                         (lag_values.notna()) & (lag_values > 0),
                         np.log(lag_values),
-                        np.nan
+                        0
                     )
                     
                     # Update the lag column with log-transformed values
                     transformed_mev_forecasts_df[col] = lag_values
                 else:
                     print(f"Warning: Base column '{base_col}' not found in raw_mev_forecasts_df for lag column '{col}'")
-                    transformed_mev_forecasts_df[col] = np.nan
+                    transformed_mev_forecasts_df[col] = 0
 
+        transformed_mev_forecasts_df.to_csv('transformed_mev_forecasts_df.csv', index=False)
         return transformed_mev_forecasts_df
     except Exception as e:
         print(f"Error during interpolation: {str(e)}")
@@ -143,7 +157,7 @@ def populate_previous_dates(data_interpolation_df: pd.DataFrame,
     try:
         # Make a copy to avoid modifying the original dataframe
         data_interpolation_df_copy = data_interpolation_df.copy()
-        
+
         # get all Date from data_interpolation_df and store it in array
         dates = data_interpolation_df_copy['Date'].tolist()
 
@@ -165,13 +179,14 @@ def populate_previous_dates(data_interpolation_df: pd.DataFrame,
             # Pattern: "Best unemp_rate" -> scenario="Best", metric="unemp_rate"
             # Pattern: "Base gdp" -> scenario="Base", metric="gdp"
             parts = col.split()
+            print(parts)
             if len(parts) >= 2:
                 scenario = parts[0]  # Best, Base, or Worst
                 metric = ' '.join(parts[1:])  # unemp_rate, gdp, etc.
                 
                 # Find matching column in data_interpolation_df_copy
                 # Look for column with pattern "{metric} Point"
-                matching_col = f"{metric} Point"
+                matching_col = f"{metric}.Point Forecast"
                 
                 # Check if column exists and if values are greater than 100
                 if matching_col in data_interpolation_df_copy.columns:
@@ -181,7 +196,7 @@ def populate_previous_dates(data_interpolation_df: pd.DataFrame,
                     
                     # If values are greater than 100, use growth_rate column instead
                     if has_values_gt_100:
-                        growth_rate_col = f"{metric} Point growth_rate"
+                        growth_rate_col = f"{metric}.Point Forecast"
                         if growth_rate_col in data_interpolation_df_copy.columns:
                             matching_col = growth_rate_col
                             print(f"Using '{growth_rate_col}' for '{col}' (values > 100 detected)")
@@ -197,7 +212,7 @@ def populate_previous_dates(data_interpolation_df: pd.DataFrame,
                         how='left'
                     )
 
-                    if "growth_rate" in matching_col:
+                    if "growth_12m" in matching_col:
                         new_df[col] = merged[matching_col].values * 100
                     else:
                         new_df[col] = merged[matching_col].values

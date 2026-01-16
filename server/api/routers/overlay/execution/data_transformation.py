@@ -197,6 +197,14 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
             db.commit()
             return
         
+        final_models_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"output/overlay/development/{workflow.loan_product}/final_models"
+        )
+
         # Get file paths (patterned after POST endpoint)
         data_interpolation_path = (
             f"{get_root_folder()}/server/files/"
@@ -239,6 +247,7 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
         monthly_mev_arima_file = get_latest_file(monthly_mev_arima_path)
         data_interpolation_file = get_latest_file(data_interpolation_path)
         historical_default_rates_file = get_latest_file(historical_default_rates_path)
+        final_models_file = get_latest_file(final_models_path)
         
         # Helper function to calculate and set running time
         def set_running_time():
@@ -248,7 +257,7 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
                 job.completed_at = completed_time
                 job.running_time_seconds = int(running_time)
 
-        if not monthly_mev_arima_file or not data_interpolation_file or not historical_default_rates_file:
+        if not monthly_mev_arima_file or not data_interpolation_file or not historical_default_rates_file or not final_models_file:
             set_running_time()
             job.status = "failed"
             job.error_message = "Required data files not found"
@@ -294,6 +303,20 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
             set_running_time()
             return
         
+        try:
+            final_models_df = read_data_file(final_models_file)
+            if final_models_df is None or final_models_df.empty:
+                raise ValueError(f"Failed to read or empty final models file: {final_models_file}")
+        except Exception as e:
+            error_msg = f"Error reading final models file: {str(e)}"
+            print(error_msg)
+            set_running_time()
+            job.status = "failed"
+            job.error_message = error_msg
+            job.message = error_msg
+            db.commit()
+            return
+
         try:
             monthly_historical_mev_df = read_data_file(monthly_mev_arima_file)
             if monthly_historical_mev_df is None or monthly_historical_mev_df.empty:
@@ -348,6 +371,7 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
                 data_interpolation_df,
                 historical_default_rates_df,
                 workflow,
+                final_models_df,
                 progress_callback=update_progress,
                 cancellation_check=check_cancellation,
                 num_combinations=num_combinations
@@ -492,6 +516,14 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
                 OverlayLogs.submodule == "EXECUTION"
             ).first()
 
+            final_models_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{workflow.loan_product}/final_models"
+            )
+
             data_interpolation_path = (
                     f"{get_root_folder()}/server/files/"
                     f"{workflow.entity}/"
@@ -535,10 +567,12 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
             monthly_mev_arima_file = get_latest_file(monthly_mev_arima_path)
             data_interpolation_file = get_latest_file(data_interpolation_path)
             historical_default_rates_file = get_latest_file(historical_default_rates_path)
+            final_models_file = get_latest_file(final_models_path)
 
             print('monthly_mev_arima_file', monthly_mev_arima_file)
             print('data_interpolation_file', data_interpolation_file)
             print('historical_default_rates_file', historical_default_rates_file)
+            print('final_models_file', final_models_file)
 
             if not workflow:
                 return JSONResponse(

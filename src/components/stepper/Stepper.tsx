@@ -182,9 +182,10 @@ const Stepper = forwardRef<StepperHandle, StepperProps>(function Stepper(
 
               <span
                 className={clsx(
-                  "mt-2 text-xs font-medium text-center whitespace-nowrap",
+                  "mt-2 text-xs font-medium text-center truncate max-w-[120px] block",
                   isCompleted || isActive ? "text-black" : "text-gray-400"
                 )}
+                title={step.label}
               >
                 {step.label}
               </span>

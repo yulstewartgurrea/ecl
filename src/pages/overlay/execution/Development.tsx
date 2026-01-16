@@ -21,10 +21,10 @@ const OverlayDevelopmentStep1 = () => {
     { label: "Forecast Interpolation", completed: false },
     { label: "Data Transformation", completed: false },
     { label: "MEVs Forecast Transformation", completed: false },
-    { label: "Forcasted PD Calculate", completed: false },
+    { label: "Forcasted Loss Rate Calculation", completed: false },
     { label: "Overlay Multiplier Calculate", completed: false },
-    { label: "PD Calibration", completed: false },
-    { label: "FL Pit PD", completed: false },
+    { label: "Loss Rates Calibration", completed: false },
+    { label: "FL Pit Loss Rates", completed: false },
   ];
 
   const handleSubStepChange = (targetIndex: number) => {
