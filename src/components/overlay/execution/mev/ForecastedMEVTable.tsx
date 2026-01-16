@@ -6,12 +6,20 @@ type Props = {
 };
 
 export default function ForecastedMEVDynamicTable({ rows, variables }: Props) {
+  // Format numeric values to 2 decimal places
+  const formatValue = (val: string | number | undefined | null): string => {
+    if (val === null || val === undefined || val === "") return "—";
+    const num = typeof val === "string" ? parseFloat(val) : val;
+    if (isNaN(num)) return String(val);
+    return num.toFixed(2);
+  };
+
   return (
     <div className="overflow-x-auto rounded-2xl border-[#f8c300] bg-white">
       <table className="min-w-[960px] w-full text-sm">
         <thead>
           <tr className="bg-[#f8c300] text-black">
-            <th className="px-3 py-2 text-left w-40">Period</th>
+            <th className="px-3 py-2 text-left w-52">Period</th>
             <th colSpan={variables.length} className="px-3 py-2 text-center">Upside</th>
             <th colSpan={variables.length} className="px-3 py-2 text-center">Base</th>
             <th colSpan={variables.length} className="px-3 py-2 text-center">Downside</th>
@@ -34,17 +42,17 @@ export default function ForecastedMEVDynamicTable({ rows, variables }: Props) {
 
               {variables.map((v) => (
                 <td key={`upside-${v}-${idx}`} className="px-3 py-2 text-center bg-emerald-50">
-                  {r.upside[v] || "—"}
+                  {formatValue(r.upside[v])}
                 </td>
               ))}
               {variables.map((v) => (
                 <td key={`base-${v}-${idx}`} className="px-3 py-2 text-center bg-amber-50">
-                  {r.base[v] || "—"}
+                  {formatValue(r.base[v])}
                 </td>
               ))}
               {variables.map((v) => (
                 <td key={`worst-${v}-${idx}`} className="px-3 py-2 text-center bg-rose-50">
-                  {r.downside[v] || "—"}
+                  {formatValue(r.downside[v])}
                 </td>
               ))}
             </tr>
