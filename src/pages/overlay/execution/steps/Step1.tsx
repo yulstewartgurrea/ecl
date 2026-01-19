@@ -293,6 +293,15 @@ export default function Step1() {
     }
   }, [dispatch, executionInputFile]);
 
+  // Sync mode with Redux executionInputFile value
+  useEffect(() => {
+    if (executionInputFile === "forecast_mev") {
+      setMode("AUTO_GENERATE");
+    } else if (executionInputFile === "manual_upload") {
+      setMode("UPLOAD_MANUAL");
+    }
+  }, [executionInputFile]);
+
   /* -----------------------------------------------------------
      Download forecast files
   ----------------------------------------------------------- */
@@ -416,6 +425,13 @@ export default function Step1() {
       console.error("Error checking existing forecasts:", err);
     }
   }, [token, effectiveWorkflowId, overlayExecApiBase]);
+
+  // Check for existing forecasts when workflow switches
+  useEffect(() => {
+    if (selectedWorkflowId) {
+      checkExistingForecasts();
+    }
+  }, [selectedWorkflowId, checkExistingForecasts]);
 
   /* -----------------------------------------------------------
      AUTO-GENERATE: call both endpoints then refresh docs
