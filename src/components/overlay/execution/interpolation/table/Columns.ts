@@ -63,7 +63,7 @@ export function buildMacroColumns(
 ): ColumnNode[] {
   const includeQuarter =
     frequency === "quarterly" ? true : !!opts.includeQuarterInMonthly;
-  const growthSuffix = opts.growthSuffix ?? "_gr"; // you pass " growth_rate"
+  // const growthSuffix = opts.growthSuffix ?? "_gr"; // you pass " growth_rate"
 
   // If data is provided, build columns dynamically from all keys
   if (opts.data && opts.data.length > 0) {
