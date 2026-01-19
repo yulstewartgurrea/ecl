@@ -28,6 +28,10 @@ const Step4: React.FC = () => {
     (s) => (s as any)?.auth?.token
   ) as string | null;
 
+  const finalModelExecutionFile = useAppSelector(
+    (state) => (state as any).finalModelExecutionFile?.final_model_execution_file
+  ) as boolean;
+
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportReady, setExportReady] = useState(false);
@@ -146,7 +150,7 @@ const Step4: React.FC = () => {
     if (!selectedWorkflowId) return;
     setPosting(true);
     try {
-      await runForecastedPdCalc(selectedWorkflowId, token);
+      await runForecastedPdCalc(selectedWorkflowId, finalModelExecutionFile, token);
       await reloadCalc();
     } catch (err) {
       console.error(err);

@@ -160,7 +160,15 @@ def clean_response_data(data_dict):
 
 router = APIRouter(prefix="/api/overlay/execution", tags=["overlay-execution"])
 
-def run_data_transformation_background(job_id: int, workflow_id: int, user_id: int, num_combinations: int, execution_input_file: str):
+def run_data_transformation_background(job_id: int, 
+                                    workflow_id: int, 
+                                    user_id: int, 
+                                    num_combinations: int, 
+                                    execution_input_file: str,
+                                    # use uploaded from tool or from development
+                                    # true if uploaded, false if from development
+                                    final_model_execution_file: bool,
+                                    historical_weighted_credit_loss_rate_file: bool):
     """
     Background function that runs the data transformation process
     and updates progress in the database
@@ -196,14 +204,6 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
             job.error_message = "Required workflow or log record not found"
             db.commit()
             return
-        
-        final_models_path = (
-            f"{get_root_folder()}/server/files/"
-            f"{workflow.entity}/"
-            f"{workflow.reporting_period}/"
-            f"{workflow.workflow_name}/"
-            f"output/overlay/development/{workflow.loan_product}/final_models"
-        )
 
         # Get file paths (patterned after POST endpoint)
         data_interpolation_path = (
@@ -213,14 +213,40 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
             f"{workflow.workflow_name}/"
             f"output/overlay/execution/{workflow.loan_product}/data_interpolation"
         )
+        
+        if final_model_execution_file:
+            final_models_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
+            )
+        else:
+            final_models_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{workflow.loan_product}/final_models"
+            )
 
-        historical_default_rates_path = (
-            f"{get_root_folder()}/server/files/"
-            f"{workflow.entity}/"
-            f"{workflow.reporting_period}/"
-            f"{workflow.workflow_name}/"
-            f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
-        )
+        if historical_weighted_credit_loss_rate_file:
+            historical_default_rates_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE"
+            )
+        else:
+            historical_default_rates_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
+            )
 
         # get input file from library 
         if execution_input_file == "forecast_mev":
@@ -501,6 +527,10 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
 async def calculate_data_transformation(workflow_id: int = Form(...),
                                         num_combinations: int = Form(2, description="Number of combinations to test"),
                                         execution_input_file: str = Form(...),
+                                        # use uploaded from tool or from development
+                                        # true if uploaded, false if from development
+                                        final_model_execution_file: bool = Form(False, description="Use final model execution file"),
+                                        historical_weighted_credit_loss_rate_file: bool = Form(False, description="Use historical weighted credit loss rate file"),
                                         user_id: User = Depends(get_current_user)):
     """
     Calculate data transformation - returns immediately with job_id for status polling
@@ -516,29 +546,48 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
                 OverlayLogs.submodule == "EXECUTION"
             ).first()
 
-            final_models_path = (
+            data_interpolation_path = (
                 f"{get_root_folder()}/server/files/"
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/development/{workflow.loan_product}/final_models"
+                f"output/overlay/execution/{workflow.loan_product}/data_interpolation"
             )
 
-            data_interpolation_path = (
+            if final_model_execution_file:
+                final_models_path = (
                     f"{get_root_folder()}/server/files/"
                     f"{workflow.entity}/"
                     f"{workflow.reporting_period}/"
                     f"{workflow.workflow_name}/"
-                    f"output/overlay/execution/{workflow.loan_product}/data_interpolation"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
+                )
+            else:
+                final_models_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"output/overlay/development/{workflow.loan_product}/final_models"
                 )
 
-            historical_default_rates_path = (
-                f"{get_root_folder()}/server/files/"
-                f"{workflow.entity}/"
-                f"{workflow.reporting_period}/"
-                f"{workflow.workflow_name}/"
-                f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
-            )
+            
+            if historical_weighted_credit_loss_rate_file:
+                historical_default_rates_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE"
+                )
+            else:
+                historical_default_rates_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
+                )
 
             print('historical_default_rates_path', historical_default_rates_path)
 
@@ -678,7 +727,13 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
         # Start background thread
         thread = threading.Thread(
             target=run_data_transformation_background,
-            args=(new_job.id, workflow_id, user_id.id, num_combinations, execution_input_file),
+            args=(new_job.id, 
+                    workflow_id, 
+                    user_id.id, 
+                    num_combinations, 
+                    execution_input_file, 
+                    final_model_execution_file, 
+                    historical_weighted_credit_loss_rate_file),
             daemon=True
         )
         

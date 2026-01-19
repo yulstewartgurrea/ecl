@@ -31,6 +31,10 @@ const Step5: React.FC = () => {
     (s) => (s as any)?.auth?.token
   ) as string | null;
 
+  const historicalWeightedCreditLossRateFile = useAppSelector(
+    (state) => (state as any).historicalWeightedCreditLossRateFile?.historical_weighted_credit_loss_rate_file
+  ) as boolean;
+
   // button & data states
   const [posting, setPosting] = useState(false); // Run
   const [exporting, setExporting] = useState(false); // Export CSV
@@ -59,6 +63,7 @@ const Step5: React.FC = () => {
         // 1) POST
         const postResp = await postOverlayMultiplier(
           selectedWorkflowId,
+          historicalWeightedCreditLossRateFile,
           token
         );
 
@@ -159,6 +164,7 @@ const Step5: React.FC = () => {
         // 1) POST
         const postResp = await postOverlayMultiplier(
           selectedWorkflowId,
+          historicalWeightedCreditLossRateFile,
           token
         );
 
