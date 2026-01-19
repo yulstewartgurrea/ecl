@@ -11,6 +11,8 @@ import eclDpdBucketsSlice from "./features/ecl/eclDpdBucketsSlice";
 import eclLoanProductsReducer from "./features/ecl/eclLoanProductsSlice";
 import eclReportingPeriodsReducer from "./features/ecl/eclReportingPeriodsSlice";
 import executionInputFileReducer from "./features/overlay/executionInputFileSlice";
+import finalModelExecutionFileReducer from "./features/overlay/finalModelExecutionFileSlice";
+import historicalWeightedCreditLossRateFileReducer from "./features/overlay/historicalWeightedCreditLossRateFileSlice";
 export const rootReducer = combineReducers({
   auth,
   navUIState,
@@ -22,4 +24,6 @@ export const rootReducer = combineReducers({
   eclLoanProductsReducer,
   eclReportingPeriodsReducer,
   executionInputFile: executionInputFileReducer,
+  finalModelExecutionFile: finalModelExecutionFileReducer,
+  historicalWeightedCreditLossRateFile: historicalWeightedCreditLossRateFileReducer,
 })
