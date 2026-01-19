@@ -243,10 +243,6 @@ async def calculate_data_interpolation(
         # Query the database for quarterly historical MEV data
         db = SessionLocal()
         try:
-            quarterly_record = db.query(OverlayDevelopmentQuarterlyHistoricalMevInput).filter(
-                OverlayDevelopmentQuarterlyHistoricalMevInput.workflow_id == workflow_id
-            ).first()
-
             workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
             
             # get input file from library 
