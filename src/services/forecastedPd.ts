@@ -69,11 +69,16 @@ export async function getForecastedPdCalc(
  */
 export async function runForecastedPdCalc(
   workflowId: number | string,
+  finalModelExecutionFile?: boolean,
   token?: string | null
 ): Promise<any> {
   const url = `${API_BASE}/api/overlay/execution/forecasted_pd_calc/`;
   const form = new FormData();
   form.append("workflow_id", String(workflowId));
+
+  if (finalModelExecutionFile) {
+    form.append("final_model_execution_file", String(finalModelExecutionFile));
+  }
 
   const res = await authFetch(
     url,

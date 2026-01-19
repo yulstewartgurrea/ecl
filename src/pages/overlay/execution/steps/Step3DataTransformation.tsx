@@ -48,6 +48,14 @@ export default function OverlayDevelpmentPage3() {
     (state) => (state as any).executionInputFile?.execution_input_file
   ) as string | null;
 
+  const finalModelExecutionFile = useAppSelector(
+    (state) => (state as any).finalModelExecutionFile?.final_model_execution_file
+  ) as boolean;
+  
+  const historicalWeightedCreditLossRateFile = useAppSelector(
+    (state) => (state as any).historicalWeightedCreditLossRateFile?.historical_weighted_credit_loss_rate_file
+  ) as boolean;
+
   const [busy, setBusy] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
@@ -101,6 +109,8 @@ export default function OverlayDevelpmentPage3() {
             workflowId: Number(selectedWorkflowId),
             numCombinations: numCombinations,
             executionInputFile: executionInputFile,
+            finalModelExecutionFile: finalModelExecutionFile,
+            historicalWeightedCreditLossRateFile: historicalWeightedCreditLossRateFile,
           });
           
           // After starting job, check status instead of fetching results

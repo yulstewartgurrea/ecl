@@ -349,8 +349,10 @@ export async function postDataTransformationExecution(opts: {
   workflowId: number;
   numCombinations?: number;
   executionInputFile?: string | null;
+  finalModelExecutionFile?: boolean;
+  historicalWeightedCreditLossRateFile?: boolean;
 }): Promise<ApiEnvelope<unknown>> {
-  const { apiBase, token, workflowId, numCombinations, executionInputFile } = opts;
+  const { apiBase, token, workflowId, numCombinations, executionInputFile, finalModelExecutionFile, historicalWeightedCreditLossRateFile } = opts;
 
   if (!Number.isFinite(workflowId)) {
     throw new Error("workflowId must be a finite number");
@@ -366,7 +368,12 @@ export async function postDataTransformationExecution(opts: {
   if (executionInputFile) {
     form.append("execution_input_file", executionInputFile);
   }
-
+  if (finalModelExecutionFile) {
+    form.append("final_model_execution_file", String(finalModelExecutionFile));
+  }
+  if (historicalWeightedCreditLossRateFile) {
+    form.append("historical_weighted_credit_loss_rate_file", String(historicalWeightedCreditLossRateFile));
+  }
   const res = await xfetch(url, {
     method: "POST",
     headers: withAuth(token, { Accept: "application/json" }),

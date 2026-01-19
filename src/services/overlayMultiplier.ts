@@ -39,7 +39,8 @@ export interface GetOverlayMultiplierResponse {
  */
 export async function postOverlayMultiplier(
   workflowId: number | string,
-  token: string | null
+  historicalWeightedCreditLossRateFile?: boolean,
+  token?: string | null
 ): Promise<PostOverlayMultiplierResponse> {
   const url = `${API_BASE}/api/overlay/execution/overlay_multiplier/`;
 
@@ -51,7 +52,10 @@ export async function postOverlayMultiplier(
 
   const formData = new FormData();
   formData.append("workflow_id", String(workflowId));
-
+  
+  if (historicalWeightedCreditLossRateFile) {
+    formData.append("historical_weighted_credit_loss_rate_file", String(historicalWeightedCreditLossRateFile));
+  }
   const res = await fetch(url, {
     method: "POST",
     headers: {

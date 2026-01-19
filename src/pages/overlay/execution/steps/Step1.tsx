@@ -16,6 +16,8 @@ import {
   useAppSelector,
 } from "../../../../redux_toolkit/hooks";
 import { setExecutionInputFile } from "../../../../redux_toolkit/features/overlay/executionInputFileSlice";
+import { setFinalModelExecutionFile } from "../../../../redux_toolkit/features/overlay/finalModelExecutionFileSlice";
+import { setHistoricalWeightedCreditLossRateFile } from "../../../../redux_toolkit/features/overlay/historicalWeightedCreditLossRateFileSlice";
 import OverlayUploadResultModal, {
   type IssueRow,
 } from "../../../../components/modals/OverlayUploadResultModal";
@@ -37,7 +39,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 ----------------------------------------------------------- */
 const DOC_MONTHLY = "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA" as const;
 const DOC_QUARTERLY = "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA" as const;
-const DOC_FINAL_MODEL = "OVERLAY_EXECUTION_FINAL_OVERLAY_MODEL" as const;
+const DOC_FINAL_MODEL = "OVERLAY_EXECUTION_FINAL_MODEL" as const;
 const DOC_HISTORICAL_WEIGHTED = "OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE" as const;
 type ExecDocType = typeof DOC_MONTHLY | typeof DOC_QUARTERLY | typeof DOC_FINAL_MODEL | typeof DOC_HISTORICAL_WEIGHTED;
 
@@ -57,7 +59,9 @@ function inferExecDocTypeFromName(name: string): ExecDocType | null {
   const isFinalModel = /final.*model/.test(base) || /model.*final/.test(base);
   const isHistoricalWeighted = /historical.*weighted/.test(base) || 
                                /weighted.*credit.*loss/.test(base) ||
-                               /historical.*credit.*loss/.test(base);
+                               /historical.*credit.*loss/.test(base) ||
+                               /historical.*rates/.test(base) ||
+                               /historical.*weighted.*credit.*loss/.test(base);
   
   if (isMonthly && hasArima) return DOC_MONTHLY;
   if (isQuarterly && hasArima) return DOC_QUARTERLY;
@@ -132,6 +136,12 @@ export default function Step1() {
   const token = useAppSelector((state) => state.auth.token);
   const executionInputFile = useAppSelector(
     (state) => state.executionInputFile.execution_input_file
+  );
+  const finalModelExecutionFile = useAppSelector(
+    (state) => state.finalModelExecutionFile.final_model_execution_file
+  );
+  const historicalWeightedCreditLossRateFile = useAppSelector(
+    (state) => state.historicalWeightedCreditLossRateFile.historical_weighted_credit_loss_rate_file
   );
 
   // ✅ new: workflow mode
@@ -291,6 +301,15 @@ export default function Step1() {
     }
   }, [dispatch, executionInputFile]);
 
+  // Sync mode with Redux executionInputFile value
+  useEffect(() => {
+    if (executionInputFile === "forecast_mev") {
+      setMode("AUTO_GENERATE");
+    } else if (executionInputFile === "manual_upload") {
+      setMode("UPLOAD_MANUAL");
+    }
+  }, [executionInputFile]);
+
   /* -----------------------------------------------------------
      Download forecast files
   ----------------------------------------------------------- */
@@ -414,6 +433,13 @@ export default function Step1() {
       console.error("Error checking existing forecasts:", err);
     }
   }, [token, effectiveWorkflowId, overlayExecApiBase]);
+
+  // Check for existing forecasts when workflow switches
+  useEffect(() => {
+    if (selectedWorkflowId) {
+      checkExistingForecasts();
+    }
+  }, [selectedWorkflowId, checkExistingForecasts]);
 
   /* -----------------------------------------------------------
      AUTO-GENERATE: call both endpoints then refresh docs
@@ -1192,6 +1218,29 @@ export default function Step1() {
 
           {/* FINAL MODEL */}
           <div className="space-y-2">
+            {/* Toggle to use final model */}
+            <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Use Final Model</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => dispatch(setFinalModelExecutionFile(!finalModelExecutionFile))}
+                className={[
+                  "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2",
+                  finalModelExecutionFile ? "bg-gray-900" : "bg-gray-200"
+                ].join(" ")}
+                role="switch"
+                aria-checked={finalModelExecutionFile}
+              >
+                <span
+                  className={[
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                    finalModelExecutionFile ? "translate-x-5" : "translate-x-0"
+                  ].join(" ")}
+                />
+              </button>
+            </div>
             <div className="relative">
               <UploadDropzone
                 label="Final Model"
@@ -1220,6 +1269,29 @@ export default function Step1() {
 
           {/* HISTORICAL WEIGHTED CREDIT LOSS RATES */}
           <div className="space-y-2">
+            {/* Toggle to use historical weighted credit loss rates */}
+            <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Use Historical Weighted Credit Loss Rates</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => dispatch(setHistoricalWeightedCreditLossRateFile(!historicalWeightedCreditLossRateFile))}
+                className={[
+                  "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2",
+                  historicalWeightedCreditLossRateFile ? "bg-gray-900" : "bg-gray-200"
+                ].join(" ")}
+                role="switch"
+                aria-checked={historicalWeightedCreditLossRateFile}
+              >
+                <span
+                  className={[
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                    historicalWeightedCreditLossRateFile ? "translate-x-5" : "translate-x-0"
+                  ].join(" ")}
+                />
+              </button>
+            </div>
             <div className="relative">
               <UploadDropzone
                 label="Historical Weighted Credit Loss Rates"

@@ -33,7 +33,10 @@ router = APIRouter(prefix="/api/overlay/execution", tags=["overlay-execution"])
 
 @router.post("/forecasted_pd_calc")
 async def calculate_forecasted_pd_calc(workflow_id: int = Form(...),
-                                              user_id: User = Depends(get_current_user)):
+                                        # use uploaded from tool or from development
+                                        # true if uploaded, false if from development
+                                        final_model_execution_file: bool = Form(False, description="Use final model execution file"),
+                                        user_id: User = Depends(get_current_user)):
     """
         Calculate forecasted PD calc
     """
@@ -48,13 +51,22 @@ async def calculate_forecasted_pd_calc(workflow_id: int = Form(...),
             #     OverlayLogs.submodule == "EXECUTION"
             # ).first()
 
-            finals_overlay_model_path = (
-                f"{get_root_folder()}/server/files/"
-                f"{workflow.entity}/"
-                f"{workflow.reporting_period}/"
-                f"{workflow.workflow_name}/"
-                f"output/overlay/development/{workflow.loan_product}/final_models"
-            )
+            if final_model_execution_file:
+                finals_overlay_model_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
+                )
+            else:
+                finals_overlay_model_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"output/overlay/development/{workflow.loan_product}/final_models"
+                )
 
             # Get transform forecasted mev
             data_transformation_path = (

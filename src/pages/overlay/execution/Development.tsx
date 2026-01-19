@@ -23,8 +23,8 @@ const OverlayDevelopmentStep1 = () => {
     { label: "MEVs Forecast Transformation", completed: false },
     { label: "Forcasted Loss Rate Calculation", completed: false },
     { label: "Overlay Multiplier Calculate", completed: false },
-    { label: "Loss Rates Calibration", completed: false },
-    { label: "FL Pit Loss Rates", completed: false },
+    // { label: "Loss Rates Calibration", completed: false },
+    // { label: "FL Pit Loss Rates", completed: false },
   ];
 
   const handleSubStepChange = (targetIndex: number) => {
@@ -45,10 +45,10 @@ const OverlayDevelopmentStep1 = () => {
         return <Step4 />;
       case 5:
         return <Step5 />;
-      case 7:
-        return <Step6 />;
-      case 8:
-        return <Step7 />;
+      // case 7:
+      //   return <Step6 />;
+      // case 8:
+      //   return <Step7 />;
       default:
         return null;
     }
