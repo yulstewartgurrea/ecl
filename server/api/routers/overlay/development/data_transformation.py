@@ -196,13 +196,7 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
             OverlayDevelopmentHistoricalDefaultRateInput.workflow_id == workflow_id
         ).order_by(OverlayDevelopmentHistoricalDefaultRateInput.created_at.desc()).first()
         
-        if not all([workflow, log_record, monthly_historical_mev, data_interpolation, historical_default_rates]):
-            set_running_time()
-            job.status = "failed"
-            job.error_message = "Required data not found"
-            db.commit()
-            return
-        
+
         # Helper function to calculate and set running time
         def set_running_time():
             if job.started_at:
@@ -210,6 +204,13 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
                 running_time = (completed_time - job.started_at).total_seconds()
                 job.completed_at = completed_time
                 job.running_time_seconds = int(running_time)
+
+        if not all([workflow, log_record, monthly_historical_mev, data_interpolation, historical_default_rates]):
+            set_running_time()
+            job.status = "failed"
+            job.error_message = "Required data not found"
+            db.commit()
+            return
         
         # Helper function to check if job is cancelled
         def check_cancellation():

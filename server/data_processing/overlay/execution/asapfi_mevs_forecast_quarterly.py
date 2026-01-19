@@ -24,7 +24,7 @@ def forecast_mevs_quarterly(
     end_year: int = 2025,
     start_quarter: int = 1,
     end_quarter: int = 3,
-    quarters_to_forecast: int = 5
+    quarters_to_forecast: int = 4
 ):
     """
     Forecast Quarterly MEVs using ARIMA models.
@@ -70,14 +70,53 @@ def forecast_mevs_quarterly(
         # Row 1: Column names, Row 2: Descriptions, Row 3: Units
         independent = independent.iloc[3:].reset_index(drop=True)
         
-        # Clean percentage signs and convert to numeric
+        # Extract the actual last date from the file using year and quarter columns BEFORE converting to numeric
+        # This will be used to determine where forecasts should start
+        actual_last_date = None
+        if 'year' in independent.columns and 'quarter' in independent.columns:
+            try:
+                # Create dates from year and quarter columns
+                year_col = pd.to_numeric(independent['year'], errors='coerce')
+                quarter_col = pd.to_numeric(independent['quarter'], errors='coerce')
+                # Convert quarter to month (Q1=Mar, Q2=Jun, Q3=Sep, Q4=Dec)
+                quarter_to_month = {1: 3, 2: 6, 3: 9, 4: 12}
+                month_col = quarter_col.map(quarter_to_month)
+                # Create date series (quarter end dates)
+                dates = pd.to_datetime(
+                    pd.DataFrame({'year': year_col, 'month': month_col, 'day': 1}),
+                    errors='coerce'
+                )
+                # Convert to quarter end dates
+                dates = dates + pd.offsets.QuarterEnd(0)
+                actual_last_date = dates.max()
+                if pd.notna(actual_last_date):
+                    print(f"Found actual last date in file: {actual_last_date}")
+            except Exception as e:
+                print(f"Could not extract last date from file: {e}")
+        
+        # Clean percentage signs and convert to numeric (but preserve year and quarter columns for now)
+        year_col_backup = None
+        quarter_col_backup = None
+        if 'year' in independent.columns:
+            year_col_backup = independent['year'].copy()
+        if 'quarter' in independent.columns:
+            quarter_col_backup = independent['quarter'].copy()
+        
         for col in independent.columns:
+            if col in ['year', 'quarter']:
+                continue  # Skip year and quarter columns, we'll handle them separately
             if independent[col].dtype == 'object':
                 # Remove % signs and convert to numeric
                 independent[col] = independent[col].astype(str).str.replace('%', '', regex=False)
                 independent[col] = pd.to_numeric(independent[col], errors='coerce')
             else:
                 independent[col] = pd.to_numeric(independent[col], errors='coerce')
+        
+        # Restore year and quarter columns if we backed them up
+        if year_col_backup is not None:
+            independent['year'] = year_col_backup
+        if quarter_col_backup is not None:
+            independent['quarter'] = quarter_col_backup
         
         print(f"Read {len(independent)} rows and {len(independent.columns)} columns")
         
@@ -217,12 +256,42 @@ def forecast_mevs_quarterly(
                     upper_95 = forecast_result + 1.96 * forecast_std
                 
                 # Create forecast dates
-                last_date = data_ts.index[-1]
+                # Use actual_last_date from the file if available, otherwise use end_date from parameters
+                # This ensures we start forecasting from the quarter after the actual last quarter in the file
+                if actual_last_date is not None and pd.notna(actual_last_date):
+                    last_date = actual_last_date
+                    print(f'      Using actual_last_date from file: {last_date}')
+                else:
+                    # Fallback: find the last date with actual data from the original date_range
+                    original_series = pd.Series(data, index=date_range)
+                    last_valid_idx = original_series.last_valid_index()
+                    if last_valid_idx is not None:
+                        last_date = last_valid_idx
+                        print(f'      Using last_valid_date from data: {last_date}')
+                    else:
+                        last_date = end_date
+                        print(f'      Using end_date from parameters: {last_date}')
+                
+                print(f'      end_date (from parameters): {end_date}')
+                print(f'      data_ts.index[-1] (after dropna): {data_ts.index[-1]}')
+                
+                # Start forecast from the next quarter after last_date
+                forecast_start = last_date + pd.DateOffset(months=3)
+                print(f'      forecast_start (last_date + 3 months): {forecast_start}')
+                
                 forecast_dates = pd.date_range(
-                    start=last_date + pd.DateOffset(months=3),
+                    start=forecast_start,
                     periods=quarters_to_forecast,
                     freq='Q'
                 )
+                
+                # Print forecast information
+                months_forecasted = quarters_to_forecast * 3
+                start_month = forecast_dates[0].strftime('%Y-%m')
+                end_month = forecast_dates[-1].strftime('%Y-%m')
+                print(f"      Forecasting {quarters_to_forecast} quarters ({months_forecasted} months)")
+                print(f"      Forecast start month: {start_month}")
+                print(f"      Forecast end month: {end_month}")
                 
                 # Create forecast DataFrame (similar to R's forecast output)
                 # Ensure all are Series/arrays with same length
@@ -253,8 +322,8 @@ def forecast_mevs_quarterly(
                 # Rename columns with variable prefix
                 # R: colnames(forecast) <- paste0(x,"_",cnames)
                 cnames = forecast_df.columns.tolist()
-                forecast_df.columns = [f"{var_name}_{col}" for col in cnames]
-                actual_df.columns = [f"{var_name}_{col}" for col in cnames]
+                forecast_df.columns = [f"{var_name}.{col}" for col in cnames]
+                actual_df.columns = [f"{var_name}.{col}" for col in cnames]
                 
                 # Combine actual and forecast
                 # R: alldat = rbind(actual,forecast)
@@ -342,6 +411,16 @@ def forecast_mevs_quarterly(
         consolidated_forecast["Date"] = (
             pd.to_datetime(consolidated_forecast["Date"], format="%Y %b")
             + pd.offsets.MonthEnd(0)
+        )
+        consolidated_forecast['year'] = consolidated_forecast['Date'].dt.year
+        # name of month as text
+        consolidated_forecast['month'] = consolidated_forecast['Date'].dt.strftime('%b')
+        consolidated_forecast['quarter'] = consolidated_forecast['Date'].dt.quarter
+        consolidated_forecast['month (int)'] = consolidated_forecast['Date'].dt.month
+        consolidated_forecast['id'] = (
+            consolidated_forecast['year'].astype(str)
+            + "-"
+            + consolidated_forecast['month']
         )
         
         return consolidated_forecast

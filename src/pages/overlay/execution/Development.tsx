@@ -5,8 +5,9 @@ import Step2 from './steps/Step2';
 import Step3 from './steps/Step3';
 import Step4 from './steps/Step4';
 import Step5 from './steps/Step5';
-import Step6 from './steps/Step6';
-import Step7 from './steps/Step7';
+// import Step6 from './steps/Step6';
+// import Step7 from './steps/Step7';
+import Step3DataTransformation from './steps/Step3DataTransformation';
 // import Step4 from './steps/Step4';
 // import Step5 from './steps/Step5';
 // import Step6 from './steps/Step6';
@@ -18,11 +19,12 @@ const OverlayDevelopmentStep1 = () => {
   const developmentSteps = [
     { label: "Inputs", completed: false },
     { label: "Forecast Interpolation", completed: false },
+    { label: "Data Transformation", completed: false },
     { label: "MEVs Forecast Transformation", completed: false },
-    { label: "Forcasted PD Calculate", completed: false },
+    { label: "Forcasted Loss Rate Calculation", completed: false },
     { label: "Overlay Multiplier Calculate", completed: false },
-    { label: "PD Calibration", completed: false },
-    { label: "FL Pit PD", completed: false },
+    // { label: "Loss Rates Calibration", completed: false },
+    // { label: "FL Pit Loss Rates", completed: false },
   ];
 
   const handleSubStepChange = (targetIndex: number) => {
@@ -36,15 +38,17 @@ const OverlayDevelopmentStep1 = () => {
       case 1:
         return <Step2 />
       case 2:
-        return <Step3 />;
+        return <Step3DataTransformation />;
       case 3:
-        return <Step4 />;
+        return <Step3 />; 
       case 4:
-        return <Step5 />;
+        return <Step4 />;
       case 5:
-        return <Step6 />;
-      case 6:
-        return <Step7 />;
+        return <Step5 />;
+      // case 7:
+      //   return <Step6 />;
+      // case 8:
+      //   return <Step7 />;
       default:
         return null;
     }

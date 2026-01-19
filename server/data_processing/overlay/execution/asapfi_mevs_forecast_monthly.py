@@ -23,7 +23,7 @@ def forecast_mevs_monthly(
     start_year: int = 2012,
     end_year: int = 2025,
     start_month: int = 1,
-    end_month: int = 9,
+    end_month: int = 8,
     months_to_forecast: int = 12
 ):
     """
@@ -70,14 +70,43 @@ def forecast_mevs_monthly(
         # Row 1: Column names, Row 2: Descriptions, Row 3: Units
         independent = independent.iloc[3:].reset_index(drop=True)
         
-        # Clean percentage signs and convert to numeric
+        # Extract the actual last date from the file using year and month columns
+        # This will be used to determine where forecasts should start
+        actual_last_date = None
+        if 'year' in independent.columns and 'month (int)' in independent.columns:
+            try:
+                # Create dates from year and month columns
+                year_col = pd.to_numeric(independent['year'], errors='coerce')
+                month_col = pd.to_numeric(independent['month (int)'], errors='coerce')
+                # Create date series
+                dates = pd.to_datetime(
+                    pd.DataFrame({'year': year_col, 'month': month_col, 'day': 1}),
+                    errors='coerce'
+                )
+                actual_last_date = dates.max()
+                if pd.notna(actual_last_date):
+                    print(f"Found actual last date in file: {actual_last_date}")
+            except Exception as e:
+                print(f"Could not extract last date from file: {e}")
+        
+        # Clean percentage signs and convert to numeric (but preserve Date column for now)
+        date_col_backup = None
+        if 'Date' in independent.columns:
+            date_col_backup = independent['Date'].copy()
+        
         for col in independent.columns:
+            if col == 'Date':
+                continue  # Skip Date column, we'll handle it separately
             if independent[col].dtype == 'object':
                 # Remove % signs and convert to numeric
                 independent[col] = independent[col].astype(str).str.replace('%', '', regex=False)
                 independent[col] = pd.to_numeric(independent[col], errors='coerce')
             else:
                 independent[col] = pd.to_numeric(independent[col], errors='coerce')
+        
+        # Restore Date column if we backed it up
+        if date_col_backup is not None:
+            independent['Date'] = date_col_backup
         
         print(f"Read {len(independent)} rows and {len(independent.columns)} columns")
         
@@ -124,7 +153,10 @@ def forecast_mevs_monthly(
                 
                 # Create time series
                 data_ts = pd.Series(data, index=date_range)
+                print(f'      date_range (before dropna): {date_range[0]} to {date_range[-1]} (length: {len(date_range)})')
+                print(f'      data (before dropna): length {len(data)}, last value: {data[-1] if len(data) > 0 else "N/A"}')
                 data_ts = data_ts.dropna()
+                print(f'      data_ts (after dropna): {data_ts.index[0]} to {data_ts.index[-1]} (length: {len(data_ts)})')
                 
                 if len(data_ts) < 12:  # Need at least 12 months for seasonal ARIMA
                     print(f"      Warning: Insufficient data for {var_name} (need at least 12 months), skipping...")
@@ -215,13 +247,32 @@ def forecast_mevs_monthly(
                     upper_95 = forecast_result + 1.96 * forecast_std
                 
                 # Create forecast dates
-                last_date = data_ts.index[-1]
+                # Use actual_last_date from the file if available, otherwise use end_date from parameters
+                # This ensures we start forecasting from the month after the actual last date in the file
+                if actual_last_date is not None and pd.notna(actual_last_date):
+                    last_date = actual_last_date
+                    print(f'      Using actual_last_date from file: {last_date}')
+                else:
+                    # Fallback: find the last date with actual data from the original date_range
+                    original_series = pd.Series(data, index=date_range)
+                    last_valid_idx = original_series.last_valid_index()
+                    if last_valid_idx is not None:
+                        last_date = last_valid_idx
+                        print(f'      Using last_valid_date from data: {last_date}')
+                    else:
+                        last_date = end_date
+                        print(f'      Using end_date from parameters: {last_date}')
+                
+                print(f'      end_date (from parameters): {end_date}')
+                print(f'      data_ts.index[-1] (after dropna): {data_ts.index[-1]}')
+                forecast_start = last_date + pd.DateOffset(months=1)
+                print(f'      forecast_start (last_date + 1 month): {forecast_start}')
                 forecast_dates = pd.date_range(
-                    start=last_date + pd.DateOffset(months=1),
+                    start=forecast_start,
                     periods=months_to_forecast,
                     freq='MS'
                 )
-                
+                print(f'      forecast_dates: {forecast_dates}')
                 # Create forecast DataFrame (similar to R's forecast output)
                 # Ensure all are Series/arrays with same length
                 forecast_values = forecast_result.values if hasattr(forecast_result, 'values') else np.array(forecast_result)
@@ -251,8 +302,8 @@ def forecast_mevs_monthly(
                 # Rename columns with variable prefix
                 # R: colnames(forecast) <- paste0(x,"_",cnames)
                 cnames = forecast_df.columns.tolist()
-                forecast_df.columns = [f"{var_name}_{col}" for col in cnames]
-                actual_df.columns = [f"{var_name}_{col}" for col in cnames]
+                forecast_df.columns = [f"{var_name}.{col}" for col in cnames]
+                actual_df.columns = [f"{var_name}.{col}" for col in cnames]
                 
                 # Combine actual and forecast
                 # R: alldat = rbind(actual,forecast)
@@ -308,6 +359,16 @@ def forecast_mevs_monthly(
         consolidated_forecast["Date"] = (
             pd.to_datetime(consolidated_forecast["Date"], format="%Y %b")
             + pd.offsets.MonthEnd(0)
+        )
+
+        consolidated_forecast['year'] = consolidated_forecast['Date'].dt.year
+        # name of month as text
+        consolidated_forecast['month'] = consolidated_forecast['Date'].dt.strftime('%b')
+        consolidated_forecast['month (int)'] = consolidated_forecast['Date'].dt.month
+        consolidated_forecast['id'] = (
+            consolidated_forecast['year'].astype(str)
+            + "-"
+            + consolidated_forecast['month']
         )
         
         return consolidated_forecast

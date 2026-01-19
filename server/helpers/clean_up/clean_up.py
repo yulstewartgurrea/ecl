@@ -38,6 +38,10 @@ def clean_document(df: pd.DataFrame, document_type: str, file_name: str, temp_pa
         "FLOWRATE_APPROACH_REPORTS_GENERATED_EXTRACTED_CAMS",
         "FLOWRATE_APPROACH_AGING_REPORT",
 
+        # OVERLAY INPUT FILES
+        "OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE",
+        "OVERLAY_EXECUTION_FINAL_MODEL",
+
         # ECL INPUT FILES
         "ECL_CLIENT_LOAN_BALANCES"
     ]

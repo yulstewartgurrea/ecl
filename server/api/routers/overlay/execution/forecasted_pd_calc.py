@@ -33,7 +33,10 @@ router = APIRouter(prefix="/api/overlay/execution", tags=["overlay-execution"])
 
 @router.post("/forecasted_pd_calc")
 async def calculate_forecasted_pd_calc(workflow_id: int = Form(...),
-                                              user_id: User = Depends(get_current_user)):
+                                        # use uploaded from tool or from development
+                                        # true if uploaded, false if from development
+                                        final_model_execution_file: bool = Form(False, description="Use final model execution file"),
+                                        user_id: User = Depends(get_current_user)):
     """
         Calculate forecasted PD calc
     """
@@ -48,13 +51,22 @@ async def calculate_forecasted_pd_calc(workflow_id: int = Form(...),
             #     OverlayLogs.submodule == "EXECUTION"
             # ).first()
 
-            finals_overlay_model_path = (
-                f"{get_root_folder()}/server/files/"
-                f"{workflow.entity}/"
-                f"{workflow.reporting_period}/"
-                f"{workflow.workflow_name}/"
-                f"output/overlay/development/{workflow.loan_product}/final_models"
-            )
+            if final_model_execution_file:
+                finals_overlay_model_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
+                )
+            else:
+                finals_overlay_model_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"output/overlay/development/{workflow.loan_product}/final_models"
+                )
 
             # Get transform forecasted mev
             data_transformation_path = (
@@ -231,6 +243,8 @@ async def get_forecasted_pd_calc_results(workflow_id: int = Query(...),
                 latest_mlr_file = sorted(multiple_linear_regression_files)[-1]
                 mlr_file_path = os.path.join(forecasted_pd_calc_path, latest_mlr_file)
                 multiple_linear_regression_data = read_data_file(mlr_file_path)
+                # Replace NaN values with None for JSON serialization
+                multiple_linear_regression_data = multiple_linear_regression_data.replace({np.nan: None})
                 multiple_linear_regression_data = multiple_linear_regression_data.to_dict(orient='records')
             else:
                 return JSONResponse(
@@ -249,6 +263,8 @@ async def get_forecasted_pd_calc_results(workflow_id: int = Query(...),
                 latest_pd_file = sorted(forecasted_pd_files)[-1]
                 pd_file_path = os.path.join(forecasted_pd_calc_path, latest_pd_file)
                 forecasted_pd_data = read_data_file(pd_file_path)
+                # Replace NaN values with None for JSON serialization
+                forecasted_pd_data = forecasted_pd_data.replace({np.nan: None})
                 forecasted_pd_data = forecasted_pd_data.to_dict(orient='records')
             else:
                 return JSONResponse(
@@ -381,6 +397,17 @@ async def forecasted_pd_calc_input(
         db = SessionLocal()
         try:
             workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+
+            if not workflow:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Workflow with ID {workflow_id} not found",
+                        "data": None
+                    }
+                )
             
             # log_record = db.query(OverlayLogs).filter(
             #     OverlayLogs.workflow_id == workflow_id,
@@ -395,6 +422,7 @@ async def forecasted_pd_calc_input(
                 f"output/overlay/development/{workflow.loan_product}/final_models"
             )
 
+            print(finals_overlay_model_path)
             finals_overlay_model_file = get_latest_file(finals_overlay_model_path)
             finals_overlay_model_df = read_data_file(finals_overlay_model_file)
 
@@ -424,6 +452,7 @@ async def forecasted_pd_calc_input(
         return JSONResponse(status_code=200, content=res)
 
     except Exception as e:
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={
@@ -440,6 +469,8 @@ def format_variable_model(finals_overlay_model_df):
         raise ValueError("finals_overlay_model_df is empty")
     
     intercept = finals_overlay_model_df.iloc[0]['intercept']
+    # Convert NaN to None for JSON serialization
+    intercept = None if pd.isna(intercept) else float(intercept)
     print(f"Intercept value: {intercept}")
     
     # Find all X columns (X1, X2, X3, etc.) and get their variable names and coefficients
@@ -459,6 +490,8 @@ def format_variable_model(finals_overlay_model_df):
             # Get the coefficient value from coeff column
             if coeff_col in finals_overlay_model_df.columns:
                 coefficient_value = finals_overlay_model_df.iloc[0][coeff_col]
+                # Convert NaN to None for JSON serialization
+                coefficient_value = None if pd.isna(coefficient_value) else float(coefficient_value)
                 x_variables[x_col] = {
                     'variable_name': variable_name,
                     'coefficient': coefficient_value

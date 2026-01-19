@@ -4,9 +4,9 @@ import React from "react";
 export type OverlayMultiplierRow = {
   reportDate: string; // e.g., "2024-10-31"
   odrPercent: number; // e.g., 4.28 (already in % terms)
-  best: number;       // raw multiplier (0–1 or >1)
+  upside: number;       // raw multiplier (0–1 or >1)
   base: number;
-  worst: number;
+  downside: number;
 };
 
 export type OverlayMultiplierSummaryProps = {
@@ -81,13 +81,13 @@ const OverlayMultiplierSummary: React.FC<OverlayMultiplierSummaryProps> = ({
               <th className="bg-gray-700 px-3 py-1 text-center text-[11px] font-medium text-gray-700 "></th>
               {/* <th className="bg-gray-100 px-3 py-1 text-center text-[11px] font-medium text-gray-700 "></th> */}
               <th className="bg-gray-700 px-2 py-1 text-center text-[11px] font-medium text-white ">
-                Best
+                Upside
               </th>
               <th className="bg-gray-700 px-2 py-1 text-center text-[11px] font-medium text-white ">
                 Base
               </th>
               <th className="bg-gray-700 px-2 py-1 text-center text-[11px] font-medium text-white ">
-                Worst
+                Downside
               </th>
             </tr>
           </thead>
@@ -104,13 +104,13 @@ const OverlayMultiplierSummary: React.FC<OverlayMultiplierSummaryProps> = ({
                   {fmtPct(row.odrPercent)}
                 </td> */}
                 <td className="bg-emerald-50 px-2.5 py-1.5 text-center tabular-nums">
-                  {fmtMult(row.best)}
+                  {fmtMult(row.upside)}
                 </td>
                 <td className="bg-amber-50 px-2.5 py-1.5 text-center tabular-nums">
                   {fmtMult(row.base)}
                 </td>
                 <td className="bg-orange-50 px-2.5 py-1.5 text-center tabular-nums">
-                  {fmtMult(row.worst)}
+                  {fmtMult(row.downside)}
                 </td>
               </tr>
             ))}

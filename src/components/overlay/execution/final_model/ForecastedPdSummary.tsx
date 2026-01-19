@@ -8,9 +8,9 @@ export type FinalModelRow = {
 
 export type ScenarioRow = {
   date: string;      // already formatted for display
-  best: number;
+  upside: number;
   base: number;
-  worst: number;
+  downside: number;
 };
 
 export type ForecastedPdSummaryProps = {
@@ -148,13 +148,13 @@ const ForecastedPdSummary: React.FC<ForecastedPdSummaryProps> = ({
                         Date
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Best (%)
+                        Upside (%)
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
                         Base (%)
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Worst (%)
+                        Downside (%)
                       </th>
                     </tr>
                   </thead>
@@ -181,13 +181,13 @@ const ForecastedPdSummary: React.FC<ForecastedPdSummaryProps> = ({
                           {row.date}
                         </td>
                         <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-emerald-50">
-                          {fmtNumber(row.best)}
+                          {fmtNumber(row.upside)}
                         </td>
                         <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-amber-50">
                           {fmtNumber(row.base)}
                         </td>
                         <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-orange-50">
-                          {fmtNumber(row.worst)}
+                          {fmtNumber(row.downside)}
                         </td>
                       </tr>
                     ))}
@@ -212,13 +212,13 @@ const ForecastedPdSummary: React.FC<ForecastedPdSummaryProps> = ({
                         Date
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Best (%)
+                        Upside (%)
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
                         Base (%)
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Worst (%)
+                        Downside (%)
                       </th>
                     </tr>
                   </thead>
@@ -245,13 +245,13 @@ const ForecastedPdSummary: React.FC<ForecastedPdSummaryProps> = ({
                           {row.date}
                         </td>
                         <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-emerald-50">
-                          {fmtPct(row.best)}
+                          {fmtPct(row.upside)}
                         </td>
                         <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-amber-50">
                           {fmtPct(row.base)}
                         </td>
                         <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-orange-50">
-                          {fmtPct(row.worst)}
+                          {fmtPct(row.downside)}
                         </td>
                       </tr>
                     ))}

@@ -24,8 +24,9 @@ export function ExeTable({
       buildMacroColumns(frequency, {
         includeQuarterInMonthly,
         growthSuffix,
+        data, // Pass data to build columns dynamically
       }),
-    [frequency, includeQuarterInMonthly, growthSuffix]
+    [frequency, includeQuarterInMonthly, growthSuffix, data]
   );
 
   return (

@@ -28,6 +28,10 @@ const Step4: React.FC = () => {
     (s) => (s as any)?.auth?.token
   ) as string | null;
 
+  const finalModelExecutionFile = useAppSelector(
+    (state) => (state as any).finalModelExecutionFile?.final_model_execution_file
+  ) as boolean;
+
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportReady, setExportReady] = useState(false);
@@ -53,9 +57,9 @@ const Step4: React.FC = () => {
 
       const mapScenario = (r: any): ScenarioRow => ({
         date: formatDate(String(r.Period)),
-        best: Number(r.Best ?? 0),
+        upside: Number(r.Upside ?? 0),
         base: Number(r.Base ?? 0),
-        worst: Number(r.Worst ?? 0),
+        downside: Number(r.Downside ?? 0),
       });
 
       const mlrMapped = mlr.map(mapScenario);
@@ -71,21 +75,41 @@ const Step4: React.FC = () => {
     [finalModel.length]
   );
 
-  // initial load: coefficients + any existing calc results
+  // Load calc results first every time page is visited
   useEffect(() => {
     if (!selectedWorkflowId) {
-      setFinalModel([]);
       setMlrRows([]);
       setForecastedPdRows([]);
       setExportReady(false);
       return;
     }
 
-    const load = async () => {
+    const loadCalcData = async () => {
+      try {
+        // Always check for existing calc results first when visiting the page
+        const calcData = await getForecastedPdCalc(
+          selectedWorkflowId,
+          token
+        ).catch(() => ({}));
+        mapCalcData(calcData);
+      } catch (err) {
+        console.error("Failed to load forecasted PD calc data:", err);
+      }
+    };
+
+    void loadCalcData();
+  }, [selectedWorkflowId, token, mapCalcData]);
+
+  // Load final model coefficients
+  useEffect(() => {
+    if (!selectedWorkflowId) {
+      setFinalModel([]);
+      return;
+    }
+
+    const loadFinalModel = async () => {
       try {
         setLoading(true);
-
-        // 1) Final overlay model coefficients
         const inputData = await getForecastedPdInput(selectedWorkflowId, token);
         const fm: FinalModelRow[] = Object.entries(inputData).map(
           ([key, value]) => ({
@@ -97,27 +121,17 @@ const Step4: React.FC = () => {
           })
         );
         setFinalModel(fm);
-
-        // 2) Existing calc results (if any)
-        const calcData = await getForecastedPdCalc(
-          selectedWorkflowId,
-          token
-        ).catch(() => ({}));
-        mapCalcData(calcData);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to load forecasted PD input data:", err);
         alert("Failed to load forecasted PD data.");
         setFinalModel([]);
-        setMlrRows([]);
-        setForecastedPdRows([]);
-        setExportReady(false);
       } finally {
         setLoading(false);
       }
     };
 
-    void load();
-  }, [selectedWorkflowId, token, mapCalcData]);
+    void loadFinalModel();
+  }, [selectedWorkflowId, token]);
 
   // reload only calc results after POST
   const reloadCalc = useCallback(async () => {
@@ -136,7 +150,7 @@ const Step4: React.FC = () => {
     if (!selectedWorkflowId) return;
     setPosting(true);
     try {
-      await runForecastedPdCalc(selectedWorkflowId, token);
+      await runForecastedPdCalc(selectedWorkflowId, finalModelExecutionFile, token);
       await reloadCalc();
     } catch (err) {
       console.error(err);
@@ -179,14 +193,14 @@ const Step4: React.FC = () => {
 
       // Multiple Linear Regression (all rows)
       lines.push("Multiple Linear Regression (MLR)");
-      lines.push("Date,Best,Base,Worst");
+      lines.push("Date,Upside,Base,Downside");
       mlrRows.forEach((row) => {
         lines.push(
           [
             escape(row.date),
-            escape(row.best),
+            escape(row.upside),
             escape(row.base),
-            escape(row.worst),
+            escape(row.downside),
           ].join(",")
         );
       });
@@ -195,14 +209,14 @@ const Step4: React.FC = () => {
 
       // Forecasted PDs (all rows)
       lines.push("Forecasted PDs");
-      lines.push("Date,Best,Base,Worst");
+      lines.push("Date,Upside,Base,Downside");
       forecastedPdRows.forEach((row) => {
         lines.push(
           [
             escape(row.date),
-            escape(row.best),
+            escape(row.upside),
             escape(row.base),
-            escape(row.worst),
+            escape(row.downside),
           ].join(",")
         );
       });

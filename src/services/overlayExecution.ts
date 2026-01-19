@@ -136,20 +136,20 @@ export async function getTransformedForecastedMevs(
 
   const out: ScenarioRow[] = rows.map((r: any) => {
     const period = toYMD(String(r["Period"] ?? r["period"] ?? ""));
-    const best = makeBlank(variables);
+    const upside = makeBlank(variables);
     const base = makeBlank(variables);
-    const worst = makeBlank(variables);
+    const downside = makeBlank(variables);
 
     variables.forEach((v) => {
       // tolerate different casings/spaces
-      best[v] = normPct(r[`Best ${v}`] ?? r[`BEST ${v}`] ?? r[`best ${v}`] ?? "");
+      upside[v] = normPct(r[`Upside ${v}`] ?? r[`UPSIDE ${v}`] ?? r[`upside ${v}`] ?? "");
       base[v] = normPct(r[`Base ${v}`] ?? r[`BASE ${v}`] ?? r[`base ${v}`] ?? "");
-      worst[v] = normPct(
-        r[`Worst ${v}`] ?? r[`WORST ${v}`] ?? r[`worst ${v}`] ?? ""
+      downside[v] = normPct(
+        r[`Downside ${v}`] ?? r[`DOWNSIDE ${v}`] ?? r[`downside ${v}`] ?? ""
       );
     });
 
-    return { period, best, base, worst };
+    return { period, upside, base, downside };
   });
 
   return out;

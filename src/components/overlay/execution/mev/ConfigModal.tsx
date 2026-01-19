@@ -8,9 +8,9 @@ import {
 export type ScenarioBlock = Record<string, string>; // variable -> "123.45%"
 export type ScenarioRow = {
   period: string;
-  best: ScenarioBlock;
+  upside: ScenarioBlock;
   base: ScenarioBlock;
-  worst: ScenarioBlock;
+  downside: ScenarioBlock;
 };
 
 type Props = {
@@ -33,9 +33,9 @@ function makeBlankBlock(vars: string[]): ScenarioBlock {
 function buildTemplateRows(periods: string[], variables: string[]): ScenarioRow[] {
   return periods.map((p) => ({
     period: p,
-    best: makeBlankBlock(variables),
+    upside: makeBlankBlock(variables),
     base: makeBlankBlock(variables),
-    worst: makeBlankBlock(variables),
+    downside: makeBlankBlock(variables),
   }));
 }
 
@@ -106,15 +106,15 @@ function alignRowsToShape(
     return hit
       ? {
           period: p,
-          best: fit(hit.best),
+          upside: fit(hit.upside),
           base: fit(hit.base),
-          worst: fit(hit.worst),
+          downside: fit(hit.downside),
         }
       : {
           period: p,
-          best: makeBlankBlock(variables),
+          upside: makeBlankBlock(variables),
           base: makeBlankBlock(variables),
-          worst: makeBlankBlock(variables),
+          downside: makeBlankBlock(variables),
         };
   });
 }
@@ -167,7 +167,7 @@ export default function ScenarioConfigModalTable({
     () =>
       rows.length > 0 &&
       rows.every((r) =>
-        (["best", "base", "worst"] as const).every((b) =>
+        (["upside", "base", "downside"] as const).every((b) =>
           variables.every((v) => hasValue((r as any)[b][v]))
         )
       ),
@@ -179,7 +179,7 @@ export default function ScenarioConfigModalTable({
   /** While typing: store sanitized float (no %) */
   const setCellFloat = (
     rIdx: number,
-    block: "best" | "base" | "worst",
+    block: "upside" | "base" | "downside",
     variable: string,
     raw: string
   ) => {
@@ -194,7 +194,7 @@ export default function ScenarioConfigModalTable({
   /** On focus: strip one trailing % so user edits digits/decimal only */
   const stripPercentOnFocus = (
     rIdx: number,
-    block: "best" | "base" | "worst",
+    block: "upside" | "base" | "downside",
     variable: string
   ) => {
     setRows((prev) => {
@@ -210,7 +210,7 @@ export default function ScenarioConfigModalTable({
   /** On blur: normalize float & append % if non-empty */
   const ensurePercentOnBlur = (
     rIdx: number,
-    block: "best" | "base" | "worst",
+    block: "upside" | "base" | "downside",
     variable: string
   ) => {
     setRows((prev) => {
@@ -226,7 +226,7 @@ export default function ScenarioConfigModalTable({
   const normalizeAllBeforeSave = (grid: ScenarioRow[]): ScenarioRow[] => {
     const out = structuredClone(grid) as ScenarioRow[];
     out.forEach((row) => {
-      (["best", "base", "worst"] as const).forEach((b) => {
+      (["upside", "base", "downside"] as const).forEach((b) => {
         variables.forEach((v) => {
           const cur = String((row as any)[b][v] ?? "");
           const norm = normalizeFloatString(stripPct(cur));
@@ -281,7 +281,7 @@ export default function ScenarioConfigModalTable({
                     colSpan={variables.length}
                     className={`${headerBase} bg-emerald-50`}
                   >
-                    Best
+                    Upside
                   </th>
                   <th
                     colSpan={variables.length}
@@ -293,7 +293,7 @@ export default function ScenarioConfigModalTable({
                     colSpan={variables.length}
                     className={`${headerBase} bg-rose-50`}
                   >
-                    Worst
+                    Downside
                   </th>
                 </tr>
                 <tr>
@@ -324,13 +324,13 @@ export default function ScenarioConfigModalTable({
                       {r.period}
                     </td>
 
-                    {/* Best */}
+                    {/* Upside */}
                     {variables.map((v) => {
-                      const val = r.best[v] ?? "";
+                      const val = r.upside[v] ?? "";
                       const invalid = !hasValue(val);
                       return (
                         <td
-                          key={`best-${v}-${i}`}
+                          key={`upside-${v}-${i}`}
                           className={`${cellBase} bg-emerald-50`}
                         >
                           <input
@@ -339,11 +339,11 @@ export default function ScenarioConfigModalTable({
                             pattern="^[0-9]*\.?[0-9]*$"
                             placeholder="e.g. 5.6%"
                             value={val}
-                            onFocus={() => stripPercentOnFocus(i, "best", v)}
+                            onFocus={() => stripPercentOnFocus(i, "upside", v)}
                             onChange={(e) =>
-                              setCellFloat(i, "best", v, e.target.value)
+                              setCellFloat(i, "upside", v, e.target.value)
                             }
-                            onBlur={() => ensurePercentOnBlur(i, "best", v)}
+                            onBlur={() => ensurePercentOnBlur(i, "upside", v)}
                             className={`${inputBase} ${
                               invalid
                                 ? "ring-1 ring-red-300 focus:ring-red-400"
@@ -384,13 +384,13 @@ export default function ScenarioConfigModalTable({
                       );
                     })}
 
-                    {/* Worst */}
+                    {/* Downside */}
                     {variables.map((v) => {
-                      const val = r.worst[v] ?? "";
+                      const val = r.downside[v] ?? "";
                       const invalid = !hasValue(val);
                       return (
                         <td
-                          key={`worst-${v}-${i}`}
+                          key={`downside-${v}-${i}`}
                           className={`${cellBase} bg-rose-50`}
                         >
                           <input
@@ -399,11 +399,11 @@ export default function ScenarioConfigModalTable({
                             pattern="^[0-9]*\.?[0-9]*$"
                             placeholder="e.g. 5.6%"
                             value={val}
-                            onFocus={() => stripPercentOnFocus(i, "worst", v)}
+                            onFocus={() => stripPercentOnFocus(i, "downside", v)}
                             onChange={(e) =>
-                              setCellFloat(i, "worst", v, e.target.value)
+                              setCellFloat(i, "downside", v, e.target.value)
                             }
-                            onBlur={() => ensurePercentOnBlur(i, "worst", v)}
+                            onBlur={() => ensurePercentOnBlur(i, "downside", v)}
                             className={`${inputBase} ${
                               invalid
                                 ? "ring-1 ring-red-300 focus:ring-red-400"

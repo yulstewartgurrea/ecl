@@ -33,6 +33,9 @@ router = APIRouter(prefix="/api/overlay/execution", tags=["overlay-execution"])
 
 @router.post("/overlay_multiplier")
 async def calculate_overlay_multiplier(workflow_id: int = Form(...),
+                                        # use uploaded from tool or from development
+                                        # true if uploaded, false if from development
+                                        historical_weighted_credit_loss_rate_file: bool = Form(False, description="Use historical weighted credit loss rate file"),
                                         user_id: User = Depends(get_current_user)):
     """
         Calculate overlay multiplier calc
@@ -48,13 +51,25 @@ async def calculate_overlay_multiplier(workflow_id: int = Form(...),
             #     OverlayLogs.submodule == "EXECUTION"
             # ).first()
 
-            default_rates_path = (
-                f"{get_root_folder()}/server/files/"
-                f"{workflow.entity}/"
-                f"{workflow.reporting_period}/"
-                f"{workflow.workflow_name}/"
-                f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
-            )
+            if not workflow:
+                return JSONResponse(status_code=404, content={"detail": f"Workflow with ID {workflow_id} not found"})
+
+            if historical_weighted_credit_loss_rate_file:
+                default_rates_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE"
+                )
+            else:
+                default_rates_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
+                )
 
             forecasted_pd_calc_path = (
                 f"{get_root_folder()}/server/files/"

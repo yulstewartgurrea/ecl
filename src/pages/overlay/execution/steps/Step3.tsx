@@ -101,6 +101,38 @@ export default function OverlayExecutionPage3() {
     boot();
   }, [selectedWorkflowId, token]);
 
+  // Load transformed forecasted MEVs on page visit to check if data exists
+  useEffect(() => {
+    const loadTransformedData = async () => {
+      if (!selectedWorkflowId) {
+        setTransformedRows(null);
+        return;
+      }
+      if (!variables.length) {
+        // Wait for variables to load first
+        return;
+      }
+      try {
+        setLoading(true);
+        // Always check for existing transformed data when visiting the page
+        const rows = await getTransformedForecastedMevs(
+          selectedWorkflowId,
+          variables,
+          token
+        );
+        setTransformedRows(rows);
+      } catch (err) {
+        console.error("Failed to load transformed forecasted MEVs:", err);
+        // Don't show alert on initial load, just silently fail
+        setTransformedRows(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadTransformedData();
+  }, [selectedWorkflowId, variables, token]);
+
   const handleOpenConfig = useCallback(() => {
     if (!selectedWorkflowId) return;
     if (!periods.length || !variables.length) {
@@ -175,13 +207,13 @@ export default function OverlayExecutionPage3() {
     // Step 2: check if may value ang lend_rates_lo at gni_growth_12m
     const hasImportantValues = prefillRows.some((row) =>
       KEY_VARS.some((k) => {
-        const bestVal = row.best?.[k];
+        const upsideVal = row.upside?.[k];
         const baseVal = row.base?.[k];
-        const worstVal = row.worst?.[k];
+        const downsideVal = row.downside?.[k];
         return (
-          (bestVal && String(bestVal).trim() !== "") ||
+          (upsideVal && String(upsideVal).trim() !== "") ||
           (baseVal && String(baseVal).trim() !== "") ||
-          (worstVal && String(worstVal).trim() !== "")
+          (downsideVal && String(downsideVal).trim() !== "")
         );
       })
     );
@@ -198,9 +230,9 @@ export default function OverlayExecutionPage3() {
         // 2b. May value → i-POST mo yung value (override)
         const payload = prefillRows.map((r) => ({
           period: normalizePeriodOut(r.period),
-          best: r.best,
+          upside: r.upside,
           base: r.base,
-          worst: r.worst,
+          downside: r.downside,
         }));
 
         await overridePostForecastedMevs(selectedWorkflowId, payload, token);
@@ -437,9 +469,9 @@ export default function OverlayExecutionPage3() {
             // normalize period format for POST
             const payload = rows.map((r) => ({
               period: normalizePeriodOut(r.period),
-              best: r.best,
+              upside: r.upside,
               base: r.base,
-              worst: r.worst,
+              downside: r.downside,
             }));
 
             if (!selectedWorkflowId) return;
