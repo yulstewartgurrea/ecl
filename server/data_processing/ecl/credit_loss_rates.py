@@ -1,35 +1,49 @@
 import pandas as pd
 import traceback
 
-def process_credit_loss_rates(aging_report_file, ecl_multiplier_file, parsed_probability_weights):
+def process_credit_loss_rates(aging_report_file, 
+                              ecl_multiplier_file, 
+                              parsed_probability_weights, 
+                              net_flow_rate_file,
+                              overlay_multiplier_file,
+                              historical_default_rates_file):
   try:
     aging_report_df = pd.read_excel(aging_report_file)
     buckets = aging_report_df.columns.str.lower().tolist()
     buckets = [col for col in buckets if col not in ['date', 'total loan balance with c/p']]
-    historical_credit_loss_rates = [
-        0.0970,
-        52.9100,
-        57.0705,
-        60.6035,
-        62.9456,
-        64.6546,
-        66.1884,
-        67.5379,
-        68.8860,
-        70.3259,
-        74.2413,
-        78.5626,
-        84.3281,
-        100.0000
-    ]
+
+    net_flow_rate_df = pd.read_excel(net_flow_rate_file)
+    # Get the Average row
+    average_df = net_flow_rate_df[net_flow_rate_df["date"] == "Average"]
+    # Drop unwanted columns
+    average_df = average_df.drop(
+        columns=["date", "Monotonic?", "Weighted Credit Loss Rate per Month"]
+    )
+    avg_values = average_df.iloc[0].values
+
+    historical_credit_loss_rates = avg_values
     historical_credit_loss_rates = [
         r / 100.0 for r in historical_credit_loss_rates
     ]
 
+    # get default rates and determines latest period
+    historical_default_rates_df = pd.read_csv(historical_default_rates_file)
+    # Convert to datetime
+    historical_default_rates_df["time"] = pd.to_datetime(historical_default_rates_df["time"])
+    # Get max time
+    max_time = historical_default_rates_df["time"].max()
+
+    overlay_multiplier_df = pd.read_csv(overlay_multiplier_file)
+    # convert period to datetime
+    overlay_multiplier_df["Period"] = pd.to_datetime(overlay_multiplier_df["Period"])
+    # Filter row where Period == max_time
+    overlay_row = overlay_multiplier_df[
+        overlay_multiplier_df["Period"] == max_time
+    ]
     overlay_multipliers = {
-        'upside': 0.01,
-        'baseline': 0.02,
-        'downside': 0.09
+        "upside": float(overlay_row["Upside"].iloc[0]),
+        "baseline": float(overlay_row["Base"].iloc[0]),
+        "downside": float(overlay_row["Downside"].iloc[0]),
     }
 
     ecl_multiplier = pd.read_excel(ecl_multiplier_file)
@@ -51,9 +65,6 @@ def process_credit_loss_rates(aging_report_file, ecl_multiplier_file, parsed_pro
     df['downside'] = (
         df['historical credit loss rate'] * overlay_multipliers['downside']
     ).clip(upper=1.0)
-
-
-    print('df \n', df)
     return df
   
   except Exception as e:

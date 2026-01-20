@@ -437,8 +437,8 @@ async def get_override_forecasted_mevs_input(
                 raise ValueError(f"No time found in {period_file}")
             # add 12 months to the last time
             forecasted_periods = [
-                (last_time + relativedelta(months=i+1)).strftime("%m/%d/%Y")
-                for i in range(12)
+                (last_time + relativedelta(months=i)).strftime("%m/%d/%Y")
+                for i in range(13)
             ]
 
             # 1. Get all columns that look like X + number (X1, X2, X3, ...)
