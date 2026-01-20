@@ -1,4 +1,4 @@
-// src/pages/overlay/development/.../OverlayDevelpmentPage3.tsx
+﻿// src/pages/overlay/development/.../OverlayDevelpmentPage3.tsx
 import { useState, useEffect, useCallback } from "react";
 import ExeTable from "../../../../components/overlay/development/data_transformation/table/ExeTable";
 import type {
@@ -175,10 +175,10 @@ export default function OverlayDevelpmentPage3() {
 
   const handleOpenMevConfig = () => {
     if (!selectedWorkflowId && selectedWorkflowId !== 0) return;
-    if (!mevPeriods.length) {
-      alert("No periods returned by the server.");
-      return;
-    }
+    // if (!mevPeriods.length) {
+    //   alert("No periods returned by the server.");
+    //   return;
+    // }
     setMevConfigOpen(true);
   };
 
@@ -580,12 +580,12 @@ export default function OverlayDevelpmentPage3() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm">
             {/* MEV Configuration Button */}
             <button
               onClick={handleOpenMevConfig}
               disabled={mevLoadingCfg || (!selectedWorkflowId && selectedWorkflowId !== 0)}
-              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-transparent bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
               title="Configure MEV overrides"
             >
               <Cog6ToothIcon className="h-4 w-4" />
@@ -596,7 +596,7 @@ export default function OverlayDevelpmentPage3() {
             <button
               onClick={() => setShowConfig(true)}
               disabled={busy || (!selectedWorkflowId && selectedWorkflowId !== 0)}
-              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-transparent bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
               title="Configure data transformation settings"
             >
               <Cog6ToothIcon className="h-4 w-4" />
@@ -610,7 +610,7 @@ export default function OverlayDevelpmentPage3() {
                 busy ||
                 (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
-              className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-200 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
@@ -618,7 +618,7 @@ export default function OverlayDevelpmentPage3() {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              {busy ? "Processing…" : "Run Data Transform"}
+              {busy ? "Processingâ€¦" : "Run Data Transform"}
             </button>
 
             {/* Refresh (with status check) */}
@@ -628,7 +628,7 @@ export default function OverlayDevelpmentPage3() {
                 statusLoading ||
                 (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
-              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-transparent bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
@@ -638,7 +638,7 @@ export default function OverlayDevelpmentPage3() {
               <ArrowPathIcon
                 className={`h-4 w-4 ${statusLoading ? "animate-spin" : ""}`}
               />
-              {statusLoading ? "Checking…" : "Refresh"}
+              {statusLoading ? "Checkingâ€¦" : "Refresh"}
             </button>
 
             {/* Cancel (only show when job is pending or processing) */}
@@ -649,7 +649,7 @@ export default function OverlayDevelpmentPage3() {
                   cancelling ||
                   (!selectedWorkflowId && selectedWorkflowId !== 0)
                 }
-                className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
+                className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:opacity-50"
                 title={
                   !selectedWorkflowId
                     ? "Pick a workflow on Step 1"
@@ -659,11 +659,11 @@ export default function OverlayDevelpmentPage3() {
                 <XCircleIcon
                   className={`h-4 w-4 ${cancelling ? "animate-spin" : ""}`}
                 />
-                {cancelling ? "Cancelling…" : "Cancel"}
+                {cancelling ? "Cancellingâ€¦" : "Cancel"}
               </button>
             )}
 
-            {/* Export CSV – now pure frontend */}
+            {/* Export CSV â€“ now pure frontend */}
             <button
               onClick={exportCsv}
               disabled={
@@ -671,7 +671,7 @@ export default function OverlayDevelpmentPage3() {
                 exporting ||
                 (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
-              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-transparent bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
@@ -681,7 +681,7 @@ export default function OverlayDevelpmentPage3() {
               }
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              {exporting ? "Exporting…" : "Export CSV"}
+              {exporting ? "Exportingâ€¦" : "Export CSV"}
             </button>
 
           </div>
@@ -692,10 +692,10 @@ export default function OverlayDevelpmentPage3() {
       {showConfig && (
         <div className="fixed inset-0 z-50">
           {/* Overlay */}
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowConfig(false)} />
+          <div className="absolute inset-0 bg-gray-100/80 backdrop-blur-sm" onClick={() => setShowConfig(false)} />
           
           {/* Dialog */}
-          <div className="absolute left-1/2 top-1/2 w-[min(100vw-2rem,500px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[85vh] flex flex-col overflow-hidden">
+          <div className="absolute left-1/2 top-1/2 w-[min(100vw-2rem,500px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl ring-1 ring-gray-200 max-h-[85vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4">
               <div>
@@ -856,7 +856,7 @@ export default function OverlayDevelpmentPage3() {
           )}
           {status && status.status === "completed" && (
             <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-              ✓ Job completed successfully
+              âœ“ Job completed successfully
               {status.running_time_seconds !== null && (
                 <span className="ml-2 text-xs">
                   (Completed in {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s)
@@ -880,4 +880,6 @@ export default function OverlayDevelpmentPage3() {
     </div>
   );
 }
+
+
 

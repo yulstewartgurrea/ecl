@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   XMarkIcon,
   XCircleIcon,
@@ -298,11 +298,11 @@ export default function ScenarioConfigModalTable({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-gray-100/80" onClick={onClose} />
       <div
         ref={dialogRef}
         tabIndex={-1}
-        className="relative w-[min(1100px,95vw)] max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5"
+        className="relative w-[min(1100px,95vw)] max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-gray-200"
       >
         <div className="flex items-center justify-between px-5 py-4">
           <h2 className="text-lg font-semibold">
@@ -330,7 +330,7 @@ export default function ScenarioConfigModalTable({
                     key={v}
                     className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${
                       selected
-                        ? "border-gray-900 bg-gray-900 text-white"
+                        ? "border-gray-300 bg-gray-100 text-gray-900"
                         : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
                     }`}
                   >
@@ -395,7 +395,7 @@ export default function ScenarioConfigModalTable({
                               key={`${i}-placeholder`}
                               className={`px-3 py-1 text-center text-xs ${bg}`}
                             >
-                              —
+                              â€”
                             </th>,
                           ]
                   )}
@@ -522,7 +522,7 @@ export default function ScenarioConfigModalTable({
               if (!canSave) return;
               onSave(normalizeAllBeforeSave(rows, localVariables), localVariables);
             }}
-            className="rounded-xl bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-black disabled:opacity-50 flex items-center gap-1.5"
+            className="rounded-xl bg-gray-100 text-gray-900 px-4 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
           >
             <CheckCircleIcon className="h-4 w-4" />
             <span>Save configuration</span>
@@ -532,3 +532,4 @@ export default function ScenarioConfigModalTable({
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-// src/pages/overlay/execution/Step5.tsx
+﻿// src/pages/overlay/execution/Step5.tsx
 import React, {
   useState,
   useCallback,
@@ -147,7 +147,7 @@ const Step5: React.FC = () => {
     };
 
     run();
-  }, []); // ⚠️ kept as-is, same logic you had
+  }, []); // âš ï¸ kept as-is, same logic you had
 
   useEffect(() => {
     if (!shouldRun) return;
@@ -312,7 +312,7 @@ const Step5: React.FC = () => {
   }, [rows, selectedWorkflowId]);
 
   // -----------------------------
-  // Button handler – just triggers the effect
+  // Button handler â€“ just triggers the effect
   // -----------------------------
   const runOverlayMultiplier = useCallback(() => {
     if (!selectedWorkflowId) {
@@ -347,7 +347,7 @@ const Step5: React.FC = () => {
             <button
               onClick={runOverlayMultiplier}
               disabled={posting || !selectedWorkflowId}
-              className="cursor-pointer rounded-xl bg-gray-900 text-white px-3 py-2 text-sm font-medium hover:bg-black disabled:opacity-50 flex items-center gap-1.5"
+              className="cursor-pointer rounded-xl bg-gray-100 text-gray-900 px-3 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
               title={
                 !selectedWorkflowId
                   ? "Select a workflow on Step 1 first"
@@ -355,7 +355,7 @@ const Step5: React.FC = () => {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              <span>{posting ? "Running…" : "Run Overlay Multiplier"}</span>
+              <span>{posting ? "Runningâ€¦" : "Run Overlay Multiplier"}</span>
             </button>
 
             {/* Export CSV */}
@@ -365,7 +365,7 @@ const Step5: React.FC = () => {
               className="cursor-pointer rounded-xl bg-white border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              <span>{exporting ? "Exporting…" : "Export CSV"}</span>
+              <span>{exporting ? "Exportingâ€¦" : "Export CSV"}</span>
             </button>
           </div>
         </div>
