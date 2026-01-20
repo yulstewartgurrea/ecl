@@ -371,30 +371,41 @@ export default function ScenarioConfigModalTable({
                   and Downside columns.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <select
-                  multiple
-                  value={selectedOptions}
-                  onChange={(e) => {
-                    const selected = Array.from(e.target.selectedOptions).map(
-                      (opt) => opt.value
-                    );
-                    setSelectedOptions(selected);
-                  }}
-                  className="w-52 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                >
-                  {availableList.map((v) => (
-                    <option key={v} value={v} disabled={localVariables.includes(v)}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={addSelectedVariables}
-                  className="rounded-md bg-gray-900 px-3 py-1 text-xs font-semibold text-white hover:bg-black"
-                >
-                  Add
-                </button>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="pointer-events-none absolute left-2 top-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    Available variables
+                  </div>
+                  <select
+                    multiple
+                    value={selectedOptions}
+                    onChange={(e) => {
+                      const selected = Array.from(e.target.selectedOptions).map(
+                        (opt) => opt.value
+                      );
+                      setSelectedOptions(selected);
+                    }}
+                    className="h-28 w-60 rounded-xl border border-gray-200 bg-white px-2 pb-2 pt-6 text-xs shadow-sm focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                  >
+                    {availableList.map((v) => (
+                      <option key={v} value={v} disabled={localVariables.includes(v)}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={addSelectedVariables}
+                    className="rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-black disabled:opacity-60"
+                    disabled={!selectedOptions.length}
+                  >
+                    Add selected
+                  </button>
+                  <span className="text-[10px] text-gray-500">
+                    Hold Ctrl/⌘ to multi-select
+                  </span>
+                </div>
               </div>
             </div>
 
