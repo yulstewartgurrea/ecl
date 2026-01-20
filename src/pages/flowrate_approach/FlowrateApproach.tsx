@@ -13,6 +13,11 @@ import type { RootState } from "../../redux_toolkit/store";
 import {
   setPdTransitionMatrixCurrentStep,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
+import {
+  clearModuleProgress,
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../redux_toolkit/features/progress/moduleProgressSlice";
 
 const FlowrateApproachPage = () => {
   const dispatch = useAppDispatch();
@@ -59,9 +64,15 @@ const FlowrateApproachPage = () => {
     selectedPdTransitionMatrixLoanProduct,
   ]);
 
-  // Prefer per-workflow step; fall back to legacy currentStep; then 0
+  const persistedStep = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "flowrate", workflowPath || undefined)?.step
+  );
+
+  // Prefer persisted module step; fall back to per-workflow step; then legacy currentStep; then 0
   const initialStepForPath =
-    (workflowPath && stepsByWorkflowPath[workflowPath] !== undefined
+    (persistedStep !== undefined
+      ? persistedStep
+      : workflowPath && stepsByWorkflowPath[workflowPath] !== undefined
       ? stepsByWorkflowPath[workflowPath]
       : legacyCurrentStep ?? 0) || 0;
 
@@ -87,6 +98,31 @@ const FlowrateApproachPage = () => {
     dispatch(
       setPdTransitionMatrixCurrentStep({
         step: targetIndex,
+        workflowPath: workflowPath || undefined,
+      })
+    );
+
+    dispatch(
+      setModuleProgress({
+        moduleKey: "flowrate",
+        contextKey: workflowPath || undefined,
+        step: targetIndex,
+        data: workflowPath ? { workflowPath } : undefined,
+      })
+    );
+  };
+
+  const handleFinish = () => {
+    dispatch(
+      clearModuleProgress({
+        moduleKey: "flowrate",
+        contextKey: workflowPath || undefined,
+      })
+    );
+    setActiveSubStep(0);
+    dispatch(
+      setPdTransitionMatrixCurrentStep({
+        step: 0,
         workflowPath: workflowPath || undefined,
       })
     );
@@ -119,6 +155,14 @@ const FlowrateApproachPage = () => {
               A structured and dynamic framework for estimating credit losses.
             </p>
           </div>
+          {activeSubStep === developmentSteps.length - 1 && (
+            <button
+              onClick={handleFinish}
+              className="rounded-full border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200"
+            >
+              Finish
+            </button>
+          )}
         </div>
       </header>
 

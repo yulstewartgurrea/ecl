@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Stepper from '../../../components/stepper/Stepper';
 import Step1 from './steps/Step1';
 import Step2 from './steps/Step2';
@@ -12,9 +12,34 @@ import Step3DataTransformation from './steps/Step3DataTransformation';
 // import Step5 from './steps/Step5';
 // import Step6 from './steps/Step6';
 // import Step7 from './steps/Step7';
+import { useAppDispatch, useAppSelector } from '../../../redux_toolkit/hooks';
+import type { RootState } from '../../../redux_toolkit/store';
+import {
+  clearModuleProgress,
+  selectModuleProgress,
+  setModuleProgress,
+} from '../../../redux_toolkit/features/progress/moduleProgressSlice';
+import { resetExecutionInputFile } from '../../../redux_toolkit/features/overlay/executionInputFileSlice';
+import { resetFinalModelExecutionFile } from '../../../redux_toolkit/features/overlay/finalModelExecutionFileSlice';
+import { resetHistoricalWeightedCreditLossRateFile } from '../../../redux_toolkit/features/overlay/historicalWeightedCreditLossRateFileSlice';
 
 const OverlayDevelopmentStep1 = () => {
-  const [activeSubStep, setActiveSubStep] = useState(0);
+  const dispatch = useAppDispatch();
+  const selectedWorkflowId = useAppSelector(
+    (state: RootState) =>
+      (state as any).pdTransitionMatrixWfHelper?.currentPdTransitionMatrixWorkflowId
+  ) as number | null;
+  const contextKey =
+    selectedWorkflowId !== null && selectedWorkflowId !== undefined
+      ? String(selectedWorkflowId)
+      : undefined;
+  const persistedStep = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "overlayExecution", contextKey)?.step
+  );
+
+  const [activeSubStep, setActiveSubStep] = useState(
+    persistedStep ?? 0
+  );
   
   const developmentSteps = [
     { label: "Inputs", completed: false },
@@ -29,6 +54,36 @@ const OverlayDevelopmentStep1 = () => {
 
   const handleSubStepChange = (targetIndex: number) => {
     setActiveSubStep(targetIndex);
+    dispatch(
+      setModuleProgress({
+        moduleKey: "overlayExecution",
+        contextKey,
+        step: targetIndex,
+        data:
+          selectedWorkflowId !== null && selectedWorkflowId !== undefined
+            ? { workflowId: selectedWorkflowId }
+            : undefined,
+      })
+    );
+  };
+
+  useEffect(() => {
+    if (persistedStep !== undefined) {
+      setActiveSubStep(persistedStep);
+    }
+  }, [persistedStep]);
+
+  const handleFinish = () => {
+    dispatch(
+      clearModuleProgress({
+        moduleKey: "overlayExecution",
+        contextKey,
+      })
+    );
+    dispatch(resetExecutionInputFile());
+    dispatch(resetFinalModelExecutionFile());
+    dispatch(resetHistoricalWeightedCreditLossRateFile());
+    setActiveSubStep(0);
   };
 
   const renderSubStepContent = () => {
@@ -64,6 +119,14 @@ const OverlayDevelopmentStep1 = () => {
           onApprovedStepChange={handleSubStepChange}
           canContinue={true}
         />
+        {activeSubStep === developmentSteps.length - 1 && (
+          <button
+            onClick={handleFinish}
+            className="rounded-full border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200"
+          >
+            Finish
+          </button>
+        )}
       </div>
 
       {/* Development Content */}

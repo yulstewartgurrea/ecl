@@ -13,6 +13,7 @@ import eclReportingPeriodsReducer from "./features/ecl/eclReportingPeriodsSlice"
 import executionInputFileReducer from "./features/overlay/executionInputFileSlice";
 import finalModelExecutionFileReducer from "./features/overlay/finalModelExecutionFileSlice";
 import historicalWeightedCreditLossRateFileReducer from "./features/overlay/historicalWeightedCreditLossRateFileSlice";
+import moduleProgressReducer from "./features/progress/moduleProgressSlice";
 export const rootReducer = combineReducers({
   auth,
   navUIState,
@@ -26,4 +27,5 @@ export const rootReducer = combineReducers({
   executionInputFile: executionInputFileReducer,
   finalModelExecutionFile: finalModelExecutionFileReducer,
   historicalWeightedCreditLossRateFile: historicalWeightedCreditLossRateFileReducer,
+  moduleProgress: moduleProgressReducer,
 })
