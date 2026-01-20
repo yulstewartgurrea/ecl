@@ -568,24 +568,31 @@ export default function OverlayDevelpmentPage3() {
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
-      <header className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white border-b">
-        <div className="mx-auto px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/80 backdrop-blur">
+        <div className="mx-auto flex items-center justify-between px-4 py-4">
           <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-yellow-100 text-yellow-700">
+                MEV
+              </span>
+              <div>
+                <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-gray-900">
               Consolidate all monthly MEVs
             </h1>
-            <p className="text-sm text-gray-600">
+                <p className="text-xs md:text-sm text-gray-500">
               Apply lag/log/diff transformations to MEVs and take log of default
               rate data
             </p>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50/80 p-1.5 shadow-sm">
             {/* MEV Configuration Button */}
             <button
               onClick={handleOpenMevConfig}
               disabled={mevLoadingCfg || (!selectedWorkflowId && selectedWorkflowId !== 0)}
-              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-transparent bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
               title="Configure MEV overrides"
             >
               <Cog6ToothIcon className="h-4 w-4" />
@@ -596,7 +603,7 @@ export default function OverlayDevelpmentPage3() {
             <button
               onClick={() => setShowConfig(true)}
               disabled={busy || (!selectedWorkflowId && selectedWorkflowId !== 0)}
-              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-transparent bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
               title="Configure data transformation settings"
             >
               <Cog6ToothIcon className="h-4 w-4" />
@@ -610,7 +617,7 @@ export default function OverlayDevelpmentPage3() {
                 busy ||
                 (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
-              className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-200 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-yellow-300 to-yellow-400 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:from-yellow-300 hover:to-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-200 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
@@ -628,7 +635,7 @@ export default function OverlayDevelpmentPage3() {
                 statusLoading ||
                 (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
-              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-transparent bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
@@ -671,7 +678,7 @@ export default function OverlayDevelpmentPage3() {
                 exporting ||
                 (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
-              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-transparent bg-white px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
