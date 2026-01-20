@@ -133,7 +133,6 @@ export default function ScenarioConfigModalTable({
 }: Props) {
   const [localVariables, setLocalVariables] = useState<string[]>(variables);
   const [varEdits, setVarEdits] = useState<string[]>(variables);
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const availableList = availableVariables ?? variables;
 
   // Build from initialRows if provided, otherwise blank template
@@ -146,7 +145,6 @@ export default function ScenarioConfigModalTable({
     if (!open) return;
     setLocalVariables(variables);
     setVarEdits(variables);
-    setSelectedOptions([]);
     setRows((prev) =>
       alignRowsToShape(prev?.length ? prev : initialRows, periods, variables)
     );
@@ -274,24 +272,13 @@ export default function ScenarioConfigModalTable({
     return next;
   };
 
-  const addSelectedVariables = () => {
-    const picked = selectedOptions
-      .map(normalizeVarName)
-      .filter((v) => v && !localVariables.includes(v));
-    if (!picked.length) return;
-    const nextVars = [...localVariables, ...picked];
+  const addVariable = (name: string) => {
+    const nextName = normalizeVarName(name);
+    if (!nextName || localVariables.includes(nextName)) return;
+    const nextVars = [...localVariables, nextName];
     setLocalVariables(nextVars);
     setVarEdits(nextVars);
-    setRows((prev) =>
-      prev.map((r) => {
-        let updated = r;
-        picked.forEach((name) => {
-          updated = upsertRowKey(updated, null, name);
-        });
-        return updated;
-      })
-    );
-    setSelectedOptions([]);
+    setRows((prev) => prev.map((r) => upsertRowKey(r, null, nextName)));
   };
 
   const deleteVariable = (name: string) => {
@@ -371,40 +358,57 @@ export default function ScenarioConfigModalTable({
                   and Downside columns.
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="pointer-events-none absolute left-2 top-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap gap-2">
+                  {localVariables.length ? (
+                    localVariables.map((v) => (
+                      <span
+                        key={v}
+                        className="inline-flex items-center gap-1 rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold text-white"
+                      >
+                        {v}
+                        <button
+                          onClick={() => deleteVariable(v)}
+                          className="ml-1 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold hover:bg-white/30"
+                          title="Remove"
+                        >
+                          x
+                        </button>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-gray-500">No subheaders selected.</span>
+                  )}
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                     Available variables
                   </div>
-                  <select
-                    multiple
-                    value={selectedOptions}
-                    onChange={(e) => {
-                      const selected = Array.from(e.target.selectedOptions).map(
-                        (opt) => opt.value
+                  <div className="grid max-h-40 grid-cols-1 gap-1 overflow-auto pr-1 text-xs sm:grid-cols-2">
+                    {availableList.map((v) => {
+                      const selected = localVariables.includes(v);
+                      return (
+                        <label
+                          key={v}
+                          className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${
+                            selected
+                              ? "border-gray-900 bg-gray-900 text-white"
+                              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() =>
+                              selected ? deleteVariable(v) : addVariable(v)
+                            }
+                            className="h-3.5 w-3.5 accent-gray-900"
+                          />
+                          <span className="truncate">{v}</span>
+                        </label>
                       );
-                      setSelectedOptions(selected);
-                    }}
-                    className="h-28 w-60 rounded-xl border border-gray-200 bg-white px-2 pb-2 pt-6 text-xs shadow-sm focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                  >
-                    {availableList.map((v) => (
-                      <option key={v} value={v} disabled={localVariables.includes(v)}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={addSelectedVariables}
-                    className="rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-black disabled:opacity-60"
-                    disabled={!selectedOptions.length}
-                  >
-                    Add selected
-                  </button>
-                  <span className="text-[10px] text-gray-500">
-                    Hold Ctrl/⌘ to multi-select
-                  </span>
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
