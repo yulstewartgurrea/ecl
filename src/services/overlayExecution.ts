@@ -64,7 +64,9 @@ export async function overrideGetDataTransformationMevs(
 ): Promise<OverrideDataTransformationResponse> {
   const url = `${API_BASE}/api/overlay/execution/override_data_transformation_mevs/?workflow_id=${workflowId}`;
   const res = await fetch(url, { headers: authHeader(token) });
-  if (res.status === 404) return { rows: [], periods: [], variables: [] };
+  if (res.status === 404 || res.status === 204) {
+    return { rows: [], periods: [], variables: [] };
+  }
   if (!res.ok) throw new Error(`GET data transformation override failed: ${res.status}`);
   const json = await res.json();
   const data = json?.data ?? {};
