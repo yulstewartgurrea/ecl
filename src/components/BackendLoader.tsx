@@ -36,7 +36,7 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-slate-950 text-slate-50">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-slate-900/70 p-6 shadow-xl">
         <div className="flex items-center gap-3 mb-4">
           {!isError ? (
             <div className="h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />

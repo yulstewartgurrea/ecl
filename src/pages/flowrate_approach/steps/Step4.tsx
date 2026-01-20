@@ -1,295 +1,151 @@
-// pages/flowrate/steps/Step4.tsx
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  Squares2X2Icon,
-  ChartBarIcon,
-  ArrowTrendingUpIcon,
-  PlayIcon,
-  ArrowDownTrayIcon,
-} from "@heroicons/react/24/outline";
-
-import PrincipalMatrixTable from "../../../components/asa/table/PrincipalMatrixTable";
-import PrincipalMatrixDistributionTable from "../../../components/asa/table/PrincipalMatrixDistributionTable";
-import FlowRateCalcTable from "../../../components/asa/table/FlowRateCalcTable";
+import { useEffect, useMemo, useState } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import { useLocation, useSearchParams } from "react-router-dom";
-import { useAppSelector } from "../../../redux_toolkit/hooks";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
-import { getFlowRateDataGET, runFlowRatePOST, exportFlowRateFile } from "../../../services/flowrate";
-import type { AnyRow } from "../../../components/asa/table/aging.types";
+import { useAppSelector } from "../../../redux_toolkit/hooks";
+import { useAsaApi } from "../../../lib/asaApi";
 
-/* -------- workflow id helpers -------- */
-function useWorkflowId(): number {
+import CreditLossRateCharts, {
+  type CreditLossRateAnyRow,
+} from "../../../components/asa/graph/CreditLossRateCharts";
+
+import {
+  selectStep5ByWorkflow,
+  setStep5Bundle,
+} from "../../../redux_toolkit/features/asa/flowrateStep5Slice";
+
+import {
+  coerceRowsFromStep5,
+  coerceRateSets,
+  coerceDistribution,
+} from "../../../lib/flowrateCoercers";
+
+export default function Step6() {
+  const dispatch = useDispatch();
+  const { getStep5Data } = useAsaApi();
+
+  const reduxId = useAppSelector(
+    (s: any) => s.pdTransitionMatrixWfHelper?.currentPdTransitionMatrixWorkflowId
+  );
   const { state } = useLocation() as { state?: { workflowId?: number } };
   const [params] = useSearchParams();
 
-  const q = Number(params.get("workflow_id"));
-  if (!Number.isNaN(q) && q > 0) return q;
+  const idFromQuery = Number(params.get("workflow_id"));
+  const idFromState = state?.workflowId;
+  const idFromLocal = Number(localStorage.getItem("current_workflow_id") || "");
 
-  if (state?.workflowId && state.workflowId > 0) return state.workflowId;
+  const cacheMap = useSelector((s: any) => s.flowrateStep5?.byWorkflowId ?? {});
+  const firstCachedKey = useMemo(() => {
+    const keys = Object.keys(cacheMap)
+      .map(Number)
+      .filter((n) => Number.isFinite(n) && n > 0);
+    return keys.length ? keys[keys.length - 1] : undefined;
+  }, [cacheMap]);
 
-  const ls = Number(localStorage.getItem("current_workflow_id") || "");
-  if (!Number.isNaN(ls) && ls > 0) return ls;
+  const workflowId =
+    (Number(reduxId) > 0 && Number(reduxId)) ||
+    (Number(idFromQuery) > 0 && Number(idFromQuery)) ||
+    (Number(idFromState) > 0 && Number(idFromState)) ||
+    (Number(idFromLocal) > 0 && Number(idFromLocal)) ||
+    (Number(firstCachedKey) > 0 && Number(firstCachedKey)) ||
+    0;
 
-  return 0;
-}
+  const cached = useSelector((s: any) => selectStep5ByWorkflow(s, workflowId));
 
-type ViewKey = "principal" | "distribution" | "flowrate";
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+  const [rowsLocal, setRowsLocal] = useState<CreditLossRateAnyRow[] | undefined>(undefined);
+  const [rateSetsLocal, setRateSetsLocal] = useState<any[] | undefined>(undefined);
 
-export default function Step4() {
-  const currentWfId = useAppSelector(
-    (state: any) => state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowId
-  );
-  const currentWfData = useAppSelector(
-    (state: any) => state.pdTransitionMatrixWfHelper.currentPdTransitionMatrixWorkflowData
-  );
-
-  const workflowId = currentWfId || currentWfData?.id || useWorkflowId();
-  const authToken = useAppSelector((s: any) => s.auth.token);
-
-  const [apiData, setApiData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [running, setRunning] = useState(false);
-  const [exporting, setExporting] = useState(false);
-
-  const [toasterStatus, setToasterStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [toasterMessage, setToasterMessage] = useState<string>("");
-
-  const [view, setView] = useState<ViewKey>("principal");
+  const [loading, setLoading] = useState(!cached?.rows && !rowsLocal);
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    const wf = Number(workflowId);
-    if (!wf || Number.isNaN(wf) || wf <= 0) {
-      setApiData(null);
+    let mounted = true;
+    if (!workflowId) {
       setLoading(false);
       return;
     }
+    if (cached?.rows?.length || rowsLocal?.length) return;
 
-    let mounted = true;
     setLoading(true);
-    setError(null);
+    setStatus("loading");
+    setMsg("Loading credit loss results…");
 
-    getFlowRateDataGET({ apiBase: API_BASE, token: authToken, workflowId: wf })
-      .then((res) => {
+    (async () => {
+      try {
+        const s5 = await getStep5Data(workflowId);
+
+        // ✅ IMPORTANT: keep rows dynamic; do NOT convert to fixed par_* keys
+        const r = coerceRowsFromStep5(s5);
+        const rs = coerceRateSets(s5);
+        const dist = coerceDistribution(s5);
+
         if (!mounted) return;
-        setApiData(res);
-        setLoading(false);
-      })
-      .catch(() => {
+
+        dispatch(
+          setStep5Bundle({
+            workflowId,
+            rows: r,
+            rateSets: rs,
+            distribution: dist,
+            fetchedAt: new Date().toISOString(),
+          })
+        );
+
+        setRowsLocal(r);
+        setRateSetsLocal(rs);
+
+        setStatus("success");
+        setMsg("Loaded.");
+      } catch (e: any) {
         if (!mounted) return;
-        setApiData(null);
-        setLoading(false);
-      });
+        setStatus("error");
+        setMsg(e?.message || "Failed to load results.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
 
     return () => {
       mounted = false;
     };
-  }, [workflowId, authToken]);
+  }, [workflowId, cached?.rows, rowsLocal, getStep5Data, dispatch]);
 
-  const rowsForView = useMemo(() => {
-    const data = apiData?.data ?? apiData;
-    if (!data) return [] as AnyRow[];
-
-    if (view === "principal") {
-      const block = data?.["Flow of Loan Balance Principal Matrix"] ?? data?.rows ?? [];
-      return Array.isArray(block) ? block : [];
-    }
-
-    if (view === "distribution") {
-      const block = data?.["Flow of Loan Balance Principal Matrix (Distribution)"] ?? data?.rows ?? [];
-      return Array.isArray(block) ? block : [];
-    }
-
-    if (view === "flowrate") {
-      const block = data?.["Flow Rate Calculation"] ?? data?.rows ?? [];
-      return Array.isArray(block) ? block : [];
-    }
-
-    return [] as AnyRow[];
-  }, [apiData, view]);
-
-  const handleRun = async () => {
-    const wf = Number(workflowId);
-    if (!wf || Number.isNaN(wf) || wf <= 0) {
-      setError("Invalid workflow ID");
-      return;
-    }
-
-    setRunning(true);
-    setError(null);
-    setToasterStatus("loading");
-    setToasterMessage("Running flow rate calculation...");
-
-    try {
-      await runFlowRatePOST({ apiBase: API_BASE, token: authToken, workflowId: wf });
-
-      const getResult = await getFlowRateDataGET({ apiBase: API_BASE, token: authToken, workflowId: wf });
-      setApiData(getResult);
-      console.log('getResult: ', getResult)
-      setToasterStatus("success");
-      setToasterMessage("Flow rate calculation completed successfully!");
-    } catch (e: any) {
-      const msg = e?.message || "Failed to run flow rate calculation.";
-      setToasterStatus("error");
-      setToasterMessage(msg);
-      setError(msg);
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const handleExport = async () => {
-    const wf = Number(workflowId);
-    if (!wf || Number.isNaN(wf) || wf <= 0) {
-      setError("Invalid workflow ID");
-      return;
-    }
-
-    setExporting(true);
-    setError(null);
-    setToasterStatus("loading");
-    setToasterMessage("Exporting file...");
-
-    try {
-      const blob = await exportFlowRateFile({ apiBase: API_BASE, token: authToken, workflowId: wf });
-      const filename = `flow_rate_output_${wf}.xlsx`;
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      setToasterStatus("success");
-      setToasterMessage("File exported successfully!");
-    } catch (e: any) {
-      const msg = e?.message || "Failed to export file.";
-      setToasterStatus("error");
-      setToasterMessage(msg);
-      setError(msg);
-    } finally {
-      setExporting(false);
-    }
-  };
+  // ✅ pass raw/dynamic rows to charts
+  const sourceRows: CreditLossRateAnyRow[] = (cached?.rows ?? rowsLocal ?? []) as any[];
+  const rateSetNames = (cached?.rateSets ?? rateSetsLocal ?? []).map((s: any) => s.name);
 
   return (
     <>
-      <ApiStatusIndicator status={toasterStatus} message={toasterMessage} onHide={() => setToasterStatus("idle")} />
+      <ApiStatusIndicator status={status} message={msg} onHide={() => setStatus("idle")} />
 
       <div className="min-h-dvh p-6 space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">Flowrate Approach</h2>
-            <p className="text-xs text-gray-700">Explore backend-driven blocks with fully dynamic headers.</p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleRun}
-              disabled={running || !workflowId || Number(workflowId) <= 0}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
-            >
-              <PlayIcon className="h-5 w-5" />
-              {running ? "Running..." : "Run"}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={exporting || running || !apiData}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition"
-            >
-              <ArrowDownTrayIcon className="h-5 w-5" />
-              {exporting ? "Exporting..." : "Export"}
-            </button>
-          </div>
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Credit Loss Rate — (Charts)</h2>
+          <p className="text-xs text-gray-700">Visualize the flow-rate credit loss output.</p>
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="inline-flex rounded-xl bg-gray-100 p-1">
-            <button
-              type="button"
-              onClick={() => setView("principal")}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
-                view === "principal" ? "bg-white shadow-sm" : "hover:bg-white/60"
-              }`}
-            >
-              <Squares2X2Icon className="h-4 w-4" />
-              Principal Matrix
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setView("distribution")}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
-                view === "distribution" ? "bg-white shadow-sm" : "hover:bg-white/60"
-              }`}
-            >
-              <ChartBarIcon className="h-4 w-4" />
-              Distribution
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setView("flowrate")}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
-                view === "flowrate" ? "bg-white shadow-sm" : "hover:bg-white/60"
-              }`}
-            >
-              <ArrowTrendingUpIcon className="h-4 w-4" />
-              Flow Rate Calc
-            </button>
+        {!workflowId ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">
+            No workflow selected. Open Step 5 and run a calculation first.
           </div>
-        </div>
-
-        {loading ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">Loading…</div>
-        ) : error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
+        ) : loading ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">
+            Loading…
+          </div>
+        ) : sourceRows.length === 0 ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">
+            No data for workflow #{workflowId}. Run Step 5 first.
+          </div>
         ) : (
-          <>
-            {view === "principal" && (
-              <Card title="Principal Matrix" subtitle="100% backend-driven headers (no static columns)">
-                <PrincipalMatrixTable rows={rowsForView} height={420} />
-              </Card>
-            )}
-
-            {view === "distribution" && (
-              <Card title="Distribution" subtitle="Computed dynamically, still no static columns">
-                <PrincipalMatrixDistributionTable rows={rowsForView} height={420} />
-              </Card>
-            )}
-
-            {view === "flowrate" && (
-              <Card title="Flow Rate Calculation" subtitle="Fully dynamic headers + correct % formatting">
-                <FlowRateCalcTable rows={rowsForView} height={420} />
-              </Card>
-            )}
-          </>
+          <CreditLossRateCharts
+            data={sourceRows}
+            rateSets={rateSetNames.length ? rateSetNames : ["Historical (avg of months)"]}
+            title="Credit Loss Rate Approach – Visuals"
+            enableExport={false}
+          />
         )}
       </div>
     </>
   );
 }
-
-/* ------------------ Small Card wrapper ------------------ */
-const Card: React.FC<React.PropsWithChildren<{ title: string; subtitle?: string }>> = ({
-  title,
-  subtitle,
-  children,
-}) => (
-  <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-    <div className="flex items-center justify-between px-4 py-3 border-b rounded-t-2xl bg-yellow-500">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {subtitle && <p className="text-xs text-gray-800 -mt-0.5">{subtitle}</p>}
-      </div>
-    </div>
-    <div className="p-4">{children}</div>
-  </div>
-);

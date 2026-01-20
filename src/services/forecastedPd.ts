@@ -21,10 +21,6 @@ async function authFetch(
   });
 }
 
-/**
- * GET /forecasted_pd_calc/input/?workflow_id=...
- * Returns coefficients used in the final overlay model.
- */
 export async function getForecastedPdInput(
   workflowId: number | string,
   token?: string | null
@@ -42,10 +38,6 @@ export async function getForecastedPdInput(
   return (json?.data ?? {}) as Record<string, number>;
 }
 
-/**
- * GET /forecasted_pd_calc/?workflow_id=...
- * Returns multiple_linear_regression + forecasted_pd arrays.
- */
 export async function getForecastedPdCalc(
   workflowId: number | string,
   token?: string | null
@@ -63,10 +55,6 @@ export async function getForecastedPdCalc(
   return json?.data ?? {};
 }
 
-/**
- * POST /forecasted_pd_calc/
- * Triggers the calculation job.
- */
 export async function runForecastedPdCalc(
   workflowId: number | string,
   finalModelExecutionFile?: boolean,

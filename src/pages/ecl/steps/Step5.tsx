@@ -1,4 +1,4 @@
-// pages/ecl/steps/Step5.tsx
+﻿// pages/ecl/steps/Step5.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   InformationCircleIcon,
@@ -104,7 +104,7 @@ function Pill({
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-black/5 ${tones[tone]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-gray-200 ${tones[tone]}`}
     >
       {children}
     </span>
@@ -487,3 +487,4 @@ export default function Step5() {
     </div>
   );
 }
+

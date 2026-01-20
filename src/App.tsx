@@ -3,11 +3,8 @@ import "./App.css";
 // components
 import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
-import TransitionMatrixLanding from "./pages/transition_matrix";
-import PdTransitionMatrixWorkflow from "./pages/transition_matrix/Workflow";
 import Settings from "./pages/Settings";
 import Configuration from "./pages/Configuration";
-import PdLandingPage from "./pages/PdLandingPage";
 import WorkflowLists from "./pages/flowrate_approach";
 import OverlayLandingPage from "./pages/overlay/Overlay";
 import FlowrateApproachPage from "./pages/flowrate_approach/FlowrateApproach";
@@ -100,18 +97,13 @@ function App() {
       >
         <Route index element={<WorkflowLists />} />
         <Route path="flowrate" element={<WorkflowLists />} />
-        <Route path="pd_landing" element={<PdLandingPage />} />
+        <Route path="pd_landing" element={<FlowrateApproachPage />} />
         <Route path="overlay" element={<OverlayLandingPage />} />
         <Route path="settings" element={<Settings />} />
         <Route path="ecl_configuration" element={<Configuration />} />
-        <Route path="transition_matrix" element={<TransitionMatrixLanding />} />
         <Route path="page/flowrate" element={<FlowrateApproachPage />} />
         <Route path="page/upload" element={<EclUpload />} />
         <Route path="ecl" element={<EclUpload />} />
-        <Route
-          path="transition_matrix/workflow"
-          element={<PdTransitionMatrixWorkflow />}
-        />
       </Route>
       <Route path="*" element={<Navigate to={isLoggedIn ? "/" : "/login"} />} />
     </Routes>

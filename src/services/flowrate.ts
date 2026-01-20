@@ -1,4 +1,4 @@
-// Robust fetch: use @tauri-apps/plugin-http if available, else window.fetch
+
 let tauriFetchRef: any;
 async function xfetch(input: string, init?: RequestInit): Promise<Response> {
   if (!tauriFetchRef) {
@@ -32,7 +32,6 @@ export type ApiEnvelope<T> = {
 
 export type FlowRateData = Record<string, any>;
 
-/** GET: /api/flowrate_approach/flow_rate/?workflow_id=... */
 export async function getFlowRateDataGET(opts: {
   apiBase: string;
   token?: string | null;

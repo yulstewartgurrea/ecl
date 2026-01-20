@@ -21,12 +21,48 @@ import {
   setPdTransitionMatrixSelectedLoanProduct,
   setPdTransitionMatrixReportDateStart,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { setModuleProgress } from "../../redux_toolkit/features/progress/moduleProgressSlice";
 
 const TransitionMatrixLanding = () => {
   const navigate = useNavigate();
+  const flowrateProgressMap = useAppSelector(
+    (state: any) => state.moduleProgress?.modules?.flowrate || {}
+  );
+  const lastFlowrateProgress = useMemo(() => {
+    const entries = Object.values(flowrateProgressMap) as any[];
+    if (!entries.length) return undefined;
+    return entries.sort((a, b) => (b?.step ?? 0) - (a?.step ?? 0))[0];
+  }, [flowrateProgressMap]);
   const dispatch = useAppDispatch();
   const authToken = useAppSelector((state) => state.auth.token);
+
+  const buildWorkflowPath = (
+    entity: string,
+    reportingPeriod: string,
+    workflowName: string,
+    loanProduct: string
+  ) => {
+    if (!entity || !reportingPeriod || !workflowName || !loanProduct) return "";
+    return `${entity}/${reportingPeriod}/${workflowName}/${loanProduct}`;
+  };
+
+  // If user has existing flowrate progress, jump back to the Flowrate module steps
+  useEffect(() => {
+    if (!lastFlowrateProgress) return;
+    const data = (lastFlowrateProgress as any)?.data ?? {};
+    if (data?.workflowData) {
+      dispatch(
+        setPdTransitionMatrixWorkflowData({ workflow_data: data.workflowData })
+      );
+    }
+    if (data?.workflowId) {
+      dispatch(
+        setPdTransitionMatrixWorkflowId({ workflow_id: data.workflowId })
+      );
+    }
+    navigate("/page/flowrate");
+  }, [lastFlowrateProgress, navigate, dispatch]);
 
   const { isSidebarOpen } = useAppSelector((state: any) => state.navUIState);
   const {
@@ -43,11 +79,6 @@ const TransitionMatrixLanding = () => {
   const entities = useAppSelector(
     (state: any) => state.eclEntitiesReducer.items
   );
-
-  // Modal states
-  const [showModal, setShowModal] = useState(false);
-  const [modalMessage, setModalMessage] = useState("");
-  const [proceedWithUpdate, setProceedWithUpdate] = useState(false);
 
   // API status
   const [apiStatus, setApiStatus] = useState<
@@ -66,13 +97,6 @@ const TransitionMatrixLanding = () => {
     }
   }, [selectedPdTransitionMatrixReportingPeriod, dispatch]);
 
-  /**
-   * Called when a folder is selected from WorkflowFolderList.
-   * Folder structure is: Entity / LoanProduct / Period / ReportDate / WorkflowName
-   *
-   * WorkflowFolderList will parse the path and call:
-   *   onWorkflowSelect(entity, reportingPeriod, workflowName, loanProduct, reportDateStart)
-   */
   const handleWorkflowSelect = async (
     entity: string,
     reportingPeriod: string,
@@ -148,6 +172,24 @@ const TransitionMatrixLanding = () => {
             dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: wf.id }));
             dispatch(
               setPdTransitionMatrixWorkflowData({ workflow_data: wf })
+            );
+            const workflowPath = buildWorkflowPath(
+              entity || "",
+              reportingPeriod || "Monthly",
+              workflowName || "",
+              loanProduct || ""
+            );
+            dispatch(
+              setModuleProgress({
+                moduleKey: "flowrate",
+                contextKey: workflowPath || undefined,
+                step: 0,
+                data: {
+                  workflowId: wf.id,
+                  workflowData: wf,
+                  workflowPath,
+                },
+              })
             );
           } else {
             console.log("Workflow not found for selected folder, clearing ID");
@@ -235,26 +277,10 @@ const TransitionMatrixLanding = () => {
         }
 
         const checkData = await checkResponse.json();
-        console.log(
-          "exists?",
-          checkData.exists,
-          "proceedWithUpdate",
-          proceedWithUpdate,
-          pdTransitionMatrixWfName
-        );
+        console.log("exists?", checkData.exists, pdTransitionMatrixWfName);
 
-        // --- CASE 1: workflow exists, but user has not confirmed yet -> show modal
-        if (checkData.exists && !proceedWithUpdate) {
-          setModalMessage(
-            "This workflow already exists. If you wish to continue, click Continue. Note that it will update the existing record."
-          );
-          setShowModal(true);
-          setApiStatus("idle");
-          return;
-        }
-
-        // --- CASE 2: workflow exists AND user clicked Continue -> load existing and go to steps
-        if (checkData.exists && proceedWithUpdate) {
+        // --- If workflow exists, load it and go to steps (no re-create)
+        if (checkData.exists) {
           try {
             setApiStatus("loading");
             setStatusMessage("Loading existing workflow...");
@@ -305,10 +331,27 @@ const TransitionMatrixLanding = () => {
               })
             );
 
+            const workflowPath = buildWorkflowPath(
+              selectedPdTransitionMatrixEntity,
+              selectedPdTransitionMatrixReportingPeriod,
+              pdTransitionMatrixWfName,
+              selectedPdTransitionMatrixLoanProduct || ""
+            );
+            dispatch(
+              setModuleProgress({
+                moduleKey: "flowrate",
+                contextKey: workflowPath || undefined,
+                step: 0,
+                data: {
+                  workflowId: wf.id,
+                  workflowData: wf,
+                  workflowPath,
+                },
+              })
+            );
+
             setApiStatus("success");
             setStatusMessage("Workflow loaded.");
-            setProceedWithUpdate(false);
-            setShowModal(false);
 
             // go to current flowrate steps page
             navigate(`/page/flowrate`, {
@@ -321,8 +364,6 @@ const TransitionMatrixLanding = () => {
             setStatusMessage(
               err?.message || "Failed to load existing workflow."
             );
-            setProceedWithUpdate(false);
-            setShowModal(false);
             return;
           }
         }
@@ -379,6 +420,24 @@ const TransitionMatrixLanding = () => {
               workflow_data: workflowData,
             })
           );
+          const workflowPath = buildWorkflowPath(
+            selectedPdTransitionMatrixEntity,
+            selectedPdTransitionMatrixReportingPeriod,
+            pdTransitionMatrixWfName,
+            selectedPdTransitionMatrixLoanProduct || ""
+          );
+          dispatch(
+            setModuleProgress({
+              moduleKey: "flowrate",
+              contextKey: workflowPath || undefined,
+              step: 0,
+              data: {
+                workflowId,
+                workflowData,
+                workflowPath,
+              },
+            })
+          );
         } else {
           console.error("No workflow ID in response:", workflowResponseData);
         }
@@ -397,8 +456,6 @@ const TransitionMatrixLanding = () => {
           reportDateStart: selectedPdTransitionMatrixReportDateStart,
         });
 
-        setProceedWithUpdate(false);
-        setShowModal(false);
         setApiStatus("success");
         setStatusMessage("Workflow created successfully!");
 
@@ -409,8 +466,6 @@ const TransitionMatrixLanding = () => {
         console.error("Failed to start calculation:", error);
         setApiStatus("error");
         setStatusMessage(error?.message || "Something went wrong");
-        setProceedWithUpdate(false);
-        setShowModal(false);
       }
     }
   };
@@ -652,33 +707,6 @@ const TransitionMatrixLanding = () => {
           <WorkflowFolderList onWorkflowSelect={handleWorkflowSelect} />
         </div>
       </div>
-
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-white/30 z-50">
-          <div className="rounded-2xl shadow-lg p-6 w-[28rem] bg-white border border-gray-200">
-            <p className="mb-4 text-gray-800">{modalMessage}</p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setProceedWithUpdate(true);
-                  setShowModal(false);
-                  handleStartCalculation();
-                }}
-                className="px-4 py-2 rounded-lg bg-amber-400 text-gray-900 hover:bg-amber-500"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* API Status Indicator */}
       <ApiStatusIndicator

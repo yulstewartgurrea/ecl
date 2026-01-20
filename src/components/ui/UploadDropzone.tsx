@@ -137,8 +137,8 @@ export default function UploadDropzone({
     <div className={[wrapper, className].filter(Boolean).join(" ")}>
       {/* Header */}
       <div className="flex items-start gap-3 px-4 py-3 border-b">
-        <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-b from-gray-900 to-gray-700 text-white shadow">
-          <CloudArrowUpIcon className="h-5 w-5" />
+        <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-gray-100 text-gray-700 shadow-sm">
+          <CloudArrowUpIcon className="h-5 w-5 text-gray-700" />
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -172,7 +172,7 @@ export default function UploadDropzone({
         className={[
           dropPad,
           "rounded-xl border-2 border-dashed transition relative overflow-hidden",
-          dragActive ? "border-gray-900 bg-gray-50" : "border-gray-300 hover:border-gray-400",
+          dragActive ? "border-gray-300 bg-gray-50" : "border-gray-300 hover:border-gray-400",
           disabled ? "opacity-50 pointer-events-none" : "cursor-pointer",
         ].join(" ")}
         aria-labelledby={inputId}
@@ -194,8 +194,8 @@ export default function UploadDropzone({
 
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex">
-            <div className="h-12 w-12 rounded-xl bg-gray-100 flex items-center justify-center">
-              <CloudArrowUpIcon className="h-6 w-6 text-gray-700" />
+            <div className="h-12 w-12 rounded-xl border border-gray-200 bg-gray-100 flex items-center justify-center">
+              <CloudArrowUpIcon className="h-6 w-6 text-gray-600" />
             </div>
           </div>
           <div className="min-w-0">

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { ChevronDownIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 
@@ -56,7 +56,7 @@ export default function StepSwitch({
               aria-selected={selected}
               onClick={() => onChange(i)}
               className={clsx(
-                "px-4 py-2 text-sm font-medium rounded-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10",
+                "px-4 py-2 text-sm font-medium rounded-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-200",
                 selected
                   ? "bg-white shadow-sm text-gray-900"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
@@ -124,3 +124,4 @@ export default function StepSwitch({
     </div>
   );
 }
+

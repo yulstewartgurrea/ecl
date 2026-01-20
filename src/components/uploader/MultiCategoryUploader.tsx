@@ -1,4 +1,4 @@
-// ==========================
+﻿// ==========================
 // components/uploader/MultiCategoryUploader.tsx
 // (validate -> proceed -> upload; halt on failure; "Proceed anyway" forces current then continues)
 // ==========================
@@ -113,7 +113,7 @@ function Pill({
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${tones[tone]} ring-1 ring-black/5`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${tones[tone]} ring-1 ring-gray-200`}
       title={title}
     >
       {children}
@@ -278,7 +278,7 @@ export default function MultiCategoryUploader({
     }));
   }, []);
 
-  // Whenever ANY category files change → disable upload until re-validated
+  // Whenever ANY category files change â†’ disable upload until re-validated
   useEffect(() => {
     setValidated(null);
     setCanUpload(false);
@@ -307,12 +307,12 @@ export default function MultiCategoryUploader({
       const files = filesByKey[c.key] ?? [];
 
       if (c.required && files.length === 0) {
-        errs.push(`“${c.label}” is required.`);
+        errs.push(`â€œ${c.label}â€ is required.`);
       }
 
       const limit = c.maxFiles ?? Infinity;
       if (files.length > limit) {
-        errs.push(`“${c.label}” exceeds maximum of ${limit} file(s).`);
+        errs.push(`â€œ${c.label}â€ exceeds maximum of ${limit} file(s).`);
       }
 
       const cap = (c.maxSizeMB ?? maxSizeMB) * 1024 * 1024;
@@ -320,10 +320,10 @@ export default function MultiCategoryUploader({
 
       for (const f of files) {
         if (f.size > cap) {
-          errs.push(`“${c.label}”: ${f.name} is larger than ${c.maxSizeMB ?? maxSizeMB} MB.`);
+          errs.push(`â€œ${c.label}â€: ${f.name} is larger than ${c.maxSizeMB ?? maxSizeMB} MB.`);
         }
         if (!fileMatchesAccept(f, accepts)) {
-          errs.push(`“${c.label}”: ${f.name} has an unsupported file type.`);
+          errs.push(`â€œ${c.label}â€: ${f.name} has an unsupported file type.`);
         }
       }
     }
@@ -659,7 +659,7 @@ export default function MultiCategoryUploader({
       const n = filesByKey[c.key]?.length ?? 0;
       if (n) parts.push(`${n} ${c.label.toLowerCase()}`);
     }
-    return parts.join(" • ");
+    return parts.join(" â€¢ ");
   }, [categories, filesByKey]);
 
   const allFiles = useMemo(() => {
@@ -689,7 +689,7 @@ export default function MultiCategoryUploader({
               ) : (
                 <p className="text-xs text-slate-600">
                   Accepted: <span className="font-medium">{accept}</span>{" "}
-                  <span className="mx-1">•</span> Max {maxSizeMB}MB/file
+                  <span className="mx-1">â€¢</span> Max {maxSizeMB}MB/file
                 </p>
               )}
               {!!summary && (
@@ -742,7 +742,7 @@ export default function MultiCategoryUploader({
               {uploading ? (
                 <Pill tone="blue" title="Uploading in progress">
                   <ArrowUpTrayIcon className="h-4 w-4 mr-1 animate-pulse" />
-                  Uploading…
+                  Uploadingâ€¦
                 </Pill>
               ) : validated === "ok" ? (
                 <Pill tone="green" title="Validation passed (click Proceed to enable upload)">
@@ -801,7 +801,7 @@ export default function MultiCategoryUploader({
                   </div>
 
                   <div className="mb-2">
-                    <Pill tone="yellow">Active: {selectedCategory?.label ?? "—"}</Pill>
+                    <Pill tone="yellow">Active: {selectedCategory?.label ?? "â€”"}</Pill>
                     <span className="ml-2 text-[11px] text-slate-600">
                       <code className="text-slate-800">document_type={selectedKey}</code>
                     </span>
@@ -828,7 +828,7 @@ export default function MultiCategoryUploader({
                   <p className="text-xs text-slate-600 mt-1">
                     {bulk.assign === "selected"
                       ? "Files will be assigned to the active category."
-                      : "Files will be assigned to categories in order (1st file → 1st category, etc.)."}
+                      : "Files will be assigned to categories in order (1st file â†’ 1st category, etc.)."}
                   </p>
 
                   {!!lastAssignments.length && (
@@ -1086,7 +1086,7 @@ export default function MultiCategoryUploader({
 
       {/* Proceed Modal (after successful validate) */}
       {showProceedModal && (
-        <div className="fixed inset-0 z-50 bg-black/10 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-gray-100/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl ring-1 ring-slate-200">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-3">
               <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center ring-1 ring-emerald-200">
@@ -1137,9 +1137,9 @@ export default function MultiCategoryUploader({
         </div>
       )}
 
-      {/* Upload Error Modal (SEQUENTIAL — shows one category at a time) */}
+      {/* Upload Error Modal (SEQUENTIAL â€” shows one category at a time) */}
       {showErrorModal && currentError && (
-        <div className="fixed inset-0 z-50 bg-black/10 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-gray-100/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-xl shadow-xl ring-1 ring-slate-200">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
@@ -1245,3 +1245,5 @@ export default function MultiCategoryUploader({
     </div>
   );
 }
+
+

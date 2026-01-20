@@ -73,7 +73,7 @@ input[type="range"].custom-slider::-webkit-slider-thumb {
   appearance: none;
   height: 24px;
   width: 2px;
-  background-color: #000;
+  background-color: #d1d5db;
   cursor: pointer;
   margin-top: -11px; /* Align vertically with track */
   border-radius: 0;
@@ -82,7 +82,7 @@ input[type="range"].custom-slider::-webkit-slider-thumb {
 input[type="range"].custom-slider::-moz-range-thumb {
   height: 24px;
   width: 2px;
-  background-color: #000;
+  background-color: #d1d5db;
   cursor: pointer;
   border: none;
   border-radius: 0;

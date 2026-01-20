@@ -62,15 +62,6 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
     console.log("currentPath:", currentPath);
   }, [currentPath]);
 
-  /**
-   * Folder structure (NEW source of truth):
-   *   0: Entity
-   *   1: Reporting Period
-   *   2: Workflow Name
-   *   3: Loan Product
-   *
-   * => workflowPath = entity/reportingPeriod/workflowName/loanProduct
-   */
   const notifySelection = (path: string) => {
     if (!onWorkflowSelect) return;
 
@@ -86,11 +77,8 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
     const reportingPeriod = parts[1] ?? "";
     const workflowName = parts[2] ?? "";
     const loanProduct = parts[3] ?? "";
-    // reportDateStart is *not* part of workflowPath anymore
     const reportDateStart = "";
 
-    // Parameter order:
-    // (entity, reportingPeriod, workflowName, loanProduct, reportDateStart)
     onWorkflowSelect(
       entity,
       reportingPeriod,

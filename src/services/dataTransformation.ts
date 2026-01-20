@@ -1,23 +1,5 @@
-// dataTransformation.ts
-// -------------------------------------------------------------
-// Orchestrates: POST -> GET -> shape for ExeTable.
-// Provides dynamic ColumnNode[] for both "transformations" tables.
-//
-// Usage in Step3.tsx (example):
-// const shaped = await runDataTransformation({ apiBase, token, workflowId: 1 });
-// <ExeTable
-//   view="transformations"
-//   mevData={shaped.independentRows}
-//   defaultData={shaped.dependentRows}
-//   mevColumns={shaped.independentColumns}
-//   defaultColumns={shaped.dependentColumns}
-// />
-// -------------------------------------------------------------
-
 import type { ColumnNode } from "../components/overlay/development/data_transformation/table/MacroTable";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
-
-// ---- types --------------------------------------------------
 
 export type ApiEnvelope<T> = {
   code: number;
@@ -47,7 +29,6 @@ export type DataTransformationStatus = {
   updated_at: string | null;
 };
 
-// The UI-ready payload for ExeTable
 export type TransformedUIData = {
   independentRows: Array<Record<string, any>>;
   dependentRows: Array<Record<string, any>>;
@@ -56,8 +37,6 @@ export type TransformedUIData = {
   consolidatedColumns?: ColumnNode[]; // optional; reserved for your other view
   meta: { workflowId: number };
 };
-
-// ---- tiny helpers -------------------------------------------
 
 function base(apiBase: string): string {
   return apiBase.replace(/\/+$/, ""); // strip trailing slashes
@@ -85,8 +64,6 @@ async function xfetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, init);
 }
 
-// ---- API calls ----------------------------------------------
-
 export async function postDataTransformation(opts: {
   apiBase: string;
   token?: string | null;
@@ -99,8 +76,6 @@ export async function postDataTransformation(opts: {
     throw new Error("workflowId must be a finite number");
   }
 
-  // If your FastAPI endpoint expects JSON, prefer JSON.
-  // If your server currently accepts form (as per your last message), keep FormData.
   const url = `${base(apiBase)}/api/overlay/development/data_transformation`;
 
   const form = new FormData();
@@ -200,12 +175,9 @@ export async function getDataTransformationResults(opts: {
   return json;
 }
 
-
-// ---- shaping (dynamic columns for ExeTable) -----------------
-
 type ShapeOpts = {
-  includeAllIndependent?: boolean; // default false for a compact table
-  maxIndependentCols?: number; // safety cap if includeAllIndependent = true
+  includeAllIndependent?: boolean;
+  maxIndependentCols?: number;
 };
 
 export function shapeTransformationResults(
@@ -328,7 +300,6 @@ export function shapeTransformationResults(
 }
 
 function prettyLabel(key: string): string {
-  // Keep original semantics but slightly prettier headers
   return key
     .replace(/_/g, " ")
     .replace(/\bln\b/g, "ln")
@@ -340,8 +311,6 @@ function prettyLabel(key: string): string {
     .replace(/lag_(\d+)/g, "lag $1")
     .replace(/\b\(int\)\b/g, "(int)");
 }
-
-// ---- Execution API calls ----------------------------------------------
 
 export async function postDataTransformationExecution(opts: {
   apiBase: string;
@@ -497,9 +466,6 @@ export async function exportDataTransformationExecution(opts: {
   return await res.blob();
 }
 
-// ---- one-call orchestrator ----------------------------------
-
-// services/dataTransformation.ts
 export async function runDataTransformation(opts: {
   apiBase: string;
   token?: string | null;

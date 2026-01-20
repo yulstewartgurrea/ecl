@@ -1,7 +1,5 @@
 // src/services/filteringModels.ts
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
-
-/* ---------- shared helpers (same style as dataTransformation.ts) ---------- */
 export type ApiEnvelope<T = unknown> = {
   code: number;
   msg?: string;
@@ -32,7 +30,6 @@ async function xfetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, init);
 }
 
-/* ----------------------------- result shaping ---------------------------- */
 export type FilteringRow = Record<string, unknown>;
 export type FilteringPayload =
   | FilteringRow[]
@@ -75,9 +72,6 @@ export function extractFilteringRows(payload: FilteringPayload): {
   return { rows, total };
 }
 
-/* --------------------------------- POST --------------------------------- */
-// POST: /api/overlay/development/filtering_models
-// payload: { workload_id: "22", filter: [...] }
 export type FilterRule = {
   column: string;
   value: string;
@@ -93,12 +87,8 @@ export async function postFilteringModels(opts: {
   if (!Number.isFinite(workflowId)) throw new Error("workflowId must be a finite number");
 
   const url = `${base(apiBase)}/api/overlay/development/filtering_models`;
-  // Use FormData to send workload_id and filter array
   const form = new FormData();
   form.append("workload_id", String(workflowId));
-  
-  // Append filter_list array - send as JSON string
-  // FastAPI expects array[dict], so we'll send it as JSON string
   if (filter_list && filter_list.length > 0) {
     // Convert filter array to JSON string
     const filterArray = filter_list.map(f => ({ column: f.column, value: f.value }));
@@ -110,7 +100,7 @@ export async function postFilteringModels(opts: {
 
   const res = await xfetch(url, {
     method: "POST",
-    headers: withAuth(token, { Accept: "application/json" }), // do NOT set Content-Type for FormData
+    headers: withAuth(token, { Accept: "application/json" }),
     body: form,
   });
 
@@ -124,7 +114,6 @@ export async function postFilteringModels(opts: {
 }
 
 /* ---------------------------------- GET ---------------------------------- */
-// GET: /api/overlay/development/filtering_models?workflow_id=22&page=1&page_size=100
 export async function getFilteringModels(opts: {
   apiBase: string;
   token?: string | null;

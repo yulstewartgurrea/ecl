@@ -1,4 +1,3 @@
-// Robust fetch: use @tauri-apps/plugin-http if available, else window.fetch
 let tauriFetchRef: any;
 async function xfetch(input: string, init?: RequestInit): Promise<Response> {
   if (!tauriFetchRef) {
@@ -33,7 +32,6 @@ export type ApiEnvelope<T> = {
 export type InterpolationRow = Record<string, any>;
 export type Mode = "development" | "execution";
 
-/** GET: /api/overlay/{mode}/data_interpolation/?workflow_id=... */
 export async function getInterpolationDataGET(opts: {
   apiBase: string;
   token?: string | null;
@@ -65,7 +63,6 @@ export async function getInterpolationDataGET(opts: {
   return json;
 }
 
-/** POST: /api/overlay/{mode}/data_interpolation  -> triggers generation */
 export async function runInterpolationPOST(opts: {
   apiBase: string;
   token?: string | null;

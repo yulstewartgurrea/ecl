@@ -1,11 +1,11 @@
-// Step7.tsx
+﻿// Step7.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ModelSpec } from "../../../../components/overlay/development/candidate_model/ModelCompareGrid";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
-import { postFinalModel } from "../../../../services/finalModels"; // ← uses your existing service
+import { postFinalModel } from "../../../../services/finalModels"; // â† uses your existing service
 
 const LS_KEY = "ecl:selectedModel";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
@@ -80,7 +80,7 @@ const Step7: React.FC = () => {
     }
   }
 
-  // 🔽 Download handler – export to Excel (.xls) via HTML table
+  // ðŸ”½ Download handler â€“ export to Excel (.xls) via HTML table
   function handleDownload() {
     if (!model) return;
 
@@ -105,8 +105,8 @@ const Step7: React.FC = () => {
     lines.push("Section,Field,Value");
     lines.push(`Model Summary,Workflow ID,${escCsv(safeWorkflowId ?? "")}`);
     lines.push(`Model Summary,Model Title,${escCsv(model.title ?? "")}`);
-    lines.push(`Model Summary,R²,${escCsv(r2 != null ? r2 : "")}`);
-    lines.push(`Model Summary,Adj. R²,${escCsv(adjR2 != null ? adjR2 : "")}`);
+    lines.push(`Model Summary,RÂ²,${escCsv(r2 != null ? r2 : "")}`);
+    lines.push(`Model Summary,Adj. RÂ²,${escCsv(adjR2 != null ? adjR2 : "")}`);
     lines.push(`Model Summary,MAPE,${escCsv(mape != null ? mape : "")}`);
 
     // Blank line between sections
@@ -158,7 +158,7 @@ const Step7: React.FC = () => {
           onClick={() => navigate("/overlay?tab=development&sub=6")}
           className="mt-4 rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-800"
         >
-          ← Back to Step 6
+          â† Back to Step 6
         </button>
       </div>
     );
@@ -188,7 +188,7 @@ const Step7: React.FC = () => {
         <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-neutral-900">
           <div className="flex items-center gap-3">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 font-semibold text-black">
-              ✓
+              âœ“
             </span>
             <p className="text-base">
               <span className="font-medium">{model.title}</span> is locked in
@@ -247,13 +247,13 @@ const Step7: React.FC = () => {
         {/* Key metrics (keep consistent with Step 6) */}
         <div className="grid gap-4 md:grid-cols-3">
           <StatTile
-            label="R²"
+            label="RÂ²"
             value={fmtPercent(
               (model.metrics as any)?.R_Squared ?? (model as any)?.R_Squared
             )}
           />
           <StatTile
-            label="Adj. R²"
+            label="Adj. RÂ²"
             value={fmtPercent(
               model.metrics?.Adj_R_Squared ?? (model as any)?.Adj_R_Squared
             )}
@@ -270,15 +270,15 @@ const Step7: React.FC = () => {
             onClick={handleDownload}
             className="cursor-pointer rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-800"
           >
-            ⬇️ Download
+            â¬‡ï¸ Download
           </button>
 
           <button
-            onClick={saveSelectedModel} // ← POST to server
+            onClick={saveSelectedModel} // â† POST to server
             disabled={saving}
             className="cursor-pointer rounded-xl bg-neutral-900 px-4 py-2 font-semibold text-white hover:bg-neutral-800 disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save & Finish →"}
+            {saving ? "Savingâ€¦" : "Save & Finish â†’"}
           </button>
         </div>
       </div>
@@ -325,7 +325,7 @@ function Modal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-100/80 p-4"
       role="dialog"
       aria-modal="true"
     >
@@ -336,7 +336,7 @@ function Modal({
             className="rounded-md p-1 text-neutral-500 hover:bg-neutral-100"
             aria-label="Close"
           >
-            ✕
+            âœ•
           </button>
         </div>
         {children}
@@ -359,18 +359,18 @@ function StatTile({ label, value }: { label: string; value: string }) {
 
 /* ---------- Format helpers ---------- */
 function fmtNumber(v?: number): string {
-  if (v == null || Number.isNaN(Number(v))) return "—";
+  if (v == null || Number.isNaN(Number(v))) return "â€”";
   return Number(v).toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
 function fmtPercent(v?: number): string {
-  if (v == null || Number.isNaN(Number(v))) return "—";
+  if (v == null || Number.isNaN(Number(v))) return "â€”";
   return (
     (Number(v) * 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) +
     "%"
   );
 }
 function fmtPctOrVal(v: number | string | undefined): string {
-  if (v == null) return "—";
+  if (v == null) return "â€”";
   if (typeof v === "string") return v;
   if (v >= 0 && v <= 1)
     return (
@@ -379,7 +379,7 @@ function fmtPctOrVal(v: number | string | undefined): string {
   return v.toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
 
-// 🔽 Helper for downloading Excel (.xls) from HTML
+// ðŸ”½ Helper for downloading Excel (.xls) from HTML
 // function downloadExcelFile(html: string, filename: string) {
 //   try {
 //     const blob = new Blob([html], {
@@ -401,3 +401,4 @@ function fmtPctOrVal(v: number | string | undefined): string {
 // }
 
 export default Step7;
+

@@ -10,6 +10,12 @@ export type OverrideGetForcastedResponse = {
   rows?: ScenarioRow[];
 };
 
+export type OverrideDataTransformationResponse = {
+  rows?: ScenarioRow[];
+  periods?: string[];
+  variables?: string[];
+};
+
 export const API_BASE =
   (import.meta.env.VITE_API_BASE as string) || "http://localhost:8000";
 
@@ -51,6 +57,32 @@ export async function overrideGetForcasted(
   return { rows };
 }
 
+/** GET: /override_data_transformation_mevs/?workflow_id=ID */
+export async function overrideGetDataTransformationMevs(
+  workflowId: number | string,
+  token?: string | null
+): Promise<OverrideDataTransformationResponse> {
+  const url = `${API_BASE}/api/overlay/execution/override_data_transformation_mevs/?workflow_id=${workflowId}`;
+  const res = await fetch(url, { headers: authHeader(token) });
+  if (res.status === 404 || res.status === 204) {
+    return { rows: [], periods: [], variables: [] };
+  }
+  if (!res.ok) throw new Error(`GET data transformation override failed: ${res.status}`);
+  const json = await res.json();
+  const data = json?.data ?? {};
+
+  const rows: ScenarioRow[] | undefined = Array.isArray(data)
+    ? (data as ScenarioRow[])
+    : Array.isArray(data?.rows)
+    ? (data.rows as ScenarioRow[])
+    : undefined;
+
+  const periods: string[] = Array.isArray(data?.period) ? data.period : [];
+  const variables: string[] = Array.isArray(data?.variables) ? data.variables : [];
+
+  return { rows, periods, variables };
+}
+
 /** GET: /override_forecasted_mevs/input/?workflow_id=ID */
 export async function overrideGetInput(
   workflowId: number | string,
@@ -59,6 +91,21 @@ export async function overrideGetInput(
   const url = `${API_BASE}/api/overlay/execution/override_forecasted_mevs/input/?workflow_id=${workflowId}`;
   const res = await fetch(url, { headers: authHeader(token) });
   if (!res.ok) throw new Error(`GET input failed: ${res.status}`);
+  const json = await res.json();
+  const data = json?.data ?? {};
+  const periods: string[] = Array.isArray(data.period) ? data.period : [];
+  const variables: string[] = Array.isArray(data.variables) ? data.variables : [];
+  return { periods, variables };
+}
+
+/** GET: /override_data_transformation_mevs/input/?workflow_id=ID */
+export async function overrideGetDataTransformationInput(
+  workflowId: number | string,
+  token?: string | null
+): Promise<OverrideGetResponse> {
+  const url = `${API_BASE}/api/overlay/execution/override_data_transformation_mevs/input/?workflow_id=${workflowId}`;
+  const res = await fetch(url, { headers: authHeader(token) });
+  if (!res.ok) throw new Error(`GET data transformation input failed: ${res.status}`);
   const json = await res.json();
   const data = json?.data ?? {};
   const periods: string[] = Array.isArray(data.period) ? data.period : [];
@@ -85,6 +132,28 @@ export async function overridePostForecastedMevs(
     body: fd,
   });
   if (!res.ok) throw new Error(`POST override failed: ${res.status}`);
+  return res.json();
+}
+
+/** POST: /override_data_transformation_mevs/ */
+export async function overridePostDataTransformationMevs(
+  workflowId: number | string,
+  payloadRows: any,
+  token?: string | null
+) {
+  const url = `${API_BASE}/api/overlay/execution/override_data_transformation_mevs/`;
+  const fd = new FormData();
+  fd.append("workflow_id", String(workflowId));
+  const jsonStr = JSON.stringify(payloadRows);
+  fd.append("override_data_transformation_mevs", jsonStr);
+  fd.append("override_data_transformation_mev", jsonStr);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: authHeader(token),
+    body: fd,
+  });
+  if (!res.ok) throw new Error(`POST data transformation override failed: ${res.status}`);
   return res.json();
 }
 

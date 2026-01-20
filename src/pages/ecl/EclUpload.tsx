@@ -1,5 +1,5 @@
 // ==========================
-// pages/flowrate/FlowrateApproachPage.tsx
+// pages/ecl/EclUpload.tsx
 // ==========================
 import { useEffect, useMemo, useState } from "react";
 import Stepper from "../../components/stepper/Stepper";
@@ -13,6 +13,11 @@ import type { RootState } from "../../redux_toolkit/store";
 import {
   setPdTransitionMatrixCurrentStep,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
+import {
+  clearModuleProgress,
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../redux_toolkit/features/progress/moduleProgressSlice";
 import Step2 from "./steps/Step2";
 import Step3 from "./steps/Step3";
 import Step4 from "./steps/Step4";
@@ -63,9 +68,15 @@ const FlowrateApproachPage = () => {
     selectedPdTransitionMatrixLoanProduct,
   ]);
 
-  // Prefer per-workflow step; fall back to legacy currentStep; then 0
+  const persistedStep = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "ecl", workflowPath || undefined)?.step
+  );
+
+  // Prefer persisted module step; fall back to per-workflow step; then legacy currentStep; then 0
   const initialStepForPath =
-    (workflowPath && stepsByWorkflowPath[workflowPath] !== undefined
+    (persistedStep !== undefined
+      ? persistedStep
+      : workflowPath && stepsByWorkflowPath[workflowPath] !== undefined
       ? stepsByWorkflowPath[workflowPath]
       : legacyCurrentStep ?? 0) || 0;
 
@@ -78,7 +89,7 @@ const FlowrateApproachPage = () => {
 
   const developmentSteps = [
     { label: "Inputs", completed: false },
-       { label: "Credit Loss Rate", completed: false },
+      { label: "Credit Loss Rate", completed: false },
     { label: "ECL Calculations", completed: false },
     { label: "Credit Loss Rate Approach", completed: false },
     { label: "Output", completed: false },
@@ -92,6 +103,31 @@ const FlowrateApproachPage = () => {
     dispatch(
       setPdTransitionMatrixCurrentStep({
         step: targetIndex,
+        workflowPath: workflowPath || undefined,
+      })
+    );
+
+    dispatch(
+      setModuleProgress({
+        moduleKey: "ecl",
+        contextKey: workflowPath || undefined,
+        step: targetIndex,
+        data: workflowPath ? { workflowPath } : undefined,
+      })
+    );
+  };
+
+  const handleFinish = () => {
+    dispatch(
+      clearModuleProgress({
+        moduleKey: "ecl",
+        contextKey: workflowPath || undefined,
+      })
+    );
+    setActiveSubStep(0);
+    dispatch(
+      setPdTransitionMatrixCurrentStep({
+        step: 0,
         workflowPath: workflowPath || undefined,
       })
     );
@@ -126,6 +162,14 @@ const FlowrateApproachPage = () => {
               This page shows the forward-looking credit loss rates by applying the overlay multipliers to the historical loss rates for each aging category under each scenario. The scenario probability weights are also input in this sheet.
             </p>
           </div>
+          {activeSubStep === developmentSteps.length - 1 && (
+            <button
+              onClick={handleFinish}
+              className="rounded-full border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200"
+            >
+              Finish
+            </button>
+          )}
         </div>
       </header>
 

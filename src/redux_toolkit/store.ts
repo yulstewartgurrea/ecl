@@ -14,7 +14,12 @@ const persistConfig = {
     "eclBaselinesReducer",
     "eclDpdBucketsSlice",
     "eclLoanProductsReducer",
-    "eclReportingPeriodsReducer"
+    "eclReportingPeriodsReducer",
+    "executionInputFile",
+    "finalModelExecutionFile",
+    "historicalWeightedCreditLossRateFile",
+    "flowrateStep5",
+    "moduleProgress"
   ],
 };
 

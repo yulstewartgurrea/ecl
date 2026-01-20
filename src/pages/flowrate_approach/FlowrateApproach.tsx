@@ -4,15 +4,21 @@
 import { useEffect, useMemo, useState } from "react";
 import Stepper from "../../components/stepper/Stepper";
 import Step1 from "./steps/Step1";
+import Step2 from "./steps/Step2";
+import Step3 from "./steps/Step3";
 import Step4 from "./steps/Step4";
-import Step5 from "./steps/Step5";
-import Step6 from "./steps/Step6";
 
 import { useAppDispatch, useAppSelector } from "../../redux_toolkit/hooks";
 import type { RootState } from "../../redux_toolkit/store";
 import {
   setPdTransitionMatrixCurrentStep,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
+import {
+  clearModuleProgress,
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../redux_toolkit/features/progress/moduleProgressSlice";
+import { clearStep5Bundle } from "../../redux_toolkit/features/asa/flowrateStep5Slice";
 
 const FlowrateApproachPage = () => {
   const dispatch = useAppDispatch();
@@ -59,9 +65,15 @@ const FlowrateApproachPage = () => {
     selectedPdTransitionMatrixLoanProduct,
   ]);
 
-  // Prefer per-workflow step; fall back to legacy currentStep; then 0
+  const persistedStep = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "flowrate", workflowPath || undefined)?.step
+  );
+
+  // Prefer persisted module step; fall back to per-workflow step; then legacy currentStep; then 0
   const initialStepForPath =
-    (workflowPath && stepsByWorkflowPath[workflowPath] !== undefined
+    (persistedStep !== undefined
+      ? persistedStep
+      : workflowPath && stepsByWorkflowPath[workflowPath] !== undefined
       ? stepsByWorkflowPath[workflowPath]
       : legacyCurrentStep ?? 0) || 0;
 
@@ -90,6 +102,42 @@ const FlowrateApproachPage = () => {
         workflowPath: workflowPath || undefined,
       })
     );
+
+    dispatch(
+      setModuleProgress({
+        moduleKey: "flowrate",
+        contextKey: workflowPath || undefined,
+        step: targetIndex,
+        data: workflowPath ? { workflowPath } : undefined,
+      })
+    );
+  };
+
+  const handleFinish = () => {
+    dispatch(
+      clearModuleProgress({
+        moduleKey: "flowrate",
+        contextKey: workflowPath || undefined,
+      })
+    );
+    if (workflowPath) {
+      const parts = workflowPath.split("/");
+      const wfId = Number(localStorage.getItem("current_workflow_id") || "");
+      if (Number.isFinite(wfId)) {
+        dispatch(clearStep5Bundle(wfId));
+      } else {
+        dispatch(clearStep5Bundle(undefined));
+      }
+    } else {
+      dispatch(clearStep5Bundle(undefined));
+    }
+    setActiveSubStep(0);
+    dispatch(
+      setPdTransitionMatrixCurrentStep({
+        step: 0,
+        workflowPath: workflowPath || undefined,
+      })
+    );
   };
 
   const renderSubStepContent = () => {
@@ -97,11 +145,11 @@ const FlowrateApproachPage = () => {
       case 0:
         return <Step1 />;
       case 1:
-        return <Step4 />;
+        return <Step2 />;
       case 2:
-        return <Step5 />;
+        return <Step3 />;
       case 3:
-        return <Step6 />;
+        return <Step4 />;
       default:
         return null;
     }
@@ -119,6 +167,14 @@ const FlowrateApproachPage = () => {
               A structured and dynamic framework for estimating credit losses.
             </p>
           </div>
+          {activeSubStep === developmentSteps.length - 1 && (
+            <button
+              onClick={handleFinish}
+              className="rounded-full border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200"
+            >
+              Finish
+            </button>
+          )}
         </div>
       </header>
 

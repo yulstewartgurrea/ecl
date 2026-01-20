@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   XMarkIcon,
   XCircleIcon,
@@ -18,8 +18,9 @@ type Props = {
   onClose: () => void;
   periods: string[];
   variables: string[];
+  availableVariables?: string[];
   initialRows?: ScenarioRow[]; // optional prefill from GET
-  onSave: (rows: ScenarioRow[]) => void; // rows normalized with %
+  onSave: (rows: ScenarioRow[], variables: string[]) => void; // rows normalized with %
 };
 
 /* ---------------- helpers: shape & normalization ---------------- */
@@ -127,8 +128,12 @@ export default function ScenarioConfigModalTable({
   onSave,
   periods,
   variables,
+  availableVariables,
   initialRows,
 }: Props) {
+  const [localVariables, setLocalVariables] = useState<string[]>(variables);
+  const availableList = availableVariables ?? variables;
+
   // Build from initialRows if provided, otherwise blank template
   const [rows, setRows] = useState<ScenarioRow[]>(
     alignRowsToShape(initialRows, periods, variables)
@@ -137,6 +142,7 @@ export default function ScenarioConfigModalTable({
   // Re-align when shape changes while open (periods/variables updates)
   useEffect(() => {
     if (!open) return;
+    setLocalVariables(variables);
     setRows((prev) =>
       alignRowsToShape(prev?.length ? prev : initialRows, periods, variables)
     );
@@ -166,12 +172,13 @@ export default function ScenarioConfigModalTable({
   const canSave = useMemo(
     () =>
       rows.length > 0 &&
+      localVariables.length > 0 &&
       rows.every((r) =>
         (["upside", "base", "downside"] as const).every((b) =>
-          variables.every((v) => hasValue((r as any)[b][v]))
+          localVariables.every((v) => hasValue((r as any)[b][v]))
         )
       ),
-    [rows, variables]
+    [rows, localVariables]
   );
 
   /* ---------------- editing handlers ---------------- */
@@ -223,11 +230,14 @@ export default function ScenarioConfigModalTable({
   };
 
   /** Before saving: ensure every cell is normalized to "<float>%" */
-  const normalizeAllBeforeSave = (grid: ScenarioRow[]): ScenarioRow[] => {
+  const normalizeAllBeforeSave = (
+    grid: ScenarioRow[],
+    vars: string[]
+  ): ScenarioRow[] => {
     const out = structuredClone(grid) as ScenarioRow[];
     out.forEach((row) => {
       (["upside", "base", "downside"] as const).forEach((b) => {
-        variables.forEach((v) => {
+        vars.forEach((v) => {
           const cur = String((row as any)[b][v] ?? "");
           const norm = normalizeFloatString(stripPct(cur));
           (row as any)[b][v] = norm ? `${norm}%` : "";
@@ -236,6 +246,44 @@ export default function ScenarioConfigModalTable({
     });
     return out;
   };
+
+  const normalizeVarName = (name: string) =>
+    String(name).trim().replace(/\s+/g, " ");
+
+  const upsertRowKey = (
+    row: ScenarioRow,
+    oldName: string | null,
+    newName: string | null
+  ): ScenarioRow => {
+    const next = structuredClone(row) as ScenarioRow;
+    (["upside", "base", "downside"] as const).forEach((b) => {
+      const block = (next as any)[b] as ScenarioBlock;
+      if (oldName && newName) {
+        block[newName] = block[oldName] ?? "";
+        delete block[oldName];
+      } else if (newName) {
+        block[newName] = block[newName] ?? "";
+      } else if (oldName) {
+        delete block[oldName];
+      }
+    });
+    return next;
+  };
+
+  const addVariable = (name: string) => {
+    const nextName = normalizeVarName(name);
+    if (!nextName || localVariables.includes(nextName)) return;
+    const nextVars = [...localVariables, nextName];
+    setLocalVariables(nextVars);
+    setRows((prev) => prev.map((r) => upsertRowKey(r, null, nextName)));
+  };
+
+  const deleteVariable = (name: string) => {
+    const nextVars = localVariables.filter((v) => v !== name);
+    setLocalVariables(nextVars);
+    setRows((prev) => prev.map((r) => upsertRowKey(r, name, null)));
+  };
+
 
   /* ---------------- UI ---------------- */
 
@@ -250,11 +298,11 @@ export default function ScenarioConfigModalTable({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-gray-100/80" onClick={onClose} />
       <div
         ref={dialogRef}
         tabIndex={-1}
-        className="relative w-[min(1100px,95vw)] max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/5"
+        className="relative w-[min(1100px,95vw)] max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-gray-200"
       >
         <div className="flex items-center justify-between px-5 py-4">
           <h2 className="text-lg font-semibold">
@@ -270,6 +318,37 @@ export default function ScenarioConfigModalTable({
         </div>
 
         <div className="px-4 py-3 overflow-auto">
+          <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+            <span className="inline-flex w-fit items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600 shadow-sm">
+              Available variables
+            </span>
+            <div className="mt-3 grid max-h-40 grid-cols-1 gap-1 overflow-auto pr-1 text-xs sm:grid-cols-2">
+              {availableList.map((v) => {
+                const selected = localVariables.includes(v);
+                return (
+                  <label
+                    key={v}
+                    className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${
+                      selected
+                        ? "border-gray-300 bg-gray-100 text-gray-900"
+                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() =>
+                        selected ? deleteVariable(v) : addVariable(v)
+                      }
+                      className="h-3.5 w-3.5 accent-gray-900"
+                    />
+                    <span className="truncate">{v}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="overflow-x-auto rounded-xl">
             <table className="min-w-[960px] w-full text-sm">
               <thead>
@@ -278,19 +357,19 @@ export default function ScenarioConfigModalTable({
                     Period
                   </th>
                   <th
-                    colSpan={variables.length}
+                    colSpan={Math.max(localVariables.length, 1)}
                     className={`${headerBase} bg-emerald-50`}
                   >
                     Upside
                   </th>
                   <th
-                    colSpan={variables.length}
+                    colSpan={Math.max(localVariables.length, 1)}
                     className={`${headerBase} bg-amber-50`}
                   >
                     Base
                   </th>
                   <th
-                    colSpan={variables.length}
+                    colSpan={Math.max(localVariables.length, 1)}
                     className={`${headerBase} bg-rose-50`}
                   >
                     Downside
@@ -302,14 +381,23 @@ export default function ScenarioConfigModalTable({
                   </th>
                   {["bg-emerald-50", "bg-amber-50", "bg-rose-50"].flatMap(
                     (bg, i) =>
-                      variables.map((v) => (
-                        <th
-                          key={`${i}-${v}`}
-                          className={`px-3 py-1 text-center text-xs ${bg}`}
-                        >
-                          {v}
-                        </th>
-                      ))
+                      localVariables.length
+                        ? localVariables.map((v) => (
+                            <th
+                              key={`${i}-${v}`}
+                              className={`px-3 py-1 text-center text-xs ${bg}`}
+                            >
+                              {v}
+                            </th>
+                          ))
+                        : [
+                            <th
+                              key={`${i}-placeholder`}
+                              className={`px-3 py-1 text-center text-xs ${bg}`}
+                            >
+                              â€”
+                            </th>,
+                          ]
                   )}
                 </tr>
               </thead>
@@ -325,7 +413,7 @@ export default function ScenarioConfigModalTable({
                     </td>
 
                     {/* Upside */}
-                    {variables.map((v) => {
+                    {localVariables.map((v) => {
                       const val = r.upside[v] ?? "";
                       const invalid = !hasValue(val);
                       return (
@@ -355,7 +443,7 @@ export default function ScenarioConfigModalTable({
                     })}
 
                     {/* Base */}
-                    {variables.map((v) => {
+                    {localVariables.map((v) => {
                       const val = r.base[v] ?? "";
                       const invalid = !hasValue(val);
                       return (
@@ -385,7 +473,7 @@ export default function ScenarioConfigModalTable({
                     })}
 
                     {/* Downside */}
-                    {variables.map((v) => {
+                    {localVariables.map((v) => {
                       const val = r.downside[v] ?? "";
                       const invalid = !hasValue(val);
                       return (
@@ -432,9 +520,9 @@ export default function ScenarioConfigModalTable({
             disabled={!canSave}
             onClick={() => {
               if (!canSave) return;
-              onSave(normalizeAllBeforeSave(rows));
+              onSave(normalizeAllBeforeSave(rows, localVariables), localVariables);
             }}
-            className="rounded-xl bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-black disabled:opacity-50 flex items-center gap-1.5"
+            className="rounded-xl bg-gray-100 text-gray-900 px-4 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
           >
             <CheckCircleIcon className="h-4 w-4" />
             <span>Save configuration</span>
@@ -444,3 +532,4 @@ export default function ScenarioConfigModalTable({
     </div>
   );
 }
+
