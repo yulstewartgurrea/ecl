@@ -132,7 +132,6 @@ export default function ScenarioConfigModalTable({
   initialRows,
 }: Props) {
   const [localVariables, setLocalVariables] = useState<string[]>(variables);
-  const [varEdits, setVarEdits] = useState<string[]>(variables);
   const availableList = availableVariables ?? variables;
 
   // Build from initialRows if provided, otherwise blank template
@@ -144,7 +143,6 @@ export default function ScenarioConfigModalTable({
   useEffect(() => {
     if (!open) return;
     setLocalVariables(variables);
-    setVarEdits(variables);
     setRows((prev) =>
       alignRowsToShape(prev?.length ? prev : initialRows, periods, variables)
     );
@@ -277,42 +275,15 @@ export default function ScenarioConfigModalTable({
     if (!nextName || localVariables.includes(nextName)) return;
     const nextVars = [...localVariables, nextName];
     setLocalVariables(nextVars);
-    setVarEdits(nextVars);
     setRows((prev) => prev.map((r) => upsertRowKey(r, null, nextName)));
   };
 
   const deleteVariable = (name: string) => {
     const nextVars = localVariables.filter((v) => v !== name);
     setLocalVariables(nextVars);
-    setVarEdits(nextVars);
     setRows((prev) => prev.map((r) => upsertRowKey(r, name, null)));
   };
 
-  const commitRename = (idx: number) => {
-    const oldName = localVariables[idx];
-    const nextName = normalizeVarName(varEdits[idx] ?? "");
-    if (!nextName || nextName === oldName) {
-      setVarEdits((prev) => {
-        const next = [...prev];
-        next[idx] = oldName;
-        return next;
-      });
-      return;
-    }
-    if (localVariables.includes(nextName)) {
-      setVarEdits((prev) => {
-        const next = [...prev];
-        next[idx] = oldName;
-        return next;
-      });
-      return;
-    }
-    const nextVars = [...localVariables];
-    nextVars[idx] = nextName;
-    setLocalVariables(nextVars);
-    setVarEdits(nextVars);
-    setRows((prev) => prev.map((r) => upsertRowKey(r, oldName, nextName)));
-  };
 
   /* ---------------- UI ---------------- */
 
@@ -348,102 +319,34 @@ export default function ScenarioConfigModalTable({
 
         <div className="px-4 py-3 overflow-auto">
           <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                  Subheaders
-                </p>
-                <p className="text-xs text-gray-500">
-                  Add, edit, or delete subheaders. Changes apply to Upside, Base,
-                  and Downside columns.
-                </p>
-              </div>
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-wrap gap-2">
-                  {localVariables.length ? (
-                    localVariables.map((v) => (
-                      <span
-                        key={v}
-                        className="inline-flex items-center gap-1 rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold text-white"
-                      >
-                        {v}
-                        <button
-                          onClick={() => deleteVariable(v)}
-                          className="ml-1 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold hover:bg-white/30"
-                          title="Remove"
-                        >
-                          x
-                        </button>
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-gray-500">No subheaders selected.</span>
-                  )}
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
-                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                    Available variables
-                  </div>
-                  <div className="grid max-h-40 grid-cols-1 gap-1 overflow-auto pr-1 text-xs sm:grid-cols-2">
-                    {availableList.map((v) => {
-                      const selected = localVariables.includes(v);
-                      return (
-                        <label
-                          key={v}
-                          className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${
-                            selected
-                              ? "border-gray-900 bg-gray-900 text-white"
-                              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selected}
-                            onChange={() =>
-                              selected ? deleteVariable(v) : addVariable(v)
-                            }
-                            className="h-3.5 w-3.5 accent-gray-900"
-                          />
-                          <span className="truncate">{v}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {localVariables.length > 0 && (
-              <div className="mt-3 grid gap-2 md:grid-cols-3">
-                {localVariables.map((v, idx) => (
-                  <div key={v} className="flex items-center gap-2">
+            <span className="inline-flex w-fit items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600 shadow-sm">
+              Available variables
+            </span>
+            <div className="mt-3 grid max-h-40 grid-cols-1 gap-1 overflow-auto pr-1 text-xs sm:grid-cols-2">
+              {availableList.map((v) => {
+                const selected = localVariables.includes(v);
+                return (
+                  <label
+                    key={v}
+                    className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${
+                      selected
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
                     <input
-                      value={varEdits[idx] ?? ""}
-                      onChange={(e) => {
-                        const next = [...varEdits];
-                        next[idx] = e.target.value;
-                        setVarEdits(next);
-                      }}
-                      onBlur={() => commitRename(idx)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          commitRename(idx);
-                        }
-                      }}
-                      className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() =>
+                        selected ? deleteVariable(v) : addVariable(v)
+                      }
+                      className="h-3.5 w-3.5 accent-gray-900"
                     />
-                    <button
-                      onClick={() => deleteVariable(v)}
-                      className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-white"
-                      title="Delete subheader"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                    <span className="truncate">{v}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           <div className="overflow-x-auto rounded-xl">
