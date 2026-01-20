@@ -406,6 +406,8 @@ async def get_override_data_transformation_mevs_input(
                 f"output/overlay/execution/{workflow.loan_product}/data_interpolation"
             )
 
+            print(data_interpolation)
+
             period_file = get_latest_file(period_path)
             data_interpolation_file = get_latest_file(data_interpolation)
 
@@ -443,18 +445,26 @@ async def get_override_data_transformation_mevs_input(
             ]
 
             # 1. Get all columns that look like X + number (X1, X2, X3, ...)
-            x_cols = [col for col in data_interpolation_data.columns if re.fullmatch(r"X\d+", col)]
-            # 2. Grab the first (and only) row
-            row = data_interpolation_data.iloc[0]
-            # 3. Build a dict: {"X1": "rrp_rate", "X2": "gni_growth_12m", ...}
-            x_values = [row[col] for col in x_cols]
+            cols_to_drop = [
+                "Date",
+                "year",
+                "month (int)",
+                "month",
+                "id",
+                "x"
+            ]
+            df_clean = data_interpolation_data.drop(columns=cols_to_drop, errors="ignore")
+            df_clean.columns = df_clean.columns.str.strip()
+            x_cols = df_clean.columns.tolist()
+            x_cols = set([col.split('.')[0] for col in x_cols])
+            x_values = df_clean.values
 
             return {
                 'code': 1,
                 'success': True,
                 'data': {
                     'period': data_transformation_periods,
-                    'variables': x_values
+                    'variables': x_cols
                 }
             }
         finally:
