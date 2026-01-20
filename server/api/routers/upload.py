@@ -193,9 +193,14 @@ async def upload_file(
 
             # Step 1: Read file fully
             if file.filename.lower().endswith(".csv"):
-                # Read CSV fully (no chunking)
-                df = pd.read_csv(temp_path, encoding="utf-8-sig")
-                df.columns = df.columns.str.strip().str.lower()
+                # Special handling for ECL_CLIENT_LOAN_BALANCES
+                if document_type == "ECL_CLIENT_LOAN_BALANCES":
+                    # Read with header=None to access all rows
+                    df = pd.read_csv(temp_path, header=None, encoding="utf-8-sig")
+                else:
+                    # Read CSV fully (no chunking) - default behavior
+                    df = pd.read_csv(temp_path, encoding="utf-8-sig")
+                    df.columns = df.columns.str.strip().str.lower()
                 excel_file = None
                 sheet_names = []
             else:
@@ -203,10 +208,15 @@ async def upload_file(
                 excel_file = pd.ExcelFile(temp_path)
                 sheet_names = excel_file.sheet_names
                 
-                # For multi-sheet docs, we'll handle validation separately
-                # but still read first sheet for cleaning/persistence
-                df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
-                df.columns = df.columns.str.strip().str.lower()
+                # Special handling for ECL_CLIENT_LOAN_BALANCES
+                if document_type == "ECL_CLIENT_LOAN_BALANCES":
+                    # Read with header=None to access all rows
+                    df = pd.read_excel(excel_file, sheet_name=sheet_names[0], header=None)
+                else:
+                    # For multi-sheet docs, we'll handle validation separately
+                    # but still read first sheet for cleaning/persistence
+                    df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
+                    df.columns = df.columns.str.strip().str.lower()
 
             try:
                 # Step 2: Clean the data first
@@ -229,6 +239,7 @@ async def upload_file(
                     cleaned_df = df
 
                 print(f"Cleaned DataFrame shape: {None if cleaned_df is None else cleaned_df.shape}")
+                print('cleaned_df \n', cleaned_df)
 
                 # Step 3: Validate the cleaned data
                 if file.filename.lower().endswith(".csv"):
@@ -288,6 +299,8 @@ async def upload_file(
                         create_subdirectories=True
                     )
                 else:
+                    # Replace NaN with None for JSON compliance
+                    cleaned_df = cleaned_df.where(pd.notna(cleaned_df), None)
                     file_data_json = cleaned_df.to_json(orient='records')
                     document_data_dict = cleaned_df.to_json(orient='records')
                     # Save cleaned DataFrame

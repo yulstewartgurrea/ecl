@@ -74,6 +74,42 @@ async def get_summary_data(
             default=None
         )
 
+        if not aging_report_file:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "msg": "Aging report file not found",
+                    "data": None
+                }
+            )
+
+        credit_loss_rates_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"output/ecl/{workflow.loan_product}/creditloss_rate"
+        )
+
+        credit_loss_rates_file = max(
+            (p for p in Path(credit_loss_rates_path).iterdir() if p.is_file()),
+            key=lambda p: p.stat().st_mtime,
+            default=None
+        )
+
+        if not credit_loss_rates_file:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "msg": "Credit loss rates file not found",
+                    "data": None
+                }
+            )
+
         ecl_path = (
             f"{get_root_folder()}/server/files/"
             f"{workflow.entity}/"
@@ -88,7 +124,69 @@ async def get_summary_data(
             default=None
         )
 
-        ecl_res = process_summary_data(aging_report_file, ecl_file)
+        if not ecl_file:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "msg": "ECL file not found",
+                    "data": None
+                }
+            )
+
+        client_loan_balances_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"input/ecl/{workflow.loan_product}/ECL_CLIENT_LOAN_BALANCES"
+        )
+
+        client_loan_balances_file = max(
+            (p for p in Path(client_loan_balances_path).iterdir() if p.is_file()),
+            key=lambda p: p.stat().st_mtime,
+            default=None
+        )
+
+        if not client_loan_balances_file:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "msg": "Client loan balances file not found",
+                    "data": None
+                }
+            )
+
+        if client_loan_balances_file.suffix.lower() == ".xlsx":
+            xdf = pd.read_excel(
+                client_loan_balances_file,
+                engine="openpyxl",
+                header=None,
+                nrows=2
+            )
+        elif client_loan_balances_file.suffix.lower() == ".xls":
+            xdf = pd.read_excel(
+                client_loan_balances_file,
+                engine="xlrd",
+                header=None,
+                nrows=2
+            )
+        else:
+            xdf = pd.read_excel(
+                client_loan_balances_file,
+                engine="openpyxl",
+                header=None,
+                nrows=2
+            )
+        print(client_loan_balances_file)
+        print('xdf \n', xdf)
+
+        total_loan_balance = int(xdf.iat[1, 1])
+
+        ecl_res = process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, total_loan_balance)
 
         filename = f"{workflow.loan_product}_ecl_summary_{get_time_date()}.xlsx"
         output_folder = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/ecl/{workflow.loan_product}/ecl_summary"

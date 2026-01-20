@@ -154,6 +154,20 @@ async def calculate_credit_loss_rates(
             default=None
         )
 
+        net_flow_rate_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"output/flowrate_approach/{workflow.loan_product}/creditloss_rate"
+        )
+
+        net_flow_rate_file = max(
+            (p for p in Path(net_flow_rate_path).iterdir() if p.is_file()),
+            key=lambda p: p.stat().st_mtime,
+            default=None
+        )
+
         ecl_multiplier_path = (
             f"{get_root_folder()}/server/files/"
             f"{workflow.entity}/"
@@ -169,12 +183,63 @@ async def calculate_credit_loss_rates(
             default=None
         )
 
+        overlay_multiplier_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"output/overlay/execution/{workflow.loan_product}/overlay_multiplier"
+        )
+        
+        overlay_multiplier_file = max(
+            (p for p in Path(overlay_multiplier_path).iterdir() if p.is_file()),
+            key=lambda p: p.stat().st_mtime,
+            default=None
+        )
+
+        development_historical_default_rate_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
+        )
+        
+        development_historical_default_rate_file = max(
+            (p for p in Path(development_historical_default_rate_path).iterdir() if p.is_file()),
+            key=lambda p: p.stat().st_mtime,
+            default=None
+        )
+
+        execution_historical_weighted_credit_loss_rate_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE"
+        )
+
+        execution_historical_weighted_credit_loss_rate_file = max(
+            (p for p in Path(execution_historical_weighted_credit_loss_rate_path).iterdir() if p.is_file()),
+            key=lambda p: p.stat().st_mtime,
+            default=None
+        )
+
+        if not execution_historical_weighted_credit_loss_rate_file:
+            historical_default_rates_file = development_historical_default_rate_file
+        else:
+            historical_default_rates_file = execution_historical_weighted_credit_loss_rate_file
+
         print(aging_report_file)
         print(parsed_probability_weights)
+        
         process_credit_loss_rates_res = process_credit_loss_rates(
             aging_report_file, 
             ecl_multiplier_file, 
-            parsed_probability_weights
+            parsed_probability_weights,
+            net_flow_rate_file,
+            overlay_multiplier_file,
+            historical_default_rates_file
         )
 
         filename = f"{workflow.loan_product}_creditloss_rate_{get_time_date()}.xlsx"

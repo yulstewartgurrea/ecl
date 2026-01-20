@@ -6,7 +6,21 @@ def process_ecl_data(client_loan_balances_file, credit_loss_rates_file, parsed_p
         client_loan_balances_df = pd.read_excel(client_loan_balances_file)
         credit_loss_rates_df = pd.read_excel(credit_loss_rates_file)
 
+        print('client_loan_balances_df \n', client_loan_balances_df)
+
         df = client_loan_balances_df.copy()
+
+        header_row_idx = df.index[df[0] == "date"][0]
+        # Extract header
+        header = df.loc[header_row_idx].tolist()
+        # Extract data below header
+        df = df.loc[header_row_idx + 1:].copy()
+
+        # Assign column names
+        df.columns = header
+
+        # Reset index
+        df.reset_index(drop=True, inplace=True)
 
         # Normalize column names
         df.columns = df.columns.str.strip().str.lower()

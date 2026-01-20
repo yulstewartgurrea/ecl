@@ -29,6 +29,7 @@ export interface EclClientRow {
 type Props = {
   rows: EclClientRow[];
   reportingDate?: string;
+  totalLoanBalance?: number;
 };
 
 const formatCurrency = (value: number | null | undefined) => {
@@ -50,10 +51,10 @@ const formatPercent = (value: number | null | undefined) => {
   return `${Number(value).toFixed(2)}%`;
 };
 
-const EclCombinedExcelTable: FC<Props> = ({ rows, reportingDate }) => {
-  const totalLoanBalance = useMemo(() => {
-    return (rows ?? []).reduce((sum, r) => sum + Number(r.loanBalance || 0), 0);
-  }, [rows]);
+const EclCombinedExcelTable: FC<Props> = ({ rows, reportingDate, totalLoanBalance }) => {
+  // const totalLoanBalance = useMemo(() => {
+  //   return (rows ?? []).reduce((sum, r) => sum + Number(r.loanBalance || 0), 0);
+  // }, [rows]);
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">

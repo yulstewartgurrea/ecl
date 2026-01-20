@@ -21,6 +21,7 @@ import {
   setPdTransitionMatrixSelectedReportingPeriod,
   setPdTransitionMatrixWfName,
   setPdTransitionMatrixWorkflowId,
+  setPdTransitionMatrixSelectedLoanProduct,
 } from "../../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 
 import type { Workflow } from "../../../services/workflow";
@@ -86,6 +87,8 @@ function composeWorkflowPathWithDocType(
 export default function Step1() {
   const dispatch = useAppDispatch();
 
+  
+
   const {
     selectedPdTransitionMatrixEntity: entity,
     selectedPdTransitionMatrixReportingPeriod: period,
@@ -93,7 +96,6 @@ export default function Step1() {
     currentPdTransitionMatrixWorkflowId: selectedWorkflowId,
     selectedPdTransitionMatrixLoanProduct: loanproduct,
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper as any);
-
   const token = useAppSelector((state) => state.auth.token);
 
   // Execution input
@@ -362,10 +364,12 @@ export default function Step1() {
         (w as any).reporting_period ?? (w as any).reportingPeriod ?? "";
       const nextName = (w as any).workflow_name ?? (w as any).name ?? "";
       const nextId = typeof (w as any).id === "number" ? (w as any).id : null;
+      const nextLoanProduct = (w as any).loan_product ?? "";
 
       if (nextEntity) dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
       if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
+      dispatch(setPdTransitionMatrixSelectedLoanProduct({ loan_product: nextLoanProduct }));
       dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
 
       setPickerOpen(false);
