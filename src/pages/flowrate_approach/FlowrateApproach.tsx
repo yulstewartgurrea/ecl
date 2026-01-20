@@ -18,6 +18,7 @@ import {
   selectModuleProgress,
   setModuleProgress,
 } from "../../redux_toolkit/features/progress/moduleProgressSlice";
+import { clearStep5Bundle } from "../../redux_toolkit/features/asa/flowrateStep5Slice";
 
 const FlowrateApproachPage = () => {
   const dispatch = useAppDispatch();
@@ -119,6 +120,17 @@ const FlowrateApproachPage = () => {
         contextKey: workflowPath || undefined,
       })
     );
+    if (workflowPath) {
+      const parts = workflowPath.split("/");
+      const wfId = Number(localStorage.getItem("current_workflow_id") || "");
+      if (Number.isFinite(wfId)) {
+        dispatch(clearStep5Bundle(wfId));
+      } else {
+        dispatch(clearStep5Bundle(undefined));
+      }
+    } else {
+      dispatch(clearStep5Bundle(undefined));
+    }
     setActiveSubStep(0);
     dispatch(
       setPdTransitionMatrixCurrentStep({

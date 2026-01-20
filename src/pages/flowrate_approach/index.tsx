@@ -21,12 +21,27 @@ import {
   setPdTransitionMatrixSelectedLoanProduct,
   setPdTransitionMatrixReportDateStart,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 const TransitionMatrixLanding = () => {
   const navigate = useNavigate();
+  const flowrateProgressMap = useAppSelector(
+    (state: any) => state.moduleProgress?.modules?.flowrate || {}
+  );
+  const lastFlowrateProgress = useMemo(() => {
+    const entries = Object.values(flowrateProgressMap) as any[];
+    if (!entries.length) return undefined;
+    return entries.sort((a, b) => (b?.step ?? 0) - (a?.step ?? 0))[0];
+  }, [flowrateProgressMap]);
   const dispatch = useAppDispatch();
   const authToken = useAppSelector((state) => state.auth.token);
+
+  // If user has existing flowrate progress, jump back to the Flowrate module steps
+  useEffect(() => {
+    if (lastFlowrateProgress && (lastFlowrateProgress.step ?? 0) > 0) {
+      navigate("/page/flowrate");
+    }
+  }, [lastFlowrateProgress, navigate]);
 
   const { isSidebarOpen } = useAppSelector((state: any) => state.navUIState);
   const {

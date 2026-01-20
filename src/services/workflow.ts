@@ -33,6 +33,17 @@ export type CheckWorkflowParams = {
   workflowName: string;
 };
 
+export type GetWorkflowByParams = {
+  apiBase: string;
+  token?: string | null;
+  entity: string;
+  reportingPeriod: string;
+  workflowName: string;
+  loanProduct?: string;
+  reportDateStart?: string;
+  workflowType?: string;
+};
+
 export type CreateWorkflowParams = {
   apiBase: string;
   token?: string | null;
@@ -105,6 +116,52 @@ export async function checkWorkflowExists({
   return data as any;
 }
 
+/** GET /workflows/?... → returns the first matching workflow record (if any) */
+export async function getWorkflowByParams({
+  apiBase,
+  token,
+  entity,
+  reportingPeriod,
+  workflowName,
+  loanProduct,
+  reportDateStart,
+  workflowType,
+}: GetWorkflowByParams): Promise<WorkflowRecord | null> {
+  const url = `${apiBase.replace(/\/$/, "")}/workflows/?${qs({
+    entity,
+    loan_product: loanProduct || "",
+    reporting_period: reportingPeriod,
+    report_date_start: reportDateStart || "",
+    workflow_name: workflowName,
+    workflow_type: workflowType || "",
+  })}`;
+
+  const res = await tFetch(url, {
+    method: "GET",
+    headers: { ...withAuth(token) },
+  });
+
+  const data = (await res.json()) as any;
+
+  if (!res.ok) {
+    const detail = data?.detail ?? data?.msg ?? `HTTP ${res.status}`;
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+
+  const payload =
+    data && typeof data === "object" && "data" in data ? data.data : data;
+
+  if (Array.isArray(payload)) {
+    return (payload[0] as WorkflowRecord) ?? null;
+  }
+
+  if (payload && typeof payload === "object") {
+    return payload as WorkflowRecord;
+  }
+
+  return null;
+}
+
 /** POST /workflows/ → envelope with created workflow in `data` */
 export async function createWorkflow({
   apiBase,
@@ -153,7 +210,6 @@ export async function createOrUpdateWorkflow(
     entity,
     reportingPeriod,
     workflowName,
-    proceedWithUpdate = false,
     baselineYear,
     loanProduct,
     reportDateStart,
@@ -168,9 +224,20 @@ export async function createOrUpdateWorkflow(
     workflowName,
   });
 
-  if (check?.exists && !proceedWithUpdate) {
+  if (check?.exists) {
+    const existing = await getWorkflowByParams({
+      apiBase,
+      token,
+      entity,
+      reportingPeriod,
+      workflowName,
+      loanProduct,
+      reportDateStart,
+      workflowType,
+    });
+    if (existing) return existing;
     throw new WorkflowAlreadyExistsError(
-      "This workflow already exists. Set `proceedWithUpdate: true` to continue."
+      "This workflow already exists but could not be retrieved."
     );
   }
 
