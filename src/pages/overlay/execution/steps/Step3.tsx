@@ -55,7 +55,7 @@ export default function OverlayExecutionPage3() {
     const boot = async () => {
       if (!selectedWorkflowId) return;
       try {
-        const { periods, variables } = await overrideGetInput(
+        const { variables } = await overrideGetInput(
           selectedWorkflowId,
           token
         );
