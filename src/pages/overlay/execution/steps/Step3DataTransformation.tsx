@@ -17,6 +17,9 @@ import {
   Cog6ToothIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import ScenarioConfigModalTable, {
+  type ScenarioRow,
+} from "../../../../components/overlay/execution/mev/ConfigModal";
 import {
   postDataTransformationExecution,
   getDataTransformationStatusExecution,
@@ -26,6 +29,11 @@ import {
   shapeTransformationResults,
   type DataTransformationStatus,
 } from "../../../../services/dataTransformation";
+import {
+  overrideGetForcasted,
+  overrideGetInput,
+  overridePostForecastedMevs,
+} from "../../../../services/overlayExecution";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -77,6 +85,77 @@ export default function OverlayDevelpmentPage3() {
   // Configuration states
   const [showConfig, setShowConfig] = useState(false);
   const [numCombinations, setNumCombinations] = useState<number>(2);
+  const [mevConfigOpen, setMevConfigOpen] = useState(false);
+  const [mevPeriods, setMevPeriods] = useState<string[]>([]);
+  const [mevVariables, setMevVariables] = useState<string[]>([]);
+  const [mevPrefillRows, setMevPrefillRows] = useState<ScenarioRow[] | null>(null);
+  const [mevLoadingCfg, setMevLoadingCfg] = useState(false);
+
+  const normalizePeriodOut = (p: string) => {
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(p)) {
+      const [mm, dd, yyyy] = p.split("/");
+      return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    }
+    return p;
+  };
+
+  // Load MEV config shape (periods/variables)
+  useEffect(() => {
+    const boot = async () => {
+      if (!selectedWorkflowId) return;
+      setMevLoadingCfg(true);
+      try {
+        const { periods, variables } = await overrideGetInput(
+          selectedWorkflowId,
+          token
+        );
+        setMevPeriods(periods);
+        const cached = localStorage.getItem("overlay_execution_mev_variables");
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+              setMevVariables(parsed);
+            } else {
+              setMevVariables(variables);
+            }
+          } catch {
+            setMevVariables(variables);
+          }
+        } else {
+          setMevVariables(variables);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setMevLoadingCfg(false);
+      }
+    };
+    boot();
+  }, [selectedWorkflowId, token]);
+
+  // Prefill MEV override rows (if any)
+  useEffect(() => {
+    const boot = async () => {
+      if (!selectedWorkflowId) return;
+      try {
+        const { rows } = await overrideGetForcasted(selectedWorkflowId, token);
+        setMevPrefillRows(rows ?? null);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    boot();
+  }, [selectedWorkflowId, token]);
+
+  const handleOpenMevConfig = () => {
+    if (!selectedWorkflowId && selectedWorkflowId !== 0) return;
+    if (!mevPeriods.length || !mevVariables.length) {
+      alert("No periods/variables returned by the server.");
+      return;
+    }
+    setMevConfigOpen(true);
+  };
 
 
   // ---- Core loader (POST or GET-only) ----
@@ -477,6 +556,17 @@ export default function OverlayDevelpmentPage3() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* MEV Configuration Button */}
+            <button
+              onClick={handleOpenMevConfig}
+              disabled={mevLoadingCfg || (!selectedWorkflowId && selectedWorkflowId !== 0)}
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+              title="Configure MEV overrides"
+            >
+              <Cog6ToothIcon className="h-4 w-4" />
+              MEV Config
+            </button>
+
             {/* Configuration Button */}
             <button
               onClick={() => setShowConfig(true)}
@@ -657,6 +747,42 @@ export default function OverlayDevelpmentPage3() {
           </div>
         </div>
       )}
+
+      <ScenarioConfigModalTable
+        open={mevConfigOpen}
+        onClose={() => setMevConfigOpen(false)}
+        periods={mevPeriods}
+        variables={mevVariables}
+        initialRows={mevPrefillRows ?? undefined}
+        onSave={async (rows, nextVariables) => {
+          const payload = rows.map((r) => ({
+            period: normalizePeriodOut(r.period),
+            upside: r.upside,
+            base: r.base,
+            downside: r.downside,
+          }));
+
+          if (!selectedWorkflowId) return;
+
+          try {
+            await overridePostForecastedMevs(selectedWorkflowId, payload, token);
+            setMevVariables(nextVariables);
+            localStorage.setItem(
+              "overlay_execution_mev_variables",
+              JSON.stringify(nextVariables)
+            );
+            setMevConfigOpen(false);
+
+            const { rows: latest } = await overrideGetForcasted(
+              selectedWorkflowId,
+              token
+            );
+            setMevPrefillRows(latest ?? null);
+          } catch (err) {
+            console.error(err);
+          }
+        }}
+      />
 
       <main className="mx-auto px-4 pb-8">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3">

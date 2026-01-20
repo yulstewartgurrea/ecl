@@ -4,9 +4,7 @@ import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 
-import ScenarioConfigModalTable, {
-  type ScenarioRow,
-} from "../../../../components/overlay/execution/mev/ConfigModal";
+import type { ScenarioRow } from "../../../../components/overlay/execution/mev/ConfigModal";
 import ForecastedMEVDynamicTable from "../../../../components/overlay/execution/mev/ForecastedMEVTable";
 
 import {
@@ -18,19 +16,12 @@ import {
   checkTransformForecastedMevs,
 } from "../../../../services/overlayExecution";
 
-import {
-  Cog6ToothIcon,
-  PlayCircleIcon,
-  ArrowPathIcon,
-  ArrowDownTrayIcon,
-} from "@heroicons/react/24/outline";
+import { PlayCircleIcon, ArrowPathIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 
 export default function OverlayExecutionPage3() {
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
     useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
-
-  const [configOpen, setConfigOpen] = useState(false);
 
   // values you edit/save in the modal
   const [overrideRows, setOverrideRows] = useState<ScenarioRow[] | null>(null);
@@ -38,11 +29,9 @@ export default function OverlayExecutionPage3() {
   // transformed rows returned by the "Run" flow (POST+GET transform)
   const [transformedRows, setTransformedRows] = useState<ScenarioRow[] | null>(null);
 
-  const [periods, setPeriods] = useState<string[]>([]);
+  const [apiVariables, setApiVariables] = useState<string[]>([]);
   const [variables, setVariables] = useState<string[]>([]);
   const [prefillRows, setPrefillRows] = useState<ScenarioRow[] | null>(null);
-
-  const [loadingCfg, setLoadingCfg] = useState(false);
   const [running, setRunning] = useState(false);
 
   // for Inline actions
@@ -65,19 +54,31 @@ export default function OverlayExecutionPage3() {
   useEffect(() => {
     const boot = async () => {
       if (!selectedWorkflowId) return;
-      setLoadingCfg(true);
       try {
         const { periods, variables } = await overrideGetInput(
           selectedWorkflowId,
           token
         );
-        setPeriods(periods);
-        setVariables(variables);
+        setApiVariables(variables);
+        const cached = localStorage.getItem("overlay_execution_mev_variables");
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+              setVariables(parsed);
+            } else {
+              setVariables(variables);
+            }
+          } catch {
+            setVariables(variables);
+          }
+        } else {
+          setVariables(variables);
+        }
       } catch (err) {
         console.error(err);
         alert("Failed to load periods/variables for overrides.");
       } finally {
-        setLoadingCfg(false);
       }
     };
     boot();
@@ -108,7 +109,7 @@ export default function OverlayExecutionPage3() {
         setTransformedRows(null);
         return;
       }
-      if (!variables.length) {
+      if (!apiVariables.length) {
         // Wait for variables to load first
         return;
       }
@@ -117,7 +118,7 @@ export default function OverlayExecutionPage3() {
         // Always check for existing transformed data when visiting the page
         const rows = await getTransformedForecastedMevs(
           selectedWorkflowId,
-          variables,
+          apiVariables,
           token
         );
         setTransformedRows(rows);
@@ -131,21 +132,12 @@ export default function OverlayExecutionPage3() {
     };
 
     void loadTransformedData();
-  }, [selectedWorkflowId, variables, token]);
-
-  const handleOpenConfig = useCallback(() => {
-    if (!selectedWorkflowId) return;
-    if (!periods.length || !variables.length) {
-      alert("No periods/variables returned by the server.");
-      return;
-    }
-    setConfigOpen(true);
-  }, [selectedWorkflowId, periods.length, variables.length]);
+  }, [selectedWorkflowId, apiVariables, token]);
 
   // GET transformed rows only (for Refresh / Inline actions)
   const fetchInterpolation = useCallback(async () => {
     if (!selectedWorkflowId) return;
-    if (!variables.length) {
+    if (!apiVariables.length) {
       alert("No variables found. Load configuration first.");
       return;
     }
@@ -153,7 +145,7 @@ export default function OverlayExecutionPage3() {
     try {
       const rows = await getTransformedForecastedMevs(
         selectedWorkflowId,
-        variables,
+        apiVariables,
         token
       );
       setTransformedRows(rows);
@@ -163,13 +155,13 @@ export default function OverlayExecutionPage3() {
     } finally {
       setLoading(false);
     }
-  }, [selectedWorkflowId, variables, token]);
+  }, [selectedWorkflowId, apiVariables, token]);
 
   // 3) Run flow: POST transform then GET transform, then display (manual button)
   const handleRun = useCallback(
     async () => {
       if (!selectedWorkflowId || !overrideRows) return;
-      if (!variables.length) {
+      if (!apiVariables.length) {
         return;
       }
       setRunning(true);
@@ -185,7 +177,7 @@ export default function OverlayExecutionPage3() {
         setRunning(false);
       }
     },
-    [selectedWorkflowId, overrideRows, variables, token, fetchInterpolation]
+    [selectedWorkflowId, overrideRows, apiVariables, token, fetchInterpolation]
   );
 
   // ---- NEW: Auto-sequence (no button) ----
@@ -198,7 +190,7 @@ export default function OverlayExecutionPage3() {
 
   useEffect(() => {
     if (!selectedWorkflowId) return;
-    if (!variables.length) return;
+    if (!apiVariables.length) return;
     if (!prefillRows || !prefillRows.length) return;
     if (autoSequenceRef.current) return;
 
@@ -254,7 +246,7 @@ export default function OverlayExecutionPage3() {
         // Then GET transformed data for this workflow and display
         const transformed = await getTransformedForecastedMevs(
           selectedWorkflowId,
-          variables,
+          apiVariables,
           token
         );
         setTransformedRows(transformed);
@@ -262,7 +254,7 @@ export default function OverlayExecutionPage3() {
         console.error("Auto MEV override/transform sequence failed:", err);
       }
     })();
-  }, [selectedWorkflowId, variables, prefillRows, token]);
+  }, [selectedWorkflowId, apiVariables, prefillRows, token]);
 
   // Keep export flag accurate
   useEffect(() => {
@@ -335,20 +327,6 @@ export default function OverlayExecutionPage3() {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
-            <button
-              onClick={handleOpenConfig}
-              disabled={!selectedWorkflowId || loadingCfg}
-              className="cursor-pointer rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
-              title={
-                !selectedWorkflowId
-                  ? "Select a workflow on Step 1 first"
-                  : "Open configuration"
-              }
-            >
-              <Cog6ToothIcon className="h-4 w-4" />
-              <span>{loadingCfg ? "Loading…" : "Configuration"}</span>
-            </button>
-
             <button
               onClick={handleRun}
               disabled={!canRun || running}
@@ -459,43 +437,6 @@ export default function OverlayExecutionPage3() {
           </div>
         </div>
 
-        <ScenarioConfigModalTable
-          open={configOpen}
-          onClose={() => setConfigOpen(false)}
-          periods={periods}
-          variables={variables}
-          initialRows={prefillRows ?? undefined}
-          onSave={async (rows) => {
-            // normalize period format for POST
-            const payload = rows.map((r) => ({
-              period: normalizePeriodOut(r.period),
-              upside: r.upside,
-              base: r.base,
-              downside: r.downside,
-            }));
-
-            if (!selectedWorkflowId) return;
-
-            try {
-              await overridePostForecastedMevs(selectedWorkflowId, payload, token);
-              setOverrideRows(rows); // keep the pretty version the user sees
-              setTransformedRows(null); // force a fresh Run to regenerate transform
-              setConfigOpen(false);
-
-              // refresh modal prefill from server so it reopens with latest values
-              const { rows: latest } = await overrideGetForcasted(
-                selectedWorkflowId,
-                token
-              );
-              setPrefillRows(latest ?? null);
-
-              // optionally auto-run after save (manual flow still uses handleRun)
-              await handleRun();
-            } catch (err) {
-              console.error(err);
-            }
-          }}
-        />
       </main>
     </div>
   );

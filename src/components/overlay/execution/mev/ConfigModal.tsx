@@ -19,7 +19,7 @@ type Props = {
   periods: string[];
   variables: string[];
   initialRows?: ScenarioRow[]; // optional prefill from GET
-  onSave: (rows: ScenarioRow[]) => void; // rows normalized with %
+  onSave: (rows: ScenarioRow[], variables: string[]) => void; // rows normalized with %
 };
 
 /* ---------------- helpers: shape & normalization ---------------- */
@@ -129,6 +129,10 @@ export default function ScenarioConfigModalTable({
   variables,
   initialRows,
 }: Props) {
+  const [localVariables, setLocalVariables] = useState<string[]>(variables);
+  const [varEdits, setVarEdits] = useState<string[]>(variables);
+  const [newVarName, setNewVarName] = useState("");
+
   // Build from initialRows if provided, otherwise blank template
   const [rows, setRows] = useState<ScenarioRow[]>(
     alignRowsToShape(initialRows, periods, variables)
@@ -137,6 +141,8 @@ export default function ScenarioConfigModalTable({
   // Re-align when shape changes while open (periods/variables updates)
   useEffect(() => {
     if (!open) return;
+    setLocalVariables(variables);
+    setVarEdits(variables);
     setRows((prev) =>
       alignRowsToShape(prev?.length ? prev : initialRows, periods, variables)
     );
@@ -168,10 +174,10 @@ export default function ScenarioConfigModalTable({
       rows.length > 0 &&
       rows.every((r) =>
         (["upside", "base", "downside"] as const).every((b) =>
-          variables.every((v) => hasValue((r as any)[b][v]))
+          localVariables.every((v) => hasValue((r as any)[b][v]))
         )
       ),
-    [rows, variables]
+    [rows, localVariables]
   );
 
   /* ---------------- editing handlers ---------------- */
@@ -223,11 +229,14 @@ export default function ScenarioConfigModalTable({
   };
 
   /** Before saving: ensure every cell is normalized to "<float>%" */
-  const normalizeAllBeforeSave = (grid: ScenarioRow[]): ScenarioRow[] => {
+  const normalizeAllBeforeSave = (
+    grid: ScenarioRow[],
+    vars: string[]
+  ): ScenarioRow[] => {
     const out = structuredClone(grid) as ScenarioRow[];
     out.forEach((row) => {
       (["upside", "base", "downside"] as const).forEach((b) => {
-        variables.forEach((v) => {
+        vars.forEach((v) => {
           const cur = String((row as any)[b][v] ?? "");
           const norm = normalizeFloatString(stripPct(cur));
           (row as any)[b][v] = norm ? `${norm}%` : "";
@@ -235,6 +244,76 @@ export default function ScenarioConfigModalTable({
       });
     });
     return out;
+  };
+
+  const normalizeVarName = (name: string) =>
+    String(name).trim().replace(/\s+/g, " ");
+
+  const upsertRowKey = (
+    row: ScenarioRow,
+    oldName: string | null,
+    newName: string | null
+  ): ScenarioRow => {
+    const next = structuredClone(row) as ScenarioRow;
+    (["upside", "base", "downside"] as const).forEach((b) => {
+      const block = (next as any)[b] as ScenarioBlock;
+      if (oldName && newName) {
+        block[newName] = block[oldName] ?? "";
+        delete block[oldName];
+      } else if (newName) {
+        block[newName] = block[newName] ?? "";
+      } else if (oldName) {
+        delete block[oldName];
+      }
+    });
+    return next;
+  };
+
+  const addVariable = () => {
+    const nextName = normalizeVarName(newVarName);
+    if (!nextName) return;
+    if (localVariables.includes(nextName)) {
+      setNewVarName("");
+      return;
+    }
+    const nextVars = [...localVariables, nextName];
+    setLocalVariables(nextVars);
+    setVarEdits(nextVars);
+    setRows((prev) => prev.map((r) => upsertRowKey(r, null, nextName)));
+    setNewVarName("");
+  };
+
+  const deleteVariable = (name: string) => {
+    const nextVars = localVariables.filter((v) => v !== name);
+    setLocalVariables(nextVars);
+    setVarEdits(nextVars);
+    setRows((prev) => prev.map((r) => upsertRowKey(r, name, null)));
+  };
+
+  const commitRename = (idx: number) => {
+    const oldName = localVariables[idx];
+    const nextName = normalizeVarName(varEdits[idx] ?? "");
+    if (!nextName || nextName === oldName) {
+      setVarEdits((prev) => {
+        const next = [...prev];
+        next[idx] = oldName;
+        return next;
+      });
+      return;
+    }
+    if (localVariables.includes(nextName)) {
+      setVarEdits((prev) => {
+        const next = [...prev];
+        next[idx] = oldName;
+        return next;
+      });
+      return;
+    }
+    const nextVars = [...localVariables];
+    nextVars[idx] = nextName;
+    setLocalVariables(nextVars);
+    setVarEdits(nextVars);
+    setRows((prev) => prev.map((r) => upsertRowKey(r, oldName, nextName)));
   };
 
   /* ---------------- UI ---------------- */
@@ -270,6 +349,72 @@ export default function ScenarioConfigModalTable({
         </div>
 
         <div className="px-4 py-3 overflow-auto">
+          <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                  Subheaders
+                </p>
+                <p className="text-xs text-gray-500">
+                  Add, edit, or delete subheaders. Changes apply to Upside, Base,
+                  and Downside columns.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  value={newVarName}
+                  onChange={(e) => setNewVarName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addVariable();
+                    }
+                  }}
+                  className="w-44 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  placeholder="New subheader"
+                />
+                <button
+                  onClick={addVariable}
+                  className="rounded-md bg-gray-900 px-3 py-1 text-xs font-semibold text-white hover:bg-black"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {localVariables.length > 0 && (
+              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                {localVariables.map((v, idx) => (
+                  <div key={v} className="flex items-center gap-2">
+                    <input
+                      value={varEdits[idx] ?? ""}
+                      onChange={(e) => {
+                        const next = [...varEdits];
+                        next[idx] = e.target.value;
+                        setVarEdits(next);
+                      }}
+                      onBlur={() => commitRename(idx)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          commitRename(idx);
+                        }
+                      }}
+                      className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                    />
+                    <button
+                      onClick={() => deleteVariable(v)}
+                      className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-white"
+                      title="Delete subheader"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="overflow-x-auto rounded-xl">
             <table className="min-w-[960px] w-full text-sm">
               <thead>
@@ -278,19 +423,19 @@ export default function ScenarioConfigModalTable({
                     Period
                   </th>
                   <th
-                    colSpan={variables.length}
+                    colSpan={localVariables.length}
                     className={`${headerBase} bg-emerald-50`}
                   >
                     Upside
                   </th>
                   <th
-                    colSpan={variables.length}
+                    colSpan={localVariables.length}
                     className={`${headerBase} bg-amber-50`}
                   >
                     Base
                   </th>
                   <th
-                    colSpan={variables.length}
+                    colSpan={localVariables.length}
                     className={`${headerBase} bg-rose-50`}
                   >
                     Downside
@@ -302,7 +447,7 @@ export default function ScenarioConfigModalTable({
                   </th>
                   {["bg-emerald-50", "bg-amber-50", "bg-rose-50"].flatMap(
                     (bg, i) =>
-                      variables.map((v) => (
+                      localVariables.map((v) => (
                         <th
                           key={`${i}-${v}`}
                           className={`px-3 py-1 text-center text-xs ${bg}`}
@@ -325,7 +470,7 @@ export default function ScenarioConfigModalTable({
                     </td>
 
                     {/* Upside */}
-                    {variables.map((v) => {
+                    {localVariables.map((v) => {
                       const val = r.upside[v] ?? "";
                       const invalid = !hasValue(val);
                       return (
@@ -355,7 +500,7 @@ export default function ScenarioConfigModalTable({
                     })}
 
                     {/* Base */}
-                    {variables.map((v) => {
+                    {localVariables.map((v) => {
                       const val = r.base[v] ?? "";
                       const invalid = !hasValue(val);
                       return (
@@ -385,7 +530,7 @@ export default function ScenarioConfigModalTable({
                     })}
 
                     {/* Downside */}
-                    {variables.map((v) => {
+                    {localVariables.map((v) => {
                       const val = r.downside[v] ?? "";
                       const invalid = !hasValue(val);
                       return (
@@ -432,7 +577,7 @@ export default function ScenarioConfigModalTable({
             disabled={!canSave}
             onClick={() => {
               if (!canSave) return;
-              onSave(normalizeAllBeforeSave(rows));
+              onSave(normalizeAllBeforeSave(rows, localVariables), localVariables);
             }}
             className="rounded-xl bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-black disabled:opacity-50 flex items-center gap-1.5"
           >
