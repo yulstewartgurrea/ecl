@@ -38,7 +38,8 @@ from api.routers.overlay.execution import (
     overlay_multiplier as overlay_execution_overlay_multiplier,
     pd_calibration as overlay_execution_pd_calibration,
     final_pit_pd as overlay_execution_final_pit_pd,
-    mev_arima_forecast as overlay_execution_mev_arima_forecast
+    mev_arima_forecast as overlay_execution_mev_arima_forecast,
+    override_data_transformation as overlay_execution_override_data_transformation
 )
 
 from api.routers.ecl import (
@@ -158,6 +159,7 @@ app.include_router(overlay_execution_overlay_multiplier.router)
 app.include_router(overlay_execution_pd_calibration.router)
 app.include_router(overlay_execution_final_pit_pd.router)
 app.include_router(overlay_execution_mev_arima_forecast.router)
+app.include_router(overlay_execution_override_data_transformation.router)
 
 # ECL
 app.include_router(ecl_credit_loss_rates.router)
