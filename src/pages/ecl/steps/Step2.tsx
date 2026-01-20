@@ -185,6 +185,7 @@ export default function Step2() {
   const [pageSize] = useState(100);
 
   const [clientRows, setClientRows] = useState<EclClientRow[]>([]);
+  const [totalLoanBalance, setTotalLoanBalance] = useState(0);
   const [pagination, setPagination] = useState<ApiPagination | null>(null);
 
   const [posting, setPosting] = useState(false);
@@ -220,6 +221,7 @@ export default function Step2() {
         throw new Error(json?.msg || "Failed to fetch ECL data.");
       }
 
+      setTotalLoanBalance(json?.total_loan_balance);
       const normalized = normalizeClientRows(json?.data ?? []);
       const totalItems = Number(json?.pagination?.total_items ?? 0);
 
@@ -438,6 +440,7 @@ formData.append(
           <EclCombinedExcelTable
             rows={clientRows}
             reportingDate={reportingDate || "—"}
+            totalLoanBalance={totalLoanBalance}
           />
         </section>
       </div>
