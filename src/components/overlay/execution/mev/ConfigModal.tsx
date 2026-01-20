@@ -18,6 +18,7 @@ type Props = {
   onClose: () => void;
   periods: string[];
   variables: string[];
+  availableVariables?: string[];
   initialRows?: ScenarioRow[]; // optional prefill from GET
   onSave: (rows: ScenarioRow[], variables: string[]) => void; // rows normalized with %
 };
@@ -127,11 +128,13 @@ export default function ScenarioConfigModalTable({
   onSave,
   periods,
   variables,
+  availableVariables,
   initialRows,
 }: Props) {
   const [localVariables, setLocalVariables] = useState<string[]>(variables);
   const [varEdits, setVarEdits] = useState<string[]>(variables);
-  const [newVarName, setNewVarName] = useState("");
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const availableList = availableVariables ?? variables;
 
   // Build from initialRows if provided, otherwise blank template
   const [rows, setRows] = useState<ScenarioRow[]>(
@@ -143,6 +146,7 @@ export default function ScenarioConfigModalTable({
     if (!open) return;
     setLocalVariables(variables);
     setVarEdits(variables);
+    setSelectedOptions([]);
     setRows((prev) =>
       alignRowsToShape(prev?.length ? prev : initialRows, periods, variables)
     );
@@ -172,6 +176,7 @@ export default function ScenarioConfigModalTable({
   const canSave = useMemo(
     () =>
       rows.length > 0 &&
+      localVariables.length > 0 &&
       rows.every((r) =>
         (["upside", "base", "downside"] as const).every((b) =>
           localVariables.every((v) => hasValue((r as any)[b][v]))
@@ -269,18 +274,24 @@ export default function ScenarioConfigModalTable({
     return next;
   };
 
-  const addVariable = () => {
-    const nextName = normalizeVarName(newVarName);
-    if (!nextName) return;
-    if (localVariables.includes(nextName)) {
-      setNewVarName("");
-      return;
-    }
-    const nextVars = [...localVariables, nextName];
+  const addSelectedVariables = () => {
+    const picked = selectedOptions
+      .map(normalizeVarName)
+      .filter((v) => v && !localVariables.includes(v));
+    if (!picked.length) return;
+    const nextVars = [...localVariables, ...picked];
     setLocalVariables(nextVars);
     setVarEdits(nextVars);
-    setRows((prev) => prev.map((r) => upsertRowKey(r, null, nextName)));
-    setNewVarName("");
+    setRows((prev) =>
+      prev.map((r) => {
+        let updated = r;
+        picked.forEach((name) => {
+          updated = upsertRowKey(updated, null, name);
+        });
+        return updated;
+      })
+    );
+    setSelectedOptions([]);
   };
 
   const deleteVariable = (name: string) => {
@@ -361,20 +372,25 @@ export default function ScenarioConfigModalTable({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <input
-                  value={newVarName}
-                  onChange={(e) => setNewVarName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addVariable();
-                    }
+                <select
+                  multiple
+                  value={selectedOptions}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions).map(
+                      (opt) => opt.value
+                    );
+                    setSelectedOptions(selected);
                   }}
-                  className="w-44 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                  placeholder="New subheader"
-                />
+                  className="w-52 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                >
+                  {availableList.map((v) => (
+                    <option key={v} value={v} disabled={localVariables.includes(v)}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
                 <button
-                  onClick={addVariable}
+                  onClick={addSelectedVariables}
                   className="rounded-md bg-gray-900 px-3 py-1 text-xs font-semibold text-white hover:bg-black"
                 >
                   Add
@@ -423,19 +439,19 @@ export default function ScenarioConfigModalTable({
                     Period
                   </th>
                   <th
-                    colSpan={localVariables.length}
+                    colSpan={Math.max(localVariables.length, 1)}
                     className={`${headerBase} bg-emerald-50`}
                   >
                     Upside
                   </th>
                   <th
-                    colSpan={localVariables.length}
+                    colSpan={Math.max(localVariables.length, 1)}
                     className={`${headerBase} bg-amber-50`}
                   >
                     Base
                   </th>
                   <th
-                    colSpan={localVariables.length}
+                    colSpan={Math.max(localVariables.length, 1)}
                     className={`${headerBase} bg-rose-50`}
                   >
                     Downside
@@ -447,14 +463,23 @@ export default function ScenarioConfigModalTable({
                   </th>
                   {["bg-emerald-50", "bg-amber-50", "bg-rose-50"].flatMap(
                     (bg, i) =>
-                      localVariables.map((v) => (
-                        <th
-                          key={`${i}-${v}`}
-                          className={`px-3 py-1 text-center text-xs ${bg}`}
-                        >
-                          {v}
-                        </th>
-                      ))
+                      localVariables.length
+                        ? localVariables.map((v) => (
+                            <th
+                              key={`${i}-${v}`}
+                              className={`px-3 py-1 text-center text-xs ${bg}`}
+                            >
+                              {v}
+                            </th>
+                          ))
+                        : [
+                            <th
+                              key={`${i}-placeholder`}
+                              className={`px-3 py-1 text-center text-xs ${bg}`}
+                            >
+                              —
+                            </th>,
+                          ]
                   )}
                 </tr>
               </thead>
