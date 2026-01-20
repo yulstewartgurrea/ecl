@@ -30,9 +30,9 @@ import {
   type DataTransformationStatus,
 } from "../../../../services/dataTransformation";
 import {
-  overrideGetForcasted,
-  overrideGetInput,
-  overridePostForecastedMevs,
+  overrideGetDataTransformationMevs,
+  overrideGetDataTransformationInput,
+  overridePostDataTransformationMevs,
 } from "../../../../services/overlayExecution";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
@@ -88,6 +88,7 @@ export default function OverlayDevelpmentPage3() {
   const [mevConfigOpen, setMevConfigOpen] = useState(false);
   const [mevPeriods, setMevPeriods] = useState<string[]>([]);
   const [mevVariables, setMevVariables] = useState<string[]>([]);
+  const [availableMevVariables, setAvailableMevVariables] = useState<string[]>([]);
   const [mevPrefillRows, setMevPrefillRows] = useState<ScenarioRow[] | null>(null);
   const [mevLoadingCfg, setMevLoadingCfg] = useState(false);
 
@@ -99,31 +100,69 @@ export default function OverlayDevelpmentPage3() {
     return p;
   };
 
-  // Load MEV config shape (periods/variables)
+  const bannedDefaults = ["gni.GR.lag_9", "non_mev_num_tc.lag_12"];
+
+  const filterDefaults = (vars: string[]) =>
+    vars.filter((v) => !bannedDefaults.includes(v));
+
+  const deriveVariablesFromRows = (rows: ScenarioRow[]) => {
+    const keys = new Set<string>();
+    rows.forEach((r) => {
+      Object.keys(r.upside ?? {}).forEach((k) => keys.add(k));
+      Object.keys(r.base ?? {}).forEach((k) => keys.add(k));
+      Object.keys(r.downside ?? {}).forEach((k) => keys.add(k));
+    });
+    return filterDefaults(Array.from(keys));
+  };
+
+  const derivePeriodsFromRows = (rows: ScenarioRow[]) =>
+    rows.map((r) => String(r.period));
+
+  // Load MEV config shape (periods/variables) with fallback
   useEffect(() => {
     const boot = async () => {
       if (!selectedWorkflowId) return;
       setMevLoadingCfg(true);
       try {
-        const { periods, variables } = await overrideGetInput(
+        const existing = await overrideGetDataTransformationMevs(
           selectedWorkflowId,
           token
         );
+        if (existing?.rows && existing.rows.length > 0) {
+          setMevPrefillRows(existing.rows);
+          const derivedPeriods = existing.periods?.length
+            ? existing.periods
+            : derivePeriodsFromRows(existing.rows);
+          const derivedVars = existing.variables?.length
+            ? filterDefaults(existing.variables)
+            : deriveVariablesFromRows(existing.rows);
+          setMevPeriods(derivedPeriods);
+          setAvailableMevVariables(derivedVars);
+          setMevVariables(derivedVars);
+          return;
+        }
+
+        const { periods, variables } = await overrideGetDataTransformationInput(
+          selectedWorkflowId,
+          token
+        );
+        const filtered = filterDefaults(variables);
         setMevPeriods(periods);
+        setAvailableMevVariables(filtered);
         const cached = localStorage.getItem("overlay_execution_mev_variables");
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
             if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
-              setMevVariables(parsed);
+              setMevVariables(parsed.filter((v) => filtered.includes(v)));
             } else {
-              setMevVariables(variables);
+              setMevVariables([]);
             }
           } catch {
-            setMevVariables(variables);
+            setMevVariables([]);
           }
         } else {
-          setMevVariables(variables);
+          setMevVariables([]);
         }
       } catch (err) {
         console.error(err);
@@ -134,24 +173,10 @@ export default function OverlayDevelpmentPage3() {
     boot();
   }, [selectedWorkflowId, token]);
 
-  // Prefill MEV override rows (if any)
-  useEffect(() => {
-    const boot = async () => {
-      if (!selectedWorkflowId) return;
-      try {
-        const { rows } = await overrideGetForcasted(selectedWorkflowId, token);
-        setMevPrefillRows(rows ?? null);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    boot();
-  }, [selectedWorkflowId, token]);
-
   const handleOpenMevConfig = () => {
     if (!selectedWorkflowId && selectedWorkflowId !== 0) return;
-    if (!mevPeriods.length || !mevVariables.length) {
-      alert("No periods/variables returned by the server.");
+    if (!mevPeriods.length) {
+      alert("No periods returned by the server.");
       return;
     }
     setMevConfigOpen(true);
@@ -753,6 +778,7 @@ export default function OverlayDevelpmentPage3() {
         onClose={() => setMevConfigOpen(false)}
         periods={mevPeriods}
         variables={mevVariables}
+        availableVariables={availableMevVariables}
         initialRows={mevPrefillRows ?? undefined}
         onSave={async (rows, nextVariables) => {
           const payload = rows.map((r) => ({
@@ -765,7 +791,7 @@ export default function OverlayDevelpmentPage3() {
           if (!selectedWorkflowId) return;
 
           try {
-            await overridePostForecastedMevs(selectedWorkflowId, payload, token);
+            await overridePostDataTransformationMevs(selectedWorkflowId, payload, token);
             setMevVariables(nextVariables);
             localStorage.setItem(
               "overlay_execution_mev_variables",
@@ -773,11 +799,11 @@ export default function OverlayDevelpmentPage3() {
             );
             setMevConfigOpen(false);
 
-            const { rows: latest } = await overrideGetForcasted(
+            const latest = await overrideGetDataTransformationMevs(
               selectedWorkflowId,
               token
             );
-            setMevPrefillRows(latest ?? null);
+            setMevPrefillRows(latest.rows ?? null);
           } catch (err) {
             console.error(err);
           }
