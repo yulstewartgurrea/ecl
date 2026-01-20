@@ -4,9 +4,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Stepper from "../../components/stepper/Stepper";
 import Step1 from "./steps/Step1";
+import Step2 from "./steps/Step2";
+import Step3 from "./steps/Step3";
 import Step4 from "./steps/Step4";
-import Step5 from "./steps/Step5";
-import Step6 from "./steps/Step6";
 
 import { useAppDispatch, useAppSelector } from "../../redux_toolkit/hooks";
 import type { RootState } from "../../redux_toolkit/store";
@@ -97,11 +97,11 @@ const FlowrateApproachPage = () => {
       case 0:
         return <Step1 />;
       case 1:
-        return <Step4 />;
+        return <Step2 />;
       case 2:
-        return <Step5 />;
+        return <Step3 />;
       case 3:
-        return <Step6 />;
+        return <Step4 />;
       default:
         return null;
     }

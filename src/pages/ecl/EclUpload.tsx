@@ -1,5 +1,5 @@
 // ==========================
-// pages/flowrate/FlowrateApproachPage.tsx
+// pages/ecl/EclUpload.tsx
 // ==========================
 import { useEffect, useMemo, useState } from "react";
 import Stepper from "../../components/stepper/Stepper";
@@ -78,7 +78,7 @@ const FlowrateApproachPage = () => {
 
   const developmentSteps = [
     { label: "Inputs", completed: false },
-       { label: "Credit Loss Rate", completed: false },
+      { label: "Credit Loss Rate", completed: false },
     { label: "ECL Calculations", completed: false },
     { label: "Credit Loss Rate Approach", completed: false },
     { label: "Output", completed: false },

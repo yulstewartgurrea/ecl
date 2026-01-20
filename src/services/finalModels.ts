@@ -32,19 +32,14 @@ async function xfetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, init);
 }
 
-/**
- * Save the selected model as the “final model” for a workflow.
- * By default we send `{ workflow_id, final_models: [model] }` as JSON.
- * If your backend expects multipart/form-data, set `useFormData: true`.
- */
 export async function postFinalModel(opts: {
   apiBase: string;
   token?: string | null;
   workflowId: number;
-  model: ModelSpec;                          // what you saved in localStorage
-  payloadKey?: "final_models" | "selected_model"; // server field name; default final_models
-  asArray?: boolean;                         // send as array? default true
-  useFormData?: boolean;                     // send multipart/form-data? default false (JSON)
+  model: ModelSpec;                          
+  payloadKey?: "final_models" | "selected_model";
+  asArray?: boolean;                         
+  useFormData?: boolean;                     
 }): Promise<ApiEnvelope<unknown>> {
   const {
     apiBase,
@@ -63,7 +58,7 @@ export async function postFinalModel(opts: {
   // multipart/form-data
   const form = new FormData();
   form.append("workflow_id", String(workflowId));
-  form.append(payloadKey, JSON.stringify(value)); // always stringify complex types
+  form.append(payloadKey, JSON.stringify(value));
   console.log(form)
   const res = await xfetch(url, {
     method: "POST",

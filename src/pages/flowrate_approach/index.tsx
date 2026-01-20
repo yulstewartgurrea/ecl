@@ -66,13 +66,6 @@ const TransitionMatrixLanding = () => {
     }
   }, [selectedPdTransitionMatrixReportingPeriod, dispatch]);
 
-  /**
-   * Called when a folder is selected from WorkflowFolderList.
-   * Folder structure is: Entity / LoanProduct / Period / ReportDate / WorkflowName
-   *
-   * WorkflowFolderList will parse the path and call:
-   *   onWorkflowSelect(entity, reportingPeriod, workflowName, loanProduct, reportDateStart)
-   */
   const handleWorkflowSelect = async (
     entity: string,
     reportingPeriod: string,
