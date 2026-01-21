@@ -180,6 +180,56 @@ async def get_ecl_data(
                 }
             )
 
+        client_loan_balances_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"input/ecl/{workflow.loan_product}/ECL_CLIENT_LOAN_BALANCES"
+        )
+
+        client_loan_balances_file = max(
+            (p for p in Path(client_loan_balances_path).iterdir() if p.is_file()),
+            key=lambda p: p.stat().st_mtime,
+            default=None
+        )
+
+        if not client_loan_balances_file:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "msg": "Client loan balances file not found",
+                    "data": None
+                }
+            )
+
+        if client_loan_balances_file.suffix.lower() == ".xlsx":
+            xdf = pd.read_excel(
+                client_loan_balances_file,
+                engine="openpyxl",
+                header=None,
+                nrows=2
+            )
+        elif client_loan_balances_file.suffix.lower() == ".xls":
+            xdf = pd.read_excel(
+                client_loan_balances_file,
+                engine="xlrd",
+                header=None,
+                nrows=2
+            )
+        else:
+            xdf = pd.read_excel(
+                client_loan_balances_file,
+                engine="openpyxl",
+                header=None,
+                nrows=2
+            )
+        print('xdf \n', xdf)
+
+        total_loan_balance = int(xdf.iat[1, 1])
+
         ecl_path = (
             f"{get_root_folder()}/server/files/"
             f"{workflow.entity}/"
@@ -201,6 +251,7 @@ async def get_ecl_data(
                     "code": 1,
                     "success": True,
                     "msg": "ECL data retrieved successfully",
+                    "total_loan_balance": None,
                     "data": [],
                     "pagination": {
                         "current_page": 1,
@@ -276,6 +327,7 @@ async def get_ecl_data(
             "code": 1,
             "success": True,
             "msg": "ECL data retrieved successfully",
+            "total_loan_balance": total_loan_balance,
             "data": page_records,
             "pagination": {
                 "current_page": page,

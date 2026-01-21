@@ -8,6 +8,7 @@ from .flowrate.aging_report import aging_report_clean_up
 from helpers.clean_up.overlay.execution import (clean_monthly_forecasted_mev_arima, 
                                                 clean_quarterly_forecasted_mev_arima)
 from helpers.clean_up.overlay.development import (clean_historical_default_rate)
+from helpers.clean_up.ecl.client_loan_balances import clean_client_loan_balances
 
 def clean_document(df: pd.DataFrame, document_type: str, file_name: str, temp_path = None) -> Dict[str, Any]:
     """
@@ -54,6 +55,10 @@ def clean_document(df: pd.DataFrame, document_type: str, file_name: str, temp_pa
         "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA",
         "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA",
     ]
+
+    # ecl_document_types = [
+    #     "ECL_CLIENT_LOAN_BALANCES"
+    # ]
     
     # FLOWRATE
     if document_type in no_need_formatting_document_types:
@@ -69,6 +74,10 @@ def clean_document(df: pd.DataFrame, document_type: str, file_name: str, temp_pa
         elif document_type == "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA":
             print('OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA')
             return clean_quarterly_forecasted_mev_arima(temp_path)
+    # elif document_type in ecl_document_types:
+    #     if document_type == "ECL_CLIENT_LOAN_BALANCES":
+    #         print('ECL_CLIENT_LOAN_BALANCES')
+    #         return clean_client_loan_balances(temp_path)
     # if document_type == "FLOWRATE_APPROACH_AGING_REPORT":
     #     return aging_report_clean_up(temp_path)
     # elif document_type == "FLOWRATE_APPROACH_DETAILED_BY_PRODUCT":
