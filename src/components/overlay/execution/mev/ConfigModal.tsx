@@ -395,7 +395,7 @@ export default function ScenarioConfigModalTable({
                               key={`${i}-placeholder`}
                               className={`px-3 py-1 text-center text-xs ${bg}`}
                             >
-                              â€”
+                              -
                             </th>,
                           ]
                   )}
