@@ -174,7 +174,7 @@ export function SpreadsheetTable<T>({
                 {displayColumns.map((c, i) => (
                   <th
                     key={String(c.key) + i}
-                    className={`${headPad} align-middle font-semibold border-r last:border-r-0 whitespace-nowrap ${
+                    className={`${headPad} align-middle font-semibold  whitespace-nowrap ${
                       c.align === "right"
                         ? "text-right"
                         : c.align === "center"
@@ -231,7 +231,7 @@ export function SpreadsheetTable<T>({
                       return (
                         <td
                           key={String(c.key) + i}
-                          className={`relative ${cellPad} border-r last:border-r-0  ${
+                          className={`relative ${cellPad}   ${
                             c.align === "right"
                               ? "text-right"
                               : c.align === "center"
