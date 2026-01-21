@@ -80,7 +80,7 @@ const Step7: React.FC = () => {
     }
   }
 
-  // ðŸ”½ Download handler   export to Excel (.xls) via HTML table
+  // Download handler: export to Excel (.xls) via HTML table
   function handleDownload() {
     if (!model) return;
 
@@ -379,7 +379,7 @@ function fmtPctOrVal(v: number | string | undefined): string {
   return v.toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
 
-// ðŸ”½ Helper for downloading Excel (.xls) from HTML
+// Helper for downloading Excel (.xls) from HTML
 // function downloadExcelFile(html: string, filename: string) {
 //   try {
 //     const blob = new Blob([html], {

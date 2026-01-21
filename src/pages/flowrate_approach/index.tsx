@@ -86,7 +86,7 @@ const TransitionMatrixLanding = () => {
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
 
-  // ðŸ”¥ Always default reporting period to "Monthly" (once)
+  // Always default reporting period to "Monthly" (once)
   useEffect(() => {
     if (!selectedPdTransitionMatrixReportingPeriod) {
       dispatch(
@@ -167,7 +167,7 @@ const TransitionMatrixLanding = () => {
 
           if (wf && wf.id) {
             console.log(
-              `ðŸŽ¯ WORKFLOW FOUND FROM FOLDER: ID=${wf.id}, Name='${wf.workflow_name}'`
+              `WORKFLOW FOUND FROM FOLDER: ID=${wf.id}, Name='${wf.workflow_name}'`
             );
             dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: wf.id }));
             dispatch(
@@ -409,7 +409,7 @@ const TransitionMatrixLanding = () => {
         if (workflowData && workflowData.id) {
           const workflowId = workflowData.id;
           console.log(
-            `ðŸŽ¯ WORKFLOW CREATED: ID=${workflowId}, Name='${workflowData.workflow_name}', Entity='${workflowData.entity}', Period='${workflowData.reporting_period}'`
+            `WORKFLOW CREATED: ID=${workflowId}, Name='${workflowData.workflow_name}', Entity='${workflowData.entity}', Period='${workflowData.reporting_period}'`
           );
 
           dispatch(
@@ -554,7 +554,7 @@ const TransitionMatrixLanding = () => {
               {(!entities || entities.length === 0) && (
                 <p className="text-xs text-amber-600 mt-2">
                   No entities found. Go to{" "}
-                  <b>Configuration â†’ Entities</b> to add one.
+                  <b>Configuration {"->"} Entities</b> to add one.
                 </p>
               )}
             </div>
@@ -589,7 +589,7 @@ const TransitionMatrixLanding = () => {
               {(!loanProducts || loanProducts.length === 0) && (
                 <p className="text-xs text-amber-600 mt-2">
                   No loan products found. Go to{" "}
-                  <b>Configuration â†’ Loan Products</b> to add one.
+                  <b>Configuration {"->"} Loan Products</b> to add one.
                 </p>
               )}
             </div>

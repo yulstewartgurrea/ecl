@@ -173,7 +173,7 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
                   }`}
                 >
                   <span className="text-3xl">
-                    {item.is_folder ? "ðŸ“" : "ðŸ“„"}
+                    {item.is_folder ? "\u{1F4C1}" : "\u{1F4C4}"}
                   </span>
                   <span
                     className="mt-2 text-xs text-center w-full break-words"
@@ -185,7 +185,6 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
                     contextMenu.folderOrFileName === item.name && (
                       <div className="absolute transform translate-y-14 z-10">
                         <div className="relative">
-                          <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0  -transparent  -gray-200  -transparent"></div>
                           <ul className="bg-white border border-gray-200 rounded shadow-md z-20 mt-2 bottom-6 -right-2">
                             <li className="px-4 py-2 cursor-pointer hover:bg-blue-50 text-xs">
                               Option 1

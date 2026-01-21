@@ -144,7 +144,7 @@ export default function Step1() {
     (state) => state.historicalWeightedCreditLossRateFile.historical_weighted_credit_loss_rate_file
   );
 
-  //   new: workflow mode
+  // new: workflow mode
   const [mode, setMode] = useState<InputMode>("UPLOAD_MANUAL");
 
   // Execution inputs
@@ -165,7 +165,7 @@ export default function Step1() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  //   new: generator state
+  // new: generator state
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoMonthlyOk, setAutoMonthlyOk] = useState<boolean | null>(null);
   const [autoQuarterlyOk, setAutoQuarterlyOk] = useState<boolean | null>(null);
@@ -176,7 +176,7 @@ export default function Step1() {
   const accept = ".csv,.xlsx,.xls";
   const maxSizeMB = 20;
 
-  // Build the base workflow path   <entity>/<period>/<wfName>/input/overlay/execution/<loanproduct>
+  // Build the base workflow path -> <entity>/<period>/<wfName>/input/overlay/execution/<loanproduct>
   const baseDir = `/${entity}/${period}/${workflowName}`.replace(/^\/+/, "");
   const workflowPathBase = `${baseDir}/input/overlay/execution/${loanproduct}`;
 
@@ -646,7 +646,7 @@ export default function Step1() {
     ]
   );
 
-  // Dropzone handlers   upload new files, ignore placeholders from existing docs
+  // Dropzone handlers ” upload new files, ignore placeholders from existing docs
   const handleMonthlyFilesChange = useCallback(
     async (files: File[]) => {
       setMonthlyFiles(files);
@@ -718,7 +718,7 @@ export default function Step1() {
     if (quarterlyFiles.length) parts.push(`${quarterlyFiles.length} quarterly`);
     if (finalModelFiles.length) parts.push(`${finalModelFiles.length} final model`);
     if (historicalWeightedFiles.length) parts.push(`${historicalWeightedFiles.length} historical weighted`);
-    return parts.join("   ");
+    return parts.join(" - ");
   }, [monthlyFiles.length, quarterlyFiles.length, finalModelFiles.length, historicalWeightedFiles.length]);
 
   const uploadStatus = useMemo(() => {
@@ -797,7 +797,7 @@ export default function Step1() {
               className="ml-2 text-emerald-600 hover:text-emerald-800"
               title="Dismiss success message"
             >
-              
+              x
             </button>
           </div>
         </div>
@@ -816,7 +816,7 @@ export default function Step1() {
               className="ml-2 text-red-600 hover:text-red-800"
               title="Dismiss error"
             >
-              
+              x
             </button>
           </div>
         </div>
@@ -965,7 +965,7 @@ export default function Step1() {
           </div>
         </div>
 
-        {/*   Mode selector */}
+        {/* Mode selector */}
         <div className="px-5 pt-4">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
@@ -1047,7 +1047,7 @@ export default function Step1() {
                           : "bg-white text-gray-700 border-gray-200",
                       ].join(" ")}
                     >
-                      {autoQuarterlyOk === true ? " " : autoQuarterlyOk === false ? "!" : " "} Quarterly
+                      {autoQuarterlyOk === true ? "-" : autoQuarterlyOk === false ? "!" : "-"} Quarterly
                       
                     </span>
 
@@ -1139,8 +1139,8 @@ export default function Step1() {
                   onChange={isAuto ? () => {} : handleMonthlyFilesChange}
                   emptyHint={
                     isAuto
-                      ? "Click \"Generate inputs\" to create the monthly file "
-                      : "Waiting for monthly ARIMA file(s) "
+                      ? "Click \"Generate inputs\" to create the monthly file"
+                      : "Waiting for monthly ARIMA file(s)"
                   }
                   variant="card"
                 />
@@ -1187,8 +1187,8 @@ export default function Step1() {
                   onChange={isAuto ? () => {} : handleQuarterlyFilesChange}
                   emptyHint={
                     isAuto
-                      ? "Click \"Generate inputs\" to create the quarterly file "
-                      : "Waiting for quarterly ARIMA file(s) "
+                      ? "Click \"Generate inputs\" to create the quarterly file"
+                      : "Waiting for quarterly ARIMA file(s)"
                   }
                   variant="card"
                 />
@@ -1251,7 +1251,7 @@ export default function Step1() {
                 maxFiles={3}
                 value={finalModelFiles}
                 onChange={handleFinalModelFilesChange}
-                emptyHint="Waiting for final model file(s) "
+                emptyHint="Waiting for final model file(s)"
                 variant="card"
               />
 
@@ -1302,7 +1302,7 @@ export default function Step1() {
                 maxFiles={3}
                 value={historicalWeightedFiles}
                 onChange={handleHistoricalWeightedFilesChange}
-                emptyHint="Waiting for historical weighted credit loss rates file(s) "
+                emptyHint="Waiting for historical weighted credit loss rates file(s)"
                 variant="card"
               />
 

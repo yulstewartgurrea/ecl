@@ -197,7 +197,7 @@ export default function Step1() {
           );
         }
 
-        // ðŸ”— FINAL PATH now includes the doc type
+        // FINAL PATH now includes the doc type
         const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
         console.log('finalWorkflowPath: ', finalWorkflowPath)
         const result = await overlayUploadFile({
@@ -357,7 +357,7 @@ export default function Step1() {
     if (monthlyFiles.length) parts.push(`${monthlyFiles.length} monthly`);
     if (quarterlyFiles.length) parts.push(`${quarterlyFiles.length} quarterly`);
      if (historicalFiles.length) parts.push(`${historicalFiles.length} historical`);
-    return parts.join(" ¢ ");
+    return parts.join(" | ");
   }, [monthlyFiles.length, quarterlyFiles.length, historicalFiles.length]);
 
   const uploadStatus = useMemo(() => {
@@ -381,7 +381,7 @@ export default function Step1() {
       const nextName = (w as any).workflow_name ?? (w as any).name ?? "";
       const nextId = typeof (w as any).id === "number" ? (w as any).id : null;
 
-      console.log(`ðŸŽ¯ WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`);
+      console.log(`WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`);
 
       if (nextEntity) dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
@@ -405,7 +405,7 @@ export default function Step1() {
               className="ml-2 text-emerald-600 hover:text-emerald-800"
               title="Dismiss success message"
             >
-              âœ•
+              x
             </button>
           </div>
         </div>
@@ -426,7 +426,7 @@ export default function Step1() {
             const docType = inferExecDocTypeFromName(file.name);
             if (!docType) continue;
             try {
-              // ðŸ”— FINAL PATH (retry) includes the doc type
+              // FINAL PATH (retry) includes the doc type
               const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
 
               const result = await overlayUploadFile({
