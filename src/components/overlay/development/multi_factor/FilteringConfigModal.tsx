@@ -92,7 +92,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
     });
   }
 
-  // When a chip is clicked: if already used â†’ jump to it; else add a prefilled rule
+  // When a chip is clicked: if already used   jump to it; else add a prefilled rule
   function handleChipClick(header: string) {
     const lower = header.toLowerCase();
     const existing = rows.find((r) => eq(r.column, lower) || eq(r.column, header));
@@ -182,7 +182,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
             {/* Optional search (kept hidden by default; wire up if you want) */}
             {/* <div className="flex items-center gap-2">
               <input
-                placeholder="Search column headersâ€¦"
+                placeholder="Search column headers "
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
@@ -270,7 +270,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                           <input
                             ref={idx === 0 ? firstInputRef : null}
                             list={listId}
-                            placeholder="Type or pick a columnâ€¦"
+                            placeholder="Type or pick a column "
                             value={r.column}
                             onChange={(e) => updateRow(r.id, { column: e.target.value })}
                             className="w-full min-w-0 rounded-md border border-neutral-300 px-2 py-1"

@@ -144,7 +144,7 @@ export default function Step1() {
     (state) => state.historicalWeightedCreditLossRateFile.historical_weighted_credit_loss_rate_file
   );
 
-  // âœ… new: workflow mode
+  //   new: workflow mode
   const [mode, setMode] = useState<InputMode>("UPLOAD_MANUAL");
 
   // Execution inputs
@@ -165,7 +165,7 @@ export default function Step1() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // âœ… new: generator state
+  //   new: generator state
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoMonthlyOk, setAutoMonthlyOk] = useState<boolean | null>(null);
   const [autoQuarterlyOk, setAutoQuarterlyOk] = useState<boolean | null>(null);
@@ -176,7 +176,7 @@ export default function Step1() {
   const accept = ".csv,.xlsx,.xls";
   const maxSizeMB = 20;
 
-  // Build the base workflow path â†’ <entity>/<period>/<wfName>/input/overlay/execution/<loanproduct>
+  // Build the base workflow path   <entity>/<period>/<wfName>/input/overlay/execution/<loanproduct>
   const baseDir = `/${entity}/${period}/${workflowName}`.replace(/^\/+/, "");
   const workflowPathBase = `${baseDir}/input/overlay/execution/${loanproduct}`;
 
@@ -797,7 +797,7 @@ export default function Step1() {
               className="ml-2 text-emerald-600 hover:text-emerald-800"
               title="Dismiss success message"
             >
-              âœ•
+              
             </button>
           </div>
         </div>
@@ -816,7 +816,7 @@ export default function Step1() {
               className="ml-2 text-red-600 hover:text-red-800"
               title="Dismiss error"
             >
-              âœ•
+              
             </button>
           </div>
         </div>
@@ -965,7 +965,7 @@ export default function Step1() {
           </div>
         </div>
 
-        {/* âœ… Mode selector */}
+        {/*   Mode selector */}
         <div className="px-5 pt-4">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
@@ -1139,8 +1139,8 @@ export default function Step1() {
                   onChange={isAuto ? () => {} : handleMonthlyFilesChange}
                   emptyHint={
                     isAuto
-                      ? "Click \"Generate inputs\" to create the monthly fileâ€¦"
-                      : "Waiting for monthly ARIMA file(s)â€¦"
+                      ? "Click \"Generate inputs\" to create the monthly file "
+                      : "Waiting for monthly ARIMA file(s) "
                   }
                   variant="card"
                 />
@@ -1187,8 +1187,8 @@ export default function Step1() {
                   onChange={isAuto ? () => {} : handleQuarterlyFilesChange}
                   emptyHint={
                     isAuto
-                      ? "Click \"Generate inputs\" to create the quarterly fileâ€¦"
-                      : "Waiting for quarterly ARIMA file(s)â€¦"
+                      ? "Click \"Generate inputs\" to create the quarterly file "
+                      : "Waiting for quarterly ARIMA file(s) "
                   }
                   variant="card"
                 />
@@ -1251,7 +1251,7 @@ export default function Step1() {
                 maxFiles={3}
                 value={finalModelFiles}
                 onChange={handleFinalModelFilesChange}
-                emptyHint="Waiting for final model file(s)â€¦"
+                emptyHint="Waiting for final model file(s) "
                 variant="card"
               />
 
@@ -1302,7 +1302,7 @@ export default function Step1() {
                 maxFiles={3}
                 value={historicalWeightedFiles}
                 onChange={handleHistoricalWeightedFilesChange}
-                emptyHint="Waiting for historical weighted credit loss rates file(s)â€¦"
+                emptyHint="Waiting for historical weighted credit loss rates file(s) "
                 variant="card"
               />
 

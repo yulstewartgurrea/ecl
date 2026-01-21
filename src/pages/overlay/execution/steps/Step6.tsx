@@ -247,7 +247,7 @@ const Step6: React.FC = () => {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              <span>{posting ? "Runningâ€¦" : "Run PD Calibration"}</span>
+              <span>{posting ? "Running " : "Run PD Calibration"}</span>
             </button>
 
             {/* Export CSV */}
@@ -257,7 +257,7 @@ const Step6: React.FC = () => {
               className="cursor-pointer rounded-xl bg-white border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              <span>{exporting ? "Exportingâ€¦" : "Export CSV"}</span>
+              <span>{exporting ? "Exporting " : "Export CSV"}</span>
             </button>
           </div>
         </div>

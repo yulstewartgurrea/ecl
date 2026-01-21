@@ -278,7 +278,7 @@ export default function MultiCategoryUploader({
     }));
   }, []);
 
-  // Whenever ANY category files change â†’ disable upload until re-validated
+  // Whenever ANY category files change   disable upload until re-validated
   useEffect(() => {
     setValidated(null);
     setCanUpload(false);
@@ -742,7 +742,7 @@ export default function MultiCategoryUploader({
               {uploading ? (
                 <Pill tone="blue" title="Uploading in progress">
                   <ArrowUpTrayIcon className="h-4 w-4 mr-1 animate-pulse" />
-                  Uploadingâ€¦
+                  Uploading 
                 </Pill>
               ) : validated === "ok" ? (
                 <Pill tone="green" title="Validation passed (click Proceed to enable upload)">
@@ -828,7 +828,7 @@ export default function MultiCategoryUploader({
                   <p className="text-xs text-slate-600 mt-1">
                     {bulk.assign === "selected"
                       ? "Files will be assigned to the active category."
-                      : "Files will be assigned to categories in order (1st file â†’ 1st category, etc.)."}
+                      : "Files will be assigned to categories in order (1st file   1st category, etc.)."}
                   </p>
 
                   {!!lastAssignments.length && (

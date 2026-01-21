@@ -258,7 +258,7 @@ const Step4: React.FC = () => {
             </p>
             {loading && (
               <p className="mt-1 text-xs text-gray-500">
-                Loading forecasted PD dataâ€¦
+                Loading forecasted PD data 
               </p>
             )}
           </div>
@@ -276,7 +276,7 @@ const Step4: React.FC = () => {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              <span>{posting ? "Runningâ€¦" : "Run Forecasted PD"}</span>
+              <span>{posting ? "Running " : "Run Forecasted PD"}</span>
             </button>
 
             {/* Export CSV */}
@@ -286,7 +286,7 @@ const Step4: React.FC = () => {
               className="cursor-pointer rounded-xl bg-white border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              <span>{exporting ? "Exportingâ€¦" : "Export CSV"}</span>
+              <span>{exporting ? "Exporting " : "Export CSV"}</span>
             </button>
           </div>
         </div>

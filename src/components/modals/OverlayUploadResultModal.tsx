@@ -98,7 +98,7 @@ export default function OverlayUploadResultModal({
             disabled={isSubmitting || issues.length === 0 || !!proceedDisabledReason}
             title={proceedDisabledReason || "Run again with override=true"}
           >
-            {isSubmitting ? "Uploadingâ€¦" : "Proceed"}
+            {isSubmitting ? "Uploading " : "Proceed"}
           </button>
         </div>
       </div>

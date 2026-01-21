@@ -147,7 +147,7 @@ const Step5: React.FC = () => {
     };
 
     run();
-  }, []); // âš ï¸ kept as-is, same logic you had
+  }, []); // kept as-is, same logic you had
 
   useEffect(() => {
     if (!shouldRun) return;
@@ -312,7 +312,7 @@ const Step5: React.FC = () => {
   }, [rows, selectedWorkflowId]);
 
   // -----------------------------
-  // Button handler â€“ just triggers the effect
+  // Button handler   just triggers the effect
   // -----------------------------
   const runOverlayMultiplier = useCallback(() => {
     if (!selectedWorkflowId) {
@@ -355,7 +355,7 @@ const Step5: React.FC = () => {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              <span>{posting ? "Runningâ€¦" : "Run Overlay Multiplier"}</span>
+              <span>{posting ? "Running " : "Run Overlay Multiplier"}</span>
             </button>
 
             {/* Export CSV */}
@@ -365,7 +365,7 @@ const Step5: React.FC = () => {
               className="cursor-pointer rounded-xl bg-white border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              <span>{exporting ? "Exportingâ€¦" : "Export CSV"}</span>
+              <span>{exporting ? "Exporting " : "Export CSV"}</span>
             </button>
           </div>
         </div>

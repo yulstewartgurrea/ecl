@@ -521,7 +521,7 @@ export default function OverlayDevelpmentPage3() {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              {busy ? "Processingâ€¦" : "Run Data Transform"}
+              {busy ? "Processing " : "Run Data Transform"}
             </button>
 
             {/* Refresh (with status check) */}
@@ -541,7 +541,7 @@ export default function OverlayDevelpmentPage3() {
               <ArrowPathIcon
                 className={`h-4 w-4 ${statusLoading ? "animate-spin" : ""}`}
               />
-              {statusLoading ? "Checkingâ€¦" : "Refresh"}
+              {statusLoading ? "Checking " : "Refresh"}
             </button>
 
             {/* Cancel (only show when job is pending or processing) */}
@@ -562,11 +562,11 @@ export default function OverlayDevelpmentPage3() {
                 <XCircleIcon
                   className={`h-4 w-4 ${cancelling ? "animate-spin" : ""}`}
                 />
-                {cancelling ? "Cancellingâ€¦" : "Cancel"}
+                {cancelling ? "Cancelling " : "Cancel"}
               </button>
             )}
 
-            {/* Export CSV â€“ now pure frontend */}
+            {/* Export CSV   now pure frontend */}
             <button
               onClick={exportCsv}
               disabled={
@@ -584,7 +584,7 @@ export default function OverlayDevelpmentPage3() {
               }
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              {exporting ? "Exportingâ€¦" : "Export CSV"}
+              {exporting ? "Exporting " : "Export CSV"}
             </button>
 
           </div>

@@ -17,8 +17,8 @@ import type { RootState } from "../../../../redux_toolkit/store";
 import {
   ArrowPathIcon,
   PlayCircleIcon,
-  ArrowDownTrayIcon,   // âœ… NEW
-  ChevronLeftIcon,     // âœ… NEW (for Prev)
+  ArrowDownTrayIcon,   //   NEW
+  ChevronLeftIcon,     //   NEW (for Prev)
   XCircleIcon,
   FolderIcon,
 } from "@heroicons/react/24/outline";
@@ -471,7 +471,7 @@ const Step4: React.FC<Step4Props> = ({
         let msg = `Export failed: HTTP ${res.status}`;
         try {
           const t = await res.text();
-          if (t) msg = `${msg} â€“ ${t}`;
+          if (t) msg = `${msg}   ${t}`;
         } catch {}
         throw new Error(msg);
       }
@@ -484,7 +484,7 @@ const Step4: React.FC<Step4Props> = ({
       const fallbackName = `multifactor_results_${selectedWorkflowId}_p${page}_ps${pageSize}`;
 
       if (ct.includes("csv") || ct.startsWith("text/csv")) {
-        // Server already returns CSV â†’ download directly
+        // Server already returns CSV   download directly
         const blob = await res.blob();
         const filename = (nameMatch && decodeURIComponent(nameMatch[1])) || `${fallbackName}.csv`;
         const href = URL.createObjectURL(blob);
@@ -496,7 +496,7 @@ const Step4: React.FC<Step4Props> = ({
         a.remove();
         URL.revokeObjectURL(href);
       } else {
-        // Server returned JSON â†’ convert to CSV client-side and download
+        // Server returned JSON   convert to CSV client-side and download
         const json = await res.json();
         const rows: Row[] = Array.isArray(json?.rows) ? json.rows : Array.isArray(json) ? json : [];
         const headers = deriveHeaders(rows);
@@ -666,7 +666,7 @@ const Step4: React.FC<Step4Props> = ({
             title={!selectedWorkflowId ? "Pick a workflow on Step 1" : ""}
           >
             <PlayCircleIcon className="h-4 w-4" />
-            {posting ? "Runningâ€¦" : "Run Analysis"}
+            {posting ? "Running " : "Run Analysis"}
           </button>
 
           {/* Refresh (with status check) */}
@@ -677,7 +677,7 @@ const Step4: React.FC<Step4Props> = ({
             title={!selectedWorkflowId ? "Pick a workflow on Step 1" : "Check status and fetch latest results"}
           >
             <ArrowPathIcon className={`h-4 w-4 ${statusLoading ? "animate-spin" : ""}`} />
-            {statusLoading ? "Checkingâ€¦" : "Refresh"}
+            {statusLoading ? "Checking " : "Refresh"}
           </button>
 
           {/* Cancel (only show when job is pending or processing) */}
@@ -695,7 +695,7 @@ const Step4: React.FC<Step4Props> = ({
               <XCircleIcon
                 className={`h-4 w-4 ${cancelling ? "animate-spin" : ""}`}
               />
-              {cancelling ? "Cancellingâ€¦" : "Cancel"}
+              {cancelling ? "Cancelling " : "Cancel"}
             </button>
           )}
 
@@ -713,7 +713,7 @@ const Step4: React.FC<Step4Props> = ({
             title={!selectedWorkflowId ? "Pick a workflow on Step 1" : "View available files"}
           >
             <FolderIcon className="h-4 w-4" />
-            {filesLoading ? "Loadingâ€¦" : "Files"}
+            {filesLoading ? "Loading " : "Files"}
           </button>
 
         </div>
@@ -728,7 +728,7 @@ const Step4: React.FC<Step4Props> = ({
             disabled={!hasTriggered || loading || !canPrev}
           >
             <ChevronLeftIcon className="h-4 w-4" />
-            â† Prev
+              Prev
           </button>
         </div>
 
@@ -782,7 +782,7 @@ const Step4: React.FC<Step4Props> = ({
             }
           >
             <ArrowDownTrayIcon className="h-4 w-4" />
-            {exporting ? "Exportingâ€¦" : "Export"}
+            {exporting ? "Exporting " : "Export"}
           </button>
         </div>
       </div>
@@ -846,7 +846,7 @@ const Step4: React.FC<Step4Props> = ({
         {loading && (
           <div className="absolute inset-0 z-10 grid place-items-center rounded-2xl bg-white/60 backdrop-blur-sm">
             <div className="animate-pulse rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm">
-              Loadingâ€¦
+              Loading 
             </div>
           </div>
         )}

@@ -152,7 +152,7 @@ export default function OverlayDevelopmentPage2() {
           let msg = `Export failed: HTTP ${res.status}`;
           try {
             const t = await res.text();
-            if (t) msg = `${msg} â€“ ${t}`;
+            if (t) msg = `${msg}   ${t}`;
           } catch {}
           throw new Error(msg);
         }
@@ -219,7 +219,7 @@ export default function OverlayDevelopmentPage2() {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              <span>{posting ? "Runningâ€¦" : "Run Interpolation"}</span>
+              <span>{posting ? "Running " : "Run Interpolation"}</span>
             </button>
 
             {/* Export CSV */}
@@ -236,7 +236,7 @@ export default function OverlayDevelopmentPage2() {
               }
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              <span>{exporting ? "Exportingâ€¦" : "Export CSV"}</span>
+              <span>{exporting ? "Exporting " : "Export CSV"}</span>
             </button>
           </div>
         </div>
@@ -252,7 +252,7 @@ export default function OverlayDevelopmentPage2() {
                   Showing <span className="font-medium">{frequency}</span>{" "}
                   dataset  {" "}
                   {loading
-                    ? "Loadingâ€¦"
+                    ? "Loading "
                     : `${data.length.toLocaleString()} rows`}
                 </>
               ) : (
@@ -273,7 +273,7 @@ export default function OverlayDevelopmentPage2() {
                 }
               >
                 <ArrowPathIcon className="h-3.5 w-3.5" />
-                <span>{loading ? "Refreshingâ€¦" : "Refresh"}</span>
+                <span>{loading ? "Refreshing " : "Refresh"}</span>
               </button>
 
               <div className="text-xs text-gray-500">

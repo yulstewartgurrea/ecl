@@ -211,7 +211,7 @@ export default function OverlayExecutionPage3() {
     );
 
     if (!hasImportantValues) {
-      // Walang value sa lend_rates_lo / gni_growth_12m â†’ huwag mag-POST at huwag mag-transform.
+      // Walang value sa lend_rates_lo / gni_growth_12m   huwag mag-POST at huwag mag-transform.
       return;
     }
 
@@ -219,7 +219,7 @@ export default function OverlayExecutionPage3() {
 
     (async () => {
       try {
-        // 2b. May value â†’ i-POST mo yung value (override)
+        // 2b. May value   i-POST mo yung value (override)
         const payload = prefillRows.map((r) => ({
           period: normalizePeriodOut(r.period),
           upside: r.upside,
@@ -240,7 +240,7 @@ export default function OverlayExecutionPage3() {
           return;
         }
 
-        // Merong laman â†’ call POST /transform_forecasted_mevs/?workflow_id=...
+        // Merong laman   call POST /transform_forecasted_mevs/?workflow_id=...
         await transformForecastedMevs(selectedWorkflowId, token);
 
         // Then GET transformed data for this workflow and display
@@ -340,7 +340,7 @@ export default function OverlayExecutionPage3() {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              <span>{running ? "Runningâ€¦" : "Run forecasted MEVs"}</span>
+              <span>{running ? "Running " : "Run forecasted MEVs"}</span>
             </button>
           </div>
         </div>
@@ -374,7 +374,7 @@ export default function OverlayExecutionPage3() {
                 }
               >
                 <ArrowPathIcon className="h-3.5 w-3.5" />
-                <span>{loading ? "Refreshingâ€¦" : "Refresh"}</span>
+                <span>{loading ? "Refreshing " : "Refresh"}</span>
               </button>
               <button
                 onClick={exportCsv}
@@ -389,7 +389,7 @@ export default function OverlayExecutionPage3() {
                 }
               >
                 <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-                <span>{exporting ? "Exportingâ€¦" : "Export"}</span>
+                <span>{exporting ? "Exporting " : "Export"}</span>
               </button>
               <span className="hidden text-xs text-gray-500 md:inline">
                 Sticky header   Scroll horizontally
@@ -413,7 +413,7 @@ export default function OverlayExecutionPage3() {
             ) : overrideRows ? (
               <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 p-6 text-center">
                 <p className="text-sm font-medium text-amber-900">
-                  Overrides are saved, but the transformation hasnâ€™t been run yet.
+                  Overrides are saved, but the transformation hasn't been run yet.
                 </p>
                 <p className="mt-1 text-xs text-amber-800">
                   Click <span className="font-semibold"> Run forecasted MEVs </span> to
