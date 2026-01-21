@@ -145,8 +145,8 @@ export async function overridePostDataTransformationMevs(
   const fd = new FormData();
   fd.append("workflow_id", String(workflowId));
   const jsonStr = JSON.stringify(payloadRows);
-  fd.append("override_data_transformation_mevs", jsonStr);
-  fd.append("override_data_transformation_mev", jsonStr);
+  fd.append("override_forecated_mevs", jsonStr);
+  fd.append("override_forecated_mevs", jsonStr);
 
   const res = await fetch(url, {
     method: "POST",
