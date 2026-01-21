@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   XMarkIcon,
   XCircleIcon,
@@ -242,7 +242,7 @@ export default function ScenarioConfigModalTable({
   const headerBase =
     "px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide";
   const cellBase =
-    "px-2 py-1 text-center align-middle border-b border-gray-200";
+    "px-2 py-1 text-center align-middle  border-gray-200";
   const inputBase =
     "w-full bg-transparent text-center outline-none rounded-md px-1";
 
@@ -434,7 +434,7 @@ export default function ScenarioConfigModalTable({
               if (!canSave) return;
               onSave(normalizeAllBeforeSave(rows));
             }}
-            className="rounded-xl bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-black disabled:opacity-50 flex items-center gap-1.5"
+            className="rounded-xl bg-gray-100 text-gray-900 border border-gray-200 px-4 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
           >
             <CheckCircleIcon className="h-4 w-4" />
             <span>Save configuration</span>
@@ -444,3 +444,4 @@ export default function ScenarioConfigModalTable({
     </div>
   );
 }
+

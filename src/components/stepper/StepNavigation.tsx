@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+﻿import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
@@ -149,7 +149,7 @@ const StepNavigation = ({
                   <div className="text-sm text-gray-600">No issues detected.</div>
                 )}
                 {Object.entries(workflowMetrics).map(([key, val]: any) => (
-                  <div key={key} className="text-sm py-1 border-b last:border-b-0">
+                  <div key={key} className="text-sm py-1  last:
                     <strong>{key}</strong>: missing {val.missing ?? "N/A"}, error {val.error ?? "N/A"}, duplicate {val.duplicate ?? "N/A"}
                   </div>
                 ))}
@@ -223,3 +223,4 @@ const StepNavigation = ({
 };
 
 export default StepNavigation;
+

@@ -1,4 +1,4 @@
-// pages/ecl/steps/Step5.tsx
+﻿// pages/ecl/steps/Step5.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   InformationCircleIcon,
@@ -287,7 +287,7 @@ export default function Step5() {
 
         {/* Input card */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3  border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">
                 Probability Weights
@@ -394,7 +394,7 @@ export default function Step5() {
 
         {/* Results table */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex items-center justify-between gap-3  border-slate-200 bg-slate-50 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">
                 Forward-Looking Credit Loss Rate
@@ -487,3 +487,4 @@ export default function Step5() {
     </div>
   );
 }
+

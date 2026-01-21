@@ -1,4 +1,4 @@
-// pages/Configuration.tsx
+﻿// pages/Configuration.tsx
 // Redesigned ECL Configuration (Tabbed UI, consistent cards, inline-create rows, subtle animations)
 import { useMemo, useState, type FormEvent } from "react";
 import { useAppDispatch, useAppSelector } from "../redux_toolkit/hooks";
@@ -94,7 +94,7 @@ function SectionCard({
 }) {
   return (
     <section className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-gray-100">
+      <div className="flex items-center justify-between px-5 sm:px-6 py-4  border-gray-100">
         <div>
           <h2 className="text-base sm:text-lg font-semibold text-gray-800">
             {title}
@@ -345,7 +345,7 @@ function EntitiesSection() {
           <InlineTextInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter entities…"
+            placeholder="Filter entities"
           />
         </div>
       </Toolbar>
@@ -527,7 +527,7 @@ function EntitiesSection() {
 //           <InlineTextInput
 //             value={query}
 //             onChange={(e) => setQuery(e.target.value)}
-//             placeholder="Filter baselines…"
+//             placeholder="Filter baselines"
 //           />
 //         </div>
 //       </Toolbar>
@@ -744,7 +744,7 @@ function LoanProductsSection() {
           <InlineTextInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter loan products…"
+            placeholder="Filter loan products"
           />
         </div>
       </Toolbar>
@@ -793,7 +793,7 @@ function LoanProductsSection() {
                       />
                     ) : (
                       <span className="text-gray-900">
-                        {row.code ?? "—"}
+                        {row.code ?? ""}
                       </span>
                     )}
                   </td>
@@ -806,7 +806,7 @@ function LoanProductsSection() {
                       />
                     ) : (
                       <span className="text-gray-900">
-                        {row.description ?? "—"}
+                        {row.description ?? ""}
                       </span>
                     )}
                   </td>
@@ -976,7 +976,7 @@ function LoanProductsSection() {
 //           <InlineTextInput
 //             value={query}
 //             onChange={(e) => setQuery(e.target.value)}
-//             placeholder="Filter reporting periods…"
+//             placeholder="Filter reporting periods"
 //           />
 //         </div>
 //       </Toolbar>
@@ -1025,7 +1025,7 @@ function LoanProductsSection() {
 //                       />
 //                     ) : (
 //                       <span className="text-gray-900">
-//                         {row.code ?? "—"}
+//                         {row.code ?? ""}
 //                       </span>
 //                     )}
 //                   </td>
@@ -1038,7 +1038,7 @@ function LoanProductsSection() {
 //                       />
 //                     ) : (
 //                       <span className="text-gray-900">
-//                         {row.description ?? "—"}
+//                         {row.description ?? ""}
 //                       </span>
 //                     )}
 //                   </td>
@@ -1188,7 +1188,7 @@ function LoanProductsSection() {
 //             <InlineTextInput
 //               value={query}
 //               onChange={(e) => setQuery(e.target.value)}
-//               placeholder="Filter (e.g., 0, 30, 90)…"
+//               placeholder="Filter (e.g., 0, 30, 90)"
 //             />
 //           </div>
 //           <QuietBtn onClick={() => dispatch(resetDpdDefaults())}>
@@ -1296,7 +1296,7 @@ function LoanProductsSection() {
 //                           />
 //                         ) : (
 //                           <span className="text-gray-900">
-//                             {row.max ?? "—"}
+//                             {row.max ?? ""}
 //                           </span>
 //                         )}
 //                       </td>
@@ -1353,3 +1353,4 @@ function LoanProductsSection() {
 //     </SectionCard>
 //   );
 // }
+

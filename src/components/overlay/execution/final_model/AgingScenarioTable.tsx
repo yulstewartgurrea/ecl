@@ -1,4 +1,4 @@
-// AgingScenarioTable.tsx
+﻿// AgingScenarioTable.tsx
 import React from "react";
 
 export type AgingRow = {
@@ -24,7 +24,7 @@ const cn = (...xs: Array<string | false | undefined>) =>
 
 const pct = (v?: number) =>
   v == null || Number.isNaN(Number(v))
-    ? "—"
+    ? ""
     : `${Number(v).toLocaleString(undefined, {
         maximumFractionDigits: 2,
       })}%`;
@@ -41,7 +41,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
       {/* Card header */}
-      <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 pt-4 pb-3">
+      <div className="flex items-start justify-between gap-3  border-gray-100 px-4 pt-4 pb-3">
         <div className="space-y-0.5">
           <h3 className="text-sm md:text-base font-semibold text-gray-900">
             {title ?? "Aging bucket vs scenario PD"}
@@ -51,7 +51,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
           </p>
           {hasRows && (
             <p className="text-[11px] text-gray-400">
-              {rows.length} aging buckets • TTC + Upside / Baseline / Downside.
+              {rows.length} aging buckets  TTC + Upside / Baseline / Downside.
             </p>
           )}
         </div>
@@ -96,7 +96,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                     sticky left-0 z-20
                     bg-gray-700 text-white
                     px-3 py-2 text-left font-semibold whitespace-nowrap
-                    border-b border-slate-900 rounded-tl-xl
+                     border-slate-900 rounded-tl-xl
                   "
                 >
                   Aging bucket
@@ -107,7 +107,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                   className="
                     bg-gray-800 text-white
                     px-3 py-2 text-center font-semibold whitespace-nowrap
-                    border-b border-slate-900
+                     border-slate-900
                   "
                 >
                   TTC PD
@@ -118,7 +118,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                   className="
                     bg-[#f8c300] text-gray-900
                     px-3 py-2 text-center font-semibold whitespace-nowrap
-                    border-b border-yellow-500 rounded-tr-xl
+                     border-yellow-500 rounded-tr-xl
                   "
                 >
                   Scenario PD
@@ -127,13 +127,13 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
 
               {/* Row 2: scenario labels */}
               <tr className="bg-slate-800 text-[11px] text-black">
-                <th className="px-3 py-2 text-center font-medium bg-emerald-100 border-b border-slate-800">
+                <th className="px-3 py-2 text-center font-medium bg-emerald-100  border-slate-800">
                   Upside
                 </th>
-                <th className="px-3 py-2 text-center font-medium bg-amber-100 border-b border-slate-800">
+                <th className="px-3 py-2 text-center font-medium bg-amber-100  border-slate-800">
                   Baseline
                 </th>
-                <th className="px-3 py-2 text-center font-medium bg-orange-100 border-b border-slate-800">
+                <th className="px-3 py-2 text-center font-medium bg-orange-100  border-slate-800">
                   Downside
                 </th>
               </tr>
@@ -156,7 +156,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                         "sticky left-0 z-10",
                         rowBg,
                         "px-3 py-2 whitespace-nowrap text-[12px] font-medium text-gray-800",
-                        "border-b border-gray-200 border-r border-gray-200"
+                        " border-gray-200 border-r border-gray-200"
                       )}
                       title={r.bucket}
                     >
@@ -167,7 +167,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                     <td
                       className={cn(
                         rowBg,
-                        "px-3 py-2 text-center tabular-nums border-b border-gray-200"
+                        "px-3 py-2 text-center tabular-nums  border-gray-200"
                       )}
                     >
                       <span className="inline-flex items-center justify-center rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-800">
@@ -179,7 +179,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                     <td
                       className={cn(
                         rowBg,
-                        "px-3 py-2 text-center tabular-nums border-b border-gray-200"
+                        "px-3 py-2 text-center tabular-nums  border-gray-200"
                       )}
                     >
                       <span className="inline-flex items-center justify-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-900">
@@ -189,7 +189,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                     <td
                       className={cn(
                         rowBg,
-                        "px-3 py-2 text-center tabular-nums border-b border-gray-200"
+                        "px-3 py-2 text-center tabular-nums  border-gray-200"
                       )}
                     >
                       <span className="inline-flex items-center justify-center rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900">
@@ -199,7 +199,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                     <td
                       className={cn(
                         rowBg,
-                        "px-3 py-2 text-center tabular-nums border-b border-gray-200"
+                        "px-3 py-2 text-center tabular-nums  border-gray-200"
                       )}
                     >
                       <span className="inline-flex items-center justify-center rounded-md bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-900">
@@ -236,7 +236,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                   Upside
                 </span>
                 <span className="text-base font-semibold text-emerald-900">
-                  {multipliers.upside.toFixed(2)}×
+                  {multipliers.upside.toFixed(2)}Ã—
                 </span>
               </div>
               <div className="flex flex-col items-center justify-center rounded-lg bg-amber-50 px-3 py-2 border border-amber-100">
@@ -244,7 +244,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                   Baseline
                 </span>
                 <span className="text-base font-semibold text-amber-900">
-                  {multipliers.baseline.toFixed(2)}×
+                  {multipliers.baseline.toFixed(2)}Ã—
                 </span>
               </div>
               <div className="flex flex-col items-center justify-center rounded-lg bg-orange-50 px-3 py-2 border border-orange-100">
@@ -252,7 +252,7 @@ const AgingScenarioTable: React.FC<AgingScenarioTableProps> = ({
                   Downside
                 </span>
                 <span className="text-base font-semibold text-orange-900">
-                  {multipliers.downside.toFixed(2)}×
+                  {multipliers.downside.toFixed(2)}Ã—
                 </span>
               </div>
             </div>

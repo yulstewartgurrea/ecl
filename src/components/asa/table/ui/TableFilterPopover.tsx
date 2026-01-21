@@ -1,4 +1,4 @@
-// ==========================
+﻿// ==========================
 // components/asa/table/ui/TableFilterPopover.tsx (UPDATED)
 // ==========================
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -66,7 +66,7 @@ export default function TableFilterPopover({
           className={`absolute z-50 mt-2 w-80 rounded-xl border border-gray-200 bg-white shadow-xl`}
           style={align === "right" ? { right: 0 } : { left: 0 }}
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b rounded-t-xl bg-yellow-50">
+          <div className="flex items-center justify-between px-4 py-3  rounded-t-xl bg-yellow-50">
             <div className="text-sm font-semibold text-gray-800">{title}</div>
             <button
               type="button"

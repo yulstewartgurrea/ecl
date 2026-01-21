@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef } from "react";
+﻿import React, { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 
 type ModalProps = {
@@ -115,7 +115,7 @@ export function ProcessModal({
             <button
               ref={closeBtnRef}
               onClick={onClose}
-              className="ml-auto inline-flex items-center justify-center rounded-lg p-2 text-gray-800/80 hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+              className="ml-auto inline-flex items-center justify-center rounded-lg p-2 text-gray-800/80 hover:bg-gray-200/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
               aria-label="Close"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -164,3 +164,4 @@ export function ProcessModal({
     document.body
   );
 }
+

@@ -1,4 +1,4 @@
-// pages/ecl/steps/Step2.tsx
+﻿// pages/ecl/steps/Step2.tsx
 import  { useEffect, useMemo, useRef, useState } from "react";
 import {
   InformationCircleIcon,
@@ -327,7 +327,7 @@ formData.append(
                 ECL by Aging Category
               </h1>
               <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                This page shows the ECL calculation using each client’s loan balances by product or across all products as of the reporting date, together with the forward-looking loss rates.
+                This page shows the ECL calculation using each client™s loan balances by product or across all products as of the reporting date, together with the forward-looking loss rates.
               </p>
               <div className="mt-2 text-xs text-amber-900/80">
                 workflow_id: <b>{workflowId}</b>
@@ -348,18 +348,18 @@ formData.append(
 
         {/* Toolbar (Run / Refresh / Pagination) */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3  border-slate-200 bg-slate-50 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">
                 Loan-Level Expected Credit Loss
               </h2>
               <p className="text-xs text-slate-500">
                 {loading && !hasInitialFetched
-                  ? "Loading initial data…"
+                  ? "Loading initial data"
                   : needsRun
                   ? "No computed data found. Click Run to compute."
                   : totalItems
-                  ? `page ${currentPage} / ${totalPages} • total ${totalItems.toLocaleString("en-PH")}`
+                  ? `page ${currentPage} / ${totalPages}  total ${totalItems.toLocaleString("en-PH")}`
                   : "No data."}
               </p>
             </div>
@@ -377,7 +377,7 @@ formData.append(
                 }`}
                 title={
                   !hasInitialFetched
-                    ? "Waiting for initial GET…"
+                    ? "Waiting for initial GET"
                     : needsRun
                     ? "Compute (POST) then reload (GET)"
                     : "Already has data"
@@ -388,7 +388,7 @@ formData.append(
                 ) : (
                   <PlayIcon className="h-4 w-4" />
                 )}
-                {posting ? "Running…" : "Run"}
+                {posting ? "Running" : "Run"}
               </button>
 
               {/* Refresh always GET */}
@@ -439,7 +439,7 @@ formData.append(
           {/* Combined Excel-like Table */}
           <EclCombinedExcelTable
             rows={clientRows}
-            reportingDate={reportingDate || "—"}
+            reportingDate={reportingDate || ""}
             totalLoanBalance={totalLoanBalance}
           />
         </section>
@@ -447,3 +447,4 @@ formData.append(
     </div>
   );
 }
+

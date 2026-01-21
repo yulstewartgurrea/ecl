@@ -1,4 +1,4 @@
-// pages/ecl/steps/Step3.tsx
+﻿// pages/ecl/steps/Step3.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   InformationCircleIcon,
@@ -181,7 +181,7 @@ export default function Step3() {
     }
   };
 
-  // ✅ Initial: GET only (once per workflowId)
+  //  Initial: GET only (once per workflowId)
   useEffect(() => {
     if (!workflowId) return;
 
@@ -209,7 +209,7 @@ export default function Step3() {
             </div>
             <div className="min-w-0">
               <h1 className="text-sm font-semibold text-amber-900">
-                Step 3 – Portfolio-Level ECL
+                Step 3  Portfolio-Level ECL
               </h1>
               <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
                 This page first loads existing summary results using GET. If there is no computed
@@ -234,14 +234,14 @@ export default function Step3() {
 
         {/* Main table */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3  border-slate-200 bg-slate-50 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">
                 Portfolio ECL by Aging Category
               </h2>
               <p className="text-xs text-slate-500">
                 {loading && !hasInitialFetched
-                  ? "Loading initial data…"
+                  ? "Loading initial data"
                   : needsRun
                   ? "No computed data found. Click Run to compute."
                   : "Derived from the loan-level ECL computation in previous steps."}
@@ -260,7 +260,7 @@ export default function Step3() {
                 }`}
                 title={
                   !hasInitialFetched
-                    ? "Waiting for initial GET…"
+                    ? "Waiting for initial GET"
                     : needsRun
                     ? "Compute (POST) then reload (GET)"
                     : "Already has data"
@@ -271,7 +271,7 @@ export default function Step3() {
                 ) : (
                   <PlayIcon className="h-4 w-4" />
                 )}
-                {posting ? "Running…" : "Run"}
+                {posting ? "Running" : "Run"}
               </button>
 
               <button
@@ -291,7 +291,7 @@ export default function Step3() {
             {rows.length === 0 ? (
               <div className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
                 {loading
-                  ? "Loading…"
+                  ? "Loading"
                   : needsRun
                   ? "No summary yet. Click Run to compute."
                   : "No rows."}
@@ -308,3 +308,4 @@ export default function Step3() {
     </div>
   );
 }
+

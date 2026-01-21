@@ -1,4 +1,4 @@
-// ==========================
+﻿// ==========================
 // components/asa/table/AgingByProductTable.tsx (PAGINATION + NEUTRAL HEADER)
 // ==========================
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -112,7 +112,7 @@ export default function AgingByProductTable({
 
         {open && (
           <div className="absolute right-0 mt-2 w-64 rounded-xl border bg-white shadow-lg z-20">
-            <div className="p-3 border-b bg-yellow-50 rounded-t-xl flex items-center justify-between">
+            <div className="p-3  bg-yellow-50 rounded-t-xl flex items-center justify-between">
               <div className="text-xs font-medium text-gray-800">Filter by product</div>
               <button
                 className="p-1 text-gray-600 hover:bg-yellow-400/30 rounded-md"
@@ -177,7 +177,7 @@ export default function AgingByProductTable({
       <div className="ml-auto flex items-center gap-2">
         <span className="text-gray-600 text-sm">
           Showing{" "}
-          <span className="font-medium text-gray-900">{totalRows === 0 ? 0 : startIdx + 1}</span>–
+          <span className="font-medium text-gray-900">{totalRows === 0 ? 0 : startIdx + 1}</span>
           <span className="font-medium text-gray-900">{endIdx}</span> of{" "}
           <span className="font-medium text-gray-900">{totalRows}</span>
         </span>
@@ -246,3 +246,4 @@ export default function AgingByProductTable({
     />
   );
 }
+

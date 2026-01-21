@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+﻿import { useEffect, useMemo, useState, useCallback } from "react";
 import ExeTable from "../../../../components/overlay/execution/interpolation/table/ExeTable";
 import type { Frequency } from "../../../../components/overlay/execution/interpolation/table/Columns";
 import { ProcessModal } from "../../../../components/ProcessModal";
@@ -81,7 +81,7 @@ export default function OverlayDevelopmentPage2() {
     } catch (e: any) {
       // If GET fails (e.g., 404 / empty), we keep table empty and let the user POST via button
       setErr(
-        e?.message || "No data yet. Click “Run Interpolation” to generate."
+        e?.message || "No data yet. Click Run Interpolation to generate."
       );
       setRows([]);
       setExportReady(false);
@@ -152,7 +152,7 @@ export default function OverlayDevelopmentPage2() {
           let msg = `Export failed: HTTP ${res.status}`;
           try {
             const t = await res.text();
-            if (t) msg = `${msg} – ${t}`;
+            if (t) msg = `${msg}  ${t}`;
           } catch {}
           throw new Error(msg);
         }
@@ -211,7 +211,7 @@ export default function OverlayDevelopmentPage2() {
             <button
               onClick={runInterpolation}
               disabled={posting || !selectedWorkflowId}
-              className="cursor-pointer rounded-xl bg-gray-900 text-white px-3 py-2 text-sm font-medium hover:bg-black disabled:opacity-50 flex items-center gap-1.5"
+              className="cursor-pointer rounded-xl bg-gray-100 text-gray-900 border border-gray-200 px-3 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
               title={
                 !selectedWorkflowId
                   ? "Select a workflow on Step 1 first"
@@ -219,7 +219,7 @@ export default function OverlayDevelopmentPage2() {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              <span>{posting ? "Running…" : "Run Interpolation"}</span>
+              <span>{posting ? "Running" : "Run Interpolation"}</span>
             </button>
 
             {/* Export CSV */}
@@ -236,7 +236,7 @@ export default function OverlayDevelopmentPage2() {
               }
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              <span>{exporting ? "Exporting…" : "Export CSV"}</span>
+              <span>{exporting ? "Exporting" : "Export CSV"}</span>
             </button>
           </div>
         </div>
@@ -245,14 +245,14 @@ export default function OverlayDevelopmentPage2() {
       {/* Data card */}
       <main className="mx-auto px-4 pb-8">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div className="flex items-center justify-between px-4 py-3 ">
             <div className="text-sm text-gray-600">
               {selectedWorkflowId ? (
                 <>
                   Showing <span className="font-medium">{frequency}</span>{" "}
-                  dataset •{" "}
+                  dataset {" "}
                   {loading
-                    ? "Loading…"
+                    ? "Loading"
                     : `${data.length.toLocaleString()} rows`}
                 </>
               ) : (
@@ -273,22 +273,22 @@ export default function OverlayDevelopmentPage2() {
                 }
               >
                 <ArrowPathIcon className="h-3.5 w-3.5" />
-                <span>{loading ? "Refreshing…" : "Refresh"}</span>
+                <span>{loading ? "Refreshing" : "Refresh"}</span>
               </button>
 
               <div className="text-xs text-gray-500">
-                Sticky header • Scroll horizontally
+                Sticky header  Scroll horizontally
               </div>
             </div>
           </div>
 
           {err && (
-            <div className="px-4 py-3 text-sm text-red-700 bg-red-50 border-b border-red-200">
+            <div className="px-4 py-3 text-sm text-red-700 bg-red-50  border-red-200">
               {err}
             </div>
           )}
           {exportErr && (
-            <div className="px-4 py-3 text-sm text-red-700 bg-red-50 border-b border-red-200">
+            <div className="px-4 py-3 text-sm text-red-700 bg-red-50  border-red-200">
               {exportErr}
             </div>
           )}
@@ -324,3 +324,4 @@ export default function OverlayDevelopmentPage2() {
     </div>
   );
 }
+

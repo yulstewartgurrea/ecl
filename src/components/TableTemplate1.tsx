@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+﻿import React, { useRef, useState, useEffect } from "react";
 import clsx from "clsx";
 import { formatValueGeneral } from "../utils/CommonHelper";
 import { FunnelIcon } from "@heroicons/react/24/outline";
@@ -177,7 +177,7 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
 
     setTempFilters((prev) => {
       const existing = prev[header];
-      // ✅ If no filter applied yet, default to ALL selected
+      //  If no filter applied yet, default to ALL selected
       const initial = existing?.size ? new Set(existing) : new Set(allValues);
 
       return {
@@ -195,7 +195,7 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
 
     setFilters((prev) => ({
       ...prev,
-      // ✅ If everything is selected → treat as no filter
+      //  If everything is selected  treat as no filter
       [header]:
         selected.size === allValues.length ? new Set() : new Set(selected),
     }));
@@ -216,7 +216,7 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
     >
       {/* Top Pagination Controls */}
       {enablePagination && totalPages > 1 && (
-        <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
+        <div className="bg-gray-50  border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             {showPaginationInfo && (
               <div className="flex items-center gap-4">
@@ -469,3 +469,4 @@ const TableTemplate1: React.FC<TableTemplate1Props> = ({
 };
 
 export default TableTemplate1;
+

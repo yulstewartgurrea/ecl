@@ -1,4 +1,4 @@
-// ==========================
+﻿// ==========================
 // pages/flowrate/steps/Step3.tsx (API-DRIVEN, FIXED BLOCK + NUMBER PARSING)
 // ==========================
 import { useEffect, useMemo, useState } from "react";
@@ -153,7 +153,7 @@ function coerceAgingRows(payload: any): AgingRow[] {
       continue;
     }
 
-    // Else: pivot-style — scan for each bucket column on this object
+    // Else: pivot-style  scan for each bucket column on this object
     const bucketCols: Record<Buck, string[]> = {
       d0: ["0 day", "0 Day", "d0"],
       par1: ["PAR 1 (1 & 30 days)", "PAR 1  (1 & 30 days)", "par1"],
@@ -268,13 +268,13 @@ export default function Step3() {
   return (
     <div className="min-h-dvh p-6 space-y-6">
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b bg-yellow-500">
+        <div className="px-4 py-3  bg-yellow-500">
           <h3 className="text-sm font-semibold text-gray-900">Aging by Product</h3>
           <p className="text-xs text-gray-800 -mt-0.5">Filter by product and paginate results.</p>
         </div>
 
         {/* Toolbar: product filter + export */}
-        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 ">
           <TableFilterPopover
             value={productFilter}
             options={products}
@@ -298,7 +298,7 @@ export default function Step3() {
         <div className="p-4">
           {loading ? (
             <div className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-700">
-              Loading…
+              Loading
             </div>
           ) : error ? (
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
@@ -312,3 +312,4 @@ export default function Step3() {
     </div>
   );
 }
+
