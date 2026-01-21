@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import { ChevronLeftIcon } from "@heroicons/react/24/outline";
@@ -74,7 +74,7 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
           }
         }
       } else {
-        // not last folder — drill down
+        // not last folder  drill down
         setCurrentPath(newPath);
       }
       setContents(res.items);
@@ -140,7 +140,7 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
                   }`}
                 >
                   <span className="text-3xl">
-                    {item.is_folder ? "📁" : "📄"}
+                    {item.is_folder ? "ðŸ“" : "ðŸ“„"}
                   </span>
                   <span
                     className="mt-2 text-xs text-center w-full break-words"
@@ -152,7 +152,7 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
                     contextMenu.folderOrFileName === item.name && (
                       <div className="absolute transform translate-y-14 z-10">
                         <div className="relative">
-                          <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-l-transparent border-b-8 border-b-gray-200 border-r-8 border-r-transparent"></div>
+                          <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-l-transparent   border-r-8 border-r-transparent"></div>
                           <ul className="bg-white border border-gray-200 rounded shadow-md z-20 mt-2 bottom-6 -right-2">
                             <li className="px-4 py-2 cursor-pointer hover:bg-blue-50 text-xs">
                               Option 1
@@ -179,3 +179,4 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
 };
 
 export default WorkflowFolderList;
+

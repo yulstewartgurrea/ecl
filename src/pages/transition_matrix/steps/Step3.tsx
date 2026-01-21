@@ -1,4 +1,4 @@
-import { FunnelIcon } from "@heroicons/react/24/outline";
+﻿import { FunnelIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../redux_toolkit/store";
@@ -156,13 +156,13 @@ const Step3 = () => {
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
               <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
-                {entity || "—"}
+                {entity || ""}
               </span>
               <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
-                {period || "—"}
+                {period || ""}
               </span>
               <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
-                {workflowName || "—"}
+                {workflowName || ""}
               </span>
             </div>
           </div>
@@ -195,13 +195,13 @@ const Step3 = () => {
                       ? `${selectedFilters.length} filter${selectedFilters.length > 1 ? 's' : ''} selected`
                       : 'Select Filters'
                     }
-                    <span className={`ml-1 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}>▼</span>
+                    <span className={`ml-1 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}></span>
                   </button>
                   
                   {isDropdownOpen && (
                     <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 min-w-[300px] max-h-64 overflow-hidden">
                       {/* Search Bar */}
-                      <div className="p-3 border-b border-gray-200">
+                      <div className="p-3  border-gray-200">
                         <input
                           type="text"
                           placeholder="Search filters..."
@@ -220,7 +220,7 @@ const Step3 = () => {
                           key={field}
                           onClick={() => toggleFilter(field)}
                           className={`
-                            px-4 py-2 cursor-pointer hover:bg-gray-100 text-xs border-b border-gray-100 last:border-b-0
+                            px-4 py-2 cursor-pointer hover:bg-gray-100 text-xs  border-gray-100 last:
                             ${selectedFilters.includes(field) ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}
                           `}
                         >
@@ -271,7 +271,7 @@ const Step3 = () => {
                           onClick={() => toggleFilter(filter)}
                           className="ml-1 text-white hover:text-gray-200"
                         >
-                          ×
+                          Ã—
                         </button>
                       </span>
                     ))}
@@ -316,3 +316,4 @@ const Step3 = () => {
 };
 
 export default Step3;
+

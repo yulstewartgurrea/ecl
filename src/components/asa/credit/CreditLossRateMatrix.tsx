@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import {
   ArrowDownTrayIcon,
   CalculatorIcon,
@@ -114,7 +114,7 @@ function parseBool(v: any): boolean | undefined {
 }
 
 /**
- * ✅ FIXED TYPES: rows is explicitly an ARRAY
+ *  FIXED TYPES: rows is explicitly an ARRAY
  */
 function deriveSchema(rows: ReadonlyArray<MonthRow>) {
   const keySet = rows.reduce<Set<string>>((set, r) => {
@@ -159,7 +159,7 @@ const Card: React.FC<React.PropsWithChildren<{ title: string; subtitle?: string 
   children,
 }) => (
   <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-    <div className="flex items-center justify-between px-4 py-3 border-b border-yellow-600/30 bg-yellow-500 rounded-t-2xl">
+    <div className="flex items-center justify-between px-4 py-3  border-yellow-600/30 bg-yellow-500 rounded-t-2xl">
       <div className="flex items-center gap-2">
         <CalculatorIcon className="h-5 w-5 text-gray-700" />
         <div>
@@ -308,24 +308,24 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
           <table className="w-full text-xs">
             <thead className="bg-gray-50 sticky top-0">
               <tr className="text-gray-700">
-                <th className="px-3 py-2 text-left font-semibold border-b">
+                <th className="px-3 py-2 text-left font-semibold ">
                   {schema.dateKey ?? "Row"}
                 </th>
 
                 {autoCategories.map((c) => (
-                  <th key={c.key} className="px-3 py-2 text-right font-semibold border-b">
+                  <th key={c.key} className="px-3 py-2 text-right font-semibold ">
                     {c.label}
                   </th>
                 ))}
 
                 {schema.monotonicKey && (
-                  <th className="px-3 py-2 text-center font-semibold border-b">
+                  <th className="px-3 py-2 text-center font-semibold ">
                     {schema.monotonicKey}
                   </th>
                 )}
 
                 {schema.weightedKey && (
-                  <th className="px-3 py-2 text-right font-semibold border-b">
+                  <th className="px-3 py-2 text-right font-semibold ">
                     {schema.weightedKey}
                   </th>
                 )}
@@ -337,18 +337,18 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
                 const r = t._raw;
                 return (
                   <tr key={`${idx}`} className="odd:bg-white even:bg-gray-50/50">
-                    <td className="px-3 py-2 border-b text-gray-900">
+                    <td className="px-3 py-2  text-gray-900">
                       {schema.dateKey ? String(r?.[schema.dateKey] ?? "") : String(idx + 1)}
                     </td>
 
                     {autoCategories.map((c) => (
-                      <td key={c.key} className="px-3 py-2 border-b text-right tabular-nums">
+                      <td key={c.key} className="px-3 py-2  text-right tabular-nums">
                         {pct(toFraction(r?.[c.key]), 6)}
                       </td>
                     ))}
 
                     {schema.monotonicKey && (
-                      <td className="px-3 py-2 border-b text-center">
+                      <td className="px-3 py-2  text-center">
                         {t._monotonic ? (
                           <Badge tone="green">
                             <CheckCircleIcon className="h-4 w-4 mr-1" />
@@ -364,7 +364,7 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
                     )}
 
                     {schema.weightedKey && (
-                      <td className="px-3 py-2 border-b text-right font-medium text-gray-900 tabular-nums">
+                      <td className="px-3 py-2  text-right font-medium text-gray-900 tabular-nums">
                         {pct(t._weighted, 6)}
                       </td>
                     )}
@@ -380,3 +380,4 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
 };
 
 export default CreditLossRateMatrix;
+

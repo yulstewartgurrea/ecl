@@ -1,4 +1,4 @@
-// Reusable, headless-ish React + Tailwind table with per-column Excel-style filters
+﻿// Reusable, headless-ish React + Tailwind table with per-column Excel-style filters
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 // ========= Types =========
@@ -274,7 +274,7 @@ export function Multi_Table({
     >
       {/* Selection summary (only when selectable) */}
       {selectable && (
-        <div className="flex items-center gap-3 border-b border-neutral-200 px-3 py-2 text-xs text-neutral-700">
+        <div className="flex items-center gap-3  border-neutral-200 px-3 py-2 text-xs text-neutral-700">
           <span>
             <strong>{selectedIds.size}</strong> selected
           </span>
@@ -298,7 +298,7 @@ export function Multi_Table({
         <table className="w-full text-left text-sm">
           {/* UPDATED header bg */}
           <thead className="sticky top-0 z-10 bg-gray-700 text-white backdrop-blur">
-            <tr className="border-b border-neutral-200/20">
+            <tr className=" border-neutral-200/20">
               {selectable && (
                 <th className="w-10 px-3 py-2">
                   <label className="inline-flex items-center gap-2">
@@ -341,7 +341,7 @@ export function Multi_Table({
                       aria-expanded={filters[col.key]?.open || false}
                       title="Filter"
                     >
-                      ▼
+                      
                     </button>
 
                     {filters[col.key]?.open && (
@@ -387,7 +387,7 @@ export function Multi_Table({
                   <tr
                     key={i}
                     className={
-                      "border-b border-neutral-100 hover:bg-neutral-50 " +
+                      " border-neutral-100 hover:bg-neutral-50 " +
                       (isSel ? "bg-yellow-50/40" : "")
                     }
                   >
@@ -515,7 +515,7 @@ function FilterPopover({
         />
 
         <div className="max-h-48 overflow-auto rounded-lg border border-neutral-200">
-          <div className="sticky top-0 flex items-center gap-2 border-b border-neutral-200 bg-white px-2 py-1.5 text-xs">
+          <div className="sticky top-0 flex items-center gap-2  border-neutral-200 bg-white px-2 py-1.5 text-xs">
             <label className="inline-flex items-center gap-2 select-none">
               <input type="checkbox" checked={allVisibleChecked} onChange={toggleAllVisible} />
               <span className="text-neutral-700">Select shown</span>

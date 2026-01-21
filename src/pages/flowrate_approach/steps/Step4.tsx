@@ -1,4 +1,4 @@
-// pages/flowrate/steps/Step4.tsx
+﻿// pages/flowrate/steps/Step4.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Squares2X2Icon,
@@ -248,7 +248,7 @@ export default function Step4() {
         </div>
 
         {loading ? (
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">Loading…</div>
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-700">Loading</div>
         ) : error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
         ) : (
@@ -284,7 +284,7 @@ const Card: React.FC<React.PropsWithChildren<{ title: string; subtitle?: string 
   children,
 }) => (
   <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-    <div className="flex items-center justify-between px-4 py-3 border-b rounded-t-2xl bg-yellow-500">
+    <div className="flex items-center justify-between px-4 py-3  rounded-t-2xl bg-yellow-500">
       <div>
         <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
         {subtitle && <p className="text-xs text-gray-800 -mt-0.5">{subtitle}</p>}
@@ -293,3 +293,4 @@ const Card: React.FC<React.PropsWithChildren<{ title: string; subtitle?: string 
     <div className="p-4">{children}</div>
   </div>
 );
+

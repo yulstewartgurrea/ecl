@@ -1,4 +1,4 @@
-import type { FC } from "react";
+﻿import type { FC } from "react";
 
 export interface EclClientRow {
   date: string;
@@ -50,7 +50,7 @@ const ClientLevelEclTable: FC<ClientLevelEclTableProps> = ({
   return (
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
       {/* Header / toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3  border-slate-200 bg-slate-50 px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold text-slate-800">
             Loan-Level Expected Credit Loss
@@ -80,71 +80,71 @@ const ClientLevelEclTable: FC<ClientLevelEclTableProps> = ({
       <div className="relative max-h-[70vh] overflow-auto">
         <table className="min-w-full border-collapse text-[11px]">
           <thead className="sticky top-0 z-10">
-            {/* Grouped header row – backgrounds per cell to align colors */}
+            {/* Grouped header row  backgrounds per cell to align colors */}
             <tr className="text-[10px] font-semibold uppercase tracking-wide">
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-left align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-left align-bottom text-slate-700"
               >
                 Date
               </th>
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-left align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-left align-bottom text-slate-700"
               >
                 Client Ref No
               </th>
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-left align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-left align-bottom text-slate-700"
               >
                 Loan Ref No
               </th>
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-left align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-left align-bottom text-slate-700"
               >
                 Service Code
               </th>
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
               >
                 Principal Loan Balance
               </th>
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
               >
                 Loan Balance
               </th>
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
               >
                 Past Due Amount
               </th>
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
               >
                 Total Savings
               </th>
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
               >
                 No. of Payments
               </th>
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
               >
                 Delinquent
               </th>
               <th
                 rowSpan={2}
-                className="border-b border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
+                className=" border-r border-slate-200 bg-slate-100 px-3 py-2 text-right align-bottom text-slate-700"
               >
                 Delinquent Days
               </th>
@@ -162,37 +162,37 @@ const ClientLevelEclTable: FC<ClientLevelEclTableProps> = ({
                   idx % 2 === 0 ? "bg-white" : "bg-slate-50/40 hover:bg-slate-100"
                 }
               >
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-left text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-left text-slate-700">
                   {row.date}
                 </td>
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-left text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-left text-slate-700">
                   {row.clientRefNo}
                 </td>
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-left text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-left text-slate-700">
                   {row.loanRefNo}
                 </td>
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-left text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-left text-slate-700">
                   {row.serviceCode}
                 </td>
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
                   {formatCurrency(row.principalLoanBalance)}
                 </td>
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
                   {formatCurrency(row.loanBalance)}
                 </td>
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
                   {formatCurrency(row.pastDueAmount)}
                 </td>
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
                   {formatCurrency(row.totalSavings)}
                 </td>
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
                   {row.noPayment.toLocaleString("en-PH")}
                 </td>
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
                   {row.delinquent.toLocaleString("en-PH")}
                 </td>
-                <td className="border-b border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
+                <td className=" border-r border-slate-100 px-3 py-1.5 text-right tabular-nums text-slate-700">
                   {row.delinquentDays.toLocaleString("en-PH")}
                 </td>
                 
@@ -217,3 +217,4 @@ const ClientLevelEclTable: FC<ClientLevelEclTableProps> = ({
 };
 
 export default ClientLevelEclTable;
+

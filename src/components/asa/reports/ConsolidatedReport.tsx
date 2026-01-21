@@ -1,4 +1,4 @@
-// ==========================
+﻿// ==========================
 // components/asa/reports/ConsolidatedReport.tsx
 // Dynamic columns + <colgroup> alignment + auto date detection
 // ==========================
@@ -150,7 +150,7 @@ function DateRangeButton({
   }, [open]);
 
   const label =
-    from && to ? `${from} → ${to}` : from ? `From ${from}` : to ? `To ${to}` : "Date range";
+    from && to ? `${from}  ${to}` : from ? `From ${from}` : to ? `To ${to}` : "Date range";
 
   const quick = {
     thisMonth: () => {
@@ -201,7 +201,7 @@ function DateRangeButton({
           className="absolute z-50 mt-2 w-[360px] rounded-xl border border-gray-200 bg-white shadow-xl"
           style={{ left: 0 }}
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b bg-yellow-50 rounded-t-xl">
+          <div className="flex items-center justify-between px-4 py-3  bg-yellow-50 rounded-t-xl">
             <div className="text-sm font-semibold text-gray-800">Filter by date range</div>
             <button
               type="button"
@@ -307,7 +307,7 @@ export function DataGrid<T>({
   return (
     <section className={cls("rounded-2xl ring-1 ring-gray-200 bg-white shadow-sm", className)}>
       {(title || toolbar) && (
-        <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
+        <div className="flex items-center justify-between gap-3  border-gray-200 px-4 py-3">
           {title && <h3 className={cls("font-semibold text-slate-800", textBase)}>{title}</h3>}
           {toolbar}
         </div>
@@ -337,7 +337,7 @@ export function DataGrid<T>({
                   key={i}
                   title={c.headerTitle || c.header}
                   className={cls(
-                    "border-b border-gray-300 px-3 font-semibold leading-tight h-12",
+                    " border-gray-300 px-3 font-semibold leading-tight h-12",
                     "whitespace-nowrap overflow-hidden text-ellipsis",
                     c.align === "center" && "text-center",
                     c.align === "left" && "text-left"
@@ -377,7 +377,7 @@ export function DataGrid<T>({
                         <td
                           key={cIdx}
                           className={cls(
-                            "border-b border-gray-200 px-3 align-top",
+                            " border-gray-200 px-3 align-top",
                             padY,
                             "whitespace-normal break-words",
                             c.align === "center" && "text-center",
@@ -613,7 +613,7 @@ export default function ConsolidatedReport({
       {/* Right side: range + pager + export */}
       <div className="ml-auto flex items-center gap-2">
         <span className="text-gray-600 text-sm">
-          Showing <span className="font-medium text-gray-900">{totalRows === 0 ? 0 : startIdx + 1}</span>–
+          Showing <span className="font-medium text-gray-900">{totalRows === 0 ? 0 : startIdx + 1}</span>
           <span className="font-medium text-gray-900">{endIdx}</span> of{" "}
           <span className="font-medium text-gray-900">{totalRows}</span>
         </span>
@@ -679,7 +679,7 @@ export default function ConsolidatedReport({
       {/* LEFT: Summary card */}
       <div className="w-[460px] shrink-0">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b bg-yellow-500">
+          <div className="px-4 py-3  bg-yellow-500">
             <h3 className="text-sm font-semibold text-gray-900">Data Summary</h3>
             <p className="text-xs text-gray-800 -mt-0.5">
               {summaryDateKey ? "Click a date to set the range" : "No date field detected"}
@@ -715,7 +715,7 @@ export default function ConsolidatedReport({
       {/* RIGHT: Consolidated card */}
       <div className="min-w-0 flex-1">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b bg-yellow-500">
+          <div className="px-4 py-3  bg-yellow-500">
             <h3 className="text-sm font-semibold text-gray-900">Consolidated Data</h3>
           </div>
 
@@ -732,3 +732,4 @@ export default function ConsolidatedReport({
     </div>
   );
 }
+
