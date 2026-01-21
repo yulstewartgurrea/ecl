@@ -283,7 +283,7 @@ async def export_override_data_transformation_mevs(
 @router.post("/override_data_transformation_mevs")
 async def calculate_override_data_transformation_mevs(
     workflow_id: int = Form(...),
-    override_forecated_mevs: str = Form(...),
+    override_data_transformation_mevs: str = Form(...),
     user_id: User = Depends(get_current_user),
 ):
     """
@@ -329,7 +329,7 @@ async def calculate_override_data_transformation_mevs(
         filename = f"override_data_transformation_mevs_output_{get_time_date()}.csv"
         output_folder_path = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/execution/{workflow.loan_product}/override_data_transformation_mevs"
 
-        ofm = json.loads(override_forecated_mevs)
+        ofm = json.loads(override_data_transformation_mevs)
         print('ofm', ofm)
         # Save data in documents models
         db = SessionLocal()
@@ -339,7 +339,7 @@ async def calculate_override_data_transformation_mevs(
             # Create Document record
             new_document = Document(
                 filename=filename,
-                json_data=override_forecated_mevs,
+                json_data=override_data_transformation_mevs,
                 document_type=document_type,
                 user_id=user_id.id,
                 workflow_id=workflow_id,
