@@ -392,7 +392,7 @@ export default function OverlayExecutionPage3() {
                 <span>{exporting ? "Exportingâ€¦" : "Export"}</span>
               </button>
               <span className="hidden text-xs text-gray-500 md:inline">
-                Sticky header â€¢ Scroll horizontally
+                Sticky header   Scroll horizontally
               </span>
             </div>
           </div>
@@ -416,7 +416,7 @@ export default function OverlayExecutionPage3() {
                   Overrides are saved, but the transformation hasnâ€™t been run yet.
                 </p>
                 <p className="mt-1 text-xs text-amber-800">
-                  Click <span className="font-semibold">â€œRun forecasted MEVsâ€</span> to
+                  Click <span className="font-semibold"> Run forecasted MEVs </span> to
                   generate the transformed forecast table.
                 </p>
               </div>

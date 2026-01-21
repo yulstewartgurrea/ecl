@@ -188,7 +188,7 @@ const Step7: React.FC = () => {
         <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-neutral-900">
           <div className="flex items-center gap-3">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 font-semibold text-black">
-              âœ“
+               
             </span>
             <p className="text-base">
               <span className="font-medium">{model.title}</span> is locked in
@@ -359,18 +359,18 @@ function StatTile({ label, value }: { label: string; value: string }) {
 
 /* ---------- Format helpers ---------- */
 function fmtNumber(v?: number): string {
-  if (v == null || Number.isNaN(Number(v))) return "â€”";
+  if (v == null || Number.isNaN(Number(v))) return " ";
   return Number(v).toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
 function fmtPercent(v?: number): string {
-  if (v == null || Number.isNaN(Number(v))) return "â€”";
+  if (v == null || Number.isNaN(Number(v))) return " ";
   return (
     (Number(v) * 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) +
     "%"
   );
 }
 function fmtPctOrVal(v: number | string | undefined): string {
-  if (v == null) return "â€”";
+  if (v == null) return " ";
   if (typeof v === "string") return v;
   if (v >= 0 && v <= 1)
     return (

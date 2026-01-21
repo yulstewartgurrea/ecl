@@ -63,7 +63,7 @@ export default function OverlayUploadResultModal({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 break-all">{r.fileName}</p>
-                      <p className="text-xs text-gray-500">status: {r.status} â€¢ {r.kind.toUpperCase()}</p>
+                      <p className="text-xs text-gray-500">status: {r.status}   {r.kind.toUpperCase()}</p>
                       <pre className="mt-2 max-h-40 overflow-auto rounded bg-gray-50 p-2 text-[11px] leading-tight text-gray-700">
                         {JSON.stringify(r.payload ?? {}, null, 2)}
                       </pre>

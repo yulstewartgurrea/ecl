@@ -646,7 +646,7 @@ export default function Step1() {
     ]
   );
 
-  // Dropzone handlers â€” upload new files, ignore placeholders from existing docs
+  // Dropzone handlers   upload new files, ignore placeholders from existing docs
   const handleMonthlyFilesChange = useCallback(
     async (files: File[]) => {
       setMonthlyFiles(files);
@@ -718,7 +718,7 @@ export default function Step1() {
     if (quarterlyFiles.length) parts.push(`${quarterlyFiles.length} quarterly`);
     if (finalModelFiles.length) parts.push(`${finalModelFiles.length} final model`);
     if (historicalWeightedFiles.length) parts.push(`${historicalWeightedFiles.length} historical weighted`);
-    return parts.join(" â€¢ ");
+    return parts.join("   ");
   }, [monthlyFiles.length, quarterlyFiles.length, finalModelFiles.length, historicalWeightedFiles.length]);
 
   const uploadStatus = useMemo(() => {
@@ -1047,7 +1047,7 @@ export default function Step1() {
                           : "bg-white text-gray-700 border-gray-200",
                       ].join(" ")}
                     >
-                      {autoQuarterlyOk === true ? "âœ“" : autoQuarterlyOk === false ? "!" : "â€¢"} Quarterly
+                      {autoQuarterlyOk === true ? " " : autoQuarterlyOk === false ? "!" : " "} Quarterly
                       
                     </span>
 

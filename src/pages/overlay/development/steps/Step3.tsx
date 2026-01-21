@@ -722,7 +722,7 @@ export default function OverlayDevelpmentPage3() {
           )}
           {status && status.status === "completed" && (
             <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-              âœ“ Job completed successfully
+                Job completed successfully
               {status.running_time_seconds !== null && (
                 <span className="ml-2 text-xs">
                   (Completed in {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s)

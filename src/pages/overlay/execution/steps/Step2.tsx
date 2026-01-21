@@ -81,7 +81,7 @@ export default function OverlayDevelopmentPage2() {
     } catch (e: any) {
       // If GET fails (e.g., 404 / empty), we keep table empty and let the user POST via button
       setErr(
-        e?.message || "No data yet. Click â€œRun Interpolationâ€ to generate."
+        e?.message || "No data yet. Click  Run Interpolation  to generate."
       );
       setRows([]);
       setExportReady(false);
@@ -250,7 +250,7 @@ export default function OverlayDevelopmentPage2() {
               {selectedWorkflowId ? (
                 <>
                   Showing <span className="font-medium">{frequency}</span>{" "}
-                  dataset â€¢{" "}
+                  dataset  {" "}
                   {loading
                     ? "Loadingâ€¦"
                     : `${data.length.toLocaleString()} rows`}
@@ -277,7 +277,7 @@ export default function OverlayDevelopmentPage2() {
               </button>
 
               <div className="text-xs text-gray-500">
-                Sticky header â€¢ Scroll horizontally
+                Sticky header   Scroll horizontally
               </div>
             </div>
           </div>

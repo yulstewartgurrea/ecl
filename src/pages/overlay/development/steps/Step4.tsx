@@ -61,7 +61,7 @@ function toCsv(headers: string[], rows: Row[]): string {
 }
 
 const Step4: React.FC<Step4Props> = ({
-  title = "Multi-Factor Analysis â€” Regression Results",
+  title = "Multi-Factor Analysis   Regression Results",
   description = "Run the analysis, then browse paginated results. Use column filters for quick sensitivity checks.",
 }) => {
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
@@ -832,7 +832,7 @@ const Step4: React.FC<Step4Props> = ({
       )}
       {status && status.status === "completed" && (
         <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-          âœ“ Job completed successfully
+            Job completed successfully
           {status.running_time_seconds !== null && (
             <span className="ml-2 text-xs">
               (Completed in {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s)
@@ -854,7 +854,7 @@ const Step4: React.FC<Step4Props> = ({
         <Multi_Table
           data={displayRows}
           onFilteredChange={(filtered: any) => setFilteredRows(filtered)}
-          emptyMessage={hasTriggered ? "No results" : "Click â€œRun Analysisâ€ to fetch results."}
+          emptyMessage={hasTriggered ? "No results" : "Click  Run Analysis  to fetch results."}
         />
       </div>
 

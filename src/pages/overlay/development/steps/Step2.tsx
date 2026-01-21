@@ -243,7 +243,7 @@ export default function OverlayDevelopmentPage2() {
               {selectedWorkflowId ? (
                 <>
                   Showing{" "}
-                  <span className="font-medium">{frequency}</span> dataset â€¢{" "}
+                  <span className="font-medium">{frequency}</span> dataset  {" "}
                   {loading ? "Loadingâ€¦" : `${data.length.toLocaleString()} rows`}
                 </>
               ) : (
@@ -267,7 +267,7 @@ export default function OverlayDevelopmentPage2() {
                 <span>{loading ? "Refreshingâ€¦" : "Refresh"}</span>
               </button>
               <div className="text-xs text-gray-500">
-                Sticky header â€¢ Scroll horizontally
+                Sticky header   Scroll horizontally
               </div>
             </div>
           </div>

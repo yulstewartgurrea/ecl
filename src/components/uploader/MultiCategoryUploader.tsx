@@ -307,12 +307,12 @@ export default function MultiCategoryUploader({
       const files = filesByKey[c.key] ?? [];
 
       if (c.required && files.length === 0) {
-        errs.push(`â€œ${c.label}â€ is required.`);
+        errs.push(` ${c.label}  is required.`);
       }
 
       const limit = c.maxFiles ?? Infinity;
       if (files.length > limit) {
-        errs.push(`â€œ${c.label}â€ exceeds maximum of ${limit} file(s).`);
+        errs.push(` ${c.label}  exceeds maximum of ${limit} file(s).`);
       }
 
       const cap = (c.maxSizeMB ?? maxSizeMB) * 1024 * 1024;
@@ -320,10 +320,10 @@ export default function MultiCategoryUploader({
 
       for (const f of files) {
         if (f.size > cap) {
-          errs.push(`â€œ${c.label}â€: ${f.name} is larger than ${c.maxSizeMB ?? maxSizeMB} MB.`);
+          errs.push(` ${c.label} : ${f.name} is larger than ${c.maxSizeMB ?? maxSizeMB} MB.`);
         }
         if (!fileMatchesAccept(f, accepts)) {
-          errs.push(`â€œ${c.label}â€: ${f.name} has an unsupported file type.`);
+          errs.push(` ${c.label} : ${f.name} has an unsupported file type.`);
         }
       }
     }
@@ -659,7 +659,7 @@ export default function MultiCategoryUploader({
       const n = filesByKey[c.key]?.length ?? 0;
       if (n) parts.push(`${n} ${c.label.toLowerCase()}`);
     }
-    return parts.join(" â€¢ ");
+    return parts.join("   ");
   }, [categories, filesByKey]);
 
   const allFiles = useMemo(() => {
@@ -689,7 +689,7 @@ export default function MultiCategoryUploader({
               ) : (
                 <p className="text-xs text-slate-600">
                   Accepted: <span className="font-medium">{accept}</span>{" "}
-                  <span className="mx-1">â€¢</span> Max {maxSizeMB}MB/file
+                  <span className="mx-1"> </span> Max {maxSizeMB}MB/file
                 </p>
               )}
               {!!summary && (
@@ -801,7 +801,7 @@ export default function MultiCategoryUploader({
                   </div>
 
                   <div className="mb-2">
-                    <Pill tone="yellow">Active: {selectedCategory?.label ?? "â€”"}</Pill>
+                    <Pill tone="yellow">Active: {selectedCategory?.label ?? " "}</Pill>
                     <span className="ml-2 text-[11px] text-slate-600">
                       <code className="text-slate-800">document_type={selectedKey}</code>
                     </span>
@@ -1137,7 +1137,7 @@ export default function MultiCategoryUploader({
         </div>
       )}
 
-      {/* Upload Error Modal (SEQUENTIAL â€” shows one category at a time) */}
+      {/* Upload Error Modal (SEQUENTIAL   shows one category at a time) */}
       {showErrorModal && currentError && (
         <div className="fixed inset-0 z-50 bg-gray-100/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-xl shadow-xl ring-1 ring-slate-200">

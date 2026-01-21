@@ -212,7 +212,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                           ? "border-yellow-300 bg-yellow-50 text-yellow-900 ring-1 ring-yellow-400"
                           : "border-neutral-300 hover:bg-neutral-50 text-neutral-800",
                       ].join(" ")}
-                      title={active ? "Already added â€” click to jump to rule" : "Add rule with this column"}
+                      title={active ? "Already added   click to jump to rule" : "Add rule with this column"}
                       aria-pressed={active}
                     >
                       {active && <CheckIcon className="h-3.5 w-3.5" />}
