@@ -103,7 +103,7 @@ export default function StepSwitch({
                     setOpen(false);
                   }}
                   className={clsx(
-                    "w-full px-4 py-3 text-left text-sm border-b last:border-b-0 transition",
+                    "w-full px-4 py-3 text-left text-sm  last: transition",
                     selected
                       ? "bg-yellow-100/80 font-semibold text-gray-900"
                       : "text-gray-800 hover:bg-yellow-50"
@@ -124,4 +124,5 @@ export default function StepSwitch({
     </div>
   );
 }
+
 

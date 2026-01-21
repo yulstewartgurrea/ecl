@@ -146,7 +146,7 @@ export function ProcessModal({
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t bg-white/90 px-5 py-3 backdrop-blur sm:px-6">
+          <div className="sticky bottom-0 flex items-center justify-end gap-3  bg-white/90 px-5 py-3 backdrop-blur sm:px-6">
 
             <button
               onClick={onClose}
@@ -164,5 +164,6 @@ export function ProcessModal({
     document.body
   );
 }
+
 
 

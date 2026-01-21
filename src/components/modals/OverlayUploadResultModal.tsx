@@ -35,7 +35,7 @@ export default function OverlayUploadResultModal({
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-gray-100/80 p-4">
       <div className="w-full max-w-3xl rounded-2xl bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-5 py-4">
+        <div className="flex items-center justify-between  px-5 py-4">
           <h3 className="text-base font-semibold text-gray-900">{title}</h3>
           <button
             className="p-1 rounded hover:bg-gray-100"
@@ -84,7 +84,7 @@ export default function OverlayUploadResultModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t px-5 py-4">
+        <div className="flex items-center justify-end gap-3  px-5 py-4">
           <button
             onClick={onClose}
             className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50  cursor-pointer"
@@ -105,3 +105,4 @@ export default function OverlayUploadResultModal({
     </div>
   );
 }
+

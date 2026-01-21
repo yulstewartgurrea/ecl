@@ -1,4 +1,4 @@
-// src/components/overlay/execution/final_model/FlPitPdSummary.tsx
+﻿// src/components/overlay/execution/final_model/FlPitPdSummary.tsx
 import React from "react";
 
 export type FlPitBucketRow = {
@@ -21,9 +21,9 @@ const cn = (...xs: Array<string | false | undefined>) =>
  * - Uses exponential notation for extremely large values to avoid overflow in UI
  */
 const formatPctNumber = (v: number): string => {
-  if (!Number.isFinite(v)) return "—";
+  if (!Number.isFinite(v)) return "”";
   const pct = v * 100;
-  if (!Number.isFinite(pct)) return "—";
+  if (!Number.isFinite(pct)) return "”";
 
   // Avoid crazy-long strings for huge numbers
   if (Math.abs(pct) >= 1e6) {
@@ -67,14 +67,14 @@ const FlPitPdSummary: React.FC<FlPitPdSummaryProps> = ({ rows }) => {
             </tr>
             {/* Row 2: Best / Base / Worst labels */}
             <tr className="text-xs">
-              <th className="bg-gray-50 px-3 py-1.5 border-b border-gray-200 text-left" />
-              <th className="bg-emerald-50 px-3 py-1.5 border-b border-emerald-200 text-center font-medium text-neutral-800">
+              <th className="bg-gray-50 px-3 py-1.5  border-gray-200 text-left" />
+              <th className="bg-emerald-50 px-3 py-1.5  border-emerald-200 text-center font-medium text-neutral-800">
                 Best
               </th>
-              <th className="bg-amber-50 px-3 py-1.5 border-b border-amber-200 text-center font-medium text-neutral-800">
+              <th className="bg-amber-50 px-3 py-1.5  border-amber-200 text-center font-medium text-neutral-800">
                 Base
               </th>
-              <th className="bg-orange-50 px-3 py-1.5 border-b border-orange-200 text-center font-medium text-neutral-800">
+              <th className="bg-orange-50 px-3 py-1.5  border-orange-200 text-center font-medium text-neutral-800">
                 Worst
               </th>
             </tr>
@@ -90,7 +90,7 @@ const FlPitPdSummary: React.FC<FlPitPdSummaryProps> = ({ rows }) => {
                 <tr key={r.bucket} className={rowBg}>
                   <td
                     className={cn(
-                      "px-3 py-1.5 border-b border-neutral-200 whitespace-nowrap",
+                      "px-3 py-1.5  border-neutral-200 whitespace-nowrap",
                       isPortfolio
                         ? "bg-slate-100 font-medium text-neutral-900"
                         : rowBg
@@ -98,13 +98,13 @@ const FlPitPdSummary: React.FC<FlPitPdSummaryProps> = ({ rows }) => {
                   >
                     {r.bucket}
                   </td>
-                  <td className="px-3 py-1.5 border-b border-neutral-200 tabular-nums text-center bg-emerald-50">
+                  <td className="px-3 py-1.5  border-neutral-200 tabular-nums text-center bg-emerald-50">
                     {fmtPct(r.best)}
                   </td>
-                  <td className="px-3 py-1.5 border-b border-neutral-200 tabular-nums text-center bg-amber-50">
+                  <td className="px-3 py-1.5  border-neutral-200 tabular-nums text-center bg-amber-50">
                     {fmtPct(r.base)}
                   </td>
-                  <td className="px-3 py-1.5 border-b border-neutral-200 tabular-nums text-center bg-orange-50">
+                  <td className="px-3 py-1.5  border-neutral-200 tabular-nums text-center bg-orange-50">
                     {fmtPct(r.worst)}
                   </td>
                 </tr>
@@ -115,7 +115,7 @@ const FlPitPdSummary: React.FC<FlPitPdSummaryProps> = ({ rows }) => {
       </div>
 
       <p className="px-4 py-2 text-[11px] text-gray-500">
-        Values are shown as percentages (×100) with exactly 2 decimal places.
+        Values are shown as percentages (Ã—100) with exactly 2 decimal places.
       </p>
     </div>
   );

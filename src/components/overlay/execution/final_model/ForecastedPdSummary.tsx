@@ -1,4 +1,4 @@
-// src/components/overlay/execution/final_model/ForecastedPdSummary.tsx
+﻿// src/components/overlay/execution/final_model/ForecastedPdSummary.tsx
 import React from "react";
 
 export type FinalModelRow = {
@@ -24,18 +24,18 @@ const cn = (...xs: Array<string | false | undefined>) =>
 
 // Coefficients: keep raw from API
 const fmtCoeff = (v: number) => {
-  if (!Number.isFinite(v)) return "—";
+  if (!Number.isFinite(v)) return "”";
   return `${String(v)}`;
 };
 
 /**
- * Convert a raw numeric value (0–1 probability or ratio) to a percentage
+ * Convert a raw numeric value (0“1 probability or ratio) to a percentage
  * string with 2 decimal places.
  */
 const formatPctNumber = (v: number): string => {
-  if (!Number.isFinite(v)) return "—";
+  if (!Number.isFinite(v)) return "”";
   const pct = v * 100;
-  if (!Number.isFinite(pct)) return "—";
+  if (!Number.isFinite(pct)) return "”";
 
   // avoid super-long strings when values explode
   if (Math.abs(pct) >= 1e6) {
@@ -106,10 +106,10 @@ const ForecastedPdSummary: React.FC<ForecastedPdSummaryProps> = ({
                         "hover:bg-gray-50 transition-colors"
                       )}
                     >
-                      <td className="px-2.5 py-1.5 border-b border-gray-200 text-gray-800">
+                      <td className="px-2.5 py-1.5  border-gray-200 text-gray-800">
                         {row.variable}
                       </td>
-                      <td className="px-2.5 py-1.5 border-b border-gray-200 text-right tabular-nums text-gray-900">
+                      <td className="px-2.5 py-1.5  border-gray-200 text-right tabular-nums text-gray-900">
                         {fmtCoeff(row.coefficient)}
                       </td>
                     </tr>
@@ -177,16 +177,16 @@ const ForecastedPdSummary: React.FC<ForecastedPdSummaryProps> = ({
                         key={row.date + idx}
                         className={idx % 2 ? "bg-gray-50" : "bg-white"}
                       >
-                        <td className="px-2.5 py-1.5 border-b border-gray-200 bg-slate-100 text-center text-gray-900">
+                        <td className="px-2.5 py-1.5  border-gray-200 bg-slate-100 text-center text-gray-900">
                           {row.date}
                         </td>
-                        <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-emerald-50">
+                        <td className="px-2.5 py-1.5  border-gray-200 text-center tabular-nums bg-emerald-50">
                           {fmtNumber(row.upside)}
                         </td>
-                        <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-amber-50">
+                        <td className="px-2.5 py-1.5  border-gray-200 text-center tabular-nums bg-amber-50">
                           {fmtNumber(row.base)}
                         </td>
-                        <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-orange-50">
+                        <td className="px-2.5 py-1.5  border-gray-200 text-center tabular-nums bg-orange-50">
                           {fmtNumber(row.downside)}
                         </td>
                       </tr>
@@ -241,16 +241,16 @@ const ForecastedPdSummary: React.FC<ForecastedPdSummaryProps> = ({
                         key={row.date + idx}
                         className={idx % 2 ? "bg-gray-50" : "bg-white"}
                       >
-                        <td className="px-2.5 py-1.5 border-b border-gray-200 bg-slate-100 text-center text-gray-900">
+                        <td className="px-2.5 py-1.5  border-gray-200 bg-slate-100 text-center text-gray-900">
                           {row.date}
                         </td>
-                        <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-emerald-50">
+                        <td className="px-2.5 py-1.5  border-gray-200 text-center tabular-nums bg-emerald-50">
                           {fmtPct(row.upside)}
                         </td>
-                        <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-amber-50">
+                        <td className="px-2.5 py-1.5  border-gray-200 text-center tabular-nums bg-amber-50">
                           {fmtPct(row.base)}
                         </td>
-                        <td className="px-2.5 py-1.5 border-b border-gray-200 text-center tabular-nums bg-orange-50">
+                        <td className="px-2.5 py-1.5  border-gray-200 text-center tabular-nums bg-orange-50">
                           {fmtPct(row.downside)}
                         </td>
                       </tr>

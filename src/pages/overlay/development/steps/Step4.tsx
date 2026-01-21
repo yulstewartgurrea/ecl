@@ -883,7 +883,7 @@ const Step4: React.FC<Step4Props> = ({
           {/* Modal */}
           <div className="absolute left-1/2 top-1/2 w-[min(100vw-2rem,600px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl ring-1 ring-gray-200 max-h-[85vh] flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between border-b p-4">
+            <div className="flex items-center justify-between  p-4">
               <div>
                 <h3 className="text-lg font-semibold">Files</h3>
                 <p className="text-xs text-neutral-600 mt-1">{filesData.folder_name}</p>
@@ -941,7 +941,7 @@ const Step4: React.FC<Step4Props> = ({
 
             {/* Footer */}
             {selectedFiles.size > 0 && (
-              <div className="flex items-center justify-between border-t p-4 bg-gray-50">
+              <div className="flex items-center justify-between  p-4 bg-gray-50">
                 <div>
                   <p className="text-sm text-gray-700">
                     {selectedFiles.size} file(s) selected
@@ -970,4 +970,5 @@ const Step4: React.FC<Step4Props> = ({
 };
 
 export default Step4;
+
 

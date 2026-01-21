@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+﻿import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import {
   CalendarIcon,
@@ -86,7 +86,7 @@ const TransitionMatrixLanding = () => {
   >("idle");
   const [statusMessage, setStatusMessage] = useState("");
 
-  // 🔥 Always default reporting period to "Monthly" (once)
+  // ðŸ”¥ Always default reporting period to "Monthly" (once)
   useEffect(() => {
     if (!selectedPdTransitionMatrixReportingPeriod) {
       dispatch(
@@ -167,7 +167,7 @@ const TransitionMatrixLanding = () => {
 
           if (wf && wf.id) {
             console.log(
-              `🎯 WORKFLOW FOUND FROM FOLDER: ID=${wf.id}, Name='${wf.workflow_name}'`
+              `ðŸŽ¯ WORKFLOW FOUND FROM FOLDER: ID=${wf.id}, Name='${wf.workflow_name}'`
             );
             dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: wf.id }));
             dispatch(
@@ -409,7 +409,7 @@ const TransitionMatrixLanding = () => {
         if (workflowData && workflowData.id) {
           const workflowId = workflowData.id;
           console.log(
-            `🎯 WORKFLOW CREATED: ID=${workflowId}, Name='${workflowData.workflow_name}', Entity='${workflowData.entity}', Period='${workflowData.reporting_period}'`
+            `ðŸŽ¯ WORKFLOW CREATED: ID=${workflowId}, Name='${workflowData.workflow_name}', Entity='${workflowData.entity}', Period='${workflowData.reporting_period}'`
           );
 
           dispatch(
@@ -532,7 +532,7 @@ const TransitionMatrixLanding = () => {
                 </label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
-                <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
+                <div className="h-11 w-12  border-gray-200 flex items-center justify-center">
                   <UserGroupIcon className="w-5 h-5 text-gray-500" />
                 </div>
                 <select
@@ -554,7 +554,7 @@ const TransitionMatrixLanding = () => {
               {(!entities || entities.length === 0) && (
                 <p className="text-xs text-amber-600 mt-2">
                   No entities found. Go to{" "}
-                  <b>Configuration → Entities</b> to add one.
+                  <b>Configuration â†’ Entities</b> to add one.
                 </p>
               )}
             </div>
@@ -567,7 +567,7 @@ const TransitionMatrixLanding = () => {
                 </label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
-                <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
+                <div className="h-11 w-12  border-gray-200 flex items-center justify-center">
                   <FolderIcon className="w-5 h-5 text-gray-500" />
                 </div>
                 <select
@@ -589,7 +589,7 @@ const TransitionMatrixLanding = () => {
               {(!loanProducts || loanProducts.length === 0) && (
                 <p className="text-xs text-amber-600 mt-2">
                   No loan products found. Go to{" "}
-                  <b>Configuration → Loan Products</b> to add one.
+                  <b>Configuration â†’ Loan Products</b> to add one.
                 </p>
               )}
             </div>
@@ -602,7 +602,7 @@ const TransitionMatrixLanding = () => {
                 </label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-gray-100">
-                <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
+                <div className="h-11 w-12  border-gray-200 flex items-center justify-center">
                   <CalendarIcon className="w-5 h-5 text-gray-500" />
                 </div>
                 <input
@@ -623,7 +623,7 @@ const TransitionMatrixLanding = () => {
                 </label>
               </div>
               <div className="flex flex-row border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-amber-500">
-                <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
+                <div className="h-11 w-12  border-gray-200 flex items-center justify-center">
                   <CalendarIcon className="w-5 h-5 text-gray-500" />
                 </div>
                 <input
@@ -642,7 +642,7 @@ const TransitionMatrixLanding = () => {
                 Workflow Name
               </label>
               <div className="flex flex-row border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-amber-500 rounded-xl">
-                <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
+                <div className="h-11 w-12  border-gray-200 flex items-center justify-center">
                   <FolderIcon className="w-5 h-5 text-gray-500" />
                 </div>
                 <input
@@ -719,3 +719,4 @@ const TransitionMatrixLanding = () => {
 };
 
 export default TransitionMatrixLanding;
+

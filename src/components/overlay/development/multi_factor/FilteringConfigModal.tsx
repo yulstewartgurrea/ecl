@@ -163,7 +163,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
         "
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b p-4">
+        <div className="flex items-center justify-between  p-4">
           <div>
             <h3 className="text-lg font-semibold">Configure Filters</h3>
             <p className="text-xs text-neutral-600">
@@ -305,7 +305,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
         </div>
 
         {/* Footer (sticks to bottom) */}
-        <div className="flex items-center justify-between gap-2 border-t p-4">
+        <div className="flex items-center justify-between gap-2  p-4">
           <div className="text-xs text-neutral-500">
             {rows.length} rule{rows.length === 1 ? "" : "s"} configured
           </div>
@@ -330,5 +330,6 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
 };
 
 export default FilteringConfigModal;
+
 
 

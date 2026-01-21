@@ -482,7 +482,7 @@ export default function OverlayDevelpmentPage3() {
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
-      <header className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white border-b">
+      <header className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white ">
         <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">
@@ -600,7 +600,7 @@ export default function OverlayDevelpmentPage3() {
           {/* Dialog */}
           <div className="absolute left-1/2 top-1/2 w-[min(100vw-2rem,500px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl ring-1 ring-gray-200 max-h-[85vh] flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between border-b p-4">
+            <div className="flex items-center justify-between  p-4">
               <div>
                 <h3 className="text-lg font-semibold">Configuration</h3>
                 <p className="text-xs text-neutral-600">
@@ -653,7 +653,7 @@ export default function OverlayDevelpmentPage3() {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-2 border-t p-4">
+            <div className="flex items-center justify-end gap-2  p-4">
               <button
                 onClick={() => setShowConfig(false)}
                 className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm hover:bg-neutral-50"
@@ -821,5 +821,6 @@ function buildCsvSection(
 
   return lines.join("\n");
 }
+
 
 

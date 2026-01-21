@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+﻿import { useMemo, useState, useRef, useEffect } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -80,13 +80,13 @@ function toPct(v: number | null | undefined) {
 }
 
 function fmtPct(v: number | null | undefined, digits = 4) {
-  if (v == null) return "—";
+  if (v == null) return "”";
   return `${v.toFixed(v >= 1 ? 2 : digits)}%`;
 }
 
 function labelFromKey(k: string) {
   const m = k.match(/(\d+)\D+(\d+)/);
-  if (m) return `${m[1]}→${m[2]}`;
+  if (m) return `${m[1]}â†’${m[2]}`;
   return k;
 }
 
@@ -142,7 +142,7 @@ function deriveSchema(rows: CreditLossRateAnyRow[], opts?: Partial<Props>) {
 
 export default function CreditLossRateCharts({
   data,
-  title = "Credit Loss Rate – Charts",
+  title = "Credit Loss Rate “ Charts",
   rateSets = ["Historical (avg of months)"],
   selectedRateSet,
   onChangeRateSet,
@@ -238,7 +238,7 @@ export default function CreditLossRateCharts({
         <div>
           <div className="text-base font-semibold text-gray-900">{title}</div>
           <div className="text-xs text-gray-800 opacity-80 -mt-0.5">
-            Values are decimals → rendered as percentages. Columns are derived from backend keys.
+            Values are decimals â†’ rendered as percentages. Columns are derived from backend keys.
           </div>
         </div>
 
@@ -269,7 +269,7 @@ export default function CreditLossRateCharts({
         </div>
       </div>
 
-      <div className="border border-gray-200 border-t-0 rounded-b-lg">
+      <div className="border border-gray-200  rounded-b-lg">
         <div className="px-3 pt-3">
           <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1">
             {[
@@ -431,3 +431,4 @@ export default function CreditLossRateCharts({
     </div>
   );
 }
+

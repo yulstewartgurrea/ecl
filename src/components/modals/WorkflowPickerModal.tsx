@@ -64,7 +64,7 @@ export default function WorkflowPickerModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-100/80 backdrop-blur-sm p-4">
       <div className="w-full max-w-4xl rounded-3xl bg-white/95 shadow-2xl ring-1 ring-slate-200 flex flex-col max-h-[80vh]">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+        <div className="flex items-start justify-between gap-4  border-slate-200 px-6 py-4">
           <div>
             <h3 className="text-base font-semibold text-slate-900">
               Pick a Completed Workflow
@@ -83,7 +83,7 @@ export default function WorkflowPickerModal({
         </div>
 
         {/* Search + meta */}
-        <div className="border-b border-slate-200 px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className=" border-slate-200 px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-md">
             <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -225,7 +225,7 @@ export default function WorkflowPickerModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+        <div className="flex items-center justify-end gap-3  border-slate-200 px-6 py-4">
           <button
             onClick={onClose}
             className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 cursor-pointer transition"
@@ -237,4 +237,5 @@ export default function WorkflowPickerModal({
     </div>
   );
 }
+
 

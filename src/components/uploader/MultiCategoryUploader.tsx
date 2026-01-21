@@ -678,7 +678,7 @@ export default function MultiCategoryUploader({
     >
       <div className="rounded-3xl border border-slate-200 bg-white/70 backdrop-blur-md shadow-sm relative overflow-hidden">
         {/* Sticky top actions */}
-        <div className="sticky top-0 z-10 bg-white/70 backdrop-blur-md border-b border-slate-200">
+        <div className="sticky top-0 z-10 bg-white/70 backdrop-blur-md  border-slate-200">
           <div className="flex items-center justify-between px-5 py-3">
             <div className="min-w-0">
               <h3 className="text-base sm:text-lg font-semibold tracking-tight text-slate-900">
@@ -1088,7 +1088,7 @@ export default function MultiCategoryUploader({
       {showProceedModal && (
         <div className="fixed inset-0 z-50 bg-gray-100/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl ring-1 ring-slate-200">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-3">
+            <div className="px-5 py-4  border-slate-200 flex items-center gap-3">
               <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center ring-1 ring-emerald-200">
                 <CheckCircleIcon className="h-5 w-5 text-emerald-700" />
               </div>
@@ -1113,7 +1113,7 @@ export default function MultiCategoryUploader({
               </ul>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-200">
+            <div className="flex items-center justify-end gap-2 px-5 py-4  border-slate-200">
               <button
                 type="button"
                 onClick={() => setShowProceedModal(false)}
@@ -1141,7 +1141,7 @@ export default function MultiCategoryUploader({
       {showErrorModal && currentError && (
         <div className="fixed inset-0 z-50 bg-gray-100/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-xl shadow-xl ring-1 ring-slate-200">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+            <div className="flex items-center justify-between px-5 py-4  border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center ring-1 ring-amber-200">
                   <ExclamationTriangleIcon className="h-5 w-5 text-amber-700" />
@@ -1211,7 +1211,7 @@ export default function MultiCategoryUploader({
               const canProceedAnyway =
                 hasFailedStatus(currentError.results) && !hasErrorStatus(currentError.results);
               return (
-                <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-200">
+                <div className="flex items-center justify-end gap-2 px-5 py-4  border-slate-200">
                   <button
                     type="button"
                     onClick={popError}
@@ -1245,5 +1245,6 @@ export default function MultiCategoryUploader({
     </div>
   );
 }
+
 
 

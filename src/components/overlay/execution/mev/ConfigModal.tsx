@@ -290,7 +290,7 @@ export default function ScenarioConfigModalTable({
   const headerBase =
     "px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide";
   const cellBase =
-    "px-2 py-1 text-center align-middle border-b border-gray-200";
+    "px-2 py-1 text-center align-middle  border-gray-200";
   const inputBase =
     "w-full bg-transparent text-center outline-none rounded-md px-1";
 
@@ -508,7 +508,7 @@ export default function ScenarioConfigModalTable({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t bg-white">
+        <div className="flex items-center justify-end gap-2 px-5 py-4  bg-white">
           <button
             onClick={onClose}
             className="rounded-xl border px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-1.5"
@@ -532,4 +532,5 @@ export default function ScenarioConfigModalTable({
     </div>
   );
 }
+
 

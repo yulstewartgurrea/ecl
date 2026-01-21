@@ -566,7 +566,7 @@ export default function OverlayDevelpmentPage3() {
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
-      <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/80 backdrop-blur">
+      <header className="sticky top-0 z-20  border-gray-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-gray-900">
@@ -810,6 +810,7 @@ export default function OverlayDevelpmentPage3() {
     </div>
   );
 }
+
 
 
 

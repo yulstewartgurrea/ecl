@@ -1,4 +1,4 @@
-// import React from 'react';
+﻿// import React from 'react';
 import Updater from '../components/Updater';
 
 const Settings = () => {
@@ -21,7 +21,7 @@ const Settings = () => {
               </div>
             </div>
             
-            <div className="border-t border-gray-200 pt-4">
+            <div className=" border-gray-200 pt-4">
               <Updater />
             </div>
           </div>
@@ -33,3 +33,4 @@ const Settings = () => {
 };
 
 export default Settings ;
+

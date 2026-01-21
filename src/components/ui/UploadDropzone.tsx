@@ -1,4 +1,4 @@
-import React, { useId, useRef, useState } from "react";
+﻿import React, { useId, useRef, useState } from "react";
 import {
   CloudArrowUpIcon,
   CheckCircleIcon,
@@ -136,7 +136,7 @@ export default function UploadDropzone({
   return (
     <div className={[wrapper, className].filter(Boolean).join(" ")}>
       {/* Header */}
-      <div className="flex items-start gap-3 px-4 py-3 border-b">
+      <div className="flex items-start gap-3 px-4 py-3 ">
         <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-gray-100 text-gray-700 shadow-sm">
           <CloudArrowUpIcon className="h-5 w-5 text-gray-700" />
         </div>
@@ -204,7 +204,7 @@ export default function UploadDropzone({
             </p>
             <p className="text-xs text-gray-500">
               Accepted: <span className="font-medium">{accept}</span>
-              {maxFiles ? ` · Up to ${maxFiles} file${maxFiles > 1 ? "s" : ""}` : ""} · Max {maxSizeMB} MB/file
+              {maxFiles ? ` Â· Up to ${maxFiles} file${maxFiles > 1 ? "s" : ""}` : ""} Â· Max {maxSizeMB} MB/file
             </p>
           </div>
         </div>
@@ -264,3 +264,4 @@ export default function UploadDropzone({
     </div>
   );
 }
+
