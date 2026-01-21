@@ -185,7 +185,7 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
                   }`}
                 >
                   <span className="text-3xl">
-                    {item.is_folder ? "ðŸ“" : "ðŸ“„"}
+                    {item.is_folder ? "\u{1F4C1}" : "\u{1F4C4}"}
                   </span>
                   <span
                     className="mt-2 text-xs text-center w-full break-words"
