@@ -1033,7 +1033,7 @@ export default function Step1() {
                           : "bg-white text-gray-700 border-gray-200",
                       ].join(" ")}
                     >
-                      {autoMonthlyOk === true ? "âœ“" : autoMonthlyOk === false ? "!" : "â€¢"} Monthly
+                      {autoMonthlyOk === true ? "" : autoMonthlyOk === false ? "!" : ""} Monthly
                       
                     </span>
 
