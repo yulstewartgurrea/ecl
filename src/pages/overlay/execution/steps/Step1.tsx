@@ -924,7 +924,7 @@ export default function Step1() {
               Accepted types: <span className="font-medium">{accept}</span>
             </p>
             <p className="text-[11px] text-gray-400 mt-1">
-              Workflow Name: <span className="font-mono">{effectiveWorkflowId}</span>
+              Workflow Name: <span className="font-mono">{workflowName || ""}</span>
             </p>
           </div>
 
