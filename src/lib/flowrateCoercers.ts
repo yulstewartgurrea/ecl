@@ -79,7 +79,7 @@ export function findFirstRowArray(payload: any): any[] {
  * Step5 coercer now returns raw rows (MonthRow = Record<string, any>).
  * No static keys.
  */
-export function coerceRowsFromStep5(payload: any): MonthRow[] {
+export function coerceRowsFromStep3(payload: any): MonthRow[] {
   const arr = findFirstRowArray(payload);
   return (Array.isArray(arr) ? arr : []).map((r: any) => ({ ...(r || {}) }));
 }

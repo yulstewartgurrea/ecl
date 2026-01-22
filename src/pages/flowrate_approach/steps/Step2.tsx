@@ -180,8 +180,6 @@ export default function Step4() {
       <div className="min-h-dvh p-6 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Flowrate Approach</h2>
-            <p className="text-xs text-gray-700">Explore backend-driven blocks with fully dynamic headers.</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -251,19 +249,19 @@ export default function Step4() {
         ) : (
           <>
             {view === "principal" && (
-              <Card title="Principal Matrix" subtitle="100% backend-driven headers (no static columns)">
+              <Card title="Principal Matrix">
                 <PrincipalMatrixTable rows={rowsForView} height={420} />
               </Card>
             )}
 
             {view === "distribution" && (
-              <Card title="Distribution" subtitle="Computed dynamically, still no static columns">
+              <Card title="Distribution">
                 <PrincipalMatrixDistributionTable rows={rowsForView} height={420} />
               </Card>
             )}
 
             {view === "flowrate" && (
-              <Card title="Flow Rate Calculation" subtitle="Fully dynamic headers + correct % formatting">
+              <Card title="Flow Rate Calculation">
                 <FlowRateCalcTable rows={rowsForView} height={420} />
               </Card>
             )}

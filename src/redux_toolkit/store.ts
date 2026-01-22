@@ -18,7 +18,7 @@ const persistConfig = {
     "executionInputFile",
     "finalModelExecutionFile",
     "historicalWeightedCreditLossRateFile",
-    "flowrateStep5",
+    "flowrateStep3",
     "moduleProgress"
   ],
 };
