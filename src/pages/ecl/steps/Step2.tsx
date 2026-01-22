@@ -10,6 +10,8 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { useAppSelector } from "../../../redux_toolkit/hooks";
+import { selectModuleProgress } from "../../../redux_toolkit/features/progress/moduleProgressSlice";
+import type { RootState } from "../../../redux_toolkit/store";
 import EclCombinedExcelTable, {
   type EclClientRow,
 } from "../../../components/asa/ecl/EclTablesCombined";
@@ -117,19 +119,11 @@ function normalizeClientRows(data: ApiRowRaw[]): EclClientRow[] {
 }
 
 
-type EclWeightsLS = {
-  workflowId: number;
-  upside: string;
-  baseline: string;
-  downside: string;
-  updatedAt?: string;
-};
-
-function eclWeightsKey(workflowId: number) {
-  return `${workflowId}-ECL`;
-}
-
-function getProbabilityWeightsFromStorage(workflowId: number): {
+function getProbabilityWeightsFromState(weights?: {
+  upside?: string;
+  baseline?: string;
+  downside?: string;
+}): {
   upside: string;
   baseline: string;
   downside: string;
@@ -137,49 +131,38 @@ function getProbabilityWeightsFromStorage(workflowId: number): {
   // defaults
   const fallback = { upside: "30", baseline: "50", downside: "20" };
 
-  try {
-    if (typeof window === "undefined") return fallback;
+  const upside = String(weights?.upside ?? "").trim();
+  const baseline = String(weights?.baseline ?? "").trim();
+  const downside = String(weights?.downside ?? "").trim();
 
-    const raw = window.localStorage.getItem(eclWeightsKey(workflowId));
-    if (!raw) return fallback;
-
-    const parsed = JSON.parse(raw) as EclWeightsLS;
-
-    // basic validation + workflow match
-    if (!parsed || Number(parsed.workflowId) !== Number(workflowId)) return fallback;
-
-    const upside = String(parsed.upside ?? "").trim();
-    const baseline = String(parsed.baseline ?? "").trim();
-    const downside = String(parsed.downside ?? "").trim();
-
-    // if any missing, fallback
-    if (!upside || !baseline || !downside) return fallback;
-
-    return { upside, baseline, downside };
-  } catch {
-    return fallback;
-  }
+  if (!upside || !baseline || !downside) return fallback;
+  return { upside, baseline, downside };
 }
 
 export default function Step2() {
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
-  const { currentPdTransitionMatrixWorkflowId, pdTransitionMatrixWfName } = useAppSelector(
-    (state: any) => state.pdTransitionMatrixWfHelper
-  );
+  const {
+    currentPdTransitionMatrixWorkflowId,
+    currentPdTransitionMatrixWorkflowData,
+    pdTransitionMatrixWfName,
+  } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
 
   const workflowId = useMemo(() => {
-    const fromRedux = currentPdTransitionMatrixWorkflowId;
-    if (fromRedux) return Number(fromRedux);
-
-    if (typeof window !== "undefined") {
-      const raw = window.localStorage.getItem("current_workflow_id");
-      const parsed = raw ? Number(raw) : NaN;
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    }
+    const fromRedux =
+      currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
+    const parsed = Number(fromRedux);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
     return 1;
-  }, [currentPdTransitionMatrixWorkflowId]);
+  }, [currentPdTransitionMatrixWorkflowId, currentPdTransitionMatrixWorkflowData]);
+
+  const eclProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "ecl", String(workflowId))
+  );
+  const persistedWeights = (eclProgress?.data as any)?.probabilityWeights as
+    | { upside?: string; baseline?: string; downside?: string }
+    | undefined;
 
   const [page, setPage] = useState(1);
   const [pageSize] = useState(100);
@@ -252,7 +235,7 @@ export default function Step2() {
     try {
       const formData = new FormData();
       formData.append("workflow_id", String(workflowId));
-      const weights = getProbabilityWeightsFromStorage(workflowId);
+      const weights = getProbabilityWeightsFromState(persistedWeights);
       console.log('weights: ', weights)
 formData.append(
   "probability_weights",

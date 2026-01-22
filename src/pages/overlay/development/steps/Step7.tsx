@@ -1,13 +1,16 @@
 ﻿// Step7.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ModelSpec } from "../../../../components/overlay/development/candidate_model/ModelCompareGrid";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
-import { useAppSelector } from "../../../../redux_toolkit/hooks";
+import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
+import {
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 import { postFinalModel } from "../../../../services/finalModels"; //   uses your existing service
 
-const LS_KEY = "ecl:selectedModel";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 const Step7: React.FC = () => {
@@ -16,22 +19,41 @@ const Step7: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
 
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
     useSelector((s: RootState) => (s as any).pdTransitionMatrixWfHelper);
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
+  const overlayRoot = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "overlayDevelopment")
+  );
+  const lastWorkflowId = (overlayRoot?.data as any)?.lastWorkflowId as
+    | number
+    | undefined;
+
+  const effectiveWorkflowId = useMemo(() => {
+    const fromRedux = Number(selectedWorkflowId);
+    if (Number.isFinite(fromRedux) && fromRedux > 0) return fromRedux;
+    if (Number.isFinite(Number(lastWorkflowId)) && Number(lastWorkflowId) > 0) {
+      return Number(lastWorkflowId);
+    }
+    return null;
+  }, [selectedWorkflowId, lastWorkflowId]);
+
+  const contextKey =
+    Number.isFinite(Number(effectiveWorkflowId)) && Number(effectiveWorkflowId) > 0
+      ? String(effectiveWorkflowId)
+      : undefined;
+  const overlayProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "overlayDevelopment", contextKey)
+  );
 
   useEffect(() => {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw);
-      console.log("parsed", parsed);
-      setModel(parsed?.model ?? null);
-    } catch {
-      setModel(null);
-    }
-  }, []);
+    const data = (overlayProgress?.data ?? {}) as {
+      step6Selected?: { model?: ModelSpec | null };
+    };
+    setModel((data.step6Selected?.model as ModelSpec) ?? null);
+  }, [overlayProgress]);
 
   async function saveSelectedModel() {
     setErr(null);
@@ -39,7 +61,8 @@ const Step7: React.FC = () => {
       setErr("No model selected. Please go back to Step 6 and choose a model.");
       return;
     }
-    if (!Number.isFinite(Number(selectedWorkflowId))) {
+    const wfId = Number(effectiveWorkflowId);
+    if (!Number.isFinite(wfId)) {
       setErr(
         "Missing or invalid workflow id. Please select a workflow in Step 1."
       );
@@ -64,14 +87,22 @@ const Step7: React.FC = () => {
       await postFinalModel({
         apiBase: API_BASE,
         token,
-        workflowId: Number(selectedWorkflowId),
+        workflowId: wfId,
         model: rawPayload, // single object
         payloadKey: "final_models",
         asArray: true, // send as array [rawPayload]
         // useFormData: true,      // enable only if backend needs multipart
       });
 
-      localStorage.removeItem(LS_KEY);
+      if (contextKey) {
+        dispatch(
+          setModuleProgress({
+            moduleKey: "overlayDevelopment",
+            contextKey,
+            data: { step6Selected: null },
+          })
+        );
+      }
       setShowModal(true);
     } catch (e: any) {
       setErr(e?.message || "Failed to save the selected model.");
@@ -84,7 +115,7 @@ const Step7: React.FC = () => {
   function handleDownload() {
     if (!model) return;
 
-    const workflowNum = Number(selectedWorkflowId);
+    const workflowNum = Number(effectiveWorkflowId ?? selectedWorkflowId);
     const safeWorkflowId =
       Number.isFinite(workflowNum) && workflowNum > 0 ? workflowNum : null;
 

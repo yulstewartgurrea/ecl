@@ -36,7 +36,7 @@ const FlowrateApproachPage = () => {
     currentStep: legacyCurrentStep,
   } = useAppSelector((state: RootState) => state.pdTransitionMatrixWfHelper as any);
 
-  // 🔗 Build the canonical workflowPath: entity/reportingPeriod/workflowName/loanProduct
+  // Build the canonical workflowPath: entity/reportingPeriod/workflowName/loanProduct
   const workflowPath = useMemo(() => {
     const entity =
       currentPdTransitionMatrixWorkflowData?.entity ||

@@ -1,36 +1,48 @@
-// Simple localStorage helpers for Step4/Step5
-
-const keyHeaders = (wfId: number | string) => `overlay:mf:step4:headers:${wfId}`;
-const keyFilters = (wfId: number | string) => `overlay:mf:step5:filters:${wfId}`;
+// Redux-backed helpers for Step4/Step5
+import { store } from "../../../../redux_toolkit/store";
+import {
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 
 export type FilterRule = { id: string; column: string; value: string };
 
 export function saveHeaders(wfId: number | string, headers: string[]) {
-  try {
-    localStorage.setItem(keyHeaders(wfId), JSON.stringify(headers));
-  } catch {}
+  store.dispatch(
+    setModuleProgress({
+      moduleKey: "overlayDevelopment",
+      contextKey: String(wfId),
+      data: { step4Headers: headers },
+    })
+  );
 }
 
 export function loadHeaders(wfId: number | string): string[] {
-  try {
-    const raw = localStorage.getItem(keyHeaders(wfId));
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
+  const entry = selectModuleProgress(
+    store.getState() as any,
+    "overlayDevelopment",
+    String(wfId)
+  );
+  const data = (entry?.data ?? {}) as Record<string, unknown>;
+  return (data.step4Headers as string[]) ?? [];
 }
 
 export function saveFilters(wfId: number | string, rules: FilterRule[]) {
-  try {
-    localStorage.setItem(keyFilters(wfId), JSON.stringify(rules));
-  } catch {}
+  store.dispatch(
+    setModuleProgress({
+      moduleKey: "overlayDevelopment",
+      contextKey: String(wfId),
+      data: { step5Filters: rules },
+    })
+  );
 }
 
 export function loadFilters(wfId: number | string): FilterRule[] {
-  try {
-    const raw = localStorage.getItem(keyFilters(wfId));
-    return raw ? (JSON.parse(raw) as FilterRule[]) : [];
-  } catch {
-    return [];
-  }
+  const entry = selectModuleProgress(
+    store.getState() as any,
+    "overlayDevelopment",
+    String(wfId)
+  );
+  const data = (entry?.data ?? {}) as Record<string, unknown>;
+  return (data.step5Filters as FilterRule[]) ?? [];
 }

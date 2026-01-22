@@ -8,9 +8,10 @@ import TableFilterPopover from "../../../components/asa/table/ui/TableFilterPopo
 import type { AnyRow as AgingRow } from "../../../components/asa/table/aging.types";
 import { useAsaApi } from "../../../lib/asaApi";
 import { useLocation, useSearchParams } from "react-router-dom";
+import { useAppSelector } from "../../../redux_toolkit/hooks";
 
 /* -------- workflow id helpers (URL ?workflow_id=, route state, or localStorage) -------- */
-function useWorkflowId(): number {
+function useWorkflowId(fallbackId?: number): number {
   const { state } = useLocation() as { state?: { workflowId?: number } };
   const [params] = useSearchParams();
 
@@ -19,9 +20,9 @@ function useWorkflowId(): number {
 
   if (state?.workflowId && state.workflowId > 0) return state.workflowId;
 
-  const ls = Number(localStorage.getItem("current_workflow_id") || "");
-  if (!Number.isNaN(ls) && ls > 0) return ls;
-
+  if (Number.isFinite(Number(fallbackId)) && Number(fallbackId) > 0) {
+    return Number(fallbackId);
+  }
   return 1; // sensible dev fallback
 }
 
@@ -176,7 +177,13 @@ function coerceAgingRows(payload: any): AgingRow[] {
 }
 
 export default function Step3() {
-  const workflowId = useWorkflowId();
+  const { currentPdTransitionMatrixWorkflowId, currentPdTransitionMatrixWorkflowData } =
+    useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
+  const workflowIdFromRedux =
+    currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
+  const workflowId = useWorkflowId(
+    Number.isFinite(Number(workflowIdFromRedux)) ? Number(workflowIdFromRedux) : undefined
+  );
   const { getStep3Data } = useAsaApi();
 
   const [rows, setRows] = useState<AgingRow[]>([]);

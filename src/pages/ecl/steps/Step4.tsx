@@ -57,21 +57,19 @@ export default function Step4() {
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
-  const { currentPdTransitionMatrixWorkflowId, pdTransitionMatrixWfName } = useAppSelector(
-    (state: any) => state.pdTransitionMatrixWfHelper
-  );
+  const {
+    currentPdTransitionMatrixWorkflowId,
+    currentPdTransitionMatrixWorkflowData,
+    pdTransitionMatrixWfName,
+  } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
 
   const workflowId = useMemo(() => {
-    const fromRedux = currentPdTransitionMatrixWorkflowId;
-    if (fromRedux) return Number(fromRedux);
-
-    if (typeof window !== "undefined") {
-      const raw = window.localStorage.getItem("current_workflow_id");
-      const parsed = raw ? Number(raw) : NaN;
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    }
+    const fromRedux =
+      currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
+    const parsed = Number(fromRedux);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
     return 35; // fallback (matches your sample GET)
-  }, [currentPdTransitionMatrixWorkflowId]);
+  }, [currentPdTransitionMatrixWorkflowId, currentPdTransitionMatrixWorkflowData]);
 
   const [rows, setRows] = useState<AgingPortfolioRow[]>([]);
   const [loading, setLoading] = useState(false);

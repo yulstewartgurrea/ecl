@@ -18,7 +18,7 @@ const categories: CategoryConfig[] = [
 ];
 
 /**
- * 🔗 Align upload path with workflow path:
+ * Align upload path with workflow path:
  *   entity / loanProduct / period / report_date_start / workflowName / subdir
  */
 const pathBuilder = (ctx: PathBuilderContext) => {
@@ -52,23 +52,12 @@ export default function Step1() {
 
   console.log("Step1 - Workflow Data:", currentPdTransitionMatrixWorkflowData);
 
-  // Prefer Redux workflowId, then localStorage, finally fallback to 1
-  const workflowIdFromRedux = currentPdTransitionMatrixWorkflowId;
-
-  let workflowIdFromLS: number | null = null;
-  if (typeof window !== "undefined") {
-    const raw = window.localStorage.getItem("current_workflow_id");
-    if (raw) {
-      const parsed = Number(raw);
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        workflowIdFromLS = parsed;
-      }
-    }
-  }
-
-  const workflowId: number =
-    workflowIdFromRedux ??
-    (workflowIdFromLS !== null ? workflowIdFromLS : 1);
+  // Prefer Redux workflowId, then fallback to 1
+  const workflowIdFromRedux =
+    currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
+  const workflowId: number = Number.isFinite(Number(workflowIdFromRedux))
+    ? Number(workflowIdFromRedux)
+    : 1;
 
   // Prefer values from persisted workflowData; fall back to selected values; finally to sane defaults
   const entity = currentPdTransitionMatrixWorkflowData?.entity || "Entity 1";

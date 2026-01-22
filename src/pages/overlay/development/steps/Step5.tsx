@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Multi_Table, type Row } from "../../../../components/overlay/development/multi_factor/Multi_Table";
 import { getFilteringModels, postFilteringModels } from "../../../../services/filteringModels";
-import { useAppSelector } from "../../../../redux_toolkit/hooks";
+import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import {
@@ -14,6 +14,10 @@ import {
 
 import FilteringConfigModal from "../../../../components/overlay/development/multi_factor/FilteringConfigModal";
 import { loadHeaders, loadFilters, type FilterRule } from "../../../../components/overlay/development/multi_factor/headersStorage";
+import {
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -37,6 +41,21 @@ const uniqCaseInsensitive = (arr: string[]) => {
 type Step5Props = {
   title?: string;
   description?: string;
+};
+
+type Step5Persist = {
+  ids: Array<string | number>;
+  rows: Row[];
+  savedAt: string;
+};
+
+type Step5ReadyState = {
+  readyForStep6: boolean;
+  hasAppliedFilters: boolean;
+  hasRunAnalysis: boolean;
+  selectedRowsCount: number;
+  hasSavedSelection: boolean;
+  lastUpdated: string;
 };
 
 // exclude some utility keys if we have to CSV-convert JSON client-side
@@ -84,10 +103,22 @@ const Step5: React.FC<Step5Props> = ({
   title = "Filtering Models — Selected Regression Outputs",
   description = "Configure filters, run the analysis, then select one or more models before proceeding to Step 6.",
 }) => {
+  const dispatch = useAppDispatch();
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
     useSelector((s: RootState) => (s as any).pdTransitionMatrixWfHelper);
 
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
+
+  const contextKey =
+    Number.isFinite(Number(selectedWorkflowId)) && Number(selectedWorkflowId) > 0
+      ? String(selectedWorkflowId)
+      : undefined;
+  const overlayProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "overlayDevelopment", contextKey)
+  );
+  const overlayData = (overlayProgress?.data ?? {}) as Record<string, unknown>;
+  const persistedSelected = overlayData.step5Selected as Step5Persist | undefined;
+  const persistedChecked = overlayData.step5Checked as Step5Persist | undefined;
 
   const [loading, setLoading] = useState(false);
   const [posting, setPosting] = useState(false);
@@ -121,7 +152,7 @@ const Step5: React.FC<Step5Props> = ({
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
 
-  // ✅ New gating states
+  // New gating states
   const [hasAppliedFilters, setHasAppliedFilters] = useState(false);
   const [hasRunAnalysis, setHasRunAnalysis] = useState(false);
   const [selectedRowsCount, setSelectedRowsCount] = useState(0);
@@ -130,7 +161,7 @@ const Step5: React.FC<Step5Props> = ({
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   const selectedCount = selectedFilters.length;
-  // ✅ Run Analysis is only enabled if: workflow selected + filters exist + filters applied this session
+  // Run Analysis is only enabled if: workflow selected + filters exist + filters applied this session
   const canRun =
     Number.isFinite(selectedWorkflowId) && selectedCount > 0 && hasAppliedFilters;
 
@@ -219,13 +250,7 @@ const Step5: React.FC<Step5Props> = ({
     setHeaders(merged);
     setSelectedFilters(sel);
     setPayloadFilters(buildPayload(merged, sel));
-    try {
-      const raw = localStorage.getItem(`overlay:step5:selected:${wf}`);
-      const parsed = raw ? JSON.parse(raw) : null;
-      setHasSavedSelection(Boolean(parsed?.rows?.length));
-    } catch {
-      setHasSavedSelection(false);
-    }
+    setHasSavedSelection(Boolean(persistedSelected?.rows?.length));
 
     // Reset gating for new workflow
     setHasAppliedFilters(false);
@@ -240,7 +265,7 @@ const Step5: React.FC<Step5Props> = ({
     setSaveMsg(null);
     setCurrentPage(1);
     setPagination(null);
-  }, [selectedWorkflowId]);
+  }, [selectedWorkflowId, persistedSelected]);
 
   // Auto-fetch results on mount & whenever workflow/page/pageSize changes
   useEffect(() => {
@@ -306,7 +331,7 @@ const Step5: React.FC<Step5Props> = ({
       setCurrentPage(1);
       // Fetch results with pagination (page 1)
       await fetchResults();
-      // ✅ Mark that analysis has run successfully with the current filters
+      // Mark that analysis has run successfully with the current filters
       setHasRunAnalysis(true);
     } catch (e: any) {
       setErrMsg(e?.message || "Failed to start filtering.");
@@ -325,12 +350,11 @@ const Step5: React.FC<Step5Props> = ({
     setExportReady(Boolean(ready));
   }, [selectedWorkflowId, loading, posting, rows, total]);
 
-  // ✅ Persist "ready for Step 6" status in localStorage so Step 6 can validate
+  // Persist "ready for Step 6" status in Redux so Step 6 can validate
   useEffect(() => {
     if (!Number.isFinite(selectedWorkflowId)) return;
     const readyForStep6 =
       hasAppliedFilters && hasRunAnalysis && selectedRowsCount > 0 && hasSavedSelection;
-    const key = `overlay:step5:ready:${selectedWorkflowId}`;
     const payload = {
       readyForStep6,
       hasAppliedFilters,
@@ -339,12 +363,22 @@ const Step5: React.FC<Step5Props> = ({
       hasSavedSelection,
       lastUpdated: new Date().toISOString(),
     };
-    try {
-      localStorage.setItem(key, JSON.stringify(payload));
-    } catch {
-      // ignore storage errors
-    }
-  }, [selectedWorkflowId, hasAppliedFilters, hasRunAnalysis, selectedRowsCount, hasSavedSelection]);
+    dispatch(
+      setModuleProgress({
+        moduleKey: "overlayDevelopment",
+        contextKey,
+        data: { step5Ready: payload as Step5ReadyState },
+      })
+    );
+  }, [
+    selectedWorkflowId,
+    hasAppliedFilters,
+    hasRunAnalysis,
+    selectedRowsCount,
+    hasSavedSelection,
+    dispatch,
+    contextKey,
+  ]);
 
   // ---- Export handler ----
   async function exportCsv() {
@@ -431,19 +465,23 @@ const Step5: React.FC<Step5Props> = ({
       rows: selectedRows,
       savedAt: new Date().toISOString(),
     };
-    try {
-      localStorage.setItem(`overlay:step5:selected:${wf}`, JSON.stringify(payload));
-      localStorage.setItem("overlay:step5:lastWorkflowId", String(wf));
-      setHasSavedSelection(true);
-      setSaveMsg(`Saved ${selectedRows.length} model(s).`);
-      window.dispatchEvent(
-        new CustomEvent("overlay:step5:saved", { detail: { workflowId: wf } })
-      );
-      setErrMsg(null);
-    } catch {
-      setErrMsg("Failed to save models. Please try again.");
-    }
-  }, [selectedWorkflowId, selectedRows]);
+    dispatch(
+      setModuleProgress({
+        moduleKey: "overlayDevelopment",
+        contextKey,
+        data: { step5Selected: payload },
+      })
+    );
+    dispatch(
+      setModuleProgress({
+        moduleKey: "overlayDevelopment",
+        data: { lastWorkflowId: wf },
+      })
+    );
+    setHasSavedSelection(true);
+    setSaveMsg(`Saved ${selectedRows.length} model(s).`);
+    setErrMsg(null);
+  }, [selectedWorkflowId, selectedRows, dispatch, contextKey]);
 
   const headerRight = useMemo(
     () => (
@@ -538,7 +576,7 @@ const Step5: React.FC<Step5Props> = ({
         {headerRight}
       </div>
 
-      {/* ✅ Clear step-by-step instructions for the user */}
+      {/* Clear step-by-step instructions for the user */}
       <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
         <p className="font-semibold">Before you can proceed to Step 6, please follow these steps:</p>
         <ol className="mt-2 list-decimal space-y-1 pl-5">
@@ -648,7 +686,7 @@ const Step5: React.FC<Step5Props> = ({
           data={rows}
           selectable
           onFilteredChange={(filtered: any) => setFiltered(filtered)}
-          storageKey={`overlay:step5:selected:${selectedWorkflowId}`}
+          initialSelectedIds={persistedChecked?.ids ?? []}
           getRowId={(r) =>
             String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`)
           }
@@ -656,39 +694,39 @@ const Step5: React.FC<Step5Props> = ({
             console.log("Selected:", selRows.length);
             const wf = Number(selectedWorkflowId);
             if (Number.isFinite(wf) && (!selRows || selRows.length === 0)) {
-              try {
-                const raw = localStorage.getItem(`overlay:step5:checked:${wf}`);
-                const parsed = raw ? JSON.parse(raw) : null;
-                const existingCount = Array.isArray(parsed?.rows) ? parsed.rows.length : 0;
-                if (existingCount > 0) return;
-              } catch {
-                // ignore and continue
-              }
+              const existingCount = Array.isArray(persistedChecked?.rows)
+                ? persistedChecked.rows.length
+                : 0;
+              if (existingCount > 0) return;
             }
-            // ✅ track selected rows for Step 6 gating
+            // track selected rows for Step 6 gating
             setSelectedRowsCount(selRows.length);
-          setSelectedRows(selRows || []);
-          setHasSavedSelection(false);
-          setSaveMsg(null);
-          if (Number.isFinite(wf)) {
-            const ids = (selRows || []).map((r) =>
-              String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`)
-            );
-            const payload = {
-              ids,
-              rows: selRows || [],
-              savedAt: new Date().toISOString(),
-            };
-            try {
-              localStorage.setItem(`overlay:step5:checked:${wf}`, JSON.stringify(payload));
-              localStorage.setItem("overlay:step5:lastWorkflowId", String(wf));
-              window.dispatchEvent(
-                new CustomEvent("overlay:step5:checked", { detail: { workflowId: wf } })
+            setSelectedRows(selRows || []);
+            setHasSavedSelection(false);
+            setSaveMsg(null);
+            if (Number.isFinite(wf)) {
+              const ids = (selRows || []).map((r) =>
+                String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`)
               );
-            } catch {
-              // ignore storage errors
+              const payload = {
+                ids,
+                rows: selRows || [],
+                savedAt: new Date().toISOString(),
+              };
+              dispatch(
+                setModuleProgress({
+                  moduleKey: "overlayDevelopment",
+                  contextKey,
+                  data: { step5Checked: payload },
+                })
+              );
+              dispatch(
+                setModuleProgress({
+                  moduleKey: "overlayDevelopment",
+                  data: { lastWorkflowId: wf },
+                })
+              );
             }
-          }
           }}
           emptyMessage="Run analysis (after configuring filters) to see results, then select rows to proceed to Step 6."
         />
@@ -703,7 +741,7 @@ const Step5: React.FC<Step5Props> = ({
         )}
       </p>
 
-      {/* ✅ Status hint for Step 6 */}
+      {/* Status hint for Step 6 */}
       <p className="mt-1 text-xs text-neutral-700">
         {hasAppliedFilters && hasRunAnalysis
           ? selectedRowsCount > 0

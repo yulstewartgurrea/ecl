@@ -4,22 +4,18 @@ import {
   ModelCompareGrid,
   type ModelSpec,
 } from "../../../../components/overlay/development/candidate_model/ModelCompareGrid";
-import { useAppSelector } from "../../../../redux_toolkit/hooks";
+import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import {
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 
-const LEGACY_SELECTED_KEY = "ecl:selectedModel";   // kept for Step 7 compatibility
-const SINGLE_SELECTED_PREFIX = "ecl:selectedmodels:"; // per-workflow single selection (exactly one)
-const SHORTLIST_PREFIX = "ecl:shortlist:";         // optional favorites
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 /* ---------- Types ---------- */
-type SavedShortlist = {
-  workflowId: number;
-  models: ModelSpec[];
-  savedAt: string;
-};
 type Step5Persist = {
   ids: Array<string | number>;
   rows: any[];
@@ -27,16 +23,17 @@ type Step5Persist = {
 };
 type SinglePersist = {
   workflowId: number;
-  models: ModelSpec[];       // always length 1
+  model: ModelSpec;       // always one
   index?: number;            // optional UI index on the page where it was selected
   savedAt: string;
 };
 
-/* ---------- Keys / helpers ---------- */
-const shortlistKeyFor = (workflowId: number | string) => `${SHORTLIST_PREFIX}${workflowId}`;
-const step5StorageKey = (workflowId: number | string) => `overlay:step5:selected:${workflowId}`;
-const step5CheckedKey = (workflowId: number | string) => `overlay:step5:checked:${workflowId}`;
-const singleKeyFor = (workflowId: number | string) => `${SINGLE_SELECTED_PREFIX}${workflowId}`;
+type OverlayDevelopmentData = {
+  step5Selected?: Step5Persist;
+  step5Checked?: Step5Persist;
+  step6Shortlist?: ModelSpec[];
+  step6Selected?: SinglePersist;
+};
 
 function modelSignature(m: ModelSpec): string {
   return JSON.stringify({
@@ -94,99 +91,7 @@ function mapStep5RowToModelSpec(row: any): ModelSpec {
   };
 }
 
-/* ---------- Step 5 selection ---------- */
-function loadSelectedRowsFromStep5(workflowId: number): any[] {
-  try {
-    const raw = localStorage.getItem(step5StorageKey(workflowId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Step5Persist;
-    return Array.isArray(parsed?.rows) ? parsed.rows : [];
-  } catch {
-    return [];
-  }
-}
-
-function loadCheckedRowsFromStep5(workflowId: number): any[] {
-  try {
-    const raw = localStorage.getItem(step5StorageKey(workflowId));
-    console.log('dd: ', step5StorageKey(workflowId))
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Step5Persist;
-    return Array.isArray(parsed?.rows) ? parsed.rows : [];
-  } catch {
-    return [];
-  }
-}
-
-/* ---------- Shortlist ---------- */
-function loadShortlist(workflowId: number): ModelSpec[] {
-  try {
-    const raw = localStorage.getItem(shortlistKeyFor(workflowId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as SavedShortlist;
-    if (Number(parsed?.workflowId) !== Number(workflowId)) return [];
-    return Array.isArray(parsed.models) ? parsed.models : [];
-  } catch {
-    return [];
-  }
-}
-function saveShortlist(workflowId: number, models: ModelSpec[]) {
-  const payload: SavedShortlist = {
-    workflowId,
-    models,
-    savedAt: new Date().toISOString(),
-  };
-  localStorage.setItem(shortlistKeyFor(workflowId), JSON.stringify(payload));
-}
-function addToShortlist(workflowId: number, shortlist: ModelSpec[], model: ModelSpec): ModelSpec[] {
-  const sig = modelSignature(model);
-  const exists = shortlist.some((m) => modelSignature(m) === sig);
-  const next = exists ? shortlist : [...shortlist, model];
-  saveShortlist(workflowId, next);
-  return next;
-}
-function clearShortlist(workflowId: number) {
-  saveShortlist(workflowId, []);
-}
-
-/* ---------- Single-selection (exactly one per workflow) ---------- */
-function saveSingleSelection(workflowId: number, idx: number, model: ModelSpec) {
-  const payload: SinglePersist = {
-    workflowId,
-    models: [model], // enforce only one selected model
-    index: idx,
-    savedAt: new Date().toISOString(),
-  };
-  localStorage.setItem(singleKeyFor(workflowId), JSON.stringify(payload));
-
-  // Keep legacy key for Step 7 compatibility (Step 7 reads this)
-  // We include model.raw if present so Step 7 can post the exact raw row.
-  localStorage.setItem(
-    LEGACY_SELECTED_KEY,
-    JSON.stringify({
-      index: idx,
-      model,           // contains .raw if provided by backend
-      workflowId,
-      savedAt: payload.savedAt,
-    })
-  );
-}
-function loadSingleSelection(
-  workflowId: number
-): { index: number | null; model: ModelSpec | null } {
-  try {
-    const raw = localStorage.getItem(singleKeyFor(workflowId));
-    if (!raw) return { index: null, model: null };
-    const parsed = JSON.parse(raw) as SinglePersist;
-    const m = Array.isArray(parsed?.models) && parsed.models[0] ? parsed.models[0] : null;
-    return {
-      index: typeof parsed?.index === "number" ? parsed.index : null,
-      model: m,
-    };
-  } catch {
-    return { index: null, model: null };
-  }
-}
+/* ---------- Step 5 selection + shortlist are now stored in Redux ---------- */
 
 /* ---------- CSV helpers (only used if export endpoint returns JSON) ---------- */
 function escapeCsv(value: any): string {
@@ -210,17 +115,25 @@ function toCsv(headers: string[], rows: any[]): string {
 
 /* ---------- Component ---------- */
 const Step6: React.FC = () => {
+  const dispatch = useAppDispatch();
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } = useSelector(
     (s: RootState) => (s as any).pdTransitionMatrixWfHelper
   );
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
+
+  const overlayRoot = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "overlayDevelopment")
+  );
+  const lastWorkflowId = (overlayRoot?.data as any)?.lastWorkflowId as
+    | number
+    | undefined;
 
   const [models, setModels] = useState<ModelSpec[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  const [page, setPage] = useState(1);
+  const [page] = useState(1);
   const [pageSize] = useState(6);
   const [total, setTotal] = useState<number | undefined>(undefined);
   // pagination state retained for API parity (UI uses page=1)
@@ -238,122 +151,78 @@ const Step6: React.FC = () => {
   const effectiveWorkflowId = useMemo(() => {
     const fromRedux = Number(selectedWorkflowId);
     if (Number.isFinite(fromRedux) && fromRedux > 0) return fromRedux;
-    if (typeof window !== "undefined") {
-      const raw = window.localStorage.getItem("current_workflow_id");
-      const parsed = raw ? Number(raw) : NaN;
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-      const last = window.localStorage.getItem("overlay:step5:lastWorkflowId");
-      const lastParsed = last ? Number(last) : NaN;
-      if (Number.isFinite(lastParsed) && lastParsed > 0) return lastParsed;
+    if (Number.isFinite(Number(lastWorkflowId)) && Number(lastWorkflowId) > 0) {
+      return Number(lastWorkflowId);
     }
     return null;
-  }, [selectedWorkflowId]);
+  }, [selectedWorkflowId, lastWorkflowId]);
 
-  /** Load saved candidates from Step 5 */
-  const loadCandidatesFromStep5 = useCallback(
-    async () => {
-      const wfId = Number(effectiveWorkflowId);
-      if (!Number.isFinite(wfId)) return;
-
-      setLoading(true);
-      setErrMsg(null);
-      setSaveMsg(null);
-      try {
-        const checkedRows = loadCheckedRowsFromStep5(wfId);
-        const savedRows = loadSelectedRowsFromStep5(wfId);
-        const step5Rows = checkedRows.length ? checkedRows : savedRows;
-        setHasStep5Selection(step5Rows.length > 0);
-        const mapped = step5Rows.map(mapStep5RowToModelSpec);
-        setModels(mapped);
-        setTotal(mapped.length);
-
-        // Rehydrate the saved final selection for this workflow (if any)
-        const { model: savedOne } = loadSingleSelection(wfId);
-        if (savedOne) {
-          const sig = modelSignature(savedOne);
-          const idxHere = mapped.findIndex((m: ModelSpec) => modelSignature(m) === sig);
-          setChosenIdx(idxHere >= 0 ? idxHere : null);
-          setSavedIdx(idxHere >= 0 ? idxHere : null);
-        } else {
-          setChosenIdx(null);
-          setSavedIdx(null);
-        }
-
-        // Rehydrate shortlist
-        setShortlist(loadShortlist(wfId));
-      } catch (e: any) {
-        setModels([]);
-        setTotal(undefined);
-        setTotal(undefined);
-        setErrMsg(e?.message || "Failed to load candidate models.");
-        setChosenIdx(null);
-        setSavedIdx(null);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [effectiveWorkflowId]
+  const contextKey =
+    Number.isFinite(Number(effectiveWorkflowId)) && Number(effectiveWorkflowId) > 0
+      ? String(effectiveWorkflowId)
+      : undefined;
+  const overlayProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "overlayDevelopment", contextKey)
   );
+  const overlayData = (overlayProgress?.data ?? {}) as OverlayDevelopmentData;
 
-  useEffect(() => {
-    loadCandidatesFromStep5();
-  }, [loadCandidatesFromStep5]);
-  /** Auto-fetch on mount & whenever workflow changes (page reset) */
-  useEffect(() => {
+  const step5Rows = useMemo(() => {
+    const checked = overlayData.step5Checked?.rows ?? [];
+    const saved = overlayData.step5Selected?.rows ?? [];
+    return checked.length ? checked : saved;
+  }, [overlayData.step5Checked, overlayData.step5Selected]);
+
+  /** Load saved candidates from Step 5 (Redux-backed) */
+  const hydrateFromStep5 = useCallback(() => {
     const wfId = Number(effectiveWorkflowId);
-    if (!Number.isFinite(wfId)) return;
-    setPage(1);
-    loadCandidatesFromStep5();
-  }, [effectiveWorkflowId, pageSize, loadCandidatesFromStep5]);
+    setErrMsg(null);
+    setSaveMsg(null);
 
-  /** Optional: auto-refresh when the tab regains focus */
+    if (!Number.isFinite(wfId)) {
+      setModels([]);
+      setTotal(undefined);
+      setChosenIdx(null);
+      setSavedIdx(null);
+      setShortlist([]);
+      setHasStep5Selection(false);
+      return;
+    }
+
+    const mapped = step5Rows.map(mapStep5RowToModelSpec);
+    setHasStep5Selection(step5Rows.length > 0);
+    setModels(mapped);
+    setTotal(mapped.length);
+
+    // Rehydrate the saved final selection for this workflow (if any)
+    const savedOne = overlayData.step6Selected?.model;
+    if (savedOne) {
+      const sig = modelSignature(savedOne);
+      const idxHere = mapped.findIndex((m: ModelSpec) => modelSignature(m) === sig);
+      setChosenIdx(idxHere >= 0 ? idxHere : null);
+      setSavedIdx(idxHere >= 0 ? idxHere : null);
+    } else {
+      setChosenIdx(null);
+      setSavedIdx(null);
+    }
+
+    // Rehydrate shortlist
+    setShortlist(overlayData.step6Shortlist ?? []);
+  }, [effectiveWorkflowId, overlayData.step6Selected, overlayData.step6Shortlist, step5Rows]);
+
+  useEffect(() => {
+    setLoading(true);
+    hydrateFromStep5();
+    setLoading(false);
+  }, [hydrateFromStep5]);
+
+  /** Auto-refresh when the tab regains focus */
   useEffect(() => {
     const onFocus = () => {
-      const wfId = Number(effectiveWorkflowId);
-      if (!Number.isFinite(wfId)) return;
-      loadCandidatesFromStep5();
+      hydrateFromStep5();
     };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [effectiveWorkflowId, pageSize, loadCandidatesFromStep5]);
-
-  /** Optional: react to Step 5 updates (localStorage event) */
-  useEffect(() => {
-    const wfId = Number(effectiveWorkflowId);
-    if (!Number.isFinite(wfId)) return;
-
-    const key = step5StorageKey(wfId);
-    const keyChecked = step5CheckedKey(wfId);
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === key || e.key === keyChecked) {
-        const hasSel = loadSelectedRowsFromStep5(wfId).length > 0;
-        setHasStep5Selection(hasSel);
-        loadCandidatesFromStep5();
-      }
-    };
-    const onSaved = (e: Event) => {
-      const detail = (e as CustomEvent)?.detail as { workflowId?: number } | undefined;
-      if (detail?.workflowId && Number(detail.workflowId) !== wfId) return;
-      const hasSel = loadCheckedRowsFromStep5(wfId).length > 0 || loadSelectedRowsFromStep5(wfId).length > 0;
-      setHasStep5Selection(hasSel);
-      loadCandidatesFromStep5();
-    };
-    const onChecked = (e: Event) => {
-      const detail = (e as CustomEvent)?.detail as { workflowId?: number } | undefined;
-      if (detail?.workflowId && Number(detail.workflowId) !== wfId) return;
-      const hasSel = loadCheckedRowsFromStep5(wfId).length > 0 || loadSelectedRowsFromStep5(wfId).length > 0;
-      setHasStep5Selection(hasSel);
-      loadCandidatesFromStep5();
-    };
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("overlay:step5:saved", onSaved as EventListener);
-    window.addEventListener("overlay:step5:checked", onChecked as EventListener);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("overlay:step5:saved", onSaved as EventListener);
-      window.removeEventListener("overlay:step5:checked", onChecked as EventListener);
-    };
-  }, [effectiveWorkflowId, pageSize, loadCandidatesFromStep5]);
+  }, [hydrateFromStep5]);
 
   // Enable export when we have results and not busy
   useEffect(() => {
@@ -368,28 +237,9 @@ const Step6: React.FC = () => {
   // Refetch when user changes page or pageSize after trigger
   useEffect(() => {
     if (!Number.isFinite(Number(effectiveWorkflowId))) return;
-    loadCandidatesFromStep5();
-  }, [page, pageSize, effectiveWorkflowId, loadCandidatesFromStep5]);
+    hydrateFromStep5();
+  }, [page, pageSize, effectiveWorkflowId, hydrateFromStep5]);
 
-  // Reset on workflow change
-  useEffect(() => {
-    setModels([]);
-    setTotal(undefined);
-    setErrMsg(null);
-    setChosenIdx(null);
-    setSavedIdx(null);
-    setSaveMsg(null);
-
-    const wfId = Number(effectiveWorkflowId);
-    const step5Rows = loadSelectedRowsFromStep5(wfId);
-    setHasStep5Selection(step5Rows.length > 0);
-
-    if (Number.isFinite(wfId)) {
-      setShortlist(loadShortlist(wfId));
-    } else {
-      setShortlist([]);
-    }
-  }, [effectiveWorkflowId]);
 
   // Export handler (uses your exact endpoint)
   async function exportCsv() {
@@ -478,9 +328,27 @@ const Step6: React.FC = () => {
     setErrMsg(null);
     try {
       const model = models[chosenIdx];
-      saveSingleSelection(wfId, chosenIdx, model);
-      const updated = addToShortlist(wfId, shortlist, model);
+      const savedAt = new Date().toISOString();
+      const sig = modelSignature(model);
+      const updated = shortlist.some((m) => modelSignature(m) === sig)
+        ? shortlist
+        : [...shortlist, model];
       setShortlist(updated);
+      dispatch(
+        setModuleProgress({
+          moduleKey: "overlayDevelopment",
+          contextKey: String(wfId),
+          data: {
+            step6Selected: {
+              workflowId: wfId,
+              model,
+              index: chosenIdx,
+              savedAt,
+            },
+            step6Shortlist: updated,
+          } as OverlayDevelopmentData,
+        })
+      );
       setSavedIdx(chosenIdx);
       setSaveMsg("Final model saved.");
     } catch {
@@ -491,9 +359,17 @@ const Step6: React.FC = () => {
   }
 
   function handleClearShortlist() {
-    const wfId = Number(selectedWorkflowId);
-    clearShortlist(wfId);
+    const wfId = Number(effectiveWorkflowId);
     setShortlist([]);
+    if (Number.isFinite(wfId)) {
+      dispatch(
+        setModuleProgress({
+          moduleKey: "overlayDevelopment",
+          contextKey: String(wfId),
+          data: { step6Shortlist: [] },
+        })
+      );
+    }
   }
   function handleViewShortlist() {
     // eslint-disable-next-line no-console
@@ -563,7 +439,7 @@ const Step6: React.FC = () => {
           </button>
 
           <button
-            onClick={() => loadCandidatesFromStep5()}
+            onClick={() => hydrateFromStep5()}
             disabled={
               saving || loading || !Number.isFinite(effectiveWorkflowId as any)
             }
@@ -611,7 +487,7 @@ const Step6: React.FC = () => {
       chosenIdx,
       savedIdx,
       handleSaveCandidate,
-      loadCandidatesFromStep5,
+      hydrateFromStep5,
     ]
   );
 

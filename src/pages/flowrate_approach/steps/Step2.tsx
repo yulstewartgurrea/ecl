@@ -27,9 +27,6 @@ function useWorkflowId(): number {
 
   if (state?.workflowId && state.workflowId > 0) return state.workflowId;
 
-  const ls = Number(localStorage.getItem("current_workflow_id") || "");
-  if (!Number.isNaN(ls) && ls > 0) return ls;
-
   return 0;
 }
 

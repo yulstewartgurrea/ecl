@@ -27,7 +27,7 @@ export type ModelSpec = {
   metrics?: ModelMetrics;
   previewUrl?: string;
 
-  // ✅ extras used by Step 6/7
+  // extras used by Step 6/7
   raw?: any;                         // the original server row
   index?: number;                    // internal index
   Y?: string;

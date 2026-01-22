@@ -5,7 +5,7 @@ import { rootReducer } from "./rootReducer";
 const persistConfig = {
   key: "root",
   storage,
-  // ✅ Add your ECL slices so they survive refresh:
+  // Add your ECL slices so they survive refresh:
   whitelist: [
     "auth",
     "navUIState",

@@ -197,7 +197,7 @@ export default function Step1() {
           );
         }
 
-        // ðŸ”— FINAL PATH now includes the doc type
+        // FINAL PATH now includes the doc type
         const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
         console.log('finalWorkflowPath: ', finalWorkflowPath)
         const result = await overlayUploadFile({
@@ -426,7 +426,7 @@ export default function Step1() {
             const docType = inferExecDocTypeFromName(file.name);
             if (!docType) continue;
             try {
-              // ðŸ”— FINAL PATH (retry) includes the doc type
+              // FINAL PATH (retry) includes the doc type
               const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
 
               const result = await overlayUploadFile({

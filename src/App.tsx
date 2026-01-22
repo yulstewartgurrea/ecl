@@ -36,7 +36,7 @@ function App() {
     };
   }, []);
 
-  // ✅ Poll backend_is_ready as a fallback — stops automatically once true
+  // Poll backend_is_ready as a fallback — stops automatically once true
   useEffect(() => {
     // if already ready, don't start polling
     if (backendReady) return;

@@ -1,6 +1,5 @@
 ﻿// Reusable, headless-ish React + Tailwind table with per-column Excel-style filters
-import { ArrowDownCircleIcon } from "@heroicons/react/24/outline";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ========= Types =========
 export type Row = Record<string, unknown>;
@@ -22,9 +21,8 @@ export type ExcelLikeTableProps = {
 
   /** NEW: selection features */
   selectable?: boolean; // default: false
-  storageKey?: string;  // persist selection if provided
   getRowId?: (row: Row, index: number) => string | number; // strongly recommended
-  autoPersistSelection?: boolean; // default: true
+  initialSelectedIds?: Array<string | number>;
   onSelectionChange?: (rows: Row[], ids: Array<string | number>) => void;
 };
 
@@ -55,30 +53,6 @@ export type ColumnFilter = {
   open: boolean;
 };
 
-// ========= LocalStorage helpers =========
-type PersistPayload = {
-  ids: Array<string | number>;
-  rows: Row[];
-  savedAt: string;
-};
-function loadPersisted(storageKey?: string): PersistPayload | null {
-  if (!storageKey) return null;
-  try {
-    const raw = localStorage.getItem(storageKey);
-    return raw ? (JSON.parse(raw) as PersistPayload) : null;
-  } catch {
-    return null;
-  }
-}
-function savePersisted(storageKey: string, ids: Array<string | number>, rows: Row[]) {
-  try {
-    const payload: PersistPayload = { ids, rows, savedAt: new Date().toISOString() };
-    localStorage.setItem(storageKey, JSON.stringify(payload));
-  } catch {
-    /* ignore quota errors */
-  }
-}
-
 // ========= Main Component =========
 export function Multi_Table({
   data,
@@ -89,9 +63,8 @@ export function Multi_Table({
 
   // NEW props (all optional)
   selectable = false,
-  storageKey,
   getRowId,
-  autoPersistSelection = true,
+  initialSelectedIds,
   onSelectionChange,
 }: ExcelLikeTableProps) {
   const derivedColumns: ColumnDef[] = useMemo(() => {
@@ -112,11 +85,14 @@ export function Multi_Table({
     return idx;
   };
 
-  // ---- selection set (load persisted ids if available)
-  const [selectedIds, setSelectedIds] = useState<Set<string | number>>(() => {
-    const persisted = loadPersisted(storageKey);
-    return new Set(persisted?.ids ?? []);
-  });
+  const normalizeIds = useCallback((ids?: Array<string | number>) => {
+    return new Set(ids ?? []);
+  }, []);
+
+  // ---- selection set (seed from props if provided)
+  const [selectedIds, setSelectedIds] = useState<Set<string | number>>(() =>
+    normalizeIds(initialSelectedIds)
+  );
 
   // Initialize filters per column
   const [filters, setFilters] = useState<Record<string, ColumnFilter>>(() => {
@@ -198,7 +174,7 @@ export function Multi_Table({
     onFilteredChange?.(filtered);
   }, [filtered, onFilteredChange]);
 
-  // ---- persist & notify on selection change
+  // ---- notify on selection change
   const selectedRows = useMemo(() => {
     // compute from full data to ensure we keep rows not currently filtered-in (keeps true selection)
     return data
@@ -208,12 +184,27 @@ export function Multi_Table({
   }, [data, selectedIds]);
 
   useEffect(() => {
-    if (storageKey && autoPersistSelection) {
-      savePersisted(storageKey, Array.from(selectedIds), selectedRows);
-    }
     onSelectionChange?.(selectedRows, Array.from(selectedIds));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds, storageKey, autoPersistSelection]);
+  }, [selectedIds]);
+
+  // ---- sync selection if initialSelectedIds changes (e.g., workflow change)
+  useEffect(() => {
+    if (!initialSelectedIds) return;
+    const next = normalizeIds(initialSelectedIds);
+    let same = next.size === selectedIds.size;
+    if (same) {
+      for (const id of next) {
+        if (!selectedIds.has(id)) {
+          same = false;
+          break;
+        }
+      }
+    }
+    if (!same) {
+      setSelectedIds(next);
+    }
+  }, [initialSelectedIds, normalizeIds, selectedIds]);
 
   // ---- select all on current filtered page
   const allVisibleSelected =
@@ -286,11 +277,6 @@ export function Multi_Table({
             >
               Clear
             </button>
-          )}
-          {storageKey && (
-            <span className="ml-auto text-[11px] text-neutral-500">
-              Saved to <code className="rounded bg-neutral-100 px-1">{storageKey}</code>
-            </span>
           )}
         </div>
       )}
