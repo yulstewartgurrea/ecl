@@ -222,14 +222,22 @@ const Step6: React.FC = () => {
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
 
+  const effectiveWorkflowId = useMemo(() => {
+    const fromRedux = Number(selectedWorkflowId);
+    if (Number.isFinite(fromRedux) && fromRedux > 0) return fromRedux;
+    if (typeof window !== "undefined") {
+      const raw = window.localStorage.getItem("current_workflow_id");
+      const parsed = raw ? Number(raw) : NaN;
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return null;
+  }, [selectedWorkflowId]);
+
   /** Load saved candidates from Step 5 */
   const loadCandidatesFromStep5 = useCallback(
     async () => {
-      const wfId = Number(selectedWorkflowId);
-      if (!Number.isFinite(wfId)) {
-        setErrMsg("Missing or invalid workflowId.");
-        return;
-      }
+      const wfId = Number(effectiveWorkflowId);
+      if (!Number.isFinite(wfId)) return;
 
       setLoading(true);
       setErrMsg(null);
@@ -266,35 +274,34 @@ const Step6: React.FC = () => {
         setLoading(false);
       }
     },
-    [selectedWorkflowId]
+    [effectiveWorkflowId]
   );
 
   useEffect(() => {
     loadCandidatesFromStep5();
-    console.log('ss')
-  }, [])
+  }, [loadCandidatesFromStep5]);
   /** Auto-fetch on mount & whenever workflow changes (page reset) */
   useEffect(() => {
-    const wfId = Number(selectedWorkflowId);
+    const wfId = Number(effectiveWorkflowId);
     if (!Number.isFinite(wfId)) return;
     setPage(1);
     loadCandidatesFromStep5();
-  }, [selectedWorkflowId, pageSize, loadCandidatesFromStep5]);
+  }, [effectiveWorkflowId, pageSize, loadCandidatesFromStep5]);
 
   /** Optional: auto-refresh when the tab regains focus */
   useEffect(() => {
     const onFocus = () => {
-      const wfId = Number(selectedWorkflowId);
+      const wfId = Number(effectiveWorkflowId);
       if (!Number.isFinite(wfId)) return;
       loadCandidatesFromStep5();
     };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [selectedWorkflowId, pageSize, loadCandidatesFromStep5]);
+  }, [effectiveWorkflowId, pageSize, loadCandidatesFromStep5]);
 
   /** Optional: react to Step 5 updates (localStorage event) */
   useEffect(() => {
-    const wfId = Number(selectedWorkflowId);
+    const wfId = Number(effectiveWorkflowId);
     if (!Number.isFinite(wfId)) return;
 
     const key = step5StorageKey(wfId);
@@ -318,7 +325,7 @@ const Step6: React.FC = () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("overlay:step5:saved", onSaved as EventListener);
     };
-  }, [selectedWorkflowId, pageSize, loadCandidatesFromStep5]);
+  }, [effectiveWorkflowId, pageSize, loadCandidatesFromStep5]);
 
   // Enable export when we have results and not busy
   useEffect(() => {
@@ -332,9 +339,9 @@ const Step6: React.FC = () => {
 
   // Refetch when user changes page or pageSize after trigger
   useEffect(() => {
-    if (!Number.isFinite(Number(selectedWorkflowId))) return;
+    if (!Number.isFinite(Number(effectiveWorkflowId))) return;
     loadCandidatesFromStep5();
-  }, [page, pageSize, selectedWorkflowId, loadCandidatesFromStep5]);
+  }, [page, pageSize, effectiveWorkflowId, loadCandidatesFromStep5]);
 
   // Reset on workflow change
   useEffect(() => {
@@ -345,7 +352,7 @@ const Step6: React.FC = () => {
     setSavedIdx(null);
     setSaveMsg(null);
 
-    const wfId = Number(selectedWorkflowId);
+    const wfId = Number(effectiveWorkflowId);
     const step5Rows = loadSelectedRowsFromStep5(wfId);
     setHasStep5Selection(step5Rows.length > 0);
 
@@ -354,7 +361,7 @@ const Step6: React.FC = () => {
     } else {
       setShortlist([]);
     }
-  }, [selectedWorkflowId]);
+  }, [effectiveWorkflowId]);
 
   // Export handler (uses your exact endpoint)
   async function exportCsv() {
@@ -430,7 +437,7 @@ const Step6: React.FC = () => {
   }
 
   function handleSaveCandidate() {
-    const wfId = Number(selectedWorkflowId);
+    const wfId = Number(effectiveWorkflowId);
     if (!Number.isFinite(wfId)) {
       setErrMsg("Missing or invalid workflowId.");
       return;
@@ -509,13 +516,13 @@ const Step6: React.FC = () => {
             disabled={
               saving ||
               loading ||
-              !Number.isFinite(selectedWorkflowId as any) ||
+              !Number.isFinite(effectiveWorkflowId as any) ||
               chosenIdx == null ||
               chosenIdx === savedIdx
             }
             className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
             title={
-              !selectedWorkflowId
+              !effectiveWorkflowId
                 ? "Pick a workflow on Step 1"
                 : chosenIdx == null
                 ? "Select a candidate model first"
@@ -530,11 +537,11 @@ const Step6: React.FC = () => {
           <button
             onClick={() => loadCandidatesFromStep5()}
             disabled={
-              saving || loading || !Number.isFinite(selectedWorkflowId as any)
+              saving || loading || !Number.isFinite(effectiveWorkflowId as any)
             }
             className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
             title={
-              !selectedWorkflowId
+              !effectiveWorkflowId
                 ? "Pick a workflow on Step 1"
                 : "Refresh from Step 5 selection"
             }
@@ -568,7 +575,7 @@ const Step6: React.FC = () => {
     [
       saving,
       loading,
-      selectedWorkflowId,
+      effectiveWorkflowId,
       shortlist.length,
       hasStep5Selection,
       exportReady,
