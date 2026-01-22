@@ -494,7 +494,7 @@ export default function Step1() {
               <span className="font-medium">{accept}</span>
             </p>
             <p className="text-[11px] text-gray-400 mt-1">
-              Workflow ID:{" "}
+              Workflow Name:{" "}
               <span className="font-mono">{selectedWorkflowId ?? ""}</span>
             </p>
           </div>
