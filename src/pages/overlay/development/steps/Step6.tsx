@@ -108,7 +108,8 @@ function loadSelectedRowsFromStep5(workflowId: number): any[] {
 
 function loadCheckedRowsFromStep5(workflowId: number): any[] {
   try {
-    const raw = localStorage.getItem(step5CheckedKey(workflowId));
+    const raw = localStorage.getItem(step5StorageKey(workflowId));
+    console.log('dd: ', step5StorageKey(workflowId))
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Step5Persist;
     return Array.isArray(parsed?.rows) ? parsed.rows : [];
