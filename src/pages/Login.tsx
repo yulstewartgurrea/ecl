@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLogin } from "../hooks/useLogin";
 import ApiStatusIndicator from "../components/ApiStatusIndicators";
@@ -13,7 +14,8 @@ const Login = () => {
   const navigate = useNavigate();
   const { trigger } = useLogin();
 
-  const handleLogin = async () => {
+  const handleLogin = async (e?: FormEvent) => {
+    e?.preventDefault();
     setStatus("loading");
     setMessage("Logging in...");
     try {
