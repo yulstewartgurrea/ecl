@@ -39,7 +39,7 @@ const Step7: React.FC = () => {
   // final PiT PD rows from backend
   const [pitRows, setPitRows] = useState<FlPitBucketRow[]>([]);
 
-  // map API rows   component rows
+  // map API rows  component rows
   const mapApiToRows = (rows: FinalPitPdApiRow[]): FlPitBucketRow[] =>
     rows.map((r) => ({
       bucket: r.Bucket,
@@ -157,7 +157,7 @@ const Step7: React.FC = () => {
             <button
               onClick={runPDCalibration}
               disabled={posting || !selectedWorkflowId}
-              className="cursor-pointer rounded-xl bg-gray-100 text-gray-900 px-3 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
+              className="cursor-pointer rounded-xl bg-gray-100 text-gray-900 border border-gray-200 px-3 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
               title={
                 !selectedWorkflowId
                   ? "Select a workflow on Step 1 first"
@@ -165,7 +165,7 @@ const Step7: React.FC = () => {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              <span>{posting ? "Running " : "Run PiT PD"}</span>
+              <span>{posting ? "Running" : "Run PiT PD"}</span>
             </button>
 
             {/* Export CSV */}
@@ -175,7 +175,7 @@ const Step7: React.FC = () => {
               className="cursor-pointer rounded-xl bg-white border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              <span>{exporting ? "Exporting " : "Export CSV"}</span>
+              <span>{exporting ? "Exporting" : "Export CSV"}</span>
             </button>
           </div>
         </div>

@@ -341,7 +341,7 @@ export function Multi_Table({
                       aria-expanded={filters[col.key]?.open || false}
                       title="Filter"
                     >
-                      â–¼
+                      
                     </button>
 
                     {filters[col.key]?.open && (

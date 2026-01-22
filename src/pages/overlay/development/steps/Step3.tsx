@@ -521,7 +521,7 @@ export default function OverlayDevelpmentPage3() {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              {busy ? "Processing " : "Run Data Transform"}
+              {busy ? "Processing" : "Run Data Transform"}
             </button>
 
             {/* Refresh (with status check) */}
@@ -541,7 +541,7 @@ export default function OverlayDevelpmentPage3() {
               <ArrowPathIcon
                 className={`h-4 w-4 ${statusLoading ? "animate-spin" : ""}`}
               />
-              {statusLoading ? "Checking " : "Refresh"}
+              {statusLoading ? "Checking" : "Refresh"}
             </button>
 
             {/* Cancel (only show when job is pending or processing) */}
@@ -562,11 +562,11 @@ export default function OverlayDevelpmentPage3() {
                 <XCircleIcon
                   className={`h-4 w-4 ${cancelling ? "animate-spin" : ""}`}
                 />
-                {cancelling ? "Cancelling " : "Cancel"}
+                {cancelling ? "Cancelling" : "Cancel"}
               </button>
             )}
 
-            {/* Export CSV   now pure frontend */}
+            {/* Export CSV  now pure frontend */}
             <button
               onClick={exportCsv}
               disabled={
@@ -584,7 +584,7 @@ export default function OverlayDevelpmentPage3() {
               }
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              {exporting ? "Exporting " : "Export CSV"}
+              {exporting ? "Exporting" : "Export CSV"}
             </button>
 
           </div>
@@ -595,10 +595,10 @@ export default function OverlayDevelpmentPage3() {
       {showConfig && (
         <div className="fixed inset-0 z-50">
           {/* Overlay */}
-          <div className="absolute inset-0 bg-gray-100/80 backdrop-blur-sm" onClick={() => setShowConfig(false)} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowConfig(false)} />
           
           {/* Dialog */}
-          <div className="absolute left-1/2 top-1/2 w-[min(100vw-2rem,500px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl ring-1 ring-gray-200 max-h-[85vh] flex flex-col overflow-hidden">
+          <div className="absolute left-1/2 top-1/2 w-[min(100vw-2rem,500px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[85vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between  p-4">
               <div>
@@ -653,7 +653,7 @@ export default function OverlayDevelpmentPage3() {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-2  p-4">
+            <div className="flex items-center justify-end gap-2 border-t p-4">
               <button
                 onClick={() => setShowConfig(false)}
                 className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm hover:bg-neutral-50"
@@ -722,7 +722,7 @@ export default function OverlayDevelpmentPage3() {
           )}
           {status && status.status === "completed" && (
             <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-                Job completed successfully
+               Job completed successfully
               {status.running_time_seconds !== null && (
                 <span className="ml-2 text-xs">
                   (Completed in {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s)
@@ -821,6 +821,4 @@ function buildCsvSection(
 
   return lines.join("\n");
 }
-
-
 

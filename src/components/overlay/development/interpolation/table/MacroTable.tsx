@@ -146,7 +146,7 @@ export function MacroTable<T extends Record<string, any>>({
                 const raw = leaf.key ? r[leaf.key] : undefined;
                 const k = leafKey(leaf);
 
-                // Year / Quarter: never show commas and bypass numberFormat
+                // ðŸ”’ Year / Quarter: never show commas and bypass numberFormat
                 let cell: React.ReactNode;
                 if (k === "year" || k === "quarter") {
                   cell = stripCommas(raw);

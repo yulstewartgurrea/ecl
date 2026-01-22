@@ -47,12 +47,12 @@ function normalizeFileBase(name: string) {
 
 /**
  * Lenient inference:
- * âœ… Accept if filename contains:
+ *  Accept if filename contains:
  *  - "ecl"
  *  - "client loan balance(s)"
  *  - has BOTH "loan" and "balance"
  *
- * If nothing matched â†’ still return ECL_CLIENT_LOAN_BALANCES (NO BLOCKING ERROR)
+ * If nothing matched  still return ECL_CLIENT_LOAN_BALANCES (NO BLOCKING ERROR)
  */
 function inferExecDocTypeFromName(name: string): ExecDocType {
   const base = normalizeFileBase(name);
@@ -66,7 +66,7 @@ function inferExecDocTypeFromName(name: string): ExecDocType {
     return ECL_CLIENT_LOAN_BALANCES;
   }
 
-  // âœ… default to ECL (no filename blocking)
+  //  default to ECL (no filename blocking)
   return ECL_CLIENT_LOAN_BALANCES;
 }
 
@@ -113,7 +113,7 @@ export default function Step1() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // âœ… NEW: modal retry loading state (for Proceed anyway / Force upload)
+  //  NEW: modal retry loading state (for Proceed anyway / Force upload)
   const [retrySubmitting, setRetrySubmitting] = useState(false);
 
   const accept = ".csv,.xlsx,.xls";
@@ -124,7 +124,7 @@ export default function Step1() {
 
   const effectiveWorkflowId = selectedWorkflowId ?? 1;
 
-  // âœ… helper: add/remove many filenames in uploading set (reuses same loader UI)
+  //  helper: add/remove many filenames in uploading set (reuses same loader UI)
   const markUploadingBatch = useCallback((names: string[], on: boolean) => {
     setUploadingFiles((prev) => {
       const ns = new Set(prev);
@@ -341,7 +341,7 @@ export default function Step1() {
   const summary = useMemo(() => {
     const parts: string[] = [];
     if (eclFiles.length) parts.push(`${eclFiles.length} ecl`);
-    return parts.join(" ¢ ");
+    return parts.join("  ");
   }, [eclFiles.length]);
 
   const uploadStatus = useMemo(() => {
@@ -388,7 +388,7 @@ export default function Step1() {
               className="ml-2 text-emerald-600 hover:text-emerald-800"
               title="Dismiss success message"
             >
-              âœ•
+              •
             </button>
           </div>
         </div>
@@ -398,7 +398,7 @@ export default function Step1() {
         open={uploadModalOpen}
         title="Upload Error"
         issues={uploadIssues}
-        // âœ… show loader on modal button too
+        //  show loader on modal button too
         isSubmitting={retrySubmitting}
         onClose={() => {
           if (retrySubmitting) return; // prevent closing while retrying
@@ -414,7 +414,7 @@ export default function Step1() {
           const batchNames = retryFiles.map((f) => f.name);
 
           setRetrySubmitting(true);
-          markUploadingBatch(batchNames, true); // âœ… trigger same top loader
+          markUploadingBatch(batchNames, true); //  trigger same top loader
 
           try {
             for (const file of retryFiles) {
@@ -432,7 +432,7 @@ export default function Step1() {
                 workflowPath: finalWorkflowPath,
                 documentType: docType,
                 workflowId: effectiveWorkflowId,
-                override: true, // âœ… force upload / proceed anyway
+                override: true, //  force upload / proceed anyway
                 moduleVal: "ECL",
                 submoduleVal: "DEVELOPMENT",
               });
@@ -494,8 +494,8 @@ export default function Step1() {
               <span className="font-medium">{accept}</span>
             </p>
             <p className="text-[11px] text-gray-400 mt-1">
-              Workflow ID:{" "}
-              <span className="font-mono">{selectedWorkflowId ?? "”"}</span>
+              Workflow Name:{" "}
+              <span className="font-mono">{workflowName || ""}</span>
             </p>
           </div>
 
@@ -517,7 +517,7 @@ export default function Step1() {
             )}
             {uploadStatus.status === "uploading" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 -transparent" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
                 Uploading...
               </span>
             )}
@@ -566,7 +566,7 @@ export default function Step1() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3  px-5 py-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 border-t px-5 py-4 md:flex-row md:items-center md:justify-between">
           <div className="text-xs text-gray-600">
             <div className="mb-1">{uploadStatus.message}</div>
             {eclFiles.length > 0 && (

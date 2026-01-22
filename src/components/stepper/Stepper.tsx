@@ -29,7 +29,7 @@ type StepperProps = {
   /** Metrics to display inside the modal */
   workflowMetrics?: IssueMetrics;
 
-  /** Show a green œready segment from current -> next step */
+  /** Show a green ready segment from current -> next step */
   canContinue?: boolean;
 
   /** Which step index requires confirm when leaving forward (default: 1 = Step 2) */
@@ -219,7 +219,7 @@ const Stepper = forwardRef<StepperHandle, StepperProps>(function Stepper(
                 <div className="text-sm text-gray-600">No issues detected.</div>
               ) : (
                 Object.entries(workflowMetrics).map(([key, val]: any) => (
-                  <div key={key} className="text-sm py-1  last:">
+                  <div key={key} className="text-sm py-1 last:border-b-0">
                     <strong>{key}</strong>: missing {val?.missing ?? "N/A"}, error{" "}
                     {val?.error ?? "N/A"}, duplicate {val?.duplicate ?? "N/A"}
                   </div>

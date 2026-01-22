@@ -24,18 +24,18 @@ const cn = (...xs: Array<string | false | undefined>) =>
 
 // Coefficients: keep raw from API
 const fmtCoeff = (v: number) => {
-  if (!Number.isFinite(v)) return "”";
+  if (!Number.isFinite(v)) return "";
   return `${String(v)}`;
 };
 
 /**
- * Convert a raw numeric value (0“1 probability or ratio) to a percentage
+ * Convert a raw numeric value (01 probability or ratio) to a percentage
  * string with 2 decimal places.
  */
 const formatPctNumber = (v: number): string => {
-  if (!Number.isFinite(v)) return "”";
+  if (!Number.isFinite(v)) return "";
   const pct = v * 100;
-  if (!Number.isFinite(pct)) return "”";
+  if (!Number.isFinite(pct)) return "";
 
   // avoid super-long strings when values explode
   if (Math.abs(pct) >= 1e6) {

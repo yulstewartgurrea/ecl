@@ -31,7 +31,7 @@ export type SpreadsheetTableProps<T> = {
   toolbar?: React.ReactNode;
 
   /**
-   * âœ… NEW
+   *  NEW
    * Auto-sort headers like:
    * date, 0 day, par 1, par 30, par 60, par 90, par 120, ..., total loan balance with c/p
    */
@@ -164,7 +164,7 @@ export function SpreadsheetTable<T>({
           className="overflow-y-auto"
           style={{ maxHeight: typeof height === "number" ? `${height}px` : height }}
         >
-          {/* âœ… border-separate helps sticky header borders */}
+          {/*  border-separate helps sticky header borders */}
           <table className="min-w-full table-fixed text-sm border-separate border-spacing-0">
             <thead
               className="sticky top-0 z-10 "
@@ -174,7 +174,7 @@ export function SpreadsheetTable<T>({
                 {displayColumns.map((c, i) => (
                   <th
                     key={String(c.key) + i}
-                    className={`${headPad} align-middle font-semibold  last: whitespace-nowrap ${
+                    className={`${headPad} align-middle font-semibold  whitespace-nowrap ${
                       c.align === "right"
                         ? "text-right"
                         : c.align === "center"
@@ -189,7 +189,7 @@ export function SpreadsheetTable<T>({
                       color: resolvedHeaderText,
                     }}
                   >
-                    {/* âœ… header alignment wrapper (works with sort icons too) */}
+                    {/*  header alignment wrapper (works with sort icons too) */}
                     <div
                       className={`flex w-full items-center gap-2 ${
                         c.align === "right"
@@ -231,7 +231,7 @@ export function SpreadsheetTable<T>({
                       return (
                         <td
                           key={String(c.key) + i}
-                          className={`relative ${cellPad}  last:  ${
+                          className={`relative ${cellPad}   ${
                             c.align === "right"
                               ? "text-right"
                               : c.align === "center"

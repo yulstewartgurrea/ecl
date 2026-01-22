@@ -372,7 +372,7 @@ function EntitiesSection() {
             {filtered.map((row) => {
               const isEditing = editingId === row.id;
               return (
-                <tr key={row.id} className=" border-gray-100">
+                <tr key={row.id} className="border-t border-gray-100">
                   <td className="px-4 py-3">
                     {isEditing ? (
                       <InlineTextInput
@@ -555,7 +555,7 @@ function EntitiesSection() {
 //             {filtered.map((row) => {
 //               const isEditing = editingId === row.id;
 //               return (
-//                 <tr key={row.id} className=" border-gray-100">
+//                 <tr key={row.id} className="border-t border-gray-100">
 //                   <td className="px-4 py-3">
 //                     {isEditing ? (
 //                       <InlineTextInput
@@ -773,7 +773,7 @@ function LoanProductsSection() {
             {filtered.map((row) => {
               const isEditing = editingId === row.id;
               return (
-                <tr key={row.id} className=" border-gray-100">
+                <tr key={row.id} className="border-t border-gray-100">
                   <td className="px-4 py-3">
                     {isEditing ? (
                       <InlineTextInput
@@ -793,7 +793,7 @@ function LoanProductsSection() {
                       />
                     ) : (
                       <span className="text-gray-900">
-                        {row.code ?? "”"}
+                        {row.code ?? ""}
                       </span>
                     )}
                   </td>
@@ -806,7 +806,7 @@ function LoanProductsSection() {
                       />
                     ) : (
                       <span className="text-gray-900">
-                        {row.description ?? "”"}
+                        {row.description ?? ""}
                       </span>
                     )}
                   </td>
@@ -1005,7 +1005,7 @@ function LoanProductsSection() {
 //             {filtered.map((row) => {
 //               const isEditing = editingId === row.id;
 //               return (
-//                 <tr key={row.id} className=" border-gray-100">
+//                 <tr key={row.id} className="border-t border-gray-100">
 //                   <td className="px-4 py-3">
 //                     {isEditing ? (
 //                       <InlineTextInput
@@ -1025,7 +1025,7 @@ function LoanProductsSection() {
 //                       />
 //                     ) : (
 //                       <span className="text-gray-900">
-//                         {row.code ?? "”"}
+//                         {row.code ?? ""}
 //                       </span>
 //                     )}
 //                   </td>
@@ -1038,7 +1038,7 @@ function LoanProductsSection() {
 //                       />
 //                     ) : (
 //                       <span className="text-gray-900">
-//                         {row.description ?? "”"}
+//                         {row.description ?? ""}
 //                       </span>
 //                     )}
 //                   </td>
@@ -1261,7 +1261,7 @@ function LoanProductsSection() {
 //                 {sorted.map((row) => {
 //                   const isEditing = editingId === row.id;
 //                   return (
-//                     <tr key={row.id} className=" border-gray-100">
+//                     <tr key={row.id} className="border-t border-gray-100">
 //                       <td className="px-4 py-3">
 //                         {isEditing ? (
 //                           <InlineTextInput
@@ -1296,7 +1296,7 @@ function LoanProductsSection() {
 //                           />
 //                         ) : (
 //                           <span className="text-gray-900">
-//                             {row.max ?? "”"}
+//                             {row.max ?? ""}
 //                           </span>
 //                         )}
 //                       </td>

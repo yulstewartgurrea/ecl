@@ -69,7 +69,7 @@ export default function Step3() {
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
-  const { currentPdTransitionMatrixWorkflowId } = useAppSelector(
+  const { currentPdTransitionMatrixWorkflowId, pdTransitionMatrixWfName } = useAppSelector(
     (state: any) => state.pdTransitionMatrixWfHelper
   );
 
@@ -181,7 +181,7 @@ export default function Step3() {
     }
   };
 
-  // âœ… Initial: GET only (once per workflowId)
+  //  Initial: GET only (once per workflowId)
   useEffect(() => {
     if (!workflowId) return;
 
@@ -209,14 +209,14 @@ export default function Step3() {
             </div>
             <div className="min-w-0">
               <h1 className="text-sm font-semibold text-amber-900">
-                Step 3 “ Portfolio-Level ECL
+                Step 3  Portfolio-Level ECL
               </h1>
               <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
                 This page first loads existing summary results using GET. If there is no computed
                 data yet, click <b>Run</b> to POST and compute, then it will GET again.
               </p>
               <div className="mt-2 text-xs text-amber-900/80">
-                workflow_id: <b>{workflowId}</b>
+                Workflow Name: <b>{pdTransitionMatrixWfName || ""}</b>
               </div>
             </div>
           </div>

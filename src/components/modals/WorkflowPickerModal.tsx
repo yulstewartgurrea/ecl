@@ -61,7 +61,7 @@ export default function WorkflowPickerModal({
   if (!open) return null;
  
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-100/80 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
       <div className="w-full max-w-4xl rounded-3xl bg-white/95 shadow-2xl ring-1 ring-slate-200 flex flex-col max-h-[80vh]">
         {/* Header */}
         <div className="flex items-start justify-between gap-4  border-slate-200 px-6 py-4">
@@ -89,7 +89,7 @@ export default function WorkflowPickerModal({
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by entity, reporting period, workflow name, or path "
+              placeholder="Search by entity, reporting period, workflow name, or path"
               className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"
             />
           </div>
@@ -225,7 +225,7 @@ export default function WorkflowPickerModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3  border-slate-200 px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
           <button
             onClick={onClose}
             className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 cursor-pointer transition"
@@ -237,5 +237,4 @@ export default function WorkflowPickerModal({
     </div>
   );
 }
-
 

@@ -21,9 +21,9 @@ const cn = (...xs: Array<string | false | undefined>) =>
  * - Uses exponential notation for extremely large values to avoid overflow in UI
  */
 const formatPctNumber = (v: number): string => {
-  if (!Number.isFinite(v)) return "”";
+  if (!Number.isFinite(v)) return "";
   const pct = v * 100;
-  if (!Number.isFinite(pct)) return "”";
+  if (!Number.isFinite(pct)) return "";
 
   // Avoid crazy-long strings for huge numbers
   if (Math.abs(pct) >= 1e6) {

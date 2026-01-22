@@ -197,7 +197,7 @@ export default function Step1() {
           );
         }
 
-        // FINAL PATH now includes the doc type
+        // ðŸ”— FINAL PATH now includes the doc type
         const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
         console.log('finalWorkflowPath: ', finalWorkflowPath)
         const result = await overlayUploadFile({
@@ -311,7 +311,7 @@ export default function Step1() {
     [token, workflowPathBase, effectiveWorkflowId, uploadedFiles, uploadingFiles]
   );
 
-  // Dropzone handlers ” upload new files, ignore placeholders from existing docs
+  // Dropzone handlers  upload new files, ignore placeholders from existing docs
   const handleMonthlyFilesChange = useCallback(
     async (files: File[]) => {
       console.log('files',files)
@@ -357,7 +357,7 @@ export default function Step1() {
     if (monthlyFiles.length) parts.push(`${monthlyFiles.length} monthly`);
     if (quarterlyFiles.length) parts.push(`${quarterlyFiles.length} quarterly`);
      if (historicalFiles.length) parts.push(`${historicalFiles.length} historical`);
-    return parts.join(" | ");
+    return parts.join("  ");
   }, [monthlyFiles.length, quarterlyFiles.length, historicalFiles.length]);
 
   const uploadStatus = useMemo(() => {
@@ -381,7 +381,7 @@ export default function Step1() {
       const nextName = (w as any).workflow_name ?? (w as any).name ?? "";
       const nextId = typeof (w as any).id === "number" ? (w as any).id : null;
 
-      console.log(`WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`);
+      console.log(`ðŸŽ¯ WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`);
 
       if (nextEntity) dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
@@ -405,7 +405,7 @@ export default function Step1() {
               className="ml-2 text-emerald-600 hover:text-emerald-800"
               title="Dismiss success message"
             >
-              x
+              •
             </button>
           </div>
         </div>
@@ -426,7 +426,7 @@ export default function Step1() {
             const docType = inferExecDocTypeFromName(file.name);
             if (!docType) continue;
             try {
-              // FINAL PATH (retry) includes the doc type
+              // ðŸ”— FINAL PATH (retry) includes the doc type
               const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
 
               const result = await overlayUploadFile({
@@ -487,7 +487,7 @@ export default function Step1() {
             </p>
            
             <p className="text-[11px] text-gray-400 mt-1">
-              Workflow ID: <span className="font-mono">{selectedWorkflowId ?? "”"}</span>
+              Workflow Name: <span className="font-mono">{workflowName || ""}</span>
             </p>
           </div>
 
@@ -611,7 +611,7 @@ export default function Step1() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3  px-5 py-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 border-t px-5 py-4 md:flex-row md:items-center md:justify-between">
           <div className="text-xs text-gray-600">
             <div className="mb-1">{uploadStatus.message}</div>
             {(monthlyFiles.length > 0 || quarterlyFiles.length > 0 || historicalFiles.length > 0) && (

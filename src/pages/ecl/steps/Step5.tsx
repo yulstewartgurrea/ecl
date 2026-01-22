@@ -104,7 +104,7 @@ function Pill({
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-gray-200 ${tones[tone]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-black/5 ${tones[tone]}`}
     >
       {children}
     </span>
@@ -115,7 +115,7 @@ export default function Step5() {
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
-  const { currentPdTransitionMatrixWorkflowId } = useAppSelector(
+  const { currentPdTransitionMatrixWorkflowId, pdTransitionMatrixWfName } = useAppSelector(
     (state: any) => state.pdTransitionMatrixWfHelper
   );
 
@@ -267,7 +267,7 @@ export default function Step5() {
                 compute and return the forward-looking credit loss rates per aging category.
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Pill tone="blue">workflow_id: {workflowId}</Pill>
+                <Pill tone="blue">Workflow Name: {pdTransitionMatrixWfName || ""}</Pill>
                 <Pill tone={weightsSum === 100 ? "green" : "yellow"}>
                   weights sum: {weightsSum}%
                 </Pill>
@@ -487,5 +487,4 @@ export default function Step5() {
     </div>
   );
 }
-
 

@@ -57,7 +57,7 @@ export default function Step4() {
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
-  const { currentPdTransitionMatrixWorkflowId } = useAppSelector(
+  const { currentPdTransitionMatrixWorkflowId, pdTransitionMatrixWfName } = useAppSelector(
     (state: any) => state.pdTransitionMatrixWfHelper
   );
 
@@ -78,9 +78,9 @@ export default function Step4() {
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // âœ… initial GET state
+  //  initial GET state
   const [hasInitialFetched, setHasInitialFetched] = useState(false);
-  // âœ… if no data, require manual run
+  //  if no data, require manual run
   const [needsRun, setNeedsRun] = useState(false);
 
   const busy = loading || posting;
@@ -130,7 +130,7 @@ export default function Step4() {
   };
 
 
-  // âœ… Initial behavior: GET only (once per workflowId)
+  //  Initial behavior: GET only (once per workflowId)
   useEffect(() => {
     if (!workflowId) return;
 
@@ -169,7 +169,7 @@ export default function Step4() {
               </p>
 
               <div className="mt-2 text-xs text-amber-900/80">
-                workflow_id: <b>{workflowId}</b>
+                Workflow Name: <b>{pdTransitionMatrixWfName || ""}</b>
               </div>
             </div>
           </div>
@@ -190,7 +190,7 @@ export default function Step4() {
           <div className="flex flex-wrap items-center justify-between gap-3  border-slate-200 bg-slate-50 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">
-                Portfolio ECL by Aging Category “ Chart
+                Portfolio ECL by Aging Category  Chart
               </h2>
               <p className="text-xs text-slate-500">
                 {loading && !hasInitialFetched

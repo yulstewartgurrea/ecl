@@ -15,10 +15,8 @@ import {
   ArrowDownTrayIcon,
   XCircleIcon,
   Cog6ToothIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
-import ScenarioConfigModalTable, {
-  type ScenarioRow,
-} from "../../../../components/overlay/execution/mev/ConfigModal";
 import {
   postDataTransformationExecution,
   getDataTransformationStatusExecution,
@@ -28,11 +26,6 @@ import {
   shapeTransformationResults,
   type DataTransformationStatus,
 } from "../../../../services/dataTransformation";
-import {
-  overrideGetDataTransformationMevs,
-  overrideGetDataTransformationInput,
-  overridePostDataTransformationMevs,
-} from "../../../../services/overlayExecution";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -82,103 +75,8 @@ export default function OverlayDevelpmentPage3() {
   const [cancelling, setCancelling] = useState(false);
 
   // Configuration states
+  const [showConfig, setShowConfig] = useState(false);
   const [numCombinations, setNumCombinations] = useState<number>(2);
-  const [mevConfigOpen, setMevConfigOpen] = useState(false);
-  const [mevPeriods, setMevPeriods] = useState<string[]>([]);
-  const [mevVariables, setMevVariables] = useState<string[]>([]);
-  const [availableMevVariables, setAvailableMevVariables] = useState<string[]>([]);
-  const [mevPrefillRows, setMevPrefillRows] = useState<ScenarioRow[] | null>(null);
-  const [mevLoadingCfg, setMevLoadingCfg] = useState(false);
-
-  const normalizePeriodOut = (p: string) => {
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(p)) {
-      const [mm, dd, yyyy] = p.split("/");
-      return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
-    }
-    return p;
-  };
-
-  const bannedDefaults = ["gni.GR.lag_9", "non_mev_num_tc.lag_12"];
-
-  const filterDefaults = (vars: string[]) =>
-    vars.filter((v) => !bannedDefaults.includes(v));
-
-  const deriveVariablesFromRows = (rows: ScenarioRow[]) => {
-    const keys = new Set<string>();
-    rows.forEach((r) => {
-      Object.keys(r.upside ?? {}).forEach((k) => keys.add(k));
-      Object.keys(r.base ?? {}).forEach((k) => keys.add(k));
-      Object.keys(r.downside ?? {}).forEach((k) => keys.add(k));
-    });
-    return filterDefaults(Array.from(keys));
-  };
-
-  const derivePeriodsFromRows = (rows: ScenarioRow[]) =>
-    rows.map((r) => String(r.period));
-
-  // Load MEV config shape (periods/variables) with fallback
-  useEffect(() => {
-    const boot = async () => {
-      if (!selectedWorkflowId) return;
-      setMevLoadingCfg(true);
-      try {
-        const existing = await overrideGetDataTransformationMevs(
-          selectedWorkflowId,
-          token
-        );
-        if (existing?.rows && existing.rows.length > 0) {
-          setMevPrefillRows(existing.rows);
-          const derivedPeriods = existing.periods?.length
-            ? existing.periods
-            : derivePeriodsFromRows(existing.rows);
-          const derivedVars = existing.variables?.length
-            ? filterDefaults(existing.variables)
-            : deriveVariablesFromRows(existing.rows);
-          setMevPeriods(derivedPeriods);
-          setAvailableMevVariables(derivedVars);
-          setMevVariables(derivedVars);
-          return;
-        }
-
-        const { periods, variables } = await overrideGetDataTransformationInput(
-          selectedWorkflowId,
-          token
-        );
-        const filtered = filterDefaults(variables);
-        setMevPeriods(periods);
-        setAvailableMevVariables(filtered);
-        const cached = localStorage.getItem("overlay_execution_mev_variables");
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
-              setMevVariables(parsed.filter((v) => filtered.includes(v)));
-            } else {
-              setMevVariables([]);
-            }
-          } catch {
-            setMevVariables([]);
-          }
-        } else {
-          setMevVariables([]);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setMevLoadingCfg(false);
-      }
-    };
-    boot();
-  }, [selectedWorkflowId, token]);
-
-  const handleOpenMevConfig = () => {
-    if (!selectedWorkflowId && selectedWorkflowId !== 0) return;
-    // if (!mevPeriods.length) {
-    //   alert("No periods returned by the server.");
-    //   return;
-    // }
-    setMevConfigOpen(true);
-  };
 
 
   // ---- Core loader (POST or GET-only) ----
@@ -566,55 +464,28 @@ export default function OverlayDevelpmentPage3() {
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
-      <header className="sticky top-0 z-20  border-gray-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-gray-900">
+      <header className="sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white ">
+        <div className="mx-auto px-4 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight">
               Consolidate all monthly MEVs
             </h1>
-            <p className="text-xs md:text-sm text-gray-500">
+            <p className="text-sm text-gray-600">
               Apply lag/log/diff transformations to MEVs and take log of default
               rate data
             </p>
-            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                Config
-              </span>
-              <label htmlFor="numCombinations" className="text-xs text-gray-600">
-                Combinations:
-              </label>
-              <input
-                id="numCombinations"
-                type="number"
-                min="1"
-                step="1"
-                value={numCombinations}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === "" || (Number.isInteger(Number(value)) && Number(value) > 0)) {
-                    setNumCombinations(value === "" ? 1 : Number(value));
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "." || e.key === "-" || e.key === "e" || e.key === "E") {
-                    e.preventDefault();
-                  }
-                }}
-                className="w-16 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-700 focus:border-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-200"
-              />
-            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* MEV Configuration Button */}
+          <div className="flex items-center gap-2">
+            {/* Configuration Button */}
             <button
-              onClick={handleOpenMevConfig}
-              disabled={mevLoadingCfg || (!selectedWorkflowId && selectedWorkflowId !== 0)}
-              className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
-              title="Configure MEV overrides"
+              onClick={() => setShowConfig(true)}
+              disabled={busy || (!selectedWorkflowId && selectedWorkflowId !== 0)}
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+              title="Configure data transformation settings"
             >
               <Cog6ToothIcon className="h-4 w-4" />
-              MEV Config
+              Config
             </button>
 
             {/* Run (POST) */}
@@ -624,7 +495,7 @@ export default function OverlayDevelpmentPage3() {
                 busy ||
                 (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
-              className="cursor-pointer inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-yellow-300 to-yellow-400 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:from-yellow-300 hover:to-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-200 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
@@ -632,7 +503,7 @@ export default function OverlayDevelpmentPage3() {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              {busy ? "Processing " : "Run Data Transform"}
+              {busy ? "Processing" : "Run Data Transform"}
             </button>
 
             {/* Refresh (with status check) */}
@@ -642,7 +513,7 @@ export default function OverlayDevelpmentPage3() {
                 statusLoading ||
                 (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
-              className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
@@ -652,7 +523,7 @@ export default function OverlayDevelpmentPage3() {
               <ArrowPathIcon
                 className={`h-4 w-4 ${statusLoading ? "animate-spin" : ""}`}
               />
-              {statusLoading ? "Checking " : "Refresh"}
+              {statusLoading ? "Checking" : "Refresh"}
             </button>
 
             {/* Cancel (only show when job is pending or processing) */}
@@ -663,7 +534,7 @@ export default function OverlayDevelpmentPage3() {
                   cancelling ||
                   (!selectedWorkflowId && selectedWorkflowId !== 0)
                 }
-                className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:opacity-50"
+                className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
                 title={
                   !selectedWorkflowId
                     ? "Pick a workflow on Step 1"
@@ -673,11 +544,11 @@ export default function OverlayDevelpmentPage3() {
                 <XCircleIcon
                   className={`h-4 w-4 ${cancelling ? "animate-spin" : ""}`}
                 />
-                {cancelling ? "Cancelling " : "Cancel"}
+                {cancelling ? "Cancelling" : "Cancel"}
               </button>
             )}
 
-            {/* Export CSV   now pure frontend */}
+            {/* Export CSV  now pure frontend */}
             <button
               onClick={exportCsv}
               disabled={
@@ -685,7 +556,7 @@ export default function OverlayDevelpmentPage3() {
                 exporting ||
                 (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
-              className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
@@ -695,50 +566,97 @@ export default function OverlayDevelpmentPage3() {
               }
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              {exporting ? "Exporting " : "Export CSV"}
+              {exporting ? "Exporting" : "Export CSV"}
             </button>
 
           </div>
         </div>
       </header>
 
+      {/* Configuration Modal */}
+      {showConfig && (
+        <div className="fixed inset-0 z-50">
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowConfig(false)} />
+          
+          {/* Dialog */}
+          <div className="absolute left-1/2 top-1/2 w-[min(100vw-2rem,500px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between  p-4">
+              <div>
+                <h3 className="text-lg font-semibold">Configuration</h3>
+                <p className="text-xs text-neutral-600">
+                  Configure the number of combinations for data transformation.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowConfig(false)}
+                className="rounded-md p-2 hover:bg-neutral-100"
+                title="Close"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {/* Body */}
+            <div className="flex-1 overflow-auto p-4">
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="numCombinations" className="block text-sm font-medium text-gray-700 mb-2">
+                    Number of combinations
+                  </label>
+                  <input
+                    id="numCombinations"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={numCombinations}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Only allow positive integers
+                      if (value === "" || (Number.isInteger(Number(value)) && Number(value) > 0)) {
+                        setNumCombinations(value === "" ? 2 : Number(value));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Prevent decimal point, negative sign, and 'e' key
+                      if (e.key === '.' || e.key === '-' || e.key === 'e' || e.key === 'E') {
+                        e.preventDefault();
+                      }
+                    }}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    placeholder="Enter number of combinations"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Must be a positive integer (default: 2)
+                  </p>
+                </div>
+              </div>
+            </div>
 
-      <ScenarioConfigModalTable
-        open={mevConfigOpen}
-        onClose={() => setMevConfigOpen(false)}
-        periods={mevPeriods}
-        variables={mevVariables}
-        availableVariables={availableMevVariables}
-        initialRows={mevPrefillRows ?? undefined}
-        onSave={async (rows, nextVariables) => {
-          const payload = rows.map((r) => ({
-            period: normalizePeriodOut(r.period),
-            upside: r.upside,
-            base: r.base,
-            downside: r.downside,
-          }));
-
-          if (!selectedWorkflowId) return;
-
-          try {
-            await overridePostDataTransformationMevs(selectedWorkflowId, payload, token);
-            setMevVariables(nextVariables);
-            localStorage.setItem(
-              "overlay_execution_mev_variables",
-              JSON.stringify(nextVariables)
-            );
-            setMevConfigOpen(false);
-
-            const latest = await overrideGetDataTransformationMevs(
-              selectedWorkflowId,
-              token
-            );
-            setMevPrefillRows(latest.rows ?? null);
-          } catch (err) {
-            console.error(err);
-          }
-        }}
-      />
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 border-t p-4">
+              <button
+                onClick={() => setShowConfig(false)}
+                className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm hover:bg-neutral-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (numCombinations > 0 && Number.isInteger(numCombinations)) {
+                    setShowConfig(false);
+                  }
+                }}
+                disabled={!Number.isInteger(numCombinations) || numCombinations <= 0}
+                className="rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto px-4 pb-8">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-3">
@@ -786,7 +704,7 @@ export default function OverlayDevelpmentPage3() {
           )}
           {status && status.status === "completed" && (
             <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-                Job completed successfully
+               Job completed successfully
               {status.running_time_seconds !== null && (
                 <span className="ml-2 text-xs">
                   (Completed in {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s)
@@ -810,7 +728,5 @@ export default function OverlayDevelpmentPage3() {
     </div>
   );
 }
-
-
 
 
