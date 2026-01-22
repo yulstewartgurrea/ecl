@@ -177,6 +177,7 @@ const Step6: React.FC = () => {
   const canNext = pages ? page < pages : models.length === pageSize;
 
   const [hasTriggered, setHasTriggered] = useState(false);
+  const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
   const [chosenIdx, setChosenIdx] = useState<number | null>(null);
   const [shortlist, setShortlist] = useState<ModelSpec[]>([]);
   const [hasStep5Selection, setHasStep5Selection] = useState<boolean>(false);
@@ -254,6 +255,7 @@ const Step6: React.FC = () => {
         setChosenIdx(null);
       } finally {
         setLoading(false);
+        setHasFetchedOnce(true);
       }
     },
     [selectedWorkflowId, token]
@@ -332,6 +334,18 @@ const Step6: React.FC = () => {
       setPosting(false);
     }
   }
+
+  // Auto-run candidate generation once if we have saved Step 5 selections but no models yet
+  useEffect(() => {
+    const wfId = Number(selectedWorkflowId);
+    if (!Number.isFinite(wfId)) return;
+    if (!hasFetchedOnce) return;
+    if (!hasStep5Selection) return;
+    if (posting || loading) return;
+    if (hasTriggered) return;
+    if (models.length > 0) return;
+    runCandidates();
+  }, [selectedWorkflowId, hasFetchedOnce, hasStep5Selection, posting, loading, hasTriggered, models.length, runCandidates]);
 
   // Enable export when we have results and not busy
   useEffect(() => {
