@@ -269,6 +269,10 @@ const Step6: React.FC = () => {
     [selectedWorkflowId]
   );
 
+  useEffect(() => {
+    loadCandidatesFromStep5();
+    console.log('ss')
+  }, [])
   /** Auto-fetch on mount & whenever workflow changes (page reset) */
   useEffect(() => {
     const wfId = Number(selectedWorkflowId);

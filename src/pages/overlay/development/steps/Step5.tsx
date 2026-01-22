@@ -266,19 +266,13 @@ const Step5: React.FC<Step5Props> = ({
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [selectedWorkflowId, fetchResults]);
-
-  // When modal applies filters, reflect them locally and pull current results (no heavy POST)
   function handleApplyFilters(finalRules: FilterRule[]) {
-    // finalRules includes selected + defaults (0) for all headers
     setPayloadFilters(finalRules);
     if (Number.isFinite(selectedWorkflowId)) {
-      setSelectedFilters(loadFilters(Number(selectedWorkflowId))); // reads back selected (now includes REQUIRED)
+      setSelectedFilters(loadFilters(Number(selectedWorkflowId)));
     }
-    // ✅ Mark that user applied filters in this session
     setHasAppliedFilters(true);
-    // ✅ Require re-run after changing filters
     setHasRunAnalysis(false);
-    // Reset to page 1 when filters are applied
     setCurrentPage(1);
     setSaveMsg(null);
     runFiltering();
@@ -293,7 +287,7 @@ const Step5: React.FC<Step5Props> = ({
       setErrMsg("Please configure at least one filter (gear icon).");
       return;
     }
-    if (!hasAppliedFilters) {
+    if (headers.length === 0) {
       setErrMsg("Click Configure, set filters, and Apply before running the analysis.");
       return;
     }
@@ -441,9 +435,6 @@ const Step5: React.FC<Step5Props> = ({
       localStorage.setItem(`overlay:step5:selected:${wf}`, JSON.stringify(payload));
       setHasSavedSelection(true);
       setSaveMsg(`Saved ${selectedRows.length} model(s).`);
-      window.dispatchEvent(
-        new CustomEvent("overlay:step5:saved", { detail: { workflowId: wf } })
-      );
       setErrMsg(null);
     } catch {
       setErrMsg("Failed to save models. Please try again.");
@@ -470,7 +461,7 @@ const Step5: React.FC<Step5Props> = ({
 
         <button
           onClick={runFiltering}
-          disabled={posting || loading || !canRun}
+          disabled={posting || loading}
           className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
           title={
             !Number.isFinite(selectedWorkflowId)
@@ -483,22 +474,7 @@ const Step5: React.FC<Step5Props> = ({
           }
         >
           <PlayCircleIcon className="h-4 w-4" />
-          {posting ? "Running…" : "Run Analysis"}
-        </button>
-
-        <button
-          onClick={handleSaveSelection}
-          disabled={!hasRunAnalysis || selectedRowsCount === 0}
-          className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
-          title={
-            !hasRunAnalysis
-              ? "Run analysis first"
-              : selectedRowsCount === 0
-              ? "Select one or more rows to save"
-              : "Save selected models for Step 6"
-          }
-        >
-          Save Models
+          {posting ? "Saving..." : "Save Models"}
         </button>
 
         <button
