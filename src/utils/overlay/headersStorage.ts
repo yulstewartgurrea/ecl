@@ -1,9 +1,9 @@
 // Redux-backed helpers for Step4/Step5
-import { store } from "../../../../redux_toolkit/store";
+import { store } from "../../redux_toolkit/store";
 import {
   selectModuleProgress,
   setModuleProgress,
-} from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
+} from "../../redux_toolkit/features/progress/moduleProgressSlice";
 
 export type FilterRule = { id: string; column: string; value: string };
 

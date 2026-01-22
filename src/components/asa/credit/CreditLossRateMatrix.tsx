@@ -1,10 +1,8 @@
 ﻿import React, { useMemo, useState } from "react";
 import {
-  ArrowDownTrayIcon,
   CalculatorIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
-  InformationCircleIcon,
 } from "@heroicons/react/24/outline";
 
 /* ===================== Types (exported) ===================== */
@@ -88,21 +86,6 @@ const pct = (fraction: number | null, digits = 6) => {
 
 const isMonotonicNonDecreasing = (arr: number[]) =>
   arr.every((v, i) => (i === 0 ? true : v >= arr[i - 1]));
-
-const toCSV = (headers: string[], rows: (string | number)[][]) => {
-  const esc = (s: string | number) => `"${String(s).replace(/"/g, '""')}"`;
-  return [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n");
-};
-
-const download = (filename: string, text: string) => {
-  const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-};
 
 function parseBool(v: any): boolean | undefined {
   if (v === null || v === undefined) return undefined;
@@ -197,8 +180,6 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
   rows,
   historicalRateSets,
   defaultRateSetIndex = 0,
-  showNotes = true,
-  onExportCsv,
   className = "",
 }) => {
   if (!rows || rows.length === 0) {
@@ -237,30 +218,6 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
       return { _raw: r, _monotonic: mono, _weighted: weighted };
     });
   }, [rows, autoCategories, schema.monotonicKey, schema.weightedKey]);
-
-  const doExport = () => {
-    const headers: string[] = [];
-    headers.push(schema.dateKey ?? "Row");
-    autoCategories.forEach((c) => headers.push(c.label));
-    if (schema.monotonicKey) headers.push(schema.monotonicKey);
-    if (schema.weightedKey) headers.push(schema.weightedKey);
-
-    const data = tableRows.map((t, idx) => {
-      const r = t._raw;
-      const out: (string | number)[] = [];
-
-      out.push(schema.dateKey ? String(r?.[schema.dateKey] ?? "") : String(idx + 1));
-      autoCategories.forEach((c) => out.push(pct(toFraction(r?.[c.key]), 6)));
-      if (schema.monotonicKey) out.push(t._monotonic ? "Yes" : "No");
-      if (schema.weightedKey) out.push(pct(t._weighted, 6));
-
-      return out;
-    });
-
-    const csv = toCSV(headers, data);
-    if (onExportCsv) onExportCsv(csv);
-    else download("credit_loss_rate_step5.csv", csv);
-  };
 
   return (
     <div className={`w-full ${className}`}>

@@ -13,7 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import FilteringConfigModal from "../../../../components/overlay/development/multi_factor/FilteringConfigModal";
-import { loadHeaders, loadFilters, type FilterRule } from "../../../../components/overlay/development/multi_factor/headersStorage";
+import { loadHeaders, loadFilters, type FilterRule } from "../../../../utils/overlay/headersStorage";
 import {
   selectModuleProgress,
   setModuleProgress,
@@ -166,7 +166,7 @@ const Step5: React.FC<Step5Props> = ({
     Number.isFinite(selectedWorkflowId) && selectedCount > 0 && hasAppliedFilters;
 
   // Stable fetcher with pagination
-  const fetchResults = useCallback(async () => {
+  const fetchFilteringResults = useCallback(async () => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
 
@@ -271,8 +271,8 @@ const Step5: React.FC<Step5Props> = ({
   useEffect(() => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
-    fetchResults();
-  }, [selectedWorkflowId, currentPage, pageSize, fetchResults]);
+    fetchFilteringResults();
+  }, [selectedWorkflowId, currentPage, pageSize, fetchFilteringResults]);
 
   // Fetch MFA headers when modal opens
   useEffect(() => {
@@ -286,11 +286,11 @@ const Step5: React.FC<Step5Props> = ({
     const onFocus = () => {
       const wf = Number(selectedWorkflowId);
       if (!Number.isFinite(wf)) return;
-      fetchResults();
+      fetchFilteringResults();
     };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [selectedWorkflowId, fetchResults]);
+  }, [selectedWorkflowId, fetchFilteringResults]);
   function handleApplyFilters(finalRules: FilterRule[]) {
     setPayloadFilters(finalRules);
     if (Number.isFinite(selectedWorkflowId)) {
@@ -300,10 +300,10 @@ const Step5: React.FC<Step5Props> = ({
     setHasRunAnalysis(false);
     setCurrentPage(1);
     setSaveMsg(null);
-    runFiltering();
+    handleRunFiltering();
   }
 
-  async function runFiltering() {
+  async function handleRunFiltering() {
     if (!Number.isFinite(selectedWorkflowId)) {
       setErrMsg("Missing or invalid selectedWorkflowId.");
       return;
@@ -330,7 +330,7 @@ const Step5: React.FC<Step5Props> = ({
       // Reset to page 1 after applying filters
       setCurrentPage(1);
       // Fetch results with pagination (page 1)
-      await fetchResults();
+      await fetchFilteringResults();
       // Mark that analysis has run successfully with the current filters
       setHasRunAnalysis(true);
     } catch (e: any) {
@@ -502,7 +502,7 @@ const Step5: React.FC<Step5Props> = ({
         </button>
 
         <button
-          onClick={runFiltering}
+          onClick={handleRunFiltering}
           disabled={posting || loading}
           className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
           title={
@@ -520,7 +520,7 @@ const Step5: React.FC<Step5Props> = ({
         </button>
 
         <button
-          onClick={fetchResults}
+          onClick={fetchFilteringResults}
           disabled={loading || !Number.isFinite(selectedWorkflowId)}
           className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
           title={!selectedWorkflowId ? "Pick a workflow on Step 1" : "Fetch latest results once"}
@@ -560,7 +560,7 @@ const Step5: React.FC<Step5Props> = ({
       hasRunAnalysis,
       selectedRowsCount,
       handleSaveSelection,
-      fetchResults,
+      fetchFilteringResults,
       exportCsv,
     ]
   );

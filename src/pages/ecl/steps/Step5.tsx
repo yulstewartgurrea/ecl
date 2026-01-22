@@ -149,7 +149,19 @@ export default function Step5() {
       if (!json?.success) {
         throw new Error(json?.msg || "Failed to fetch credit loss rates.");
       }
-      saveEclWeights(workflowId, { upside, baseline, downside });
+      dispatch(
+        setModuleProgress({
+          moduleKey: "ecl",
+          contextKey: String(workflowId),
+          data: {
+            probabilityWeights: {
+              upside: String(upside ?? ""),
+              baseline: String(baseline ?? ""),
+              downside: String(downside ?? ""),
+            } as EclWeights,
+          },
+        })
+      );
 
       setRows(normalizeRows(json?.data ?? []));
     } catch (e: any) {

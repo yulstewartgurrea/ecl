@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { XMarkIcon,  TrashIcon, CheckIcon } from "@heroicons/react/24/outline";
-import { type FilterRule, saveFilters, loadFilters } from "./headersStorage";
+import { type FilterRule, saveFilters, loadFilters } from "../../../../utils/overlay/headersStorage";
 
 type Props = {
   workflowId: number | string;

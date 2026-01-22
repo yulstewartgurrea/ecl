@@ -24,7 +24,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 // NEW: headers storage helper
-import { saveHeaders } from "../../../../components/overlay/development/multi_factor/headersStorage";
+import { saveHeaders } from "../../../../utils/overlay/headersStorage";
 
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
