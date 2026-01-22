@@ -1,4 +1,5 @@
 ﻿// Reusable, headless-ish React + Tailwind table with per-column Excel-style filters
+import { ArrowDownCircleIcon } from "@heroicons/react/24/outline";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 // ========= Types =========
