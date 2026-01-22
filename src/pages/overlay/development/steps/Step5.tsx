@@ -654,12 +654,22 @@ const Step5: React.FC<Step5Props> = ({
           }
           onSelectionChange={(selRows) => {
             console.log("Selected:", selRows.length);
+            const wf = Number(selectedWorkflowId);
+            if (Number.isFinite(wf) && (!selRows || selRows.length === 0)) {
+              try {
+                const raw = localStorage.getItem(`overlay:step5:checked:${wf}`);
+                const parsed = raw ? JSON.parse(raw) : null;
+                const existingCount = Array.isArray(parsed?.rows) ? parsed.rows.length : 0;
+                if (existingCount > 0) return;
+              } catch {
+                // ignore and continue
+              }
+            }
             // ✅ track selected rows for Step 6 gating
             setSelectedRowsCount(selRows.length);
           setSelectedRows(selRows || []);
           setHasSavedSelection(false);
           setSaveMsg(null);
-          const wf = Number(selectedWorkflowId);
           if (Number.isFinite(wf)) {
             const ids = (selRows || []).map((r) =>
               String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`)
