@@ -433,6 +433,7 @@ const Step5: React.FC<Step5Props> = ({
     };
     try {
       localStorage.setItem(`overlay:step5:selected:${wf}`, JSON.stringify(payload));
+      localStorage.setItem("overlay:step5:lastWorkflowId", String(wf));
       setHasSavedSelection(true);
       setSaveMsg(`Saved ${selectedRows.length} model(s).`);
       window.dispatchEvent(
@@ -670,6 +671,7 @@ const Step5: React.FC<Step5Props> = ({
             };
             try {
               localStorage.setItem(`overlay:step5:checked:${wf}`, JSON.stringify(payload));
+              localStorage.setItem("overlay:step5:lastWorkflowId", String(wf));
               window.dispatchEvent(
                 new CustomEvent("overlay:step5:checked", { detail: { workflowId: wf } })
               );

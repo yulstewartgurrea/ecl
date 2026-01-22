@@ -241,6 +241,9 @@ const Step6: React.FC = () => {
       const raw = window.localStorage.getItem("current_workflow_id");
       const parsed = raw ? Number(raw) : NaN;
       if (Number.isFinite(parsed) && parsed > 0) return parsed;
+      const last = window.localStorage.getItem("overlay:step5:lastWorkflowId");
+      const lastParsed = last ? Number(last) : NaN;
+      if (Number.isFinite(lastParsed) && lastParsed > 0) return lastParsed;
     }
     return null;
   }, [selectedWorkflowId]);
