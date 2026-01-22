@@ -57,7 +57,7 @@ export default function Step4() {
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
-  const { currentPdTransitionMatrixWorkflowId } = useAppSelector(
+  const { currentPdTransitionMatrixWorkflowId, pdTransitionMatrixWfName } = useAppSelector(
     (state: any) => state.pdTransitionMatrixWfHelper
   );
 
@@ -169,7 +169,7 @@ export default function Step4() {
               </p>
 
               <div className="mt-2 text-xs text-amber-900/80">
-                workflow_id: <b>{workflowId}</b>
+                Workflow Name: <b>{pdTransitionMatrixWfName || ""}</b>
               </div>
             </div>
           </div>

@@ -165,7 +165,7 @@ export default function Step2() {
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
-  const { currentPdTransitionMatrixWorkflowId } = useAppSelector(
+  const { currentPdTransitionMatrixWorkflowId, pdTransitionMatrixWfName } = useAppSelector(
     (state: any) => state.pdTransitionMatrixWfHelper
   );
 
@@ -330,7 +330,7 @@ formData.append(
                 This page shows the ECL calculation using each client™s loan balances by product or across all products as of the reporting date, together with the forward-looking loss rates.
               </p>
               <div className="mt-2 text-xs text-amber-900/80">
-                workflow_id: <b>{workflowId}</b>
+                Workflow Name: <b>{pdTransitionMatrixWfName || ""}</b>
               </div>
             </div>
           </div>
