@@ -435,6 +435,9 @@ const Step5: React.FC<Step5Props> = ({
       localStorage.setItem(`overlay:step5:selected:${wf}`, JSON.stringify(payload));
       setHasSavedSelection(true);
       setSaveMsg(`Saved ${selectedRows.length} model(s).`);
+      window.dispatchEvent(
+        new CustomEvent("overlay:step5:saved", { detail: { workflowId: wf } })
+      );
       setErrMsg(null);
     } catch {
       setErrMsg("Failed to save models. Please try again.");
@@ -655,6 +658,25 @@ const Step5: React.FC<Step5Props> = ({
           setSelectedRows(selRows || []);
           setHasSavedSelection(false);
           setSaveMsg(null);
+          const wf = Number(selectedWorkflowId);
+          if (Number.isFinite(wf)) {
+            const ids = (selRows || []).map((r) =>
+              String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`)
+            );
+            const payload = {
+              ids,
+              rows: selRows || [],
+              savedAt: new Date().toISOString(),
+            };
+            try {
+              localStorage.setItem(`overlay:step5:checked:${wf}`, JSON.stringify(payload));
+              window.dispatchEvent(
+                new CustomEvent("overlay:step5:checked", { detail: { workflowId: wf } })
+              );
+            } catch {
+              // ignore storage errors
+            }
+          }
           }}
           emptyMessage="Run analysis (after configuring filters) to see results, then select rows to proceed to Step 6."
         />

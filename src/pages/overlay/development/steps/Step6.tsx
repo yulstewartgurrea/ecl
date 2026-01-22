@@ -35,6 +35,7 @@ type SinglePersist = {
 /* ---------- Keys / helpers ---------- */
 const shortlistKeyFor = (workflowId: number | string) => `${SHORTLIST_PREFIX}${workflowId}`;
 const step5StorageKey = (workflowId: number | string) => `overlay:step5:selected:${workflowId}`;
+const step5CheckedKey = (workflowId: number | string) => `overlay:step5:checked:${workflowId}`;
 const singleKeyFor = (workflowId: number | string) => `${SINGLE_SELECTED_PREFIX}${workflowId}`;
 
 function modelSignature(m: ModelSpec): string {
@@ -97,6 +98,17 @@ function mapStep5RowToModelSpec(row: any): ModelSpec {
 function loadSelectedRowsFromStep5(workflowId: number): any[] {
   try {
     const raw = localStorage.getItem(step5StorageKey(workflowId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Step5Persist;
+    return Array.isArray(parsed?.rows) ? parsed.rows : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadCheckedRowsFromStep5(workflowId: number): any[] {
+  try {
+    const raw = localStorage.getItem(step5CheckedKey(workflowId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Step5Persist;
     return Array.isArray(parsed?.rows) ? parsed.rows : [];
@@ -243,7 +255,9 @@ const Step6: React.FC = () => {
       setErrMsg(null);
       setSaveMsg(null);
       try {
-        const step5Rows = loadSelectedRowsFromStep5(wfId);
+        const checkedRows = loadCheckedRowsFromStep5(wfId);
+        const savedRows = loadSelectedRowsFromStep5(wfId);
+        const step5Rows = checkedRows.length ? checkedRows : savedRows;
         setHasStep5Selection(step5Rows.length > 0);
         const mapped = step5Rows.map(mapStep5RowToModelSpec);
         setModels(mapped);
@@ -305,8 +319,9 @@ const Step6: React.FC = () => {
     if (!Number.isFinite(wfId)) return;
 
     const key = step5StorageKey(wfId);
+    const keyChecked = step5CheckedKey(wfId);
     const onStorage = (e: StorageEvent) => {
-      if (e.key === key) {
+      if (e.key === key || e.key === keyChecked) {
         const hasSel = loadSelectedRowsFromStep5(wfId).length > 0;
         setHasStep5Selection(hasSel);
         loadCandidatesFromStep5();
@@ -315,15 +330,24 @@ const Step6: React.FC = () => {
     const onSaved = (e: Event) => {
       const detail = (e as CustomEvent)?.detail as { workflowId?: number } | undefined;
       if (detail?.workflowId && Number(detail.workflowId) !== wfId) return;
-      const hasSel = loadSelectedRowsFromStep5(wfId).length > 0;
+      const hasSel = loadCheckedRowsFromStep5(wfId).length > 0 || loadSelectedRowsFromStep5(wfId).length > 0;
+      setHasStep5Selection(hasSel);
+      loadCandidatesFromStep5();
+    };
+    const onChecked = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail as { workflowId?: number } | undefined;
+      if (detail?.workflowId && Number(detail.workflowId) !== wfId) return;
+      const hasSel = loadCheckedRowsFromStep5(wfId).length > 0 || loadSelectedRowsFromStep5(wfId).length > 0;
       setHasStep5Selection(hasSel);
       loadCandidatesFromStep5();
     };
     window.addEventListener("storage", onStorage);
     window.addEventListener("overlay:step5:saved", onSaved as EventListener);
+    window.addEventListener("overlay:step5:checked", onChecked as EventListener);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("overlay:step5:saved", onSaved as EventListener);
+      window.removeEventListener("overlay:step5:checked", onChecked as EventListener);
     };
   }, [effectiveWorkflowId, pageSize, loadCandidatesFromStep5]);
 
