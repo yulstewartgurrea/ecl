@@ -170,9 +170,14 @@ export function Multi_Table({
     });
   }, [data, derivedColumns, filters]);
 
+  const onFilteredChangeRef = useRef(onFilteredChange);
   useEffect(() => {
-    onFilteredChange?.(filtered);
-  }, [filtered, onFilteredChange]);
+    onFilteredChangeRef.current = onFilteredChange;
+  }, [onFilteredChange]);
+
+  useEffect(() => {
+    onFilteredChangeRef.current?.(filtered);
+  }, [filtered]);
 
   // ---- notify on selection change
   const selectedRows = useMemo(() => {
