@@ -243,8 +243,8 @@ export default function OverlayDevelopmentPage2() {
               {selectedWorkflowId ? (
                 <>
                   Showing{" "}
-                  <span className="font-medium">{frequency}</span> dataset â€¢{" "}
-                  {loading ? "Loadingâ€¦" : `${data.length.toLocaleString()} rows`}
+                  <span className="font-medium">{frequency}</span> dataset {" "}
+                  {loading ? "Loading" : `${data.length.toLocaleString()} rows`}
                 </>
               ) : (
                 <>No workflow selected</>
@@ -264,11 +264,8 @@ export default function OverlayDevelopmentPage2() {
                 }
               >
                 <ArrowPathIcon className="h-4 w-4" />
-                <span>{loading ? "Refreshingâ€¦" : "Refresh"}</span>
+                <span>{loading ? "Refreshing" : "Refresh"}</span>
               </button>
-              <div className="text-xs text-gray-500">
-                Sticky header â€¢ Scroll horizontally
-              </div>
             </div>
           </div>
 

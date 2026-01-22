@@ -189,8 +189,7 @@ export default function OverlayDevelopmentPage2() {
         <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-              Expected Credit Loss Automation{" "}
-              {MODE === "execution" ? "exe" : "dev"}
+              Expected Credit Loss Automation
             </h1>
             <p className="text-sm text-gray-600">
               Interpolate quarterly MEVs (Quarterly Historical Mevs) into
@@ -276,9 +275,6 @@ export default function OverlayDevelopmentPage2() {
                 <span>{loading ? "Refreshing" : "Refresh"}</span>
               </button>
 
-              <div className="text-xs text-gray-500">
-                Sticky header  Scroll horizontally
-              </div>
             </div>
           </div>
 

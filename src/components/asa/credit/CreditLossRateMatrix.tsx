@@ -192,7 +192,7 @@ const Badge: React.FC<React.PropsWithChildren<{ tone?: "green" | "red" | "gray" 
 /* ===================== Component ===================== */
 const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
   title = "Credit Loss Rate Approach",
-  subtitle = "Backend-driven keys (no static headers).",
+  subtitle = "",
   categories,
   rows,
   historicalRateSets,
@@ -267,15 +267,6 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
       <Card title={title} subtitle={subtitle}>
         <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
-            <InformationCircleIcon className="h-4 w-4 text-gray-500" />
-            {showNotes && (
-              <p className="text-xs text-gray-600">
-                Columns are derived from backend response keys (no static headers).
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
             {historicalRateSets && historicalRateSets.length > 0 && (
               <div className="flex items-center gap-1 text-xs">
                 <span className="text-gray-600">Rate set:</span>
@@ -292,15 +283,6 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
                 </select>
               </div>
             )}
-
-            <button
-              onClick={doExport}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-yellow-400 border border-yellow-400 text-gray-900 hover:brightness-95 cursor-pointer"
-              title="Export as CSV"
-            >
-              <ArrowDownTrayIcon className="h-4 w-4" />
-              Export
-            </button>
           </div>
         </div>
 

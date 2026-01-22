@@ -854,7 +854,7 @@ const Step4: React.FC<Step4Props> = ({
         <Multi_Table
           data={displayRows}
           onFilteredChange={(filtered: any) => setFilteredRows(filtered)}
-          emptyMessage={hasTriggered ? "No results" : "Click Run Analysis to fetch results."}
+          emptyMessage={hasTriggered ? "No results" : "Click Run Analysis to fetch results."}
         />
       </div>
 
