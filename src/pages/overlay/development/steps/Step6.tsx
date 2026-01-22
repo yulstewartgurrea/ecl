@@ -54,6 +54,45 @@ function modelSignature(m: ModelSpec): string {
   });
 }
 
+function mapStep5RowToModelSpec(row: any): ModelSpec {
+  const title = `${row?.Y ?? "Model"}: ${row?.X1 ?? "-"} | ${row?.X2 ?? "-"}`;
+  const variables = [
+    {
+      name: String(row?.X1 ?? "X1"),
+      coeff_X1: Number(row?.coeff_X1 ?? row?.coeff_x1 ?? 0),
+      "p-value_X1": row?.["p-value_X1"] ?? row?.p_value_X1 ?? row?.["p-value_x1"] ?? row?.p_value_x1,
+      vif_X1: row?.vif_X1 ?? row?.vif_x1,
+      raw: row?.coeff_X1 ?? row?.coeff_x1,
+    },
+    {
+      name: String(row?.X2 ?? "X2"),
+      coeff_X1: Number(row?.coeff_X2 ?? row?.coeff_x2 ?? 0),
+      "p-value_X1": row?.["p-value_X2"] ?? row?.p_value_X2 ?? row?.["p-value_x2"] ?? row?.p_value_x2,
+      vif_X1: row?.vif_X2 ?? row?.vif_x2,
+      raw: row?.coeff_X2 ?? row?.coeff_x2,
+    },
+  ];
+
+  return {
+    title,
+    variables,
+    metrics: {
+      Adj_R_Squared: row?.Adj_R_Squared,
+      RMSE: row?.RMSE,
+      MAPE: row?.MAPE,
+      R_Squared: row?.R_Squared,
+    },
+    raw: row,
+    index: row?.index,
+    Y: row?.Y,
+    X1: row?.X1,
+    X2: row?.X2,
+    R_Squared: row?.R_Squared,
+    Adj_R_Squared: row?.Adj_R_Squared,
+    MAPE: row?.MAPE,
+  };
+}
+
 /* ---------- Step 5 selection ---------- */
 function loadSelectedRowsFromStep5(workflowId: number): any[] {
   try {
@@ -198,14 +237,15 @@ const Step6: React.FC = () => {
       try {
         const step5Rows = loadSelectedRowsFromStep5(wfId);
         setHasStep5Selection(step5Rows.length > 0);
-        setModels(step5Rows as ModelSpec[]);
-        setTotal(step5Rows.length);
+        const mapped = step5Rows.map(mapStep5RowToModelSpec);
+        setModels(mapped);
+        setTotal(mapped.length);
 
         // Rehydrate the saved final selection for this workflow (if any)
         const { model: savedOne } = loadSingleSelection(wfId);
         if (savedOne) {
           const sig = modelSignature(savedOne);
-          const idxHere = step5Rows.findIndex((m: ModelSpec) => modelSignature(m) === sig);
+          const idxHere = mapped.findIndex((m: ModelSpec) => modelSignature(m) === sig);
           setChosenIdx(idxHere >= 0 ? idxHere : null);
           setSavedIdx(idxHere >= 0 ? idxHere : null);
         } else {
@@ -261,8 +301,19 @@ const Step6: React.FC = () => {
         loadCandidatesFromStep5();
       }
     };
+    const onSaved = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail as { workflowId?: number } | undefined;
+      if (detail?.workflowId && Number(detail.workflowId) !== wfId) return;
+      const hasSel = loadSelectedRowsFromStep5(wfId).length > 0;
+      setHasStep5Selection(hasSel);
+      loadCandidatesFromStep5();
+    };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener("overlay:step5:saved", onSaved as EventListener);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("overlay:step5:saved", onSaved as EventListener);
+    };
   }, [selectedWorkflowId, pageSize, loadCandidatesFromStep5]);
 
   // Enable export when we have results and not busy

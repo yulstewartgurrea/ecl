@@ -441,6 +441,9 @@ const Step5: React.FC<Step5Props> = ({
       localStorage.setItem(`overlay:step5:selected:${wf}`, JSON.stringify(payload));
       setHasSavedSelection(true);
       setSaveMsg(`Saved ${selectedRows.length} model(s).`);
+      window.dispatchEvent(
+        new CustomEvent("overlay:step5:saved", { detail: { workflowId: wf } })
+      );
       setErrMsg(null);
     } catch {
       setErrMsg("Failed to save models. Please try again.");
