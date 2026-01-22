@@ -23,6 +23,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import UploadDropzone from "../ui/UploadDropzone";
+import { useAppSelector } from "../../redux_toolkit/hooks";
 
 /* ===================== Types ===================== */
 export type CategoryConfig = {
@@ -81,10 +82,6 @@ export type MultiCategoryUploaderProps = {
   bulk?: BulkModeOptions;
   rightCardsMode?: RightCardsMode;
 };
-
-/* ===================== Helpers ===================== */
-const defaultTokenGetter = () =>
-  localStorage.getItem("token") || sessionStorage.getItem("token");
 
 const formatFileSize = (bytes: number) => {
   if (bytes === 0) return "0 Bytes";
@@ -157,12 +154,20 @@ export default function MultiCategoryUploader({
   workflowId,
   pathBuilder,
   context,
-  tokenGetter = defaultTokenGetter,
+  tokenGetter,
   onResultsChange,
   initialSelectedKey,
   bulk = { enabled: true, assign: "selected", strategy: "sequential" },
   rightCardsMode = "status-only",
 }: MultiCategoryUploaderProps) {
+  const reduxToken = useAppSelector((state: any) => state.auth?.token) as
+    | string
+    | null
+    | undefined;
+  const getToken = useCallback(
+    () => tokenGetter?.() ?? reduxToken ?? null,
+    [tokenGetter, reduxToken]
+  );
   const [selectedKey, setSelectedKey] = useState<string>(
     initialSelectedKey ?? (categories[0]?.key ?? "")
   );
@@ -374,7 +379,7 @@ export default function MultiCategoryUploader({
     async (key: string, files: File[], override = false): Promise<UploadOutcome> => {
       console.log('files: ', files)
       if (!files.length) return { ok: true, results: [] }; // nothing to do
-      const token = tokenGetter?.() ?? undefined;
+      const token = getToken() ?? undefined;
       setUploading(true);
 
       try {
@@ -447,7 +452,7 @@ export default function MultiCategoryUploader({
       module,
       onResultsChange,
       pathBuilder,
-      tokenGetter,
+      getToken,
       workflowId,
       getCategoryLabel,
       enqueueError,

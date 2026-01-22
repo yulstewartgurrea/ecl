@@ -12,9 +12,8 @@ import EclUpload from "./pages/ecl/EclUpload";
 import BackendLoader from "./components/BackendLoader";
 
 // redux toolkit
-import { useAppSelector, useAppDispatch } from "./redux_toolkit/hooks";
+import { useAppSelector } from "./redux_toolkit/hooks";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { login as loginAction } from "./redux_toolkit/features/general/auth";
 
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
@@ -22,19 +21,8 @@ import { invoke } from "@tauri-apps/api/core";
 
 function App() {
   const { isLoggedIn } = useAppSelector((state) => state.auth);
-  const dispatch = useAppDispatch();
 
   const [backendReady, setBackendReady] = useState(false);
-
-  // Restore auth state from localStorage
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    const username = localStorage.getItem("username") || "";
-    const role = localStorage.getItem("role") || "";
-    if (token && !isLoggedIn) {
-      dispatch(loginAction({ username, token, role }));
-    }
-  }, [dispatch, isLoggedIn]);
 
   // Listen for backend-ready from Tauri (event-based)
   useEffect(() => {

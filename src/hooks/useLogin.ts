@@ -103,7 +103,6 @@ export function useLogin() {
       })
     );
     dispatch(resetStateAuth());
-    localStorage.setItem("token", data.access_token);
     return data;
   };
 
