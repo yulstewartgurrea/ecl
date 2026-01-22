@@ -4,11 +4,10 @@ import {
   ModelCompareGrid,
   type ModelSpec,
 } from "../../../../components/overlay/development/candidate_model/ModelCompareGrid";
-import { getCandidateModels, postCandidateModels } from "../../../../services/candidateModels";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
-import { ArrowPathIcon, PlayCircleIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 
 const LEGACY_SELECTED_KEY = "ecl:selectedModel";   // kept for Step 7 compatibility
 const SINGLE_SELECTED_PREFIX = "ecl:selectedmodels:"; // per-workflow single selection (exactly one)
@@ -166,83 +165,52 @@ const Step6: React.FC = () => {
 
   const [models, setModels] = useState<ModelSpec[]>([]);
   const [loading, setLoading] = useState(false);
-  const [posting, setPosting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(6);
+  const [pageSize] = useState(6);
   const [total, setTotal] = useState<number | undefined>(undefined);
-  const [pages, setPages] = useState<number | undefined>(undefined);
-  const canPrev = page > 1;
-  const canNext = pages ? page < pages : models.length === pageSize;
-
-  const [hasTriggered, setHasTriggered] = useState(false);
-  const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
+  // pagination state retained for API parity (UI uses page=1)
   const [chosenIdx, setChosenIdx] = useState<number | null>(null);
+  const [savedIdx, setSavedIdx] = useState<number | null>(null);
   const [shortlist, setShortlist] = useState<ModelSpec[]>([]);
   const [hasStep5Selection, setHasStep5Selection] = useState<boolean>(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   // Export state
   const [exporting, setExporting] = useState(false);
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
 
-  /** Stable fetcher */
-  const fetchPage = useCallback(
-    async (nextPage: number, nextPageSize: number) => {
+  /** Load saved candidates from Step 5 */
+  const loadCandidatesFromStep5 = useCallback(
+    async () => {
       const wfId = Number(selectedWorkflowId);
       if (!Number.isFinite(wfId)) {
         setErrMsg("Missing or invalid workflowId.");
         return;
       }
-      console.log(canNext,hasTriggered)
+
       setLoading(true);
       setErrMsg(null);
-      console.log(setPageSize)
-      // detect Step 5 selection presence (but still fetch even if none)
-      const step5Rows = loadSelectedRowsFromStep5(wfId);
-      setHasStep5Selection(step5Rows.length > 0);
-
+      setSaveMsg(null);
       try {
-        
-        const { models: list, total, pages } = await getCandidateModels({
-          apiBase: API_BASE,
-          token,
-          workflowId: wfId,
-          page: nextPage,
-          pageSize: nextPageSize,
-        });
+        const step5Rows = loadSelectedRowsFromStep5(wfId);
+        setHasStep5Selection(step5Rows.length > 0);
+        setModels(step5Rows as ModelSpec[]);
+        setTotal(step5Rows.length);
 
-        setModels(list);
-        setTotal(total);
-        setPages(pages);
-        console.log(canPrev)
-        // Rehydrate the single-selection for this workflow first
+        // Rehydrate the saved final selection for this workflow (if any)
         const { model: savedOne } = loadSingleSelection(wfId);
         if (savedOne) {
           const sig = modelSignature(savedOne);
-          const idxHere = list.findIndex((m: ModelSpec) => modelSignature(m) === sig);
+          const idxHere = step5Rows.findIndex((m: ModelSpec) => modelSignature(m) === sig);
           setChosenIdx(idxHere >= 0 ? idxHere : null);
+          setSavedIdx(idxHere >= 0 ? idxHere : null);
         } else {
-          // fallback to legacy if needed
-          try {
-            const raw = localStorage.getItem(LEGACY_SELECTED_KEY);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              const savedModel = parsed?.model as ModelSpec | undefined;
-              if (savedModel) {
-                const sig = modelSignature(savedModel);
-                const idxHere = list.findIndex((m: ModelSpec) => modelSignature(m) === sig);
-                setChosenIdx(idxHere >= 0 ? idxHere : null);
-              } else {
-                setChosenIdx(null);
-              }
-            } else {
-              setChosenIdx(null);
-            }
-          } catch {
-            setChosenIdx(null);
-          }
+          setChosenIdx(null);
+          setSavedIdx(null);
         }
 
         // Rehydrate shortlist
@@ -250,15 +218,15 @@ const Step6: React.FC = () => {
       } catch (e: any) {
         setModels([]);
         setTotal(undefined);
-        setPages(undefined);
+        setTotal(undefined);
         setErrMsg(e?.message || "Failed to load candidate models.");
         setChosenIdx(null);
+        setSavedIdx(null);
       } finally {
         setLoading(false);
-        setHasFetchedOnce(true);
       }
     },
-    [selectedWorkflowId, token]
+    [selectedWorkflowId]
   );
 
   /** Auto-fetch on mount & whenever workflow changes (page reset) */
@@ -266,19 +234,19 @@ const Step6: React.FC = () => {
     const wfId = Number(selectedWorkflowId);
     if (!Number.isFinite(wfId)) return;
     setPage(1);
-    fetchPage(1, pageSize);
-  }, [selectedWorkflowId, pageSize, fetchPage]);
+    loadCandidatesFromStep5();
+  }, [selectedWorkflowId, pageSize, loadCandidatesFromStep5]);
 
   /** Optional: auto-refresh when the tab regains focus */
   useEffect(() => {
     const onFocus = () => {
       const wfId = Number(selectedWorkflowId);
       if (!Number.isFinite(wfId)) return;
-      fetchPage(1, pageSize);
+      loadCandidatesFromStep5();
     };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [selectedWorkflowId, pageSize, fetchPage]);
+  }, [selectedWorkflowId, pageSize, loadCandidatesFromStep5]);
 
   /** Optional: react to Step 5 updates (localStorage event) */
   useEffect(() => {
@@ -290,87 +258,37 @@ const Step6: React.FC = () => {
       if (e.key === key) {
         const hasSel = loadSelectedRowsFromStep5(wfId).length > 0;
         setHasStep5Selection(hasSel);
-        fetchPage(1, pageSize);
+        loadCandidatesFromStep5();
       }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [selectedWorkflowId, pageSize, fetchPage]);
-
-  async function runCandidates() {
-    if (!Number.isFinite(selectedWorkflowId)) {
-      setErrMsg("Missing or invalid workflowId.");
-      return;
-    }
-    setPosting(true);
-    setErrMsg(null);
-    try {
-      const selectedRows = loadSelectedRowsFromStep5(Number(selectedWorkflowId));
-      const hasSel = selectedRows.length > 0;
-      setHasStep5Selection(hasSel);
-
-      if (!hasSel) {
-        throw new Error(
-          `No selected rows found in Step 5. Open the Filtering step, select one or more rows, and try again. (key: ${step5StorageKey(
-            Number(selectedWorkflowId)
-          )})`
-        );
-      }
-
-      await postCandidateModels({
-        apiBase: API_BASE,
-        token,
-        workflowId: Number(selectedWorkflowId),
-        candidate_models: selectedRows,
-      });
-
-      setHasTriggered(true);
-      setPage(1);
-      await fetchPage(1, pageSize);
-    } catch (e: any) {
-      setErrMsg(e?.message || "Failed to run candidate model generation.");
-      setModels([]);
-    } finally {
-      setPosting(false);
-    }
-  }
-
-  // Auto-run candidate generation once if we have saved Step 5 selections but no models yet
-  useEffect(() => {
-    const wfId = Number(selectedWorkflowId);
-    if (!Number.isFinite(wfId)) return;
-    if (!hasFetchedOnce) return;
-    if (!hasStep5Selection) return;
-    if (posting || loading) return;
-    if (hasTriggered) return;
-    if (models.length > 0) return;
-    runCandidates();
-  }, [selectedWorkflowId, hasFetchedOnce, hasStep5Selection, posting, loading, hasTriggered, models.length, runCandidates]);
+  }, [selectedWorkflowId, pageSize, loadCandidatesFromStep5]);
 
   // Enable export when we have results and not busy
   useEffect(() => {
     const ready =
       Number.isFinite(Number(selectedWorkflowId)) &&
       !loading &&
-      !posting &&
+      !saving &&
       ((models?.length ?? 0) > 0 || (total ?? 0) > 0);
     setExportReady(Boolean(ready));
-  }, [selectedWorkflowId, loading, posting, models, total]);
+  }, [selectedWorkflowId, loading, saving, models, total]);
 
   // Refetch when user changes page or pageSize after trigger
   useEffect(() => {
     if (!Number.isFinite(Number(selectedWorkflowId))) return;
-    fetchPage(page, pageSize);
-  }, [page, pageSize, selectedWorkflowId, fetchPage]);
+    loadCandidatesFromStep5();
+  }, [page, pageSize, selectedWorkflowId, loadCandidatesFromStep5]);
 
   // Reset on workflow change
   useEffect(() => {
     setModels([]);
     setTotal(undefined);
-    setPages(undefined);
-    setHasTriggered(false);
     setErrMsg(null);
     setChosenIdx(null);
+    setSavedIdx(null);
+    setSaveMsg(null);
 
     const wfId = Number(selectedWorkflowId);
     const step5Rows = loadSelectedRowsFromStep5(wfId);
@@ -453,14 +371,33 @@ const Step6: React.FC = () => {
   // Choose & persist single selection; shortlist optional
   function handleChoose(idx: number) {
     setChosenIdx(idx);
+    setSaveMsg(null);
+  }
+
+  function handleSaveCandidate() {
     const wfId = Number(selectedWorkflowId);
-    const model = models[idx];
-
-    // Save the exact model (including .raw if backend provided) for Step 7.
-    saveSingleSelection(wfId, idx, model);
-
-    const updated = addToShortlist(wfId, shortlist, model);
-    setShortlist(updated);
+    if (!Number.isFinite(wfId)) {
+      setErrMsg("Missing or invalid workflowId.");
+      return;
+    }
+    if (chosenIdx == null || !models[chosenIdx]) {
+      setErrMsg("Select a candidate model first.");
+      return;
+    }
+    setSaving(true);
+    setErrMsg(null);
+    try {
+      const model = models[chosenIdx];
+      saveSingleSelection(wfId, chosenIdx, model);
+      const updated = addToShortlist(wfId, shortlist, model);
+      setShortlist(updated);
+      setSavedIdx(chosenIdx);
+      setSaveMsg("Final model saved.");
+    } catch {
+      setErrMsg("Failed to save the final model. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleClearShortlist() {
@@ -480,7 +417,7 @@ const Step6: React.FC = () => {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Final Overlay Model</h1>
           <p className="mt-1 max-w-3xl text-base text-neutral-700">
-            Generate candidate models, then pick one to use for ECL. (Re-selecting overwrites the current choice.)
+            Pick a candidate model and click Save Candidate to set the final model.
           </p>
 
           {!hasStep5Selection && (
@@ -513,37 +450,42 @@ const Step6: React.FC = () => {
           </div>
 
           <button
-            onClick={runCandidates}
+            onClick={handleSaveCandidate}
             disabled={
-              posting || loading || !Number.isFinite(selectedWorkflowId as any) || !hasStep5Selection
+              saving ||
+              loading ||
+              !Number.isFinite(selectedWorkflowId as any) ||
+              chosenIdx == null ||
+              chosenIdx === savedIdx
             }
             className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
             title={
               !selectedWorkflowId
                 ? "Pick a workflow on Step 1"
-                : !hasStep5Selection
-                ? "Go to Step 5 and select one or more rows first"
+                : chosenIdx == null
+                ? "Select a candidate model first"
+                : chosenIdx === savedIdx
+                ? "This model is already saved"
                 : ""
             }
           >
-            <PlayCircleIcon className="h-4 w-4" />
-            {posting ? "Processing…" : "Run Candidate Models"}
+            {saving ? "Saving…" : "Save Candidate"}
           </button>
 
           <button
-            onClick={() => fetchPage(page, pageSize)}
+            onClick={() => loadCandidatesFromStep5()}
             disabled={
-              posting || loading || !Number.isFinite(selectedWorkflowId as any)
+              saving || loading || !Number.isFinite(selectedWorkflowId as any)
             }
             className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
             title={
               !selectedWorkflowId
                 ? "Pick a workflow on Step 1"
-                : "Fetch latest results"
+                : "Refresh from Step 5 selection"
             }
           >
-            <ArrowPathIcon className={`h-4 w-4 ${posting ? "animate-spin" : ""}`} />
-            {posting ? "Refreshing…" : "Refresh"}
+            <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
 
           {/* Export */}
@@ -568,7 +510,19 @@ const Step6: React.FC = () => {
         </div>
       </div>
     ),
-    [posting, loading, selectedWorkflowId, shortlist.length, hasStep5Selection, exportReady, exporting]
+    [
+      saving,
+      loading,
+      selectedWorkflowId,
+      shortlist.length,
+      hasStep5Selection,
+      exportReady,
+      exporting,
+      chosenIdx,
+      savedIdx,
+      handleSaveCandidate,
+      loadCandidatesFromStep5,
+    ]
   );
 
 
@@ -580,6 +534,11 @@ const Step6: React.FC = () => {
       {errMsg && (
         <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {errMsg}
+        </div>
+      )}
+      {saveMsg && (
+        <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          {saveMsg}
         </div>
       )}
       {exportErr && (
