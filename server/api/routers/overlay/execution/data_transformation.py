@@ -1361,7 +1361,7 @@ async def process_combine_monthly_mev_data_interpolation(
 
         # Save data in documents models
         document_type = "OVERLAY_EXECUTION_DATA_TRANSFORMATION_MEV_DATA_INTERPOLATION_OUTPUT"
-        filename = f"data_transformation_mev_data_interpolation_output_{get_time_date()}"
+        filename = f"data_transformation_mev_data_interpolation_output_{get_time_date()}.csv"
         output_folder_path = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/execution/{workflow.loan_product}/data_transformation/combined_monthly_mev_data_interpolation"
         db = SessionLocal()
         try:
