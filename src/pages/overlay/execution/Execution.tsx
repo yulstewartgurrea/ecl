@@ -8,6 +8,7 @@ import Step5 from './steps/Step5';
 // import Step6 from './steps/Step6';
 // import Step7 from './steps/Step7';
 import Step3DataTransformation from './steps/Step3DataTransformation';
+import Step3DataTransformationCombineForecastedMEVAndInterpolation from './steps/Step3DataTransformationCombineForecastedMEVAndInterpolation';
 // import Step4 from './steps/Step4';
 // import Step5 from './steps/Step5';
 // import Step6 from './steps/Step6';
@@ -44,6 +45,7 @@ const OverlayDevelopmentStep1 = () => {
   const developmentSteps = [
     { label: "Inputs", completed: false },
     { label: "Forecast Interpolation", completed: false },
+    { label: "Data Transformation Combine Forecasted MEV and Interpolation", completed: false },
     { label: "Data Transformation", completed: false },
     { label: "MEVs Forecast Transformation", completed: false },
     { label: "Forcasted Loss Rate Calculation", completed: false },
@@ -93,12 +95,14 @@ const OverlayDevelopmentStep1 = () => {
       case 1:
         return <Step2 />
       case 2:
-        return <Step3DataTransformation />;
+        return <Step3DataTransformationCombineForecastedMEVAndInterpolation />;
       case 3:
-        return <Step3 />; 
+        return <Step3DataTransformation />;
       case 4:
-        return <Step4 />;
+        return <Step3 />; 
       case 5:
+        return <Step4 />;
+      case 6:
         return <Step5 />;
       // case 7:
       //   return <Step6 />;
