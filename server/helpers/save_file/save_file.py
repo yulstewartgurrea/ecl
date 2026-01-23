@@ -24,6 +24,7 @@ from helpers.save_file.overlay.execution.mev_arima_forecast import (
     save_mev_monthly_arima_forecast_output,
     save_mev_quarterly_arima_forecast_output
 )
+from helpers.save_file.overlay.execution.save_combined_mev_monthly_arima_output import save_combined_mev_monthly_arima_output
 
 # ECL
 from helpers.save_file.ecl.creditloss_rates import save_creditloss_rates_output
@@ -70,6 +71,7 @@ def save_csv_data_in_folder(
             "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA_FORECAST_OUTPUT": save_mev_monthly_arima_forecast_output,
             "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA_FORECAST_OUTPUT": save_mev_quarterly_arima_forecast_output,
             "OVERLAY_EXECUTION_OVERRIDE_DATA_TRANSFORMATION_MEVS_OUTPUT": save_override_data_transformation_mevs_output,
+            "OVERLAY_EXECUTION_DATA_TRANSFORMATION_MEV_DATA_INTERPOLATION_OUTPUT": save_combined_mev_monthly_arima_output,
 
             "ECL_CREDIT_LOSS_RATES_OUTPUT": save_creditloss_rates_output,
             "ECL_OUTPUT": save_ecl_output,

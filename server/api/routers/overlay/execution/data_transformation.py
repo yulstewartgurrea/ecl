@@ -13,7 +13,9 @@ from datetime import datetime
 
 from typing import List, Dict, Any, Optional
 from helpers.file_utils import find_and_read_data_file, get_root_folder, read_data_file
-from data_processing.overlay.execution.data_transformation import process_data_transformation
+from data_processing.overlay.execution.data_transformation import (
+    process_data_transformation,
+    combine_monthly_mev_data_interpolation)
 
 from database import SessionLocal
 
@@ -33,7 +35,7 @@ from models.overlay.execution import (
 )
 
 from helpers.get_time_date import get_time_date
-from helpers.save_csv_data_in_folder import save_csv_data_in_folder
+from helpers.save_file.save_file import save_csv_data_in_folder
 from helpers.make_json_serializable import make_json_serializable
 from helpers.format_dataframe_constructor import format_dataframe_constructor
 
@@ -167,7 +169,7 @@ def run_data_transformation_background(job_id: int,
                                     execution_input_file: str,
                                     # use uploaded from tool or from development
                                     # true if uploaded, false if from development
-                                    final_model_execution_file: bool,
+                                    # final_model_execution_file: bool,
                                     historical_weighted_credit_loss_rate_file: bool):
     """
     Background function that runs the data transformation process
@@ -213,23 +215,31 @@ def run_data_transformation_background(job_id: int,
             f"{workflow.workflow_name}/"
             f"output/overlay/execution/{workflow.loan_product}/data_interpolation"
         )
+
+        override_data_transformation_mevs_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"output/overlay/execution/{workflow.loan_product}/override_data_transformation_mevs"
+        )
         
-        if final_model_execution_file:
-            final_models_path = (
-                f"{get_root_folder()}/server/files/"
-                f"{workflow.entity}/"
-                f"{workflow.reporting_period}/"
-                f"{workflow.workflow_name}/"
-                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
-            )
-        else:
-            final_models_path = (
-                f"{get_root_folder()}/server/files/"
-                f"{workflow.entity}/"
-                f"{workflow.reporting_period}/"
-                f"{workflow.workflow_name}/"
-                f"output/overlay/development/{workflow.loan_product}/final_models"
-            )
+        # if final_model_execution_file:
+        #     final_models_path = (
+        #         f"{get_root_folder()}/server/files/"
+        #         f"{workflow.entity}/"
+        #         f"{workflow.reporting_period}/"
+        #         f"{workflow.workflow_name}/"
+        #         f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
+        #     )
+        # else:
+        #     final_models_path = (
+        #         f"{get_root_folder()}/server/files/"
+        #         f"{workflow.entity}/"
+        #         f"{workflow.reporting_period}/"
+        #         f"{workflow.workflow_name}/"
+        #         f"output/overlay/development/{workflow.loan_product}/final_models"
+        #     )
 
         if historical_weighted_credit_loss_rate_file:
             historical_default_rates_path = (
@@ -273,7 +283,8 @@ def run_data_transformation_background(job_id: int,
         monthly_mev_arima_file = get_latest_file(monthly_mev_arima_path)
         data_interpolation_file = get_latest_file(data_interpolation_path)
         historical_default_rates_file = get_latest_file(historical_default_rates_path)
-        final_models_file = get_latest_file(final_models_path)
+        # final_models_file = get_latest_file(final_models_path)
+        override_data_transformation_mevs_file = get_latest_file(override_data_transformation_mevs_path)
         
         # Helper function to calculate and set running time
         def set_running_time():
@@ -283,7 +294,7 @@ def run_data_transformation_background(job_id: int,
                 job.completed_at = completed_time
                 job.running_time_seconds = int(running_time)
 
-        if not monthly_mev_arima_file or not data_interpolation_file or not historical_default_rates_file or not final_models_file:
+        if not monthly_mev_arima_file or not data_interpolation_file or not historical_default_rates_file or not override_data_transformation_mevs_file:
             set_running_time()
             job.status = "failed"
             job.error_message = "Required data files not found"
@@ -329,19 +340,19 @@ def run_data_transformation_background(job_id: int,
             set_running_time()
             return
         
-        try:
-            final_models_df = read_data_file(final_models_file)
-            if final_models_df is None or final_models_df.empty:
-                raise ValueError(f"Failed to read or empty final models file: {final_models_file}")
-        except Exception as e:
-            error_msg = f"Error reading final models file: {str(e)}"
-            print(error_msg)
-            set_running_time()
-            job.status = "failed"
-            job.error_message = error_msg
-            job.message = error_msg
-            db.commit()
-            return
+        # try:
+        #     final_models_df = read_data_file(final_models_file)
+        #     if final_models_df is None or final_models_df.empty:
+        #         raise ValueError(f"Failed to read or empty final models file: {final_models_file}")
+        # except Exception as e:
+        #     error_msg = f"Error reading final models file: {str(e)}"
+        #     print(error_msg)
+        #     set_running_time()
+        #     job.status = "failed"
+        #     job.error_message = error_msg
+        #     job.message = error_msg
+        #     db.commit()
+        #     return
 
         try:
             monthly_historical_mev_df = read_data_file(monthly_mev_arima_file)
@@ -384,6 +395,38 @@ def run_data_transformation_background(job_id: int,
             job.message = error_msg
             db.commit()
             return
+
+        try:
+            # Determine file type based on extension
+            file_ext = os.path.splitext(override_data_transformation_mevs_file)[1].lower()
+            
+            if file_ext in ['.xlsx', '.xls']:
+                # Read Excel file
+                print(f"Detected Excel file: {file_ext}")
+                override_data_transformation_mevs_df = pd.read_excel(override_data_transformation_mevs_file, header=None)
+                override_data_transformation_mevs_df.iloc[0] = override_data_transformation_mevs_df.iloc[0].ffill()
+                cols = [a if pd.isna(b) else f"{a} {b}" for a, b in zip(override_data_transformation_mevs_df.iloc[0], override_data_transformation_mevs_df.iloc[1])]
+                # Drop header rows and assign columns
+                override_data_transformation_mevs_df = override_data_transformation_mevs_df.iloc[2:].set_axis(cols, axis=1).reset_index(drop=True)
+            elif file_ext == '.csv':
+                # Read CSV file
+                print(f"Detected CSV file")
+                override_data_transformation_mevs_df = pd.read_csv(override_data_transformation_mevs_file, header=None)
+                override_data_transformation_mevs_df.iloc[0] = override_data_transformation_mevs_df.iloc[0].ffill()
+                cols = [a if pd.isna(b) else f"{a} {b}" for a, b in zip(override_data_transformation_mevs_df.iloc[0], override_data_transformation_mevs_df.iloc[1])]
+                # Drop header rows and assign columns
+                override_data_transformation_mevs_df = override_data_transformation_mevs_df.iloc[2:].set_axis(cols, axis=1).reset_index(drop=True)
+            else:
+                raise ValueError(f"Failed to read or empty override data transformation mevs file: {override_data_transformation_mevs_file}")
+        except Exception as e:
+            error_msg = f"Error reading override data transformation mevs file: {str(e)}"
+            print(error_msg)
+            set_running_time()
+            job.status = "failed"
+            job.error_message = error_msg
+            job.message = error_msg
+            db.commit()
+            return
         
         # Process transformation with progress updates
         update_progress(20, "Starting data transformation...")
@@ -397,7 +440,8 @@ def run_data_transformation_background(job_id: int,
                 data_interpolation_df,
                 historical_default_rates_df,
                 workflow,
-                final_models_df,
+                # final_models_df,
+                override_data_transformation_mevs_df,
                 progress_callback=update_progress,
                 cancellation_check=check_cancellation,
                 num_combinations=num_combinations
@@ -554,22 +598,30 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
                 f"output/overlay/execution/{workflow.loan_product}/data_interpolation"
             )
 
-            if final_model_execution_file:
-                final_models_path = (
-                    f"{get_root_folder()}/server/files/"
-                    f"{workflow.entity}/"
-                    f"{workflow.reporting_period}/"
-                    f"{workflow.workflow_name}/"
-                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
-                )
-            else:
-                final_models_path = (
-                    f"{get_root_folder()}/server/files/"
-                    f"{workflow.entity}/"
-                    f"{workflow.reporting_period}/"
-                    f"{workflow.workflow_name}/"
-                    f"output/overlay/development/{workflow.loan_product}/final_models"
-                )
+            # if final_model_execution_file:
+            #     final_models_path = (
+            #         f"{get_root_folder()}/server/files/"
+            #         f"{workflow.entity}/"
+            #         f"{workflow.reporting_period}/"
+            #         f"{workflow.workflow_name}/"
+            #         f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
+            #     )
+            # else:
+            #     final_models_path = (
+            #         f"{get_root_folder()}/server/files/"
+            #         f"{workflow.entity}/"
+            #         f"{workflow.reporting_period}/"
+            #         f"{workflow.workflow_name}/"
+            #         f"output/overlay/development/{workflow.loan_product}/final_models"
+            #     )
+
+            override_data_transformation_mevs_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/execution/{workflow.loan_product}/override_data_transformation_mevs"
+            )
 
             
             if historical_weighted_credit_loss_rate_file:
@@ -616,12 +668,14 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
             monthly_mev_arima_file = get_latest_file(monthly_mev_arima_path)
             data_interpolation_file = get_latest_file(data_interpolation_path)
             historical_default_rates_file = get_latest_file(historical_default_rates_path)
-            final_models_file = get_latest_file(final_models_path)
+            # final_models_file = get_latest_file(final_models_path)
+            override_data_transformation_mevs_file = get_latest_file(override_data_transformation_mevs_path)
 
             print('monthly_mev_arima_file', monthly_mev_arima_file)
             print('data_interpolation_file', data_interpolation_file)
             print('historical_default_rates_file', historical_default_rates_file)
-            print('final_models_file', final_models_file)
+            print('override_data_transformation_mevs_file', override_data_transformation_mevs_file)
+            # print('final_models_file', final_models_file)
 
             if not workflow:
                 return JSONResponse(
@@ -674,6 +728,17 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
                         "code": -1,
                         "success": False,
                         "msg": "No historical default rates data found for this workflow",
+                        "data": None
+                    }
+                )
+
+            if not override_data_transformation_mevs_file:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "No override data transformation mevs data found for this workflow",
                         "data": None
                     }
                 )
@@ -732,7 +797,7 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
                     user_id.id, 
                     num_combinations, 
                     execution_input_file, 
-                    final_model_execution_file, 
+                    # final_model_execution_file, 
                     historical_weighted_credit_loss_rate_file),
             daemon=True
         )
@@ -1091,3 +1156,260 @@ async def export_data_transformation_results(
                 "data": None
             }
         )
+
+@router.get("/data_transformation/combine_monthly_mev_data_interpolation_results")
+async def get_combine_monthly_mev_data_interpolation_results(workflow_id: int = Query(...),
+                                         current_user: User = Depends(get_current_user)):
+    """Get the results of combined monthly MEV data interpolation for display"""
+    try:
+        root_folder = get_root_folder()
+        print('root_folder', root_folder)
+        db = SessionLocal()
+        
+        workflow = db.query(Workflow).filter(
+            Workflow.id == workflow_id,
+            Workflow.user_id == current_user.id
+        ).first()
+
+        if not workflow:
+            print(f"Workflow with ID {workflow_id} not found for user {current_user.id}")
+            return JSONResponse(status_code=404, content={"detail": f"Workflow with ID {workflow_id} not found"})
+
+        print(f"Found workflow: {workflow.workflow_name} (Entity: {workflow.entity}, Period: {workflow.reporting_period}, Portfolio: {workflow.loan_product})")
+
+        # Construct file paths based on workflow
+        portfolio = workflow.loan_product
+        
+        # Use the correct server_files_path
+        server_files_path = f"{root_folder}/server/files/{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/execution/{portfolio}/data_transformation/combined_monthly_mev_data_interpolation"
+        
+        print(f"Looking for files in: {server_files_path}")
+        
+        if not os.path.exists(server_files_path):
+            print(f"{server_files_path} does not exist")
+            return JSONResponse(status_code=404, content={"detail": f"Combined monthly MEV data interpolation directory not found: {server_files_path}"})
+        
+        combined_files = get_latest_file(server_files_path)
+        combined_df = read_data_file(combined_files)
+
+        combined_df = clean_dataframe_for_json(combined_df)
+        
+        return JSONResponse(content={
+            "code": 1,
+            "msg": "Success",
+            "success": True,
+            "data": combined_df.to_dict(orient='records')
+        })
+        
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Something went wrong: {str(e)}",
+                "data": None
+            }
+        )
+
+
+@router.get("/data_transformation/combine_monthly_mev_data_interpolation_results/export")
+async def export_combine_monthly_mev_data_interpolation_results(
+    workflow_id: int = Query(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Export latest combined monthly MEV data interpolation as CSV."""
+    try:
+        root_folder = get_root_folder()
+        db = SessionLocal()
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id,
+                Workflow.user_id == current_user.id
+            ).first()
+
+            if not workflow:
+                return JSONResponse(status_code=404, content={"detail": f"Workflow with ID {workflow_id} not found"})
+
+            portfolio = workflow.loan_product
+            server_files_path = f"{root_folder}/server/files/{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/execution/{portfolio}/data_transformation/combined_monthly_mev_data_interpolation"
+
+            if not os.path.exists(server_files_path):
+                return JSONResponse(status_code=404, content={"detail": f"Combined monthly MEV data interpolation directory not found: {server_files_path}"})
+
+            combined_file = get_latest_file(server_files_path)
+
+            if not combined_file:
+                return JSONResponse(status_code=404, content={"detail": "No combined monthly MEV data interpolation file found"})
+
+            # get_latest_file returns a Path object with full path
+            combined_path = str(combined_file)
+            filename = os.path.basename(combined_path)
+            
+            return FileResponse(combined_path, media_type="text/csv", filename=filename)
+        finally:
+            db.close()
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Error exporting combined monthly MEV data interpolation results: {str(e)}",
+                "data": None
+            }
+        )
+
+
+@router.post("/data_transformation/combine_monthly_mev_data_interpolation")
+async def process_combine_monthly_mev_data_interpolation(
+    workflow_id: int = Form(...),
+    execution_input_file: str = Form(...),
+    final_model_execution_file: bool = Form(False, description="Use final model execution file"),
+    current_user: User = Depends(get_current_user)):
+    """Get the combined monthly MEV and interpolation data for display in Step3"""
+    db = SessionLocal()
+    try:
+        workflow = db.query(Workflow).filter(
+            Workflow.id == workflow_id,
+            Workflow.user_id == current_user.id
+        ).first()
+
+        if not workflow:
+            return JSONResponse(status_code=404, content={"detail": f"Workflow with ID {workflow_id} not found"})
+
+        # Get file paths (patterned after POST endpoint)
+        data_interpolation_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"output/overlay/execution/{workflow.loan_product}/data_interpolation"
+        )
+
+        # get input file from library 
+        if execution_input_file == "forecast_mev":
+            monthly_mev_arima_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_monthly_arima_forecast"
+            )
+        else:
+            monthly_mev_arima_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA"
+            )
+
+        if final_model_execution_file:
+            final_models_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
+            )
+        else:
+            final_models_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{workflow.loan_product}/final_models"
+            )
+
+        # get input file from library 
+        if execution_input_file == "forecast_mev":
+            monthly_mev_arima_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/execution/{workflow.loan_product}/generated/mev_monthly_arima_forecast"
+            )
+        else:
+            monthly_mev_arima_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA"
+            )
+
+        data_interpolation_file = get_latest_file(data_interpolation_path)
+        monthly_mev_arima_file = get_latest_file(monthly_mev_arima_path)
+        final_models_file = get_latest_file(final_models_path)
+
+        data_interpolation_df = read_data_file(data_interpolation_file)
+        monthly_mev_arima_df = read_data_file(monthly_mev_arima_file)
+        final_models_df = read_data_file(final_models_file)
+
+        combined_monthly_mev_data_interpolation_df = combine_monthly_mev_data_interpolation(
+            monthly_mev_arima_df, 
+            data_interpolation_df, 
+            final_models_df
+        )
+
+        if combined_monthly_mev_data_interpolation_df is None or combined_monthly_mev_data_interpolation_df.empty:
+            return JSONResponse(status_code=400, content={"detail": "No combined monthly MEV data interpolation data generated successfully."})
+
+        # Save data in documents models
+        document_type = "OVERLAY_EXECUTION_DATA_TRANSFORMATION_MEV_DATA_INTERPOLATION_OUTPUT"
+        filename = f"data_transformation_mev_data_interpolation_output_{get_time_date()}"
+        output_folder_path = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/execution/{workflow.loan_product}/data_transformation/combined_monthly_mev_data_interpolation"
+        db = SessionLocal()
+        try:
+            # Convert Date column to string for JSON serialization
+            
+            # Create Document record
+            new_document = Document(
+                filename=filename,
+                json_data=None,
+                document_type=document_type,
+                user_id=current_user.id,
+                workflow_id=workflow_id,
+                workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
+            )
+            db.add(new_document)
+            db.commit()
+            db.refresh(new_document)
+            
+        finally:
+            db.close()
+
+        save_csv_data_in_folder(
+            workflow_path=output_folder_path,
+            document_type=document_type,
+            # csv_data is a daraframe
+            csv_data=combined_monthly_mev_data_interpolation_df,
+            filename=filename
+        )
+
+        res = {
+            'code': 1,
+            'success': True,
+            'msg': 'Data transformation MEV data interpolation combined and saved successfully',
+            # 'data': process_data_interpolation_res.to_dict(orient='records')
+        }
+
+        return JSONResponse(status_code=200, content=res)
+
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Something went wrong: {str(e)}",
+                "data": None
+            }
+        )
+
+            
