@@ -107,19 +107,24 @@ export default function OverlayExecutionPage3() {
         setTransformedRows(null);
         return;
       }
-      if (!apiVariables.length) {
-        // Wait for variables to load first
-        return;
-      }
       try {
         setLoading(true);
         // Always check for existing transformed data when visiting the page
+        // Variables are now extracted automatically from the API response
         const rows = await getTransformedForecastedMevs(
           selectedWorkflowId,
-          apiVariables,
+          apiVariables, // Fallback if extraction fails
           token
         );
         setTransformedRows(rows);
+        
+        // Extract variables from transformed rows for table display
+        if (rows.length > 0 && rows[0].upside) {
+          const extractedVars = Object.keys(rows[0].upside).sort();
+          if (extractedVars.length > 0) {
+            setVariables(extractedVars);
+          }
+        }
       } catch (err) {
         console.error("Failed to load transformed forecasted MEVs:", err);
         // Don't show alert on initial load, just silently fail
@@ -136,18 +141,23 @@ export default function OverlayExecutionPage3() {
   const fetchInterpolation = useCallback(async () => {
     console.log('selectedWorkflowId GET: ', selectedWorkflowId)
     if (!selectedWorkflowId) return;
-    if (!apiVariables.length) {
-      alert("No variables found. Load configuration first.");
-      return;
-    }
     setLoading(true);
     try {
+      // Variables are now extracted automatically from the API response
       const rows = await getTransformedForecastedMevs(
         selectedWorkflowId,
-        apiVariables,
+        apiVariables, // Fallback if extraction fails
         token
       );
       setTransformedRows(rows);
+      
+      // Extract variables from transformed rows for table display
+      if (rows.length > 0 && rows[0].upside) {
+        const extractedVars = Object.keys(rows[0].upside).sort();
+        if (extractedVars.length > 0) {
+          setVariables(extractedVars);
+        }
+      }
     } catch (err) {
       console.error(err);
       alert("Failed to load transformed forecasted MEVs.");
@@ -248,6 +258,14 @@ export default function OverlayExecutionPage3() {
           token
         );
         setTransformedRows(transformed);
+        
+        // Extract variables from transformed rows for table display
+        if (transformed.length > 0 && transformed[0].upside) {
+          const extractedVars = Object.keys(transformed[0].upside).sort();
+          if (extractedVars.length > 0) {
+            setVariables(extractedVars);
+          }
+        }
       } catch (err) {
         console.error("Auto MEV override/transform sequence failed:", err);
       }
