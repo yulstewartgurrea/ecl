@@ -1,4 +1,4 @@
-// pages/ecl/steps/Step4.tsx
+﻿// pages/ecl/steps/Step4.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   InformationCircleIcon,
@@ -57,30 +57,28 @@ export default function Step4() {
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
-  const { currentPdTransitionMatrixWorkflowId } = useAppSelector(
-    (state: any) => state.pdTransitionMatrixWfHelper
-  );
+  const {
+    currentPdTransitionMatrixWorkflowId,
+    currentPdTransitionMatrixWorkflowData,
+    pdTransitionMatrixWfName,
+  } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
 
   const workflowId = useMemo(() => {
-    const fromRedux = currentPdTransitionMatrixWorkflowId;
-    if (fromRedux) return Number(fromRedux);
-
-    if (typeof window !== "undefined") {
-      const raw = window.localStorage.getItem("current_workflow_id");
-      const parsed = raw ? Number(raw) : NaN;
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    }
+    const fromRedux =
+      currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
+    const parsed = Number(fromRedux);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
     return 35; // fallback (matches your sample GET)
-  }, [currentPdTransitionMatrixWorkflowId]);
+  }, [currentPdTransitionMatrixWorkflowId, currentPdTransitionMatrixWorkflowData]);
 
   const [rows, setRows] = useState<AgingPortfolioRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ initial GET state
+  //  initial GET state
   const [hasInitialFetched, setHasInitialFetched] = useState(false);
-  // ✅ if no data, require manual run
+  //  if no data, require manual run
   const [needsRun, setNeedsRun] = useState(false);
 
   const busy = loading || posting;
@@ -130,7 +128,7 @@ export default function Step4() {
   };
 
 
-  // ✅ Initial behavior: GET only (once per workflowId)
+  //  Initial behavior: GET only (once per workflowId)
   useEffect(() => {
     if (!workflowId) return;
 
@@ -163,13 +161,13 @@ export default function Step4() {
               <p className="mt-1 text-[11px] leading-relaxed text-amber-900/90">
                 <span className="font-semibold">Per bucket ECL Rate formula:</span>{" "}
                 <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-[10px]">
-                  ECL Rate (bucket) = Weighted ECL ÷ Loan Balance × 100
+                  ECL Rate (bucket) = Weighted ECL Ã· Loan Balance Ã— 100
                 </code>
                 .
               </p>
 
               <div className="mt-2 text-xs text-amber-900/80">
-                workflow_id: <b>{workflowId}</b>
+                Workflow Name: <b>{pdTransitionMatrixWfName || ""}</b>
               </div>
             </div>
           </div>
@@ -187,17 +185,17 @@ export default function Step4() {
 
         {/* Chart card */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3  border-slate-200 bg-slate-50 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">
-                Portfolio ECL by Aging Category – Chart
+                Portfolio ECL by Aging Category  Chart
               </h2>
               <p className="text-xs text-slate-500">
                 {loading && !hasInitialFetched
-                  ? "Loading initial data…"
+                  ? "Loading initial data"
                   : needsRun
                   ? "No computed data found. Click Run to compute."
-                  : "Bars show loan balance per bucket; line shows ECL rate (weightedEcl / loanBalance × 100)."}
+                  : "Bars show loan balance per bucket; line shows ECL rate (weightedEcl / loanBalance Ã— 100)."}
               </p>
             </div>
 
@@ -207,7 +205,7 @@ export default function Step4() {
           <div className="px-4 pb-4 pt-3">
             {rows.length === 0 ? (
               <div className="rounded-lg border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-                {loading ? "Loading…" : needsRun ? "No data yet. Click Run." : "No rows."}
+                {loading ? "Loading" : needsRun ? "No data yet. Click Run." : "No rows."}
               </div>
             ) : (
               <PortfolioEclByAgingChart rows={rows} />
@@ -218,3 +216,4 @@ export default function Step4() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-// src/components/BackendLoader.tsx
+﻿// src/components/BackendLoader.tsx
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 
@@ -11,7 +11,7 @@ type BackendStatusPayload = {
 export default function BackendLoader() {
   const [status, setStatus] = useState<BackendStatusPayload>({
     step: "init",
-    message: "Initializing…",
+    message: "Initializing",
     error: null,
   });
 
@@ -44,7 +44,7 @@ useEffect(() => {
             <div className="h-3 w-3 rounded-full bg-red-500" />
           )}
           <h1 className="text-lg font-semibold">
-            {isError ? "Backend error" : "Starting backend…"}
+            {isError ? "Backend error" : "Starting backend"}
           </h1>
         </div>
 
@@ -58,11 +58,12 @@ useEffect(() => {
 
         {!isError && (
           <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-transparent" />
-            <span>Please wait while we prepare Python & FastAPI…</span>
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-500 -transparent" />
+            <span>Please wait while we prepare Python & FastAPI</span>
           </div>
         )}
       </div>
     </div>
   );
 }
+

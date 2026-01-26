@@ -632,7 +632,7 @@ export default function OverlayDevelpmentPage3() {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              {busy ? "Processingâ€¦" : "Run Data Transform"}
+              {busy ? "Processing" : "Run Data Transform"}
             </button>
 
             {/* Refresh (with status check) */}
@@ -652,7 +652,7 @@ export default function OverlayDevelpmentPage3() {
               <ArrowPathIcon
                 className={`h-4 w-4 ${statusLoading ? "animate-spin" : ""}`}
               />
-              {statusLoading ? "Checkingâ€¦" : "Refresh"}
+              {statusLoading ? "Checking" : "Refresh"}
             </button>
 
             {/* Cancel (only show when job is pending or processing) */}
@@ -673,7 +673,7 @@ export default function OverlayDevelpmentPage3() {
                 <XCircleIcon
                   className={`h-4 w-4 ${cancelling ? "animate-spin" : ""}`}
                 />
-                {cancelling ? "Cancellingâ€¦" : "Cancel"}
+                {cancelling ? "Cancelling" : "Cancel"}
               </button>
             )}
 
@@ -695,7 +695,7 @@ export default function OverlayDevelpmentPage3() {
               }
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
-              {exporting ? "Exportingâ€¦" : "Export CSV"}
+              {exporting ? "Exporting" : "Export CSV"}
             </button>
 
           </div>
@@ -786,7 +786,7 @@ export default function OverlayDevelpmentPage3() {
           )}
           {status && status.status === "completed" && (
             <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-              âœ“ Job completed successfully
+              Job completed successfully
               {status.running_time_seconds !== null && (
                 <span className="ml-2 text-xs">
                   (Completed in {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s)
@@ -810,6 +810,5 @@ export default function OverlayDevelpmentPage3() {
     </div>
   );
 }
-
 
 

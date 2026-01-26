@@ -24,10 +24,10 @@ export type ModelMetrics = {
 export type ModelSpec = {
   title: string;
   variables: ModelVariable[];
-  metrics: ModelMetrics;
+  metrics?: ModelMetrics;
   previewUrl?: string;
 
-  // ✅ extras used by Step 6/7
+  // extras used by Step 6/7
   raw?: any;                         // the original server row
   index?: number;                    // internal index
   Y?: string;
@@ -283,9 +283,18 @@ function SelectableCard({
 
       {/* Metrics */}
       <div className="mt-4 grid grid-cols-3 gap-3">
-        <Metric label="Adj. R²" value={fmtPercent(model.metrics.Adj_R_Squared)} />
-        <Metric label="RMSE" value={fmtNumber(model.metrics.RMSE)} />
-        <Metric label="MAPE" value={fmtPctOrVal(model.metrics.MAPE)} />
+        <Metric
+          label="Adj. R²"
+          value={fmtPercent((model.metrics?.Adj_R_Squared as any) ?? (model as any).Adj_R_Squared)}
+        />
+        <Metric
+          label="RMSE"
+          value={fmtNumber((model.metrics?.RMSE as any) ?? (model as any).RMSE)}
+        />
+        <Metric
+          label="MAPE"
+          value={fmtPctOrVal((model.metrics?.MAPE as any) ?? (model as any).MAPE)}
+        />
       </div>
     </div>
   );

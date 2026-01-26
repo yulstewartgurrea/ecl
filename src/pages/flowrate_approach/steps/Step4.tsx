@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useLocation, useSearchParams } from "react-router-dom";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
@@ -15,14 +15,14 @@ import {
 } from "../../../redux_toolkit/features/asa/flowrateStep5Slice";
 
 import {
-  coerceRowsFromStep5,
+  coerceRowsFromStep3,
   coerceRateSets,
   coerceDistribution,
 } from "../../../lib/flowrateCoercers";
 
-export default function Step6() {
+export default function Step4() {
   const dispatch = useDispatch();
-  const { getStep5Data } = useAsaApi();
+  const { getStep3Data } = useAsaApi();
 
   const reduxId = useAppSelector(
     (s: any) => s.pdTransitionMatrixWfHelper?.currentPdTransitionMatrixWorkflowId
@@ -34,7 +34,7 @@ export default function Step6() {
   const idFromState = state?.workflowId;
   const idFromLocal = Number(localStorage.getItem("current_workflow_id") || "");
 
-  const cacheMap = useSelector((s: any) => s.flowrateStep5?.byWorkflowId ?? {});
+  const cacheMap = useSelector((s: any) => s.flowrateStep3?.byWorkflowId ?? {});
   const firstCachedKey = useMemo(() => {
     const keys = Object.keys(cacheMap)
       .map(Number)
@@ -73,10 +73,10 @@ export default function Step6() {
 
     (async () => {
       try {
-        const s5 = await getStep5Data(workflowId);
+        const s5 = await getStep3Data(workflowId);
 
         // ✅ IMPORTANT: keep rows dynamic; do NOT convert to fixed par_* keys
-        const r = coerceRowsFromStep5(s5);
+        const r = coerceRowsFromStep3(s5);
         const rs = coerceRateSets(s5);
         const dist = coerceDistribution(s5);
 
@@ -109,7 +109,7 @@ export default function Step6() {
     return () => {
       mounted = false;
     };
-  }, [workflowId, cached?.rows, rowsLocal, getStep5Data, dispatch]);
+  }, [workflowId, cached?.rows, rowsLocal, getStep3Data, dispatch]);
 
   // ✅ pass raw/dynamic rows to charts
   const sourceRows: CreditLossRateAnyRow[] = (cached?.rows ?? rowsLocal ?? []) as any[];

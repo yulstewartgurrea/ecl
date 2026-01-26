@@ -144,7 +144,7 @@ export default function Step1() {
     (state) => state.historicalWeightedCreditLossRateFile.historical_weighted_credit_loss_rate_file
   );
 
-  // âœ… new: workflow mode
+// new: workflow mode
   const [mode, setMode] = useState<InputMode>("UPLOAD_MANUAL");
 
   // Execution inputs
@@ -165,7 +165,7 @@ export default function Step1() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // âœ… new: generator state
+// new: generator state
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoMonthlyOk, setAutoMonthlyOk] = useState<boolean | null>(null);
   const [autoQuarterlyOk, setAutoQuarterlyOk] = useState<boolean | null>(null);
@@ -176,7 +176,7 @@ export default function Step1() {
   const accept = ".csv,.xlsx,.xls";
   const maxSizeMB = 20;
 
-  // Build the base workflow path â†’ <entity>/<period>/<wfName>/input/overlay/execution/<loanproduct>
+// Build the base workflow path -> <entity>/<period>/<wfName>/input/overlay/execution/<loanproduct>
   const baseDir = `/${entity}/${period}/${workflowName}`.replace(/^\/+/, "");
   const workflowPathBase = `${baseDir}/input/overlay/execution/${loanproduct}`;
 
@@ -646,7 +646,7 @@ export default function Step1() {
     ]
   );
 
-  // Dropzone handlers â€” upload new files, ignore placeholders from existing docs
+// Dropzone handlers - upload new files, ignore placeholders from existing docs
   const handleMonthlyFilesChange = useCallback(
     async (files: File[]) => {
       setMonthlyFiles(files);
@@ -718,7 +718,7 @@ export default function Step1() {
     if (quarterlyFiles.length) parts.push(`${quarterlyFiles.length} quarterly`);
     if (finalModelFiles.length) parts.push(`${finalModelFiles.length} final model`);
     if (historicalWeightedFiles.length) parts.push(`${historicalWeightedFiles.length} historical weighted`);
-    return parts.join(" â€¢ ");
+      return parts.join(" - ");
   }, [monthlyFiles.length, quarterlyFiles.length, finalModelFiles.length, historicalWeightedFiles.length]);
 
   const uploadStatus = useMemo(() => {
@@ -797,7 +797,7 @@ export default function Step1() {
               className="ml-2 text-emerald-600 hover:text-emerald-800"
               title="Dismiss success message"
             >
-              âœ•
+              x
             </button>
           </div>
         </div>
@@ -816,7 +816,7 @@ export default function Step1() {
               className="ml-2 text-red-600 hover:text-red-800"
               title="Dismiss error"
             >
-              âœ•
+              x
             </button>
           </div>
         </div>
@@ -915,7 +915,7 @@ export default function Step1() {
 
       <div className="rounded-3xl bg-white/80 backdrop-blur shadow-sm">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border border-gray-200">
+        <div className="flex items-center justify-between px-5 py-4">
           <div>
             <h3 className="text-lg font-bold tracking-tight text-gray-900">
               Execution Input Files
@@ -924,7 +924,7 @@ export default function Step1() {
               Accepted types: <span className="font-medium">{accept}</span>
             </p>
             <p className="text-[11px] text-gray-400 mt-1">
-              Workflow ID: <span className="font-mono">{effectiveWorkflowId}</span>
+              Workflow Name: <span className="font-mono">{workflowName || ""}</span>
             </p>
           </div>
 
@@ -965,7 +965,7 @@ export default function Step1() {
           </div>
         </div>
 
-        {/* âœ… Mode selector */}
+        {/* Mode selector */}
         <div className="px-5 pt-4">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
@@ -986,7 +986,7 @@ export default function Step1() {
                 className={[
                   "cursor-pointer px-3 py-2 text-sm font-semibold rounded-xl transition",
                   isAuto
-                    ? "bg-gray-100 text-gray-900"
+                    ? "bg-gray-100 text-gray-900 border border-gray-200"
                     : "text-gray-700 hover:bg-gray-50",
                 ].join(" ")}
               >
@@ -1001,7 +1001,7 @@ export default function Step1() {
                 className={[
                   "cursor-pointer px-3 py-2 text-sm font-semibold rounded-xl transition",
                   !isAuto
-                    ? "bg-gray-100 text-gray-900"
+                    ? "bg-gray-100 text-gray-900 border border-gray-200"
                     : "text-gray-700 hover:bg-gray-50",
                 ].join(" ")}
               >
@@ -1033,7 +1033,7 @@ export default function Step1() {
                           : "bg-white text-gray-700 border-gray-200",
                       ].join(" ")}
                     >
-                      {autoMonthlyOk === true ? "âœ“" : autoMonthlyOk === false ? "!" : "â€¢"} Monthly
+                      {autoMonthlyOk === true ? "OK" : autoMonthlyOk === false ? "!" : "-"} Monthly
                       
                     </span>
 
@@ -1047,7 +1047,7 @@ export default function Step1() {
                           : "bg-white text-gray-700 border-gray-200",
                       ].join(" ")}
                     >
-                      {autoQuarterlyOk === true ? "âœ“" : autoQuarterlyOk === false ? "!" : "â€¢"} Quarterly
+                      {autoQuarterlyOk === true ? "OK" : autoQuarterlyOk === false ? "!" : "-"} Quarterly
                       
                     </span>
 
@@ -1107,7 +1107,7 @@ export default function Step1() {
                     type="button"
                     onClick={runAutoGenerate}
                     disabled={autoRunning || !token || !effectiveWorkflowId}
-                    className="cursor-pointer inline-flex items-center justify-center rounded-xl border border-gray-300 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200 disabled:opacity-60"
+                    className="cursor-pointer inline-flex items-center justify-center rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200 disabled:opacity-60"
                     title="Generate Monthly and Quarterly ARIMA inputs"
                   >
                     Generate inputs
@@ -1139,8 +1139,8 @@ export default function Step1() {
                   onChange={isAuto ? () => {} : handleMonthlyFilesChange}
                   emptyHint={
                     isAuto
-                      ? "Click \"Generate inputs\" to create the monthly fileâ€¦"
-                      : "Waiting for monthly ARIMA file(s)â€¦"
+                      ? "Click \"Generate inputs\" to create the monthly file..."
+                      : "Waiting for monthly ARIMA file(s)..."
                   }
                   variant="card"
                 />
@@ -1149,7 +1149,7 @@ export default function Step1() {
               {disableUploads && (
                 <div className="absolute inset-0 rounded-2xl">
                   <div className="absolute top-3 right-3 z-10">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-900">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-900">
                       Upload disabled
                     </span>
                   </div>
@@ -1187,8 +1187,8 @@ export default function Step1() {
                   onChange={isAuto ? () => {} : handleQuarterlyFilesChange}
                   emptyHint={
                     isAuto
-                      ? "Click \"Generate inputs\" to create the quarterly fileâ€¦"
-                      : "Waiting for quarterly ARIMA file(s)â€¦"
+                      ? "Click \"Generate inputs\" to create the quarterly file..."
+                      : "Waiting for quarterly ARIMA file(s)..."
                   }
                   variant="card"
                 />
@@ -1197,7 +1197,7 @@ export default function Step1() {
               {disableUploads && (
                 <div className="absolute inset-0 rounded-2xl">
                   <div className="absolute top-3 right-3 z-10">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-900">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-900">
                       Upload disabled
                     </span>
                   </div>
@@ -1251,7 +1251,7 @@ export default function Step1() {
                 maxFiles={3}
                 value={finalModelFiles}
                 onChange={handleFinalModelFilesChange}
-                emptyHint="Waiting for final model file(s)â€¦"
+                emptyHint="Waiting for final model file(s)..."
                 variant="card"
               />
 
@@ -1302,7 +1302,7 @@ export default function Step1() {
                 maxFiles={3}
                 value={historicalWeightedFiles}
                 onChange={handleHistoricalWeightedFilesChange}
-                emptyHint="Waiting for historical weighted credit loss rates file(s)â€¦"
+                emptyHint="Waiting for historical weighted credit loss rates file(s)..."
                 variant="card"
               />
 

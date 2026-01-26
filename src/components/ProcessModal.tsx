@@ -90,7 +90,7 @@ export function ProcessModal({
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-gray-100/80 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
@@ -98,7 +98,7 @@ export function ProcessModal({
       <div className="fixed inset-0 flex items-end sm:items-center justify-center p-4 sm:p-6">
         <div
           ref={panelRef}
-          className="relative w-full max-w-3xl transform overflow-hidden rounded-2xl bg-white/95 backdrop-blur ring-1 ring-gray-200 shadow-2xl"
+          className="relative w-full max-w-3xl transform overflow-hidden rounded-2xl bg-white/95 backdrop-blur ring-1 ring-black/5 shadow-2xl"
         >
           {/* Top bar */}
           <div className="flex items-center gap-3 bg-gradient-to-r from-yellow-400 to-amber-300 px-5 py-4">
@@ -115,7 +115,7 @@ export function ProcessModal({
             <button
               ref={closeBtnRef}
               onClick={onClose}
-              className="ml-auto inline-flex items-center justify-center rounded-lg p-2 text-gray-800/80 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+              className="ml-auto inline-flex items-center justify-center rounded-lg p-2 text-gray-800/80 hover:bg-gray-200/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
               aria-label="Close"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -164,5 +164,4 @@ export function ProcessModal({
     document.body
   );
 }
-
 

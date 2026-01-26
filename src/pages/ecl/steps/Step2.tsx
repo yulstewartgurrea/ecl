@@ -1,4 +1,4 @@
-// pages/ecl/steps/Step2.tsx
+﻿// pages/ecl/steps/Step2.tsx
 import  { useEffect, useMemo, useRef, useState } from "react";
 import {
   InformationCircleIcon,
@@ -10,6 +10,8 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { useAppSelector } from "../../../redux_toolkit/hooks";
+import { selectModuleProgress } from "../../../redux_toolkit/features/progress/moduleProgressSlice";
+import type { RootState } from "../../../redux_toolkit/store";
 import EclCombinedExcelTable, {
   type EclClientRow,
 } from "../../../components/asa/ecl/EclTablesCombined";
@@ -117,19 +119,11 @@ function normalizeClientRows(data: ApiRowRaw[]): EclClientRow[] {
 }
 
 
-type EclWeightsLS = {
-  workflowId: number;
-  upside: string;
-  baseline: string;
-  downside: string;
-  updatedAt?: string;
-};
-
-function eclWeightsKey(workflowId: number) {
-  return `${workflowId}-ECL`;
-}
-
-function getProbabilityWeightsFromStorage(workflowId: number): {
+function getProbabilityWeightsFromState(weights?: {
+  upside?: string;
+  baseline?: string;
+  downside?: string;
+}): {
   upside: string;
   baseline: string;
   downside: string;
@@ -137,49 +131,38 @@ function getProbabilityWeightsFromStorage(workflowId: number): {
   // defaults
   const fallback = { upside: "30", baseline: "50", downside: "20" };
 
-  try {
-    if (typeof window === "undefined") return fallback;
+  const upside = String(weights?.upside ?? "").trim();
+  const baseline = String(weights?.baseline ?? "").trim();
+  const downside = String(weights?.downside ?? "").trim();
 
-    const raw = window.localStorage.getItem(eclWeightsKey(workflowId));
-    if (!raw) return fallback;
-
-    const parsed = JSON.parse(raw) as EclWeightsLS;
-
-    // basic validation + workflow match
-    if (!parsed || Number(parsed.workflowId) !== Number(workflowId)) return fallback;
-
-    const upside = String(parsed.upside ?? "").trim();
-    const baseline = String(parsed.baseline ?? "").trim();
-    const downside = String(parsed.downside ?? "").trim();
-
-    // if any missing, fallback
-    if (!upside || !baseline || !downside) return fallback;
-
-    return { upside, baseline, downside };
-  } catch {
-    return fallback;
-  }
+  if (!upside || !baseline || !downside) return fallback;
+  return { upside, baseline, downside };
 }
 
 export default function Step2() {
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
-  const { currentPdTransitionMatrixWorkflowId } = useAppSelector(
-    (state: any) => state.pdTransitionMatrixWfHelper
-  );
+  const {
+    currentPdTransitionMatrixWorkflowId,
+    currentPdTransitionMatrixWorkflowData,
+    pdTransitionMatrixWfName,
+  } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
 
   const workflowId = useMemo(() => {
-    const fromRedux = currentPdTransitionMatrixWorkflowId;
-    if (fromRedux) return Number(fromRedux);
-
-    if (typeof window !== "undefined") {
-      const raw = window.localStorage.getItem("current_workflow_id");
-      const parsed = raw ? Number(raw) : NaN;
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    }
+    const fromRedux =
+      currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
+    const parsed = Number(fromRedux);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
     return 1;
-  }, [currentPdTransitionMatrixWorkflowId]);
+  }, [currentPdTransitionMatrixWorkflowId, currentPdTransitionMatrixWorkflowData]);
+
+  const eclProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "ecl", String(workflowId))
+  );
+  const persistedWeights = (eclProgress?.data as any)?.probabilityWeights as
+    | { upside?: string; baseline?: string; downside?: string }
+    | undefined;
 
   const [page, setPage] = useState(1);
   const [pageSize] = useState(100);
@@ -252,7 +235,7 @@ export default function Step2() {
     try {
       const formData = new FormData();
       formData.append("workflow_id", String(workflowId));
-      const weights = getProbabilityWeightsFromStorage(workflowId);
+      const weights = getProbabilityWeightsFromState(persistedWeights);
       console.log('weights: ', weights)
 formData.append(
   "probability_weights",
@@ -327,10 +310,10 @@ formData.append(
                 ECL by Aging Category
               </h1>
               <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                This page shows the ECL calculation using each client’s loan balances by product or across all products as of the reporting date, together with the forward-looking loss rates.
+                This page shows the ECL calculation using each client™s loan balances by product or across all products as of the reporting date, together with the forward-looking loss rates.
               </p>
               <div className="mt-2 text-xs text-amber-900/80">
-                workflow_id: <b>{workflowId}</b>
+                Workflow Name: <b>{pdTransitionMatrixWfName || ""}</b>
               </div>
             </div>
           </div>
@@ -348,18 +331,18 @@ formData.append(
 
         {/* Toolbar (Run / Refresh / Pagination) */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3  border-slate-200 bg-slate-50 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">
                 Loan-Level Expected Credit Loss
               </h2>
               <p className="text-xs text-slate-500">
                 {loading && !hasInitialFetched
-                  ? "Loading initial data…"
+                  ? "Loading initial data"
                   : needsRun
                   ? "No computed data found. Click Run to compute."
                   : totalItems
-                  ? `page ${currentPage} / ${totalPages} • total ${totalItems.toLocaleString("en-PH")}`
+                  ? `page ${currentPage} / ${totalPages}  total ${totalItems.toLocaleString("en-PH")}`
                   : "No data."}
               </p>
             </div>
@@ -377,7 +360,7 @@ formData.append(
                 }`}
                 title={
                   !hasInitialFetched
-                    ? "Waiting for initial GET…"
+                    ? "Waiting for initial GET"
                     : needsRun
                     ? "Compute (POST) then reload (GET)"
                     : "Already has data"
@@ -388,7 +371,7 @@ formData.append(
                 ) : (
                   <PlayIcon className="h-4 w-4" />
                 )}
-                {posting ? "Running…" : "Run"}
+                {posting ? "Running" : "Run"}
               </button>
 
               {/* Refresh always GET */}
@@ -439,7 +422,7 @@ formData.append(
           {/* Combined Excel-like Table */}
           <EclCombinedExcelTable
             rows={clientRows}
-            reportingDate={reportingDate || "—"}
+            reportingDate={reportingDate || ""}
             totalLoanBalance={totalLoanBalance}
           />
         </section>
@@ -447,3 +430,4 @@ formData.append(
     </div>
   );
 }
+

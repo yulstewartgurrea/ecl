@@ -7,7 +7,12 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
-import { useAppSelector } from "../../../redux_toolkit/hooks";
+import { useAppDispatch, useAppSelector } from "../../../redux_toolkit/hooks";
+import {
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../../redux_toolkit/features/progress/moduleProgressSlice";
+import type { RootState } from "../../../redux_toolkit/store";
 
 type ApiRowRaw = Record<string, any>;
 
@@ -30,46 +35,11 @@ function pct(n: number, decimals = 4) {
   return `${p.toFixed(decimals)}%`;
 }
 
-type EclWeightsLS = {
-  workflowId: number;
+type EclWeights = {
   upside: string;
   baseline: string;
   downside: string;
-  updatedAt: string; // ISO
 };
-
-function eclWeightsKey(workflowId: number) {
-  return `${workflowId}-ECL`;
-}
-
-function loadEclWeights(workflowId: number): EclWeightsLS | null {
-  try {
-    if (typeof window === "undefined") return null;
-    const raw = window.localStorage.getItem(eclWeightsKey(workflowId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as EclWeightsLS;
-    if (!parsed || Number(parsed.workflowId) !== Number(workflowId)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function saveEclWeights(workflowId: number, w: Omit<EclWeightsLS, "workflowId" | "updatedAt">) {
-  try {
-    if (typeof window === "undefined") return;
-    const payload: EclWeightsLS = {
-      workflowId,
-      upside: String(w.upside ?? ""),
-      baseline: String(w.baseline ?? ""),
-      downside: String(w.downside ?? ""),
-      updatedAt: new Date().toISOString(),
-    };
-    window.localStorage.setItem(eclWeightsKey(workflowId), JSON.stringify(payload));
-  } catch {
-    // ignore
-  }
-}
 
 
 function normalizeRows(data: ApiRowRaw[]): CreditLossRateRow[] {
@@ -104,7 +74,7 @@ function Pill({
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-gray-200 ${tones[tone]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ring-black/5 ${tones[tone]}`}
     >
       {children}
     </span>
@@ -112,24 +82,30 @@ function Pill({
 }
 
 export default function Step5() {
+  const dispatch = useAppDispatch();
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
-  const { currentPdTransitionMatrixWorkflowId } = useAppSelector(
-    (state: any) => state.pdTransitionMatrixWfHelper
-  );
+  const {
+    currentPdTransitionMatrixWorkflowId,
+    currentPdTransitionMatrixWorkflowData,
+    pdTransitionMatrixWfName,
+  } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
 
   const workflowId = useMemo(() => {
-    const fromRedux = currentPdTransitionMatrixWorkflowId;
-    if (fromRedux) return Number(fromRedux);
-
-    if (typeof window !== "undefined") {
-      const raw = window.localStorage.getItem("current_workflow_id");
-      const parsed = raw ? Number(raw) : NaN;
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    }
+    const fromRedux =
+      currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
+    const parsed = Number(fromRedux);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
     return 1;
-  }, [currentPdTransitionMatrixWorkflowId]);
+  }, [currentPdTransitionMatrixWorkflowId, currentPdTransitionMatrixWorkflowData]);
+
+  const eclProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "ecl", String(workflowId))
+  );
+  const persistedWeights = (eclProgress?.data as any)?.probabilityWeights as
+    | EclWeights
+    | undefined;
 
   const [upside, setUpside] = useState<string>("30");
   const [baseline, setBaseline] = useState<string>("50");
@@ -173,7 +149,19 @@ export default function Step5() {
       if (!json?.success) {
         throw new Error(json?.msg || "Failed to fetch credit loss rates.");
       }
-      saveEclWeights(workflowId, { upside, baseline, downside });
+      dispatch(
+        setModuleProgress({
+          moduleKey: "ecl",
+          contextKey: String(workflowId),
+          data: {
+            probabilityWeights: {
+              upside: String(upside ?? ""),
+              baseline: String(baseline ?? ""),
+              downside: String(downside ?? ""),
+            } as EclWeights,
+          },
+        })
+      );
 
       setRows(normalizeRows(json?.data ?? []));
     } catch (e: any) {
@@ -185,20 +173,19 @@ export default function Step5() {
   };
 
   useEffect(() => {
-  const saved = loadEclWeights(workflowId);
-  if (saved) {
-    setUpside(saved.upside ?? "30");
-    setBaseline(saved.baseline ?? "50");
-    setDownside(saved.downside ?? "20");
-  } else {
-    // optional: keep defaults
-    setUpside("30");
-    setBaseline("50");
-    setDownside("20");
-  }
-  setStatus(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [workflowId]);
+    if (persistedWeights) {
+      setUpside(persistedWeights.upside ?? "30");
+      setBaseline(persistedWeights.baseline ?? "50");
+      setDownside(persistedWeights.downside ?? "20");
+    } else {
+      // optional: keep defaults
+      setUpside("30");
+      setBaseline("50");
+      setDownside("20");
+    }
+    setStatus(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflowId, persistedWeights]);
 
   const submitWeights = async () => {
     if (!canSubmit || posting) return;
@@ -234,6 +221,19 @@ export default function Step5() {
       }
 
       setStatus({ ok: true, msg: json?.msg || "Success" });
+      dispatch(
+        setModuleProgress({
+          moduleKey: "ecl",
+          contextKey: String(workflowId),
+          data: {
+            probabilityWeights: {
+              upside: String(upside ?? ""),
+              baseline: String(baseline ?? ""),
+              downside: String(downside ?? ""),
+            } as EclWeights,
+          },
+        })
+      );
 
       await fetchResults();
     } catch (e: any) {
@@ -267,7 +267,7 @@ export default function Step5() {
                 compute and return the forward-looking credit loss rates per aging category.
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Pill tone="blue">workflow_id: {workflowId}</Pill>
+                <Pill tone="blue">Workflow Name: {pdTransitionMatrixWfName || ""}</Pill>
                 <Pill tone={weightsSum === 100 ? "green" : "yellow"}>
                   weights sum: {weightsSum}%
                 </Pill>
@@ -287,7 +287,7 @@ export default function Step5() {
 
         {/* Input card */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3  border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">
                 Probability Weights
@@ -394,7 +394,7 @@ export default function Step5() {
 
         {/* Results table */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex items-center justify-between gap-3  border-slate-200 bg-slate-50 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">
                 Forward-Looking Credit Loss Rate

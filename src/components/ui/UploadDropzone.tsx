@@ -136,9 +136,9 @@ export default function UploadDropzone({
   return (
     <div className={[wrapper, className].filter(Boolean).join(" ")}>
       {/* Header */}
-      <div className="flex items-start gap-3 px-4 py-3 border-b">
+      <div className="flex items-start gap-3 px-4 py-3">
         <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-gray-100 text-gray-700 shadow-sm">
-          <CloudArrowUpIcon className="h-5 w-5 text-gray-700" />
+          <CloudArrowUpIcon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -194,8 +194,8 @@ export default function UploadDropzone({
 
         <div className="flex items-center gap-4">
           <div className="hidden sm:flex">
-            <div className="h-12 w-12 rounded-xl border border-gray-200 bg-gray-100 flex items-center justify-center">
-              <CloudArrowUpIcon className="h-6 w-6 text-gray-600" />
+            <div className="h-12 w-12 rounded-xl bg-gray-100 flex items-center justify-center">
+              <CloudArrowUpIcon className="h-6 w-6 text-gray-700" />
             </div>
           </div>
           <div className="min-w-0">

@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 
 export type ColumnNode = {
   /** leaf cells should set `key` to map to row[key] */
@@ -101,7 +101,7 @@ export function MacroTable<T extends Record<string, any>>({
       }
     >
       {caption && (
-        <div className="px-3 py-2 text-sm text-gray-600 border-b">{caption}</div>
+        <div className="px-3 py-2 text-sm text-gray-600 ">{caption}</div>
       )}
 
       <table className="min-w-max w-full border-collapse">
@@ -146,7 +146,7 @@ export function MacroTable<T extends Record<string, any>>({
                 const raw = leaf.key ? r[leaf.key] : undefined;
                 const k = leafKey(leaf);
 
-                // 🔒 Year / Quarter: never show commas and bypass numberFormat
+                // Year / Quarter: never show commas and bypass numberFormat
                 let cell: React.ReactNode;
                 if (k === "year" || k === "quarter") {
                   cell = stripCommas(raw);

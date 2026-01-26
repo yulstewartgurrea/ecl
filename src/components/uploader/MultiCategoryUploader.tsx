@@ -23,6 +23,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import UploadDropzone from "../ui/UploadDropzone";
+import { useAppSelector } from "../../redux_toolkit/hooks";
 
 /* ===================== Types ===================== */
 export type CategoryConfig = {
@@ -82,10 +83,6 @@ export type MultiCategoryUploaderProps = {
   rightCardsMode?: RightCardsMode;
 };
 
-/* ===================== Helpers ===================== */
-const defaultTokenGetter = () =>
-  localStorage.getItem("token") || sessionStorage.getItem("token");
-
 const formatFileSize = (bytes: number) => {
   if (bytes === 0) return "0 Bytes";
   const k = 1024;
@@ -113,7 +110,7 @@ function Pill({
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${tones[tone]} ring-1 ring-gray-200`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${tones[tone]} ring-1 ring-black/5`}
       title={title}
     >
       {children}
@@ -157,12 +154,20 @@ export default function MultiCategoryUploader({
   workflowId,
   pathBuilder,
   context,
-  tokenGetter = defaultTokenGetter,
+  tokenGetter,
   onResultsChange,
   initialSelectedKey,
   bulk = { enabled: true, assign: "selected", strategy: "sequential" },
   rightCardsMode = "status-only",
 }: MultiCategoryUploaderProps) {
+  const reduxToken = useAppSelector((state: any) => state.auth?.token) as
+    | string
+    | null
+    | undefined;
+  const getToken = useCallback(
+    () => tokenGetter?.() ?? reduxToken ?? null,
+    [tokenGetter, reduxToken]
+  );
   const [selectedKey, setSelectedKey] = useState<string>(
     initialSelectedKey ?? (categories[0]?.key ?? "")
   );
@@ -278,7 +283,7 @@ export default function MultiCategoryUploader({
     }));
   }, []);
 
-  // Whenever ANY category files change â†’ disable upload until re-validated
+  // Whenever ANY category files change  disable upload until re-validated
   useEffect(() => {
     setValidated(null);
     setCanUpload(false);
@@ -307,12 +312,12 @@ export default function MultiCategoryUploader({
       const files = filesByKey[c.key] ?? [];
 
       if (c.required && files.length === 0) {
-        errs.push(`â€œ${c.label}â€ is required.`);
+        errs.push(`${c.label} is required.`);
       }
 
       const limit = c.maxFiles ?? Infinity;
       if (files.length > limit) {
-        errs.push(`â€œ${c.label}â€ exceeds maximum of ${limit} file(s).`);
+        errs.push(`${c.label} exceeds maximum of ${limit} file(s).`);
       }
 
       const cap = (c.maxSizeMB ?? maxSizeMB) * 1024 * 1024;
@@ -320,10 +325,10 @@ export default function MultiCategoryUploader({
 
       for (const f of files) {
         if (f.size > cap) {
-          errs.push(`â€œ${c.label}â€: ${f.name} is larger than ${c.maxSizeMB ?? maxSizeMB} MB.`);
+          errs.push(`${c.label}: ${f.name} is larger than ${c.maxSizeMB ?? maxSizeMB} MB.`);
         }
         if (!fileMatchesAccept(f, accepts)) {
-          errs.push(`â€œ${c.label}â€: ${f.name} has an unsupported file type.`);
+          errs.push(`${c.label}: ${f.name} has an unsupported file type.`);
         }
       }
     }
@@ -374,7 +379,7 @@ export default function MultiCategoryUploader({
     async (key: string, files: File[], override = false): Promise<UploadOutcome> => {
       console.log('files: ', files)
       if (!files.length) return { ok: true, results: [] }; // nothing to do
-      const token = tokenGetter?.() ?? undefined;
+      const token = getToken() ?? undefined;
       setUploading(true);
 
       try {
@@ -447,7 +452,7 @@ export default function MultiCategoryUploader({
       module,
       onResultsChange,
       pathBuilder,
-      tokenGetter,
+      getToken,
       workflowId,
       getCategoryLabel,
       enqueueError,
@@ -659,7 +664,7 @@ export default function MultiCategoryUploader({
       const n = filesByKey[c.key]?.length ?? 0;
       if (n) parts.push(`${n} ${c.label.toLowerCase()}`);
     }
-    return parts.join(" â€¢ ");
+    return parts.join("  ");
   }, [categories, filesByKey]);
 
   const allFiles = useMemo(() => {
@@ -678,7 +683,7 @@ export default function MultiCategoryUploader({
     >
       <div className="rounded-3xl border border-slate-200 bg-white/70 backdrop-blur-md shadow-sm relative overflow-hidden">
         {/* Sticky top actions */}
-        <div className="sticky top-0 z-10 bg-white/70 backdrop-blur-md border-b border-slate-200">
+        <div className="sticky top-0 z-10 bg-white/70 backdrop-blur-md  border-slate-200">
           <div className="flex items-center justify-between px-5 py-3">
             <div className="min-w-0">
               <h3 className="text-base sm:text-lg font-semibold tracking-tight text-slate-900">
@@ -689,7 +694,7 @@ export default function MultiCategoryUploader({
               ) : (
                 <p className="text-xs text-slate-600">
                   Accepted: <span className="font-medium">{accept}</span>{" "}
-                  <span className="mx-1">â€¢</span> Max {maxSizeMB}MB/file
+                  <span className="mx-1"></span> Max {maxSizeMB}MB/file
                 </p>
               )}
               {!!summary && (
@@ -742,7 +747,7 @@ export default function MultiCategoryUploader({
               {uploading ? (
                 <Pill tone="blue" title="Uploading in progress">
                   <ArrowUpTrayIcon className="h-4 w-4 mr-1 animate-pulse" />
-                  Uploadingâ€¦
+                  Uploading
                 </Pill>
               ) : validated === "ok" ? (
                 <Pill tone="green" title="Validation passed (click Proceed to enable upload)">
@@ -801,7 +806,7 @@ export default function MultiCategoryUploader({
                   </div>
 
                   <div className="mb-2">
-                    <Pill tone="yellow">Active: {selectedCategory?.label ?? "â€”"}</Pill>
+                    <Pill tone="yellow">Active: {selectedCategory?.label ?? ""}</Pill>
                     <span className="ml-2 text-[11px] text-slate-600">
                       <code className="text-slate-800">document_type={selectedKey}</code>
                     </span>
@@ -828,7 +833,7 @@ export default function MultiCategoryUploader({
                   <p className="text-xs text-slate-600 mt-1">
                     {bulk.assign === "selected"
                       ? "Files will be assigned to the active category."
-                      : "Files will be assigned to categories in order (1st file â†’ 1st category, etc.)."}
+                      : "Files will be assigned to categories in order (1st file  1st category, etc.)."}
                   </p>
 
                   {!!lastAssignments.length && (
@@ -1086,9 +1091,9 @@ export default function MultiCategoryUploader({
 
       {/* Proceed Modal (after successful validate) */}
       {showProceedModal && (
-        <div className="fixed inset-0 z-50 bg-gray-100/60 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/10 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl ring-1 ring-slate-200">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-3">
+            <div className="px-5 py-4  border-slate-200 flex items-center gap-3">
               <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center ring-1 ring-emerald-200">
                 <CheckCircleIcon className="h-5 w-5 text-emerald-700" />
               </div>
@@ -1137,11 +1142,11 @@ export default function MultiCategoryUploader({
         </div>
       )}
 
-      {/* Upload Error Modal (SEQUENTIAL â€” shows one category at a time) */}
+      {/* Upload Error Modal (SEQUENTIAL  shows one category at a time) */}
       {showErrorModal && currentError && (
-        <div className="fixed inset-0 z-50 bg-gray-100/60 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/10 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-xl shadow-xl ring-1 ring-slate-200">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+            <div className="flex items-center justify-between px-5 py-4  border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center ring-1 ring-amber-200">
                   <ExclamationTriangleIcon className="h-5 w-5 text-amber-700" />
@@ -1245,5 +1250,4 @@ export default function MultiCategoryUploader({
     </div>
   );
 }
-
 

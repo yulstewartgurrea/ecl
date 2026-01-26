@@ -1,4 +1,4 @@
-// components/asa/table/SpreadsheetTable.tsx
+﻿// components/asa/table/SpreadsheetTable.tsx
 import React, { useMemo } from "react";
 
 export type Column<T> = {
@@ -31,7 +31,7 @@ export type SpreadsheetTableProps<T> = {
   toolbar?: React.ReactNode;
 
   /**
-   * ✅ NEW
+   *  NEW
    * Auto-sort headers like:
    * date, 0 day, par 1, par 30, par 60, par 90, par 120, ..., total loan balance with c/p
    */
@@ -154,7 +154,7 @@ export function SpreadsheetTable<T>({
   return (
     <div className={`rounded-2xl border border-gray-200 shadow-sm bg-white ${className}`}>
       {toolbar && (
-        <div className="px-3 py-2 border-b bg-white rounded-t-2xl flex items-center justify-between">
+        <div className="px-3 py-2  bg-white rounded-t-2xl flex items-center justify-between">
           <div>{toolbar}</div>
         </div>
       )}
@@ -164,17 +164,17 @@ export function SpreadsheetTable<T>({
           className="overflow-y-auto"
           style={{ maxHeight: typeof height === "number" ? `${height}px` : height }}
         >
-          {/* ✅ border-separate helps sticky header borders */}
+          {/*  border-separate helps sticky header borders */}
           <table className="min-w-full table-fixed text-sm border-separate border-spacing-0">
             <thead
-              className="sticky top-0 z-10 border-b"
+              className="sticky top-0 z-10 "
               style={{ background: resolvedHeaderBg, color: resolvedHeaderText }}
             >
               <tr>
                 {displayColumns.map((c, i) => (
                   <th
                     key={String(c.key) + i}
-                    className={`${headPad} align-middle font-semibold border-r last:border-r-0 whitespace-nowrap ${
+                    className={`${headPad} align-middle font-semibold  whitespace-nowrap ${
                       c.align === "right"
                         ? "text-right"
                         : c.align === "center"
@@ -189,7 +189,7 @@ export function SpreadsheetTable<T>({
                       color: resolvedHeaderText,
                     }}
                   >
-                    {/* ✅ header alignment wrapper (works with sort icons too) */}
+                    {/*  header alignment wrapper (works with sort icons too) */}
                     <div
                       className={`flex w-full items-center gap-2 ${
                         c.align === "right"
@@ -231,7 +231,7 @@ export function SpreadsheetTable<T>({
                       return (
                         <td
                           key={String(c.key) + i}
-                          className={`relative ${cellPad} border-r last:border-r-0 border-b ${
+                          className={`relative ${cellPad}   ${
                             c.align === "right"
                               ? "text-right"
                               : c.align === "center"
@@ -263,3 +263,4 @@ export function SpreadsheetTable<T>({
     </div>
   );
 }
+

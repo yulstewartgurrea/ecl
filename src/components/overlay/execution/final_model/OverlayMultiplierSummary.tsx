@@ -1,10 +1,10 @@
-// src/components/overlay/execution/final_model/OverlayMultiplierSummary.tsx
+﻿// src/components/overlay/execution/final_model/OverlayMultiplierSummary.tsx
 import React from "react";
 
 export type OverlayMultiplierRow = {
   reportDate: string; // e.g., "2024-10-31"
   odrPercent: number; // e.g., 4.28 (already in % terms)
-  upside: number;       // raw multiplier (0–1 or >1)
+  upside: number;       // raw multiplier (0“1 or >1)
   base: number;
   downside: number;
 };
@@ -17,7 +17,7 @@ export type OverlayMultiplierSummaryProps = {
 
 /**
  * Convert overlay multiplier value to a percentage string with 2 decimals.
- * Interprets the value as 0–1 probability or ratio and multiplies by 100.
+ * Interprets the value as 0“1 probability or ratio and multiplies by 100.
  * Uses exponential notation for very large values to keep them readable.
  */
 const formatPctNumber = (n: number): string => {
@@ -54,7 +54,7 @@ const OverlayMultiplierSummary: React.FC<OverlayMultiplierSummaryProps> = ({
         </div>
 
         <span className="hidden md:inline-flex items-center rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-[11px] font-medium text-amber-800">
-          Overlay multiplier ≈ forecasted PD / latest actual PD (ODR)
+          Overlay multiplier â‰ˆ forecasted PD / latest actual PD (ODR)
         </span>
       </div>
 
@@ -95,7 +95,7 @@ const OverlayMultiplierSummary: React.FC<OverlayMultiplierSummaryProps> = ({
             {rows.map((row, idx) => (
               <tr
                 key={`${row.reportDate}-${idx}`}
-                className="border-t border-gray-200"
+                className=" border-gray-200"
               >
                 <td className="bg-slate-50 px-3 py-2 text-center font-medium text-gray-900 tabular-nums">
                   {row.reportDate}
@@ -120,7 +120,7 @@ const OverlayMultiplierSummary: React.FC<OverlayMultiplierSummaryProps> = ({
 
       {/* Formula hint for small screens */}
       <p className="text-[11px] text-gray-500 md:hidden">
-        Overlay multiplier ≈{" "}
+        Overlay multiplier â‰ˆ{" "}
         <span className="font-semibold text-gray-700">
           forecasted PD / latest actual PD (ODR)
         </span>

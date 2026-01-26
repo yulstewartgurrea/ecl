@@ -33,7 +33,7 @@ const FlowrateApproachPage = () => {
     currentStep: legacyCurrentStep,
   } = useAppSelector((state: RootState) => state.pdTransitionMatrixWfHelper as any);
 
-  // 🔗 Build the canonical workflowPath: entity/reportingPeriod/workflowName/loanProduct
+  // Build the canonical workflowPath: entity/reportingPeriod/workflowName/loanProduct
   const workflowPath = useMemo(() => {
     const entity =
       currentPdTransitionMatrixWorkflowData?.entity ||
@@ -121,13 +121,8 @@ const FlowrateApproachPage = () => {
       })
     );
     if (workflowPath) {
-      const parts = workflowPath.split("/");
-      const wfId = Number(localStorage.getItem("current_workflow_id") || "");
-      if (Number.isFinite(wfId)) {
-        dispatch(clearStep5Bundle(wfId));
-      } else {
-        dispatch(clearStep5Bundle(undefined));
-      }
+      const wfId = Number(currentPdTransitionMatrixWorkflowData?.id);
+      dispatch(clearStep5Bundle(Number.isFinite(wfId) ? wfId : undefined));
     } else {
       dispatch(clearStep5Bundle(undefined));
     }

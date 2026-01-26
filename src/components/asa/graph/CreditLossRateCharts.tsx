@@ -238,7 +238,7 @@ export default function CreditLossRateCharts({
         <div>
           <div className="text-base font-semibold text-gray-900">{title}</div>
           <div className="text-xs text-gray-800 opacity-80 -mt-0.5">
-            Values are decimals → rendered as percentages. Columns are derived from backend keys.
+            Values are decimals → rendered as percentages.
           </div>
         </div>
 

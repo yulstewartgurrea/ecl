@@ -1,4 +1,4 @@
-// pages/flowrate/steps/Step5.tsx (API-DRIVEN, DYNAMIC)
+﻿// pages/flowrate/steps/Step5.tsx (API-DRIVEN, DYNAMIC)
 import React, { useEffect, useState } from "react";
 import { PlayIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import CreditLossRateMatrix from "../../../components/asa/credit/CreditLossRateMatrix";
@@ -128,7 +128,7 @@ const Step5: React.FC = () => {
   const workflowId = currentPdTransitionMatrixWorkflowId || useWorkflowId();
 
   const authToken = useAppSelector((s: any) => s.auth.token);
-  const { getStep5Data, getStep3Data } = useAsaApi();
+  const { getStep3Data } = useAsaApi();
 
   const [rows, setRows] = useState<any[] | undefined>(undefined);
   const [rateSets, setRateSets] = useState<any[] | undefined>(undefined);
@@ -147,7 +147,7 @@ const Step5: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    Promise.allSettled([getStep5Data(workflowId), getStep3Data(workflowId)])
+    Promise.allSettled([getStep3Data(workflowId), getStep3Data(workflowId)])
       .then(([s5, s3]) => {
         if (!mounted) return;
 
@@ -192,7 +192,7 @@ const Step5: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [workflowId, getStep5Data, getStep3Data, dispatch]);
+  }, [workflowId, getStep3Data, getStep3Data, dispatch]);
 
   const handleRun = async () => {
     setRunning(true);
@@ -223,7 +223,7 @@ const Step5: React.FC = () => {
       const result = await response.json();
 
       if (result.success || result.code === 1) {
-        const step5Res = await getStep5Data(workflowId);
+        const step5Res = await getStep3Data(workflowId);
         const step3Res = await getStep3Data(workflowId);
 
         const arr = findFirstRowArray(step5Res);
@@ -341,8 +341,6 @@ const Step5: React.FC = () => {
       <div className="min-h-dvh p-6 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Credit Loss Rate</h2>
-            <p className="text-xs text-gray-700">Dynamic backend-driven matrix (no static PAR headers).</p>
           </div>
 
           <div className="flex items-center gap-2">

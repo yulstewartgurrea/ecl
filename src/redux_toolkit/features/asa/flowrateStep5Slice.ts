@@ -17,7 +17,7 @@ type State = {
 const initialState: State = { byWorkflowId: {} };
 
 const slice = createSlice({
-  name: "flowrateStep5",
+  name: "flowrateStep3",
   initialState,
   reducers: {
     setStep5Bundle(state, action: PayloadAction<Step5Bundle>) {
@@ -34,4 +34,4 @@ export const { setStep5Bundle, clearStep5Bundle } = slice.actions;
 export default slice.reducer;
 
 export const selectStep5ByWorkflow = (s: any, workflowId: number) =>
-  (s.flowrateStep5?.byWorkflowId ?? {})[workflowId] as Step5Bundle | undefined;
+  (s.flowrateStep3?.byWorkflowId ?? {})[workflowId] as Step5Bundle | undefined;

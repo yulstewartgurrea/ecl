@@ -56,7 +56,7 @@ export default function StepSwitch({
               aria-selected={selected}
               onClick={() => onChange(i)}
               className={clsx(
-                "px-4 py-2 text-sm font-medium rounded-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-200",
+                "px-4 py-2 text-sm font-medium rounded-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-black/10",
                 selected
                   ? "bg-white shadow-sm text-gray-900"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
@@ -103,7 +103,7 @@ export default function StepSwitch({
                     setOpen(false);
                   }}
                   className={clsx(
-                    "w-full px-4 py-3 text-left text-sm border-b last:border-b-0 transition",
+                    "w-full px-4 py-3 text-left text-sm  last: transition",
                     selected
                       ? "bg-yellow-100/80 font-semibold text-gray-900"
                       : "text-gray-800 hover:bg-yellow-50"

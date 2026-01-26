@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { XMarkIcon,  TrashIcon, CheckIcon } from "@heroicons/react/24/outline";
-import { type FilterRule, saveFilters, loadFilters } from "./headersStorage";
+import { type FilterRule, saveFilters, loadFilters } from "../../../../utils/overlay/headersStorage";
 
 type Props = {
   workflowId: number | string;
@@ -92,7 +92,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
     });
   }
 
-  // When a chip is clicked: if already used â†’ jump to it; else add a prefilled rule
+  // When a chip is clicked: if already used  jump to it; else add a prefilled rule
   function handleChipClick(header: string) {
     const lower = header.toLowerCase();
     const existing = rows.find((r) => eq(r.column, lower) || eq(r.column, header));
@@ -150,7 +150,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
   return (
     <div className="fixed inset-0 z-50">
       {/* Overlay */}
-      <div className="absolute inset-0 bg-gray-100/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Dialog (fixed height with scrolling body) */}
       <div
@@ -158,12 +158,12 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
           absolute left-1/2 top-1/2
           w-[min(100vw-2rem,900px)]
           -translate-x-1/2 -translate-y-1/2
-          rounded-2xl bg-white shadow-2xl ring-1 ring-gray-200
+          rounded-2xl bg-white shadow-2xl ring-1 ring-black/5
           max-h-[85vh] flex flex-col overflow-hidden
         "
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b p-4">
+        <div className="flex items-center justify-between  p-4">
           <div>
             <h3 className="text-lg font-semibold">Configure Filters</h3>
             <p className="text-xs text-neutral-600">
@@ -182,7 +182,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
             {/* Optional search (kept hidden by default; wire up if you want) */}
             {/* <div className="flex items-center gap-2">
               <input
-                placeholder="Search column headersâ€¦"
+                placeholder="Search column headers"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
@@ -212,7 +212,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                           ? "border-yellow-300 bg-yellow-50 text-yellow-900 ring-1 ring-yellow-400"
                           : "border-neutral-300 hover:bg-neutral-50 text-neutral-800",
                       ].join(" ")}
-                      title={active ? "Already added â€” click to jump to rule" : "Add rule with this column"}
+                      title={active ? "Already added  click to jump to rule" : "Add rule with this column"}
                       aria-pressed={active}
                     >
                       {active && <CheckIcon className="h-3.5 w-3.5" />}
@@ -270,7 +270,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                           <input
                             ref={idx === 0 ? firstInputRef : null}
                             list={listId}
-                            placeholder="Type or pick a columnâ€¦"
+                            placeholder="Type or pick a column"
                             value={r.column}
                             onChange={(e) => updateRow(r.id, { column: e.target.value })}
                             className="w-full min-w-0 rounded-md border border-neutral-300 px-2 py-1"
@@ -330,5 +330,4 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
 };
 
 export default FilteringConfigModal;
-
 

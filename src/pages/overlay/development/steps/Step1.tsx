@@ -1,4 +1,4 @@
-// src/pages/execution/Step1.tsx
+﻿// src/pages/execution/Step1.tsx
 import { useMemo, useState, useCallback, useEffect } from "react";
 import UploadDropzone from "../../../../components/ui/UploadDropzone";
 import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
@@ -197,7 +197,7 @@ export default function Step1() {
           );
         }
 
-        // 🔗 FINAL PATH now includes the doc type
+        // FINAL PATH now includes the doc type
         const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
         console.log('finalWorkflowPath: ', finalWorkflowPath)
         const result = await overlayUploadFile({
@@ -311,7 +311,7 @@ export default function Step1() {
     [token, workflowPathBase, effectiveWorkflowId, uploadedFiles, uploadingFiles]
   );
 
-  // Dropzone handlers — upload new files, ignore placeholders from existing docs
+  // Dropzone handlers  upload new files, ignore placeholders from existing docs
   const handleMonthlyFilesChange = useCallback(
     async (files: File[]) => {
       console.log('files',files)
@@ -357,7 +357,7 @@ export default function Step1() {
     if (monthlyFiles.length) parts.push(`${monthlyFiles.length} monthly`);
     if (quarterlyFiles.length) parts.push(`${quarterlyFiles.length} quarterly`);
      if (historicalFiles.length) parts.push(`${historicalFiles.length} historical`);
-    return parts.join(" • ");
+    return parts.join("  ");
   }, [monthlyFiles.length, quarterlyFiles.length, historicalFiles.length]);
 
   const uploadStatus = useMemo(() => {
@@ -381,7 +381,7 @@ export default function Step1() {
       const nextName = (w as any).workflow_name ?? (w as any).name ?? "";
       const nextId = typeof (w as any).id === "number" ? (w as any).id : null;
 
-      console.log(`🎯 WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`);
+      console.log(`ðŸŽ¯ WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`);
 
       if (nextEntity) dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
@@ -405,7 +405,7 @@ export default function Step1() {
               className="ml-2 text-emerald-600 hover:text-emerald-800"
               title="Dismiss success message"
             >
-              ✕
+              •
             </button>
           </div>
         </div>
@@ -426,7 +426,7 @@ export default function Step1() {
             const docType = inferExecDocTypeFromName(file.name);
             if (!docType) continue;
             try {
-              // 🔗 FINAL PATH (retry) includes the doc type
+              // FINAL PATH (retry) includes the doc type
               const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
 
               const result = await overlayUploadFile({
@@ -479,7 +479,7 @@ export default function Step1() {
       />
 
       <div className="rounded-3xl border border-gray-200 bg-white/80 backdrop-blur shadow-sm">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
+        <div className="flex items-center justify-between px-5 py-4 ">
           <div>
             <h3 className="text-lg font-bold tracking-tight text-gray-900">Execution Input Files</h3>
             <p className="text-xs text-gray-500">
@@ -487,7 +487,7 @@ export default function Step1() {
             </p>
            
             <p className="text-[11px] text-gray-400 mt-1">
-              Workflow ID: <span className="font-mono">{selectedWorkflowId ?? "—"}</span>
+              Workflow Name: <span className="font-mono">{workflowName || ""}</span>
             </p>
           </div>
 
@@ -541,7 +541,7 @@ export default function Step1() {
                 maxFiles={3}
                 value={monthlyFiles}
                 onChange={handleMonthlyFilesChange}
-                emptyHint="Waiting for monthly file(s)…"
+                emptyHint="Waiting for monthly file(s)"
                 variant="card"
               />
               {monthlyFiles.length > 0 &&
@@ -568,7 +568,7 @@ export default function Step1() {
                 maxFiles={3}
                 value={quarterlyFiles}
                 onChange={handleQuarterlyFilesChange}
-                emptyHint="Waiting for quarterly file(s)…"
+                emptyHint="Waiting for quarterly file(s)"
                 variant="card"
               />
               {quarterlyFiles.length > 0 &&
@@ -595,7 +595,7 @@ export default function Step1() {
                 maxFiles={3}
                 value={historicalFiles}
                 onChange={handleHistoricalFilesChange}
-                emptyHint="Waiting for historical file(s)…"
+                emptyHint="Waiting for historical file(s)"
                 variant="card"
               />
               {historicalFiles.length > 0 &&

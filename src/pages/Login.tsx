@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLogin } from "../hooks/useLogin";
 import ApiStatusIndicator from "../components/ApiStatusIndicators";
@@ -13,20 +14,14 @@ const Login = () => {
   const navigate = useNavigate();
   const { trigger } = useLogin();
 
-  useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) navigate("/");
-  }, [navigate]);
-
-  const handleLogin = async () => {
+  const handleLogin = async (e?: FormEvent) => {
+    e?.preventDefault();
     setStatus("loading");
     setMessage("Logging in...");
     try {
-      const data = await trigger({ username, password });
+      await trigger({ username, password });
       setStatus("success");
       setMessage("Login successful!");
-      localStorage.setItem("username", username);
-      localStorage.setItem("role", data.role);
       setTimeout(() => navigate("/"), 300);
     } catch (err: any) {
       setStatus("error");

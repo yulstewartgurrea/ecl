@@ -1,4 +1,4 @@
-// Sidebar.tsx
+﻿// Sidebar.tsx
 import React, { useEffect, useState } from "react";
 import clsx from "clsx";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
@@ -248,7 +248,7 @@ const Sidebar = () => {
                   </div>
 
                   {isExpanded && option.subTabs.length > 0 && (
-                    <div className="ml-6 mt-1 flex flex-col space-y-1 border-l-2 border-[#ccc] pl-3">
+                    <div className="ml-6 mt-1 flex flex-col space-y-1  border-[#ccc] pl-3">
                       {option.subTabs.map((subTab: any) => {
                         const isActiveSub = activeSubTab === subTab.subTabName;
                         return (
@@ -302,3 +302,4 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+

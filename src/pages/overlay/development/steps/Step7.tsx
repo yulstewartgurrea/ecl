@@ -1,13 +1,16 @@
 ﻿// Step7.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ModelSpec } from "../../../../components/overlay/development/candidate_model/ModelCompareGrid";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
-import { useAppSelector } from "../../../../redux_toolkit/hooks";
-import { postFinalModel } from "../../../../services/finalModels"; // â† uses your existing service
+import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
+import {
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
+import { postFinalModel } from "../../../../services/finalModels"; //   uses your existing service
 
-const LS_KEY = "ecl:selectedModel";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 const Step7: React.FC = () => {
@@ -16,22 +19,41 @@ const Step7: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
 
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
     useSelector((s: RootState) => (s as any).pdTransitionMatrixWfHelper);
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
+  const overlayRoot = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "overlayDevelopment")
+  );
+  const lastWorkflowId = (overlayRoot?.data as any)?.lastWorkflowId as
+    | number
+    | undefined;
+
+  const effectiveWorkflowId = useMemo(() => {
+    const fromRedux = Number(selectedWorkflowId);
+    if (Number.isFinite(fromRedux) && fromRedux > 0) return fromRedux;
+    if (Number.isFinite(Number(lastWorkflowId)) && Number(lastWorkflowId) > 0) {
+      return Number(lastWorkflowId);
+    }
+    return null;
+  }, [selectedWorkflowId, lastWorkflowId]);
+
+  const contextKey =
+    Number.isFinite(Number(effectiveWorkflowId)) && Number(effectiveWorkflowId) > 0
+      ? String(effectiveWorkflowId)
+      : undefined;
+  const overlayProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "overlayDevelopment", contextKey)
+  );
 
   useEffect(() => {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw);
-      console.log("parsed", parsed);
-      setModel(parsed?.model ?? null);
-    } catch {
-      setModel(null);
-    }
-  }, []);
+    const data = (overlayProgress?.data ?? {}) as {
+      step6Selected?: { model?: ModelSpec | null };
+    };
+    setModel((data.step6Selected?.model as ModelSpec) ?? null);
+  }, [overlayProgress]);
 
   async function saveSelectedModel() {
     setErr(null);
@@ -39,7 +61,8 @@ const Step7: React.FC = () => {
       setErr("No model selected. Please go back to Step 6 and choose a model.");
       return;
     }
-    if (!Number.isFinite(Number(selectedWorkflowId))) {
+    const wfId = Number(effectiveWorkflowId);
+    if (!Number.isFinite(wfId)) {
       setErr(
         "Missing or invalid workflow id. Please select a workflow in Step 1."
       );
@@ -64,14 +87,22 @@ const Step7: React.FC = () => {
       await postFinalModel({
         apiBase: API_BASE,
         token,
-        workflowId: Number(selectedWorkflowId),
+        workflowId: wfId,
         model: rawPayload, // single object
         payloadKey: "final_models",
         asArray: true, // send as array [rawPayload]
         // useFormData: true,      // enable only if backend needs multipart
       });
 
-      localStorage.removeItem(LS_KEY);
+      if (contextKey) {
+        dispatch(
+          setModuleProgress({
+            moduleKey: "overlayDevelopment",
+            contextKey,
+            data: { step6Selected: null },
+          })
+        );
+      }
       setShowModal(true);
     } catch (e: any) {
       setErr(e?.message || "Failed to save the selected model.");
@@ -80,11 +111,11 @@ const Step7: React.FC = () => {
     }
   }
 
-  // ðŸ”½ Download handler â€“ export to Excel (.xls) via HTML table
+  // Download handler: export to Excel (.xls) via HTML table
   function handleDownload() {
     if (!model) return;
 
-    const workflowNum = Number(selectedWorkflowId);
+    const workflowNum = Number(effectiveWorkflowId ?? selectedWorkflowId);
     const safeWorkflowId =
       Number.isFinite(workflowNum) && workflowNum > 0 ? workflowNum : null;
 
@@ -105,8 +136,8 @@ const Step7: React.FC = () => {
     lines.push("Section,Field,Value");
     lines.push(`Model Summary,Workflow ID,${escCsv(safeWorkflowId ?? "")}`);
     lines.push(`Model Summary,Model Title,${escCsv(model.title ?? "")}`);
-    lines.push(`Model Summary,RÂ²,${escCsv(r2 != null ? r2 : "")}`);
-    lines.push(`Model Summary,Adj. RÂ²,${escCsv(adjR2 != null ? adjR2 : "")}`);
+    lines.push(`Model Summary,R²,${escCsv(r2 != null ? r2 : "")}`);
+    lines.push(`Model Summary,Adj. R²,${escCsv(adjR2 != null ? adjR2 : "")}`);
     lines.push(`Model Summary,MAPE,${escCsv(mape != null ? mape : "")}`);
 
     // Blank line between sections
@@ -158,7 +189,7 @@ const Step7: React.FC = () => {
           onClick={() => navigate("/overlay?tab=development&sub=6")}
           className="mt-4 rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-800"
         >
-          â† Back to Step 6
+            Back to Step 6
         </button>
       </div>
     );
@@ -188,7 +219,7 @@ const Step7: React.FC = () => {
         <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-neutral-900">
           <div className="flex items-center gap-3">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 font-semibold text-black">
-              âœ“
+               
             </span>
             <p className="text-base">
               <span className="font-medium">{model.title}</span> is locked in
@@ -247,13 +278,13 @@ const Step7: React.FC = () => {
         {/* Key metrics (keep consistent with Step 6) */}
         <div className="grid gap-4 md:grid-cols-3">
           <StatTile
-            label="RÂ²"
+            label="R²"
             value={fmtPercent(
               (model.metrics as any)?.R_Squared ?? (model as any)?.R_Squared
             )}
           />
           <StatTile
-            label="Adj. RÂ²"
+            label="Adj. R²"
             value={fmtPercent(
               model.metrics?.Adj_R_Squared ?? (model as any)?.Adj_R_Squared
             )}
@@ -270,15 +301,15 @@ const Step7: React.FC = () => {
             onClick={handleDownload}
             className="cursor-pointer rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-800"
           >
-            â¬‡ï¸ Download
+             Download
           </button>
 
           <button
-            onClick={saveSelectedModel} // â† POST to server
+            onClick={saveSelectedModel} //   POST to server
             disabled={saving}
-            className="cursor-pointer rounded-xl bg-neutral-900 px-4 py-2 font-semibold text-white hover:bg-neutral-800 disabled:opacity-50"
+            className="cursor-pointer rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 font-semibold text-gray-900 hover:bg-gray-200 disabled:opacity-50"
           >
-            {saving ? "Savingâ€¦" : "Save & Finish â†’"}
+            {saving ? "Saving " : "Save & Finish  "}
           </button>
         </div>
       </div>
@@ -336,7 +367,7 @@ function Modal({
             className="rounded-md p-1 text-neutral-500 hover:bg-neutral-100"
             aria-label="Close"
           >
-            âœ•
+            
           </button>
         </div>
         {children}
@@ -359,18 +390,18 @@ function StatTile({ label, value }: { label: string; value: string }) {
 
 /* ---------- Format helpers ---------- */
 function fmtNumber(v?: number): string {
-  if (v == null || Number.isNaN(Number(v))) return "â€”";
+  if (v == null || Number.isNaN(Number(v))) return " ";
   return Number(v).toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
 function fmtPercent(v?: number): string {
-  if (v == null || Number.isNaN(Number(v))) return "â€”";
+  if (v == null || Number.isNaN(Number(v))) return " ";
   return (
     (Number(v) * 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) +
     "%"
   );
 }
 function fmtPctOrVal(v: number | string | undefined): string {
-  if (v == null) return "â€”";
+  if (v == null) return " ";
   if (typeof v === "string") return v;
   if (v >= 0 && v <= 1)
     return (
@@ -379,7 +410,7 @@ function fmtPctOrVal(v: number | string | undefined): string {
   return v.toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
 
-// ðŸ”½ Helper for downloading Excel (.xls) from HTML
+// Helper for downloading Excel (.xls) from HTML
 // function downloadExcelFile(html: string, filename: string) {
 //   try {
 //     const blob = new Blob([html], {

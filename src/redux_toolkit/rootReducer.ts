@@ -28,6 +28,6 @@ export const rootReducer = combineReducers({
   executionInputFile: executionInputFileReducer,
   finalModelExecutionFile: finalModelExecutionFileReducer,
   historicalWeightedCreditLossRateFile: historicalWeightedCreditLossRateFileReducer,
-  flowrateStep5: flowrateStep5Reducer,
+  flowrateStep3: flowrateStep5Reducer,
   moduleProgress: moduleProgressReducer,
 })

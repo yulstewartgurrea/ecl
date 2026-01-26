@@ -39,8 +39,6 @@ export default function OverlayExecutionPage3() {
   const [exporting, setExporting] = useState(false); // Export CSV
   const [exportReady, setExportReady] = useState(false);
 
-  const canRun = !!overrideRows && !!selectedWorkflowId;
-
   // normalize period outgoing (MM/DD/YYYY -> YYYY-MM-DD)
   const normalizePeriodOut = (p: string) => {
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(p)) {
@@ -136,6 +134,7 @@ export default function OverlayExecutionPage3() {
 
   // GET transformed rows only (for Refresh / Inline actions)
   const fetchInterpolation = useCallback(async () => {
+    console.log('selectedWorkflowId GET: ', selectedWorkflowId)
     if (!selectedWorkflowId) return;
     if (!apiVariables.length) {
       alert("No variables found. Load configuration first.");
@@ -160,14 +159,13 @@ export default function OverlayExecutionPage3() {
   // 3) Run flow: POST transform then GET transform, then display (manual button)
   const handleRun = useCallback(
     async () => {
-      if (!selectedWorkflowId || !overrideRows) return;
-      if (!apiVariables.length) {
-        return;
-      }
+      if (!selectedWorkflowId) return;
+       console.log('selectedWorkflowId POST: ', selectedWorkflowId)
       setRunning(true);
       setTransformedRows(null);
       try {
         // POST: perform transformation on backend
+        console.log('running...')
         await transformForecastedMevs(selectedWorkflowId, token);
         // GET: read transformed results
         await fetchInterpolation();
@@ -329,7 +327,6 @@ export default function OverlayExecutionPage3() {
           <div className="hidden md:flex items-center gap-3">
             <button
               onClick={handleRun}
-              disabled={!canRun || running}
               className="cursor-pointer rounded-xl bg-gray-100 text-gray-900 px-3 py-2 text-sm font-semibold shadow-sm hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
               title={
                 !selectedWorkflowId
@@ -340,7 +337,7 @@ export default function OverlayExecutionPage3() {
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              <span>{running ? "Runningâ€¦" : "Run forecasted MEVs"}</span>
+              <span>{running ? "Running" : "Run forecasted MEVs"}</span>
             </button>
           </div>
         </div>

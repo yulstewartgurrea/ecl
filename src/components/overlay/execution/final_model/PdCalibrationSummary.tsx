@@ -1,4 +1,4 @@
-// src/components/overlay/execution/final_model/PdCalibrationSummary.tsx
+﻿// src/components/overlay/execution/final_model/PdCalibrationSummary.tsx
 import React from "react";
 
 export type PdCalibrationRow = {
@@ -15,7 +15,7 @@ export type PdCalibrationSummaryProps = {
 };
 
 /**
- * Convert a raw probability value (0–1) to a percentage string with 2 decimals.
+ * Convert a raw probability value (0“1) to a percentage string with 2 decimals.
  * - Multiplies by 100
  * - Uses exponential notation for very large values to avoid huge strings.
  */
@@ -101,13 +101,13 @@ const PdCalibrationSummary: React.FC<PdCalibrationSummaryProps> = ({
               </th>
             </tr>
             <tr>
-              <th className="bg-gray-700 px-3 py-1 text-center text-[11px] font-medium text-white border-t border-gray-200">
+              <th className="bg-gray-700 px-3 py-1 text-center text-[11px] font-medium text-white  border-gray-200">
                 Best
               </th>
-              <th className="bg-gray-700 px-3 py-1 text-center text-[11px] font-medium text-white border-t border-gray-200">
+              <th className="bg-gray-700 px-3 py-1 text-center text-[11px] font-medium text-white  border-gray-200">
                 Base
               </th>
-              <th className="bg-gray-700 px-3 py-1 text-center text-[11px] font-medium text-white border-t border-gray-200">
+              <th className="bg-gray-700 px-3 py-1 text-center text-[11px] font-medium text-white  border-gray-200">
                 Worst
               </th>
             </tr>
@@ -119,7 +119,7 @@ const PdCalibrationSummary: React.FC<PdCalibrationSummaryProps> = ({
               return (
                 <tr
                   key={`${row.bucket}-${idx}`}
-                  className={`border-t border-gray-200 ${
+                  className={` border-gray-200 ${
                     isTotal ? "bg-slate-100 font-semibold" : ""
                   }`}
                 >
@@ -127,7 +127,7 @@ const PdCalibrationSummary: React.FC<PdCalibrationSummaryProps> = ({
                     {row.bucket}
                   </td>
                   <td className="px-3 py-2 text-center tabular-nums">
-                    {row.obligors != null ? row.obligors : "—"}
+                    {row.obligors != null ? row.obligors : "”"}
                   </td>
                   <td className="px-3 py-2 text-center tabular-nums">
                     {fmtTtcPd(row.ttcPd)}
@@ -149,7 +149,7 @@ const PdCalibrationSummary: React.FC<PdCalibrationSummaryProps> = ({
       </div>
 
       <p className="text-[11px] text-gray-500">
-        Numeric values are interpreted as probabilities (0–1) and shown as
+        Numeric values are interpreted as probabilities (0“1) and shown as
         percentages with 2 decimal places. Non-numeric labels (like{" "}
         <span className="font-semibold">"Portfolio FL PiT PD"</span>) are
         displayed as-is.

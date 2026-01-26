@@ -61,10 +61,10 @@ export default function WorkflowPickerModal({
   if (!open) return null;
  
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-100/80 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
       <div className="w-full max-w-4xl rounded-3xl bg-white/95 shadow-2xl ring-1 ring-slate-200 flex flex-col max-h-[80vh]">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+        <div className="flex items-start justify-between gap-4  border-slate-200 px-6 py-4">
           <div>
             <h3 className="text-base font-semibold text-slate-900">
               Pick a Completed Workflow
@@ -83,13 +83,13 @@ export default function WorkflowPickerModal({
         </div>
 
         {/* Search + meta */}
-        <div className="border-b border-slate-200 px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className=" border-slate-200 px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-md">
             <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by entity, reporting period, workflow name, or pathâ€¦"
+              placeholder="Search by entity, reporting period, workflow name, or path"
               className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"
             />
           </div>

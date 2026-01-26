@@ -3,7 +3,6 @@ import useSWRMutation from "swr/mutation";
 import { useAppDispatch } from "../redux_toolkit/hooks";
 import {
   login as loginAction,
-  resetStateAuth,
 } from "../redux_toolkit/features/general/auth";
 
 import { fetch } from "@tauri-apps/plugin-http";
@@ -102,8 +101,6 @@ export function useLogin() {
         role: data.role || "user",
       })
     );
-    dispatch(resetStateAuth());
-    localStorage.setItem("token", data.access_token);
     return data;
   };
 

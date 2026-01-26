@@ -18,7 +18,7 @@ import { Chart as ReactChart } from "react-chartjs-2";
 
 import type { AgingPortfolioRow } from "./AgingCategoryPortfolioEclTable";
 
-// ✅ IMPORTANT: register BOTH controllers + elements (production build needs this)
+// IMPORTANT: register BOTH controllers + elements (production build needs this)
 ChartJS.register(
   CategoryScale,
   LinearScale,
