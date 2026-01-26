@@ -146,7 +146,7 @@ export async function overridePostDataTransformationMevs(
   fd.append("workflow_id", String(workflowId));
   const jsonStr = JSON.stringify(payloadRows);
   fd.append("override_forecated_mevs", jsonStr);
-  fd.append("override_forecated_mevs", jsonStr);
+  fd.append("override_data_transformation_mevs", jsonStr);
 
   const res = await fetch(url, {
     method: "POST",
@@ -203,19 +203,46 @@ export async function getTransformedForecastedMevs(
   const json = await res.json();
   const rows = Array.isArray(json?.data) ? json.data : [];
 
+  if (rows.length === 0) return [];
+
+  // Extract variables dynamically from the first row's column names
+  // Look for columns like "Upside gdp", "Base gni", "Downside gdp", etc.
+  const firstRow = rows[0];
+  const extractedVariables = new Set<string>();
+  
+  Object.keys(firstRow).forEach((colName) => {
+    // Skip Period column
+    if (colName.toLowerCase() === "period") return;
+    
+    // Extract variable name from column patterns: "Upside gdp" -> "gdp"
+    // Handle different casings: "Upside", "UPSIDE", "upside", "Base", "BASE", "base", etc.
+    const match = colName.match(/^(Upside|Base|Downside|UPSIDE|BASE|DOWNSIDE|upside|base|downside)\s+(.+)$/i);
+    if (match && match[2]) {
+      extractedVariables.add(match[2].trim());
+    }
+  });
+
+  // Use extracted variables, fallback to provided variables if extraction failed
+  const varsToUse = extractedVariables.size > 0 
+    ? Array.from(extractedVariables).sort() 
+    : variables;
+
+  // Transform rows using extracted variables
   const out: ScenarioRow[] = rows.map((r: any) => {
     const period = toYMD(String(r["Period"] ?? r["period"] ?? ""));
-    const upside = makeBlank(variables);
-    const base = makeBlank(variables);
-    const downside = makeBlank(variables);
+    const upside: Record<string, string> = {};
+    const base: Record<string, string> = {};
+    const downside: Record<string, string> = {};
 
-    variables.forEach((v) => {
-      // tolerate different casings/spaces
-      upside[v] = normPct(r[`Upside ${v}`] ?? r[`UPSIDE ${v}`] ?? r[`upside ${v}`] ?? "");
-      base[v] = normPct(r[`Base ${v}`] ?? r[`BASE ${v}`] ?? r[`base ${v}`] ?? "");
-      downside[v] = normPct(
-        r[`Downside ${v}`] ?? r[`DOWNSIDE ${v}`] ?? r[`downside ${v}`] ?? ""
-      );
+    varsToUse.forEach((v) => {
+      // Try multiple column name variations for robustness
+      const upsideVal = r[`Upside ${v}`] ?? r[`UPSIDE ${v}`] ?? r[`upside ${v}`] ?? "";
+      const baseVal = r[`Base ${v}`] ?? r[`BASE ${v}`] ?? r[`base ${v}`] ?? "";
+      const downsideVal = r[`Downside ${v}`] ?? r[`DOWNSIDE ${v}`] ?? r[`downside ${v}`] ?? "";
+      
+      upside[v] = normPct(upsideVal);
+      base[v] = normPct(baseVal);
+      downside[v] = normPct(downsideVal);
     });
 
     return { period, upside, base, downside };
