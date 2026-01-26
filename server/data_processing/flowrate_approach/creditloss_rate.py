@@ -184,16 +184,23 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
         out["Monotonic?"] = mono
         out["Weighted Credit Loss Rate per Month"] = weighted_credit_loss
 
+        # Sort by date to ensure chronological order
+        # Convert to datetime for sorting, then convert back to string format
+        out['date'] = pd.to_datetime(out['date'])
+        out = out.sort_values('date').reset_index(drop=True)
+        # Convert date back to string format (YYYY-MM-DD) to avoid mixed types when adding "Average" row
+        out['date'] = out['date'].dt.strftime('%Y-%m-%d')
+
         print('out.columns', out.columns)
         print('out \n', out)
 
         # Calculate averages for numeric columns (excluding 'date' and 'Monotonic?')
         numeric_cols = [col for col in out.columns if col not in ['date', 'Monotonic?']]
         
-        # Create average row with mean values
+        # Create average row with mean values (excluding first month)
         avg_row = {'date': 'Average'}
         for col in numeric_cols:
-            avg_row[col] = out[col].mean()
+            avg_row[col] = out[col].iloc[1:].mean()  # Exclude first month (index 0)
         avg_row['Monotonic?'] = ''  # Empty for average row (not applicable)
         
         # Create average DataFrame row

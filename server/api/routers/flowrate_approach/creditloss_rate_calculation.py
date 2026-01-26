@@ -80,6 +80,17 @@ async def get_credit_loss_calculation(
 
         df = pd.read_excel(document_file_path)
         
+        # Convert date column to string to avoid JSON serialization issues
+        if 'date' in df.columns:
+            # Store original values for non-datetime entries (like "Average")
+            original_dates = df['date'].copy()
+            # Convert datetime objects to string format
+            df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+            # Fill NaN values (like "Average") back to their original string values
+            mask = df['date'].isna()
+            if mask.any():
+                df.loc[mask, 'date'] = original_dates[mask].astype(str)
+        
         print(document_file_path)
         res = {
             'code': 1,
@@ -90,6 +101,7 @@ async def get_credit_loss_calculation(
         
         return JSONResponse(status_code=200, content=res)
     except Exception as e:
+        traceback.print_exc()
         res = {
             'code': -1,
             'success': False,
