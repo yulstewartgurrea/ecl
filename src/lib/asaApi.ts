@@ -30,7 +30,6 @@ export type AsaApi = {
   getStep2Data: (workflowId: number) => Promise<any>;
   getStep3Data: (workflowId: number) => Promise<any>;
   getStep4Data: (workflowId: number) => Promise<any>;
-  getStep3Data: (workflowId: number) => Promise<any>;
 };
 
 /* ===== Helpers ===== */
@@ -185,8 +184,6 @@ export function createAsaApi(
     getStep3Data: (workflowId: number) =>
       fetchJson(base, `flow_rate/?workflow_id=${workflowId}`, token, scheme),
     getStep4Data: (workflowId: number) =>
-      fetchJson(base, `flow_rate/?workflow_id=${workflowId}`, token, scheme),
-    getStep3Data: (workflowId: number) =>
       fetchJson(
         base,
         `credit_loss_calculation/?workflow_id=${workflowId}`,
