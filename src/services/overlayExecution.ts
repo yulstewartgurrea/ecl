@@ -38,9 +38,6 @@ const normPct = (v: any) => {
   return s.endsWith("%") ? s : `${s}%`;
 };
 
-const makeBlank = (vars: string[]) =>
-  vars.reduce<Record<string, string>>((acc, k) => ((acc[k] = ""), acc), {});
-
 // ---------- existing endpoints ----------
 export async function overrideGetForcasted(
   workflowId: number | string,
