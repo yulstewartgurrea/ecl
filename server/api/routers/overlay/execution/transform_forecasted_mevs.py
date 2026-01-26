@@ -54,7 +54,15 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
             #     OverlayLogs.submodule == "EXECUTION"
             # ).first()
 
-            # Get data interpolation 
+            final_models_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{workflow.loan_product}/final_models"
+            )
+            final_models_path = Path(final_models_path)
+
             # Get data from transformation
             data_transformation_path = (
                 f"{get_root_folder()}/server/files/"
@@ -66,13 +74,12 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
             data_transformation_path = Path(data_transformation_path)
             
 
-            # Get input file from library (same as GET endpoint)
-            override_forecasted_mevs_path = (
+            override_data_transformation_mevs_path = (
                 f"{get_root_folder()}/server/files/"
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/override_forecasted_mevs"
+                f"output/overlay/execution/{workflow.loan_product}/override_data_transformation_mevs"
             )
             
             data_transformation_file = max(
@@ -80,13 +87,32 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
                 key=lambda p: p.stat().st_mtime,   # last modified time
                 default=None
             )
-            override_forecasted_mevs_file = get_latest_file(override_forecasted_mevs_path)
+
+            override_data_transformation_mevs_file = get_latest_file(override_data_transformation_mevs_path)
+            final_models_file = get_latest_file(final_models_path)
 
             print('data_transformation_file', data_transformation_file)
-            print('override_forecasted_mevs_file', override_forecasted_mevs_file)
+            print('override_data_transformation_mevs_file', override_data_transformation_mevs_file)
 
-            data_transformation_df = read_data_file(data_transformation_file)
-            override_forecasted_mevs_df = read_data_file(override_forecasted_mevs_file)
+            override_data_transformation_mevs_df = read_data_file(override_data_transformation_mevs_file)
+            final_models_df = read_data_file(final_models_file)
+            # Determine file type based on extension
+            file_ext = os.path.splitext(data_transformation_file)[1].lower()
+            
+            if file_ext in ['.xlsx', '.xls']:
+                # Read Excel file
+                print(f"Detected Excel file: {file_ext}")
+                data_transformation_df = pd.read_excel(data_transformation_file)
+            elif file_ext == '.csv':
+                # Read CSV file
+                print(f"Detected CSV file")
+                data_transformation_df = pd.read_csv(data_transformation_file)
+            else:
+                raise ValueError(f"Unsupported file format: {file_ext}. Supported formats: .csv, .xlsx, .xls")
+
+            print('data_transformation_df', data_transformation_df.columns)
+            print('override_data_transformation_mevs_df', override_data_transformation_mevs_df.columns)
+            data_transformation_df['Date'] = data_transformation_df['Period']
 
             if not workflow:
                 return JSONResponse(
@@ -121,13 +147,13 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
                     }
                 )
 
-            if override_forecasted_mevs_df.empty:
+            if override_data_transformation_mevs_df.empty:
                 return JSONResponse(
                     status_code=404,
                     content= {
                         "code": -1,
                         "success": False,
-                        "msg": "No override forecasted MEVs data found for this workflow",
+                        "msg": "No override data transformation MEVs data found for this workflow",
                         "data": None
                     }
                 )
@@ -136,7 +162,8 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
 
         process_transform_forecasted_mevs_res = process_transform_forecasted_mevs(
             data_transformation_df,
-            override_forecasted_mevs_df)
+            override_data_transformation_mevs_df,
+            final_models_df)
 
         print('process_transform_forecasted_mevs_res', process_transform_forecasted_mevs_res)
         

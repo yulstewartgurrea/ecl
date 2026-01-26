@@ -19,6 +19,8 @@ from data.excluded_columns import excluded_columns
 import time
 import re
 
+from helpers.file_utils import find_and_read_data_file, get_root_folder, read_data_file
+
 
 # ----------------------------- Utilities & Cleaning ----------------------------- #
 
@@ -111,7 +113,7 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
         # definition rows (first 2 rows) exist in both inputs; keep but will drop post-merge
         df_combined = pd.merge(df_interpolation, df_monthly, on='id', how='left')
 
-        df_combined.to_csv('df_combined.csv', index=False)
+        # df_combined.to_csv('df_combined.csv', index=False)
 
         # Drop definition rows at indices 1 and 2 (0-based)
         df_combined = df_combined.drop([1, 2], errors='ignore').reset_index(drop=True)
@@ -149,6 +151,7 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
         other_cols = [c for c in df_combined.columns if c not in id_cols]
         df_combined = df_combined[id_cols + other_cols]
 
+        # Update 1/22/2026: use override_data_transformation_mevs_df instead of final_models_df_copy
         # get X1 column value from final_models_df_copy
         # get all values where column headers pattern are X1, X2, X3, and so on
         x_series = final_models_df_copy.filter(regex='^X\d+$').iloc[0]
@@ -169,9 +172,36 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
             col for col in df_combined.columns
             if col_base_name(col) in x_set
         ]
+
         print('x_series_cols', x_series_cols)
+
+        # Get row 0 of override_data_transformation_mevs_df
+        # get only colmns with Upside and Downside
+        # cols = [
+        #     c for c in final_models_df_copy.columns
+        #     if c.lower().startswith(("upside", "downside", "base"))
+        # ]
+        # cols = [
+        #     c.replace("Upside ", "")
+        #     .replace("Base ", "")
+        #     .replace("Downside ", "")
+        #     for c in cols
+        # ]
+
+        # deduplicate while preserving order
+        # x_series_cols = list(dict.fromkeys(cols))
+
+        # x_series_cols = [
+        #     col for col in df_combined.columns
+        #     if col_base_name(col) in x_series_cols
+        # ]
+        
+        # print('x_series_cols', x_series_cols)
         final_cols = ['Date', 'year', 'month (int)', 'month', 'id', 'x'] + x_series_cols
+        print(f"final_cols: {final_cols}")
         final_col = df_combined[final_cols]
+
+        final_col.to_csv('final_col.csv', index=False)
         return final_col
 
     except Exception as e:
@@ -213,7 +243,7 @@ def prepare_independent_variables(df: pd.DataFrame, excluded_columns: list) -> p
         raise ValueError("Cannot create Time column: missing 'year' and 'month (int)'.")
 
     # Remove first 2 definition rows
-    x_raw = x_raw.iloc[2:].reset_index(drop=True)
+    # x_raw = x_raw.iloc[2:].reset_index(drop=True)
 
     # Clean numerics
     x_raw = clean_percentage_data(x_raw, excluded_columns)
@@ -615,46 +645,68 @@ def compute_correlation_matrix(x_transformed: pd.DataFrame,
 
 # ----------------------------- Combinations ----------------------------- #
 
-def generate_variable_combinations(x_raw_vars: list,
+def generate_variable_combinations(base_var_to_actual_cols: dict,
                                    x_transformed: pd.DataFrame,
                                    excluded_columns: list,
                                    cancellation_check=None) -> list[list[str]]:
     """
-    Generate all valid variable combinations with transformations.
+    Generate all valid variable combinations with transformations using actual column names.
     
     This function creates all possible 2-variable combinations by:
     1. Starting with base variable combinations (C(n,2) for n base vars)
-    2. Applying Level/GR permutations: "", ".Level", ".GR" for each variable
-    3. Applying transformation permutations: "", ".ln", ".asinh" for each variable
-    4. Applying differencing permutations: "", ".diff_12" for each variable
-    5. Applying lag permutations: "", ".lag_3", ".lag_6", ".lag_9", ".lag_12" for each
+    2. Finding actual columns that match Level/GR patterns: "", ".Level", ".GR" for each variable
+    3. Finding actual columns that match transformation patterns: "", ".ln", ".asinh" for each variable
+    4. Finding actual columns that match differencing patterns: "", ".diff_12" for each variable
+    5. Finding actual columns that match lag patterns: "", ".lag_3", ".lag_6", ".lag_9", ".lag_12" for each
     
     Only combinations where all variables exist in x_transformed are kept.
     Supports cancellation checks during processing.
     
     Args:
-        x_raw_vars (list): List of base variable names (without suffixes)
+        base_var_to_actual_cols (dict): Dictionary mapping base variable names to lists of actual column names
+                                         e.g., {"gdp": ["gdp.Point Forecast", "gdp.Point Forecast.Level", ...], ...}
         x_transformed (pd.DataFrame): DataFrame with all transformed columns
         excluded_columns (list): Columns to exclude
         cancellation_check (callable, optional): Function returning True to cancel
     
     Returns:
-        list[list[str]]: List of 2-variable combinations (each is a list of 2 variable names)
+        list[list[str]]: List of 2-variable combinations (each is a list of 2 actual column names)
     
     Raises:
         Exception: If cancellation_check returns True
     """
     print("Generating variable combinations...")
 
-    # base names (raw should not have '.')
-    x_base_vars = list(set([v.split('.')[0] for v in x_raw_vars]))
+    # NEW: Get base variables from the mapping keys
+    x_base_vars = sorted(list(base_var_to_actual_cols.keys()))
     print('x_base_vars', x_base_vars)
     print(f"Base variables: {len(x_base_vars)}")
+    
+    # OLD: base names (raw should not have '.')
+    # x_base_vars = list(set([v.split('.')[0] for v in x_raw_vars]))
 
     num_vars_taken = 2
     comb_no_lags = list(combinations(x_base_vars, num_vars_taken))
     comb_extended = [list(c) for c in comb_no_lags]
     print(f"Base combinations: {len(comb_extended)}")
+
+    # Helper function to find actual columns matching a suffix pattern
+    def find_matching_cols(base_var: str, suffix: str) -> list[str]:
+        """Find actual columns for a base variable that match the given suffix pattern."""
+        if base_var not in base_var_to_actual_cols:
+            return []
+        actual_cols = base_var_to_actual_cols[base_var]
+        if suffix == "":
+            # For empty suffix, find columns that are the base variable itself or don't have .Level/.GR
+            # Prefer columns without .Level or .GR (raw columns)
+            raw_cols = [c for c in actual_cols if not c.endswith('.Level') and not c.endswith('.GR')]
+            if raw_cols:
+                return raw_cols
+            # Fallback to any column starting with base_var
+            return [c for c in actual_cols if c.startswith(base_var + '.') or c == base_var]
+        else:
+            # For specific suffix, find columns ending with that suffix
+            return [c for c in actual_cols if c.endswith(suffix)]
 
     # Level/GR
     print("Applying Level/GR permutations...")
@@ -669,8 +721,19 @@ def generate_variable_combinations(x_raw_vars: list,
         if cancellation_check and idx % 100 == 0 and cancellation_check():
             raise Exception("Job cancelled")
         for p in level_gr_perms:
-            names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
-            new_ext.append(names)
+            # NEW: Find actual columns matching the suffix pattern for each base variable
+            matching_cols_list = [find_matching_cols(base_comb[i], p[i]) for i in range(num_vars_taken)]
+            # Create combinations from matching columns (use first match for each, or all combinations)
+            if all(len(cols) > 0 for cols in matching_cols_list):
+                # Use first matching column for each base variable
+                names = [matching_cols_list[i][0] for i in range(num_vars_taken)]
+                new_ext.append(names)
+    
+    # OLD: Construct names by appending suffix
+    # for p in level_gr_perms:
+    #     names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
+    #     new_ext.append(names)
+    
     comb_extended = [c for c in new_ext if all(v in x_transformed.columns for v in c)]
     print(f"Valid Level/GR combinations: {len(comb_extended)}")
     if not comb_extended:
@@ -689,8 +752,32 @@ def generate_variable_combinations(x_raw_vars: list,
         if cancellation_check and idx % 100 == 0 and cancellation_check():
             raise Exception("Job cancelled")
         for p in trans_perms:
-            names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
-            new_ext.append(names)
+            # NEW: For each column in the combination, find actual columns matching the transformation suffix
+            matching_combos = []
+            for i, col in enumerate(base_comb):
+                trans_suffix = p[i]
+                if trans_suffix == "":
+                    # No transformation, use the column as-is
+                    matching_combos.append([col])
+                else:
+                    # Use insert_transformation_suffix to properly construct the column name
+                    # This handles forecast suffixes correctly (e.g., "gdp.Point Forecast.Level" + ".ln")
+                    target_col = insert_transformation_suffix(col, trans_suffix)
+                    if target_col in x_transformed.columns:
+                        matching_combos.append([target_col])
+                    else:
+                        matching_combos.append([])
+            
+            # Create combinations from matching columns
+            if all(len(cols) > 0 for cols in matching_combos):
+                names = [matching_combos[i][0] for i in range(num_vars_taken)]
+                new_ext.append(names)
+    
+    # OLD: Construct names by appending transformation suffix
+    # for p in trans_perms:
+    #     names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
+    #     new_ext.append(names)
+    
     comb_extended = [c for c in new_ext if all(v in x_transformed.columns for v in c)]
     print(f"Valid transformation combinations: {len(comb_extended)}")
 
@@ -707,8 +794,32 @@ def generate_variable_combinations(x_raw_vars: list,
         if cancellation_check and idx % 100 == 0 and cancellation_check():
             raise Exception("Job cancelled")
         for p in diff_perms:
-            names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
-            new_ext.append(names)
+            # NEW: For each column in the combination, find actual columns matching the differencing suffix
+            matching_combos = []
+            for i, col in enumerate(base_comb):
+                diff_suffix = p[i]
+                if diff_suffix == "":
+                    # No differencing, use the column as-is
+                    matching_combos.append([col])
+                else:
+                    # Use insert_transformation_suffix to properly construct the column name
+                    # This handles forecast suffixes correctly (e.g., "gdp.Point Forecast.Level.ln" + ".diff_12")
+                    target_col = insert_transformation_suffix(col, diff_suffix)
+                    if target_col in x_transformed.columns:
+                        matching_combos.append([target_col])
+                    else:
+                        matching_combos.append([])
+            
+            # Create combinations from matching columns
+            if all(len(cols) > 0 for cols in matching_combos):
+                names = [matching_combos[i][0] for i in range(num_vars_taken)]
+                new_ext.append(names)
+    
+    # OLD: Construct names by appending differencing suffix
+    # for p in diff_perms:
+    #     names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
+    #     new_ext.append(names)
+    
     comb_extended = [c for c in new_ext if all(v in x_transformed.columns for v in c)]
     print(f"Valid differencing combinations: {len(comb_extended)}")
 
@@ -725,8 +836,32 @@ def generate_variable_combinations(x_raw_vars: list,
         if cancellation_check and idx % 100 == 0 and cancellation_check():
             raise Exception("Job cancelled")
         for p in lag_perms:
-            names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
-            new_ext.append(names)
+            # NEW: For each column in the combination, find actual columns matching the lag suffix
+            matching_combos = []
+            for i, col in enumerate(base_comb):
+                lag_suffix = p[i]
+                if lag_suffix == "":
+                    # No lag, use the column as-is
+                    matching_combos.append([col])
+                else:
+                    # Use insert_transformation_suffix to properly construct the column name
+                    # This handles forecast suffixes correctly (e.g., "gdp.Point Forecast.Level.ln.diff_12" + ".lag_3")
+                    target_col = insert_transformation_suffix(col, lag_suffix)
+                    if target_col in x_transformed.columns:
+                        matching_combos.append([target_col])
+                    else:
+                        matching_combos.append([])
+            
+            # Create combinations from matching columns
+            if all(len(cols) > 0 for cols in matching_combos):
+                names = [matching_combos[i][0] for i in range(num_vars_taken)]
+                new_ext.append(names)
+    
+    # OLD: Construct names by appending lag suffix
+    # for p in lag_perms:
+    #     names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
+    #     new_ext.append(names)
+    
     comb_extended = [c for c in new_ext if all(v in x_transformed.columns for v in c)]
     print(f"Valid lag combinations: {len(comb_extended)}")
 
@@ -871,7 +1006,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     Raises:
         Exception: If cancellation_check returns True
     """
-    print('combine_monthly_mev_data_interpolation_df', combine_monthly_mev_data_interpolation_df)
+    # print('combine_monthly_mev_data_interpolation_df', combine_monthly_mev_data_interpolation_df)
     # combine_monthly_mev_data_interpolation_df.to_csv('combine_monthly_mev_data_interpolation_df.csv', index=False)
     print('historical_default_rate_df', historical_default_rate_df)
     _date_time = get_time_date()
@@ -879,7 +1014,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     docs = []
 
     output_dir = (
-        f"{get_root_folder()}/files/"
+        f"{get_root_folder()}/server/files/"
         f"{workflow.entity}/"
         f"{workflow.reporting_period}/"
         f"{workflow.workflow_name}/"
@@ -900,7 +1035,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     # Extract base variable names from all columns (including those with forecast suffixes)
     # For columns with dots, take the part before the first dot as the base variable name
     # For columns without dots, use the column name as-is
-    all_x_cols = [c for c in x_raw.columns if c not in excluded_columns and c.lower() != 'time']
+    all_x_cols = [c for c in x_raw.columns if c not in excluded_columns and c.lower() not in ['time', 'period']]
     x_base_var_set = set()
     for col in all_x_cols:
         if '.' in col:
@@ -948,13 +1083,29 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     perform_adf_tests(x_transformed, y_transformed, excluded_columns, output_dir, workflow, _date_time, docs)
     x_cor_mat = compute_correlation_matrix(x_transformed, excluded_columns, output_dir, workflow, _date_time, docs)
 
+    # 5) Extract actual column names grouped by base variable (NEW: use actual column names)
+    # Extract actual columns from x_transformed grouped by base variable
+    base_var_to_actual_cols = {}
+    for col in x_transformed.columns:
+        if col not in excluded_columns and col.lower() != 'time':
+            base_var = col.split('.')[0]  # "gdp.Point Forecast.Level" -> "gdp"
+            if base_var not in base_var_to_actual_cols:
+                base_var_to_actual_cols[base_var] = []
+            base_var_to_actual_cols[base_var].append(col)
+    
+    print(f"Extracted actual columns for {len(base_var_to_actual_cols)} base variables")
+    for base_var, cols in list(base_var_to_actual_cols.items())[:3]:  # Show first 3 for debugging
+        print(f"  {base_var}: {len(cols)} columns (sample: {cols[:3]})")
+
     # 5) Combos + combo max corr
     if progress_callback:
         progress_callback(60, "Generating variable combinations...")
     if cancellation_check and cancellation_check():
         raise Exception("Job cancelled")
     
-    all_combinations = generate_variable_combinations(x_raw_vars, x_transformed, excluded_columns, cancellation_check)
+    # NEW: Pass base_var_to_actual_cols instead of x_raw_vars
+    all_combinations = generate_variable_combinations(base_var_to_actual_cols, x_transformed, excluded_columns, cancellation_check)
+    # OLD: all_combinations = generate_variable_combinations(x_raw_vars, x_transformed, excluded_columns, cancellation_check)
     
     if cancellation_check and cancellation_check():
         raise Exception("Job cancelled")
@@ -987,15 +1138,14 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
 
     return {"docs": docs, "file_path": output_dir}
 
-
-def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
-                                data_interpolation_df: pd.DataFrame,
-                                historical_default_rates_df: pd.DataFrame,
-                                workflow,
-                                final_models_df: pd.DataFrame,
-                                progress_callback=None,
-                                cancellation_check=None,
-                                num_combinations: int = 2):
+def process_data_transformation(
+    combined_monthly_mev_data_interpolation_df: pd.DataFrame,
+    historical_default_rates_df: pd.DataFrame,
+    workflow,
+    override_data_transformation_mevs_df: pd.DataFrame,
+    progress_callback=None,
+    cancellation_check=None,
+    num_combinations: int = 2):
     """
     Main entry point for data transformation process.
     
@@ -1006,8 +1156,7 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
     4. Handles errors and cancellation
     
     Args:
-        monthly_historical_mev_df (pd.DataFrame): Monthly historical MEV data
-        data_interpolation_df (pd.DataFrame): Interpolated data
+        combined_monthly_mev_data_interpolation_df (pd.DataFrame): Combined monthly MEV and interpolation data
         historical_default_rates_df (pd.DataFrame): Historical default rate data
         workflow: Workflow object
         progress_callback (callable, optional): Function for progress updates
@@ -1025,13 +1174,107 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
         if cancellation_check and cancellation_check():
             raise Exception("Job cancelled")
         
-        df_combined = combine_monthly_mev_data_interpolation(
-            monthly_historical_mev_df, 
-            data_interpolation_df,
-            final_models_df
-        )
+        print('combined_monthly_mev_data_interpolation_df \n', combined_monthly_mev_data_interpolation_df)
+        print('override_data_transformation_mevs_df \n', override_data_transformation_mevs_df)
+
+        max_date = override_data_transformation_mevs_df.copy()
+        max_date['Period'] = pd.to_datetime(max_date['Period'])
+        max_date = max_date['Period'].max()
+
+        override_data_transformation_mevs_df_copy = override_data_transformation_mevs_df.copy()
+        override_data_transformation_mevs_df_copy['Period'] = pd.to_datetime(override_data_transformation_mevs_df_copy['Period'])
+
+        override_data_transformation_mevs_df_copy['year'] = override_data_transformation_mevs_df_copy['Period'].dt.year
+        override_data_transformation_mevs_df_copy['month (int)'] = override_data_transformation_mevs_df_copy['Period'].dt.month
+        override_data_transformation_mevs_df_copy['month'] = override_data_transformation_mevs_df_copy['Period'].dt.strftime("%b")
+        override_data_transformation_mevs_df_copy['id'] = override_data_transformation_mevs_df_copy['Period'].dt.strftime('%Y-%m')
+
+        # combine combined_monthly_mev_data_interpolation_df and override_data_transformation_mevs_df_copy
+        # Step 1: Prepare combined_monthly_mev_data_interpolation_df - convert Date to Period
+        combined_df = combined_monthly_mev_data_interpolation_df.copy()
+        combined_df['Period'] = pd.to_datetime(combined_df['Date'])
+        
+        # Step 2: Get all unique dates from both dataframes
+        override_dates = set(override_data_transformation_mevs_df_copy['Period'].dt.date)
+        combined_dates = set(combined_df['Period'].dt.date)
+        all_dates = sorted(override_dates.union(combined_dates))
+        
+        # Step 3: Create a function to extract variable name from column names
+        # Examples: "Upside gdp" -> "gdp", "Base gni" -> "gni", "Downside gdp.Level" -> "gdp"
+        def extract_variable_name(col_name: str) -> str:
+            """Extract variable name from column name, removing scenario prefixes and transformation suffixes."""
+            # Remove scenario prefixes (Upside, Base, Downside)
+            col_clean = col_name.replace("Upside ", "").replace("Base ", "").replace("Downside ", "")
+            # Extract base variable (before first dot if exists)
+            if '.' in col_clean:
+                return col_clean.split('.')[0]
+            return col_clean
+        
+        # Step 4: Create mapping from override columns to Point Forecast columns
+        # Build a mapping: override_column -> variable_name -> point_forecast_column
+        column_mapping = {}
+        for col in override_data_transformation_mevs_df_copy.columns:
+            if col not in ['Period', 'year', 'month (int)', 'month', 'id']:
+                var_name = extract_variable_name(col)
+                point_forecast_col = f"{var_name}.Point Forecast"
+                if point_forecast_col in combined_df.columns:
+                    column_mapping[col] = point_forecast_col
+        
+        # Step 5: Create result dataframe with all dates
+        result_rows = []
+        for date in all_dates:
+            date_dt = pd.Timestamp(date)
+            row = {
+                'Period': date_dt,
+                'year': date_dt.year,
+                'month (int)': date_dt.month,
+                'month': date_dt.strftime("%b"),
+                'id': date_dt.strftime('%Y-%m')
+            }
+            
+            # Check if date exists in override_data_transformation_mevs_df_copy
+            override_match = override_data_transformation_mevs_df_copy[
+                override_data_transformation_mevs_df_copy['Period'].dt.date == date
+            ]
+            
+            if not override_match.empty:
+                # Use values from override_data_transformation_mevs_df_copy
+                override_row = override_match.iloc[0]
+                for col in override_data_transformation_mevs_df_copy.columns:
+                    if col not in ['Period', 'year', 'month (int)', 'month', 'id']:
+                        row[col] = override_row[col]
+            else:
+                # Date only exists in combined_df, use Point Forecast columns
+                combined_match = combined_df[combined_df['Period'].dt.date == date]
+                if not combined_match.empty:
+                    combined_row = combined_match.iloc[0]
+                    for override_col, point_forecast_col in column_mapping.items():
+                        if point_forecast_col in combined_row.index:
+                            row[override_col] = combined_row[point_forecast_col]
+                        else:
+                            row[override_col] = None
+                else:
+                    # Date not found in either, fill with None
+                    for col in override_data_transformation_mevs_df_copy.columns:
+                        if col not in ['Period', 'year', 'month (int)', 'month', 'id']:
+                            row[col] = None
+            
+            result_rows.append(row)
+        
+        # Step 6: Create final combined dataframe
+        override_data_transformation_mevs_df_copy = pd.DataFrame(result_rows)
+        # Ensure Period is datetime
+        override_data_transformation_mevs_df_copy['Period'] = pd.to_datetime(override_data_transformation_mevs_df_copy['Period'])
+        # Sort by Period
+        override_data_transformation_mevs_df_copy = override_data_transformation_mevs_df_copy.sort_values('Period').reset_index(drop=True)
+        
+        # do not include the dates after the maximum date of override_data_transformation_mevs_df_copy['Period'] 
+        override_data_transformation_mevs_df_copy = override_data_transformation_mevs_df_copy[override_data_transformation_mevs_df_copy['Period'] <= max_date]
+
+        # override_data_transformation_mevs_df_copy.to_csv('override_data_transformation_mevs_df_copy.csv', index=False)
+
         res = process_data_transformation_output(
-            df_combined, 
+            override_data_transformation_mevs_df_copy, 
             historical_default_rates_df, 
             workflow, 
             progress_callback, 
@@ -1049,3 +1292,7 @@ def process_data_transformation(monthly_historical_mev_df: pd.DataFrame,
         print(f"Error during combination: {str(e)}")
         import traceback; traceback.print_exc()
         return None
+
+# 1. combine data
+# 2. pick desired variables and values
+# 3. process data transformation of step 2

@@ -398,18 +398,22 @@ async def get_override_data_transformation_mevs_input(
                 f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
             )
 
-            data_interpolation = (
+            combined_monthly_mev_data_interpolation_path = (
                 f"{get_root_folder()}/server/files/"
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"output/overlay/execution/{workflow.loan_product}/data_interpolation"
+                f"output/overlay/execution/{workflow.loan_product}/data_transformation/combined_monthly_mev_data_interpolation"
             )
 
-            print(data_interpolation)
+            print(combined_monthly_mev_data_interpolation_path)
 
             period_file = get_latest_file(period_path)
-            data_interpolation_file = get_latest_file(data_interpolation)
+            combined_monthly_mev_data_interpolation_file = get_latest_file(combined_monthly_mev_data_interpolation_path)
+            print('combined_monthly_mev_data_interpolation_file', combined_monthly_mev_data_interpolation_file)
+
+            if combined_monthly_mev_data_interpolation_file is None:
+                raise ValueError(f"No file found in {combined_monthly_mev_data_interpolation_path}")
 
             if period_file is None:
                 raise ValueError(f"No file found in {period_path}")
@@ -424,15 +428,15 @@ async def get_override_data_transformation_mevs_input(
                 raise ValueError(f"Unsupported file format: {file_ext}")
             
             # file is csv read_csv if excel read_excel
-            file_ext = data_interpolation_file.suffix.lower()
+            file_ext = combined_monthly_mev_data_interpolation_file.suffix.lower()
             if file_ext == '.csv':
-                data_interpolation_data = pd.read_csv(data_interpolation_file)
+                combined_monthly_mev_data_interpolation_data = pd.read_csv(combined_monthly_mev_data_interpolation_file)
             elif file_ext in ['.xlsx', '.xls']:
-                data_interpolation_data = pd.read_excel(data_interpolation_file)
+                combined_monthly_mev_data_interpolation_data = pd.read_excel(combined_monthly_mev_data_interpolation_file)
             else:
                 raise ValueError(f"Unsupported file format: {file_ext}")
 
-            print(data_interpolation_data)
+            print(combined_monthly_mev_data_interpolation_data)
 
             period_data['time'] = pd.to_datetime(period_data['time'], format="%m/%d/%Y")
             last_time = period_data['time'].max()
@@ -453,7 +457,7 @@ async def get_override_data_transformation_mevs_input(
                 "id",
                 "x"
             ]
-            df_clean = data_interpolation_data.drop(columns=cols_to_drop, errors="ignore")
+            df_clean = combined_monthly_mev_data_interpolation_data.drop(columns=cols_to_drop, errors="ignore")
             df_clean.columns = df_clean.columns.str.strip()
             x_cols = df_clean.columns.tolist()
             x_cols = set([col.split('.')[0] for col in x_cols])

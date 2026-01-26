@@ -241,6 +241,16 @@ def run_data_transformation_background(job_id: int,
         #         f"output/overlay/development/{workflow.loan_product}/final_models"
         #     )
 
+        combined_monthly_mev_data_interpolation_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"output/overlay/execution/{workflow.loan_product}/data_transformation/combined_monthly_mev_data_interpolation"
+        )
+
+        combined_monthly_mev_data_interpolation_file = get_latest_file(combined_monthly_mev_data_interpolation_path)
+
         if historical_weighted_credit_loss_rate_file:
             historical_default_rates_path = (
                 f"{get_root_folder()}/server/files/"
@@ -428,6 +438,8 @@ def run_data_transformation_background(job_id: int,
             db.commit()
             return
         
+        combined_monthly_mev_data_interpolation_df = read_data_file(combined_monthly_mev_data_interpolation_file)
+
         # Process transformation with progress updates
         update_progress(20, "Starting data transformation...")
         if check_cancellation():
@@ -436,8 +448,7 @@ def run_data_transformation_background(job_id: int,
         
         try:
             process_data_transformation_res = process_data_transformation(
-                monthly_historical_mev_df, 
-                data_interpolation_df,
+                combined_monthly_mev_data_interpolation_df,
                 historical_default_rates_df,
                 workflow,
                 # final_models_df,
