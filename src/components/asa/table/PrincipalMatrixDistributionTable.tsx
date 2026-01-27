@@ -24,7 +24,7 @@ export default function PrincipalMatrixDistributionTable({
 
   // Build distribution rows dynamically:
   // - for each row, find numeric columns
-  // - denominator = sum of numeric columns (excluding date/product-ish)
+  // - denominator = sum of numeric columns (excluding date/product-ish and "total loan balance with c/p")
   const distRows = useMemo(() => {
     if (!rows?.length) return [];
 
@@ -35,11 +35,17 @@ export default function PrincipalMatrixDistributionTable({
         isProbablyNumericColumn(rows, k)
     );
 
+    // Exclude "total loan balance with c/p" from denominator calculation
+    // as it's always 1.0 in distribution data and shouldn't be part of the sum
+    const denomKeys = numericKeys.filter(
+      (k) => !k.toLowerCase().includes("total loan balance with c/p")
+    );
+
     return rows.map((r) => {
       const out: AnyRow = { ...r };
 
       const denom =
-        numericKeys.reduce((sum, k) => sum + (isNA(r[k]) ? 0 : toNum(r[k])), 0) || 1;
+        denomKeys.reduce((sum, k) => sum + (isNA(r[k]) ? 0 : toNum(r[k])), 0) || 1;
 
       numericKeys.forEach((k) => {
         const raw = r[k];

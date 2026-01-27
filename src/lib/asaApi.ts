@@ -182,7 +182,7 @@ export function createAsaApi(
         scheme
       ),
     getStep3Data: (workflowId: number) =>
-      fetchJson(base, `flow_rate/?workflow_id=${workflowId}`, token, scheme),
+      fetchJson(base, `credit_loss_calculation/?workflow_id=${workflowId}`, token, scheme),
     getStep4Data: (workflowId: number) =>
       fetchJson(
         base,

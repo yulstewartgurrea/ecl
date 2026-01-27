@@ -74,7 +74,7 @@ function toFraction(v: any): number | null {
   return n;
 }
 
-const pct = (fraction: number | null, digits = 6) => {
+const pct = (fraction: number | null, digits = 2) => {
   if (fraction === null) return "#N/A";
   const v = Number(fraction ?? 0) * 100;
   return `${v.toLocaleString(undefined, {
@@ -282,7 +282,7 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
 
                     {autoCategories.map((c) => (
                       <td key={c.key} className="px-3 py-2  text-right tabular-nums">
-                        {pct(toFraction(r?.[c.key]), 6)}
+                        {pct(toFraction(r?.[c.key]), 2)}
                       </td>
                     ))}
 
@@ -304,7 +304,7 @@ const CreditLossRateMatrix: React.FC<CreditLossRateMatrixProps> = ({
 
                     {schema.weightedKey && (
                       <td className="px-3 py-2  text-right font-medium text-gray-900 tabular-nums">
-                        {pct(t._weighted, 6)}
+                        {pct(t._weighted, 2)}
                       </td>
                     )}
                   </tr>
