@@ -186,20 +186,64 @@ export function Multi_Table({
       .map((r, i) => ({ r, id: rowIdOf(r, i) }))
       .filter(({ id }) => selectedIds.has(id))
       .map(({ r }) => r);
-  }, [data, selectedIds]);
+  }, [data, selectedIds, getRowId]);
+
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  useEffect(() => {
+    onSelectionChangeRef.current = onSelectionChange;
+  }, [onSelectionChange]);
+
+  // Track if we're syncing from initialSelectedIds to prevent callback loops
+  const isSyncingRef = useRef(false);
+  const prevInitialSelectedIdsRef = useRef<typeof initialSelectedIds>(undefined);
 
   useEffect(() => {
-    onSelectionChange?.(selectedRows, Array.from(selectedIds));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds]);
+    // Skip callback if we're in the middle of syncing from initialSelectedIds
+    if (isSyncingRef.current) return;
+    
+    // Compute selectedRows inside the effect to get the latest data
+    const computedSelectedRows = data
+      .map((r, i) => {
+        const id = getRowId ? getRowId(r, i) : rowIdOf(r, i);
+        return { r, id };
+      })
+      .filter(({ id }) => selectedIds.has(id))
+      .map(({ r }) => r);
+    
+    onSelectionChangeRef.current?.(computedSelectedRows, Array.from(selectedIds));
+  }, [selectedIds, data, getRowId]);
 
   // ---- sync selection if initialSelectedIds changes (e.g., workflow change)
   useEffect(() => {
-    if (!initialSelectedIds) return;
-    const next = normalizeIds(initialSelectedIds);
-    let same = next.size === selectedIds.size;
+    if (!initialSelectedIds) {
+      prevInitialSelectedIdsRef.current = initialSelectedIds;
+      return;
+    }
+    
+    // Compare by value to avoid unnecessary updates
+    const currentIds = normalizeIds(initialSelectedIds);
+    const prevIds = prevInitialSelectedIdsRef.current ? normalizeIds(prevInitialSelectedIdsRef.current) : new Set();
+    
+    // Check if initialSelectedIds actually changed
+    let idsChanged = currentIds.size !== prevIds.size;
+    if (!idsChanged) {
+      for (const id of currentIds) {
+        if (!prevIds.has(id)) {
+          idsChanged = true;
+          break;
+        }
+      }
+    }
+    
+    // Update ref before checking if we need to sync
+    prevInitialSelectedIdsRef.current = initialSelectedIds;
+    
+    // Only sync if initialSelectedIds changed AND it's different from current selection
+    if (!idsChanged) return;
+    
+    let same = currentIds.size === selectedIds.size;
     if (same) {
-      for (const id of next) {
+      for (const id of currentIds) {
         if (!selectedIds.has(id)) {
           same = false;
           break;
@@ -207,7 +251,12 @@ export function Multi_Table({
       }
     }
     if (!same) {
-      setSelectedIds(next);
+      isSyncingRef.current = true;
+      setSelectedIds(currentIds);
+      // Reset the flag in the next tick after state update completes
+      requestAnimationFrame(() => {
+        isSyncingRef.current = false;
+      });
     }
   }, [initialSelectedIds, normalizeIds, selectedIds]);
 

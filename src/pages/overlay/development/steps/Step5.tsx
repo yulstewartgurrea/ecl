@@ -483,6 +483,62 @@ const Step5: React.FC<Step5Props> = ({
     setErrMsg(null);
   }, [selectedWorkflowId, selectedRows, dispatch, contextKey]);
 
+  const handleSelectionChange = useCallback((selRows: Row[]) => {
+    console.log("Selected:", selRows.length);
+    const wf = Number(selectedWorkflowId);
+    if (Number.isFinite(wf) && (!selRows || selRows.length === 0)) {
+      const existingCount = Array.isArray(persistedChecked?.rows)
+        ? persistedChecked.rows.length
+        : 0;
+      if (existingCount > 0) return;
+    }
+    
+    // Check if selection actually changed from what's persisted to avoid infinite loops
+    const currentIds = (selRows || []).map((r) =>
+      String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`)
+    ).sort();
+    const persistedIds = (persistedChecked?.ids || []).map(String).sort();
+    const selectionChanged = 
+      currentIds.length !== persistedIds.length ||
+      currentIds.some((id, i) => id !== persistedIds[i]);
+    
+    // track selected rows for Step 6 gating
+    setSelectedRowsCount(selRows.length);
+    setSelectedRows(selRows || []);
+    setHasSavedSelection(false);
+    setSaveMsg(null);
+    
+    // Only dispatch Redux if selection actually changed
+    if (Number.isFinite(wf) && selectionChanged) {
+      const payload = {
+        ids: currentIds,
+        rows: selRows || [],
+        savedAt: new Date().toISOString(),
+      };
+      dispatch(
+        setModuleProgress({
+          moduleKey: "overlayDevelopment",
+          contextKey,
+          data: { step5Checked: payload },
+        })
+      );
+      dispatch(
+        setModuleProgress({
+          moduleKey: "overlayDevelopment",
+          data: { lastWorkflowId: wf },
+        })
+      );
+    }
+  }, [selectedWorkflowId, persistedChecked, dispatch, contextKey]);
+
+  const getRowId = useCallback((r: Row) => {
+    return String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`);
+  }, []);
+
+  const handleFilteredChange = useCallback((filtered: Row[]) => {
+    setFiltered(filtered);
+  }, []);
+
   const headerRight = useMemo(
     () => (
       <div className="flex flex-wrap items-center gap-2">
@@ -685,49 +741,10 @@ const Step5: React.FC<Step5Props> = ({
         <Multi_Table
           data={rows}
           selectable
-          onFilteredChange={(filtered: any) => setFiltered(filtered)}
+          onFilteredChange={handleFilteredChange}
           initialSelectedIds={persistedChecked?.ids ?? []}
-          getRowId={(r) =>
-            String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`)
-          }
-          onSelectionChange={(selRows) => {
-            console.log("Selected:", selRows.length);
-            const wf = Number(selectedWorkflowId);
-            if (Number.isFinite(wf) && (!selRows || selRows.length === 0)) {
-              const existingCount = Array.isArray(persistedChecked?.rows)
-                ? persistedChecked.rows.length
-                : 0;
-              if (existingCount > 0) return;
-            }
-            // track selected rows for Step 6 gating
-            setSelectedRowsCount(selRows.length);
-            setSelectedRows(selRows || []);
-            setHasSavedSelection(false);
-            setSaveMsg(null);
-            if (Number.isFinite(wf)) {
-              const ids = (selRows || []).map((r) =>
-                String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`)
-              );
-              const payload = {
-                ids,
-                rows: selRows || [],
-                savedAt: new Date().toISOString(),
-              };
-              dispatch(
-                setModuleProgress({
-                  moduleKey: "overlayDevelopment",
-                  contextKey,
-                  data: { step5Checked: payload },
-                })
-              );
-              dispatch(
-                setModuleProgress({
-                  moduleKey: "overlayDevelopment",
-                  data: { lastWorkflowId: wf },
-                })
-              );
-            }
-          }}
+          getRowId={getRowId}
+          onSelectionChange={handleSelectionChange}
           emptyMessage="Run analysis (after configuring filters) to see results, then select rows to proceed to Step 6."
         />
       </div>
