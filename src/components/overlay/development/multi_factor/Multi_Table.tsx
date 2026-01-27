@@ -201,17 +201,9 @@ export function Multi_Table({
     // Skip callback if we're in the middle of syncing from initialSelectedIds
     if (isSyncingRef.current) return;
     
-    // Compute selectedRows inside the effect to get the latest data
-    const computedSelectedRows = data
-      .map((r, i) => {
-        const id = getRowId ? getRowId(r, i) : rowIdOf(r, i);
-        return { r, id };
-      })
-      .filter(({ id }) => selectedIds.has(id))
-      .map(({ r }) => r);
-    
-    onSelectionChangeRef.current?.(computedSelectedRows, Array.from(selectedIds));
-  }, [selectedIds, data, getRowId]);
+    // Use the memoized selectedRows
+    onSelectionChangeRef.current?.(selectedRows, Array.from(selectedIds));
+  }, [selectedIds, selectedRows]);
 
   // ---- sync selection if initialSelectedIds changes (e.g., workflow change)
   useEffect(() => {
