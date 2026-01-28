@@ -116,6 +116,40 @@ export default function OverlayDevelpmentPage3() {
   const derivePeriodsFromRows = (rows: ScenarioRow[]) =>
     rows.map((r) => String(r.period));
 
+  // Transform default_values from API into ScenarioRow format
+  const transformDefaultValuesToRows = (
+    defaultValues: Array<Record<string, any>>,
+    variables: string[]
+  ): ScenarioRow[] => {
+    if (!defaultValues || defaultValues.length === 0) return [];
+    
+    return defaultValues.map((dv) => {
+      const period = normalizePeriodOut(String(dv.Date ?? dv.date ?? ""));
+      const upside: Record<string, string> = {};
+      const base: Record<string, string> = {};
+      const downside: Record<string, string> = {};
+      
+      // Extract variable values from keys ending with ".Point Forecast"
+      // Populate all three scenarios (upside, base, downside) with the same default values
+      variables.forEach((varName) => {
+        const forecastKey = `${varName}.Point Forecast`;
+        const value = dv[forecastKey];
+        // Convert to string, keep as number string (modal will handle % formatting if needed)
+        const valueStr = value != null ? String(value) : "";
+        upside[varName] = valueStr;
+        base[varName] = valueStr;
+        downside[varName] = valueStr;
+      });
+
+      return {
+        period,
+        upside,
+        base,
+        downside,
+      };
+    });
+  };
+
   // Load MEV config shape (periods/variables) with fallback
   useEffect(() => {
     const boot = async () => {
@@ -126,6 +160,8 @@ export default function OverlayDevelpmentPage3() {
           selectedWorkflowId,
           token
         );
+        
+        // If existing rows are present, use them
         if (existing?.rows && existing.rows.length > 0) {
           setMevPrefillRows(existing.rows);
           const derivedPeriods = existing.periods?.length
@@ -140,27 +176,87 @@ export default function OverlayDevelpmentPage3() {
           return;
         }
 
-        const { periods, variables } = await overrideGetDataTransformationInput(
+        // If no existing rows but default_values exist, transform them
+        if (existing?.default_values && existing.default_values.length > 0) {
+          let periods = existing.periods?.length ? existing.periods : [];
+          let variables = existing.variables?.length 
+            ? filterDefaults(existing.variables) 
+            : [];
+          
+          // If variables not provided, extract from default_values keys
+          if (variables.length === 0 && existing.default_values.length > 0) {
+            const firstRow = existing.default_values[0];
+            const extractedVars = new Set<string>();
+            Object.keys(firstRow).forEach((key) => {
+              if (key !== "Date" && key !== "date" && key.endsWith(".Point Forecast")) {
+                const varName = key.replace(".Point Forecast", "");
+                extractedVars.add(varName);
+              }
+            });
+            variables = filterDefaults(Array.from(extractedVars));
+          }
+          
+          // If periods not provided, extract from default_values Date field
+          if (periods.length === 0 && existing.default_values.length > 0) {
+            periods = existing.default_values.map((dv) => 
+              normalizePeriodOut(String(dv.Date ?? dv.date ?? ""))
+            );
+          }
+          
+          if (periods.length > 0 && variables.length > 0) {
+            const transformedRows = transformDefaultValuesToRows(
+              existing.default_values,
+              variables
+            );
+            // Normalize periods to match the format used in transformedRows (YYYY-MM-DD)
+            const normalizedPeriods = periods.map((p) => normalizePeriodOut(p));
+            setMevPrefillRows(transformedRows);
+            setMevPeriods(normalizedPeriods);
+            setAvailableMevVariables(variables);
+            setMevVariables(variables);
+            return;
+          }
+        }
+
+        // Fallback to input endpoint if no existing data or default values
+        const inputData = await overrideGetDataTransformationInput(
           selectedWorkflowId,
           token
         );
+        const { periods, variables, default_values } = inputData;
         const filtered = filterDefaults(variables);
-        setMevPeriods(periods);
-        setAvailableMevVariables(filtered);
-        const cached = localStorage.getItem("overlay_execution_mev_variables");
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
-              setMevVariables(parsed.filter((v) => filtered.includes(v)));
-            } else {
+        
+        // If input endpoint has default_values, use them to populate the table
+        if (default_values && default_values.length > 0 && periods.length > 0 && filtered.length > 0) {
+          const transformedRows = transformDefaultValuesToRows(
+            default_values,
+            filtered
+          );
+          // Normalize periods to match the format used in transformedRows (YYYY-MM-DD)
+          const normalizedPeriods = periods.map((p) => normalizePeriodOut(p));
+          setMevPrefillRows(transformedRows);
+          setMevPeriods(normalizedPeriods);
+          setAvailableMevVariables(filtered);
+          setMevVariables(filtered);
+        } else {
+          // No default values, just set periods and variables
+          setMevPeriods(periods);
+          setAvailableMevVariables(filtered);
+          const cached = localStorage.getItem("overlay_execution_mev_variables");
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+                setMevVariables(parsed.filter((v) => filtered.includes(v)));
+              } else {
+                setMevVariables([]);
+              }
+            } catch {
               setMevVariables([]);
             }
-          } catch {
+          } else {
             setMevVariables([]);
           }
-        } else {
-          setMevVariables([]);
         }
       } catch (err) {
         console.error(err);

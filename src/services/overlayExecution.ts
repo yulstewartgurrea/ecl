@@ -4,6 +4,7 @@ import type { ScenarioRow } from "../components/overlay/execution/mev/ConfigModa
 export type OverrideGetResponse = {
   periods: string[];
   variables: string[];
+  default_values?: Array<Record<string, any>>;
 };
 
 export type OverrideGetForcastedResponse = {
@@ -14,6 +15,7 @@ export type OverrideDataTransformationResponse = {
   rows?: ScenarioRow[];
   periods?: string[];
   variables?: string[];
+  default_values?: Array<Record<string, any>>;
 };
 
 export const API_BASE =
@@ -76,8 +78,11 @@ export async function overrideGetDataTransformationMevs(
 
   const periods: string[] = Array.isArray(data?.period) ? data.period : [];
   const variables: string[] = Array.isArray(data?.variables) ? data.variables : [];
+  const default_values: Array<Record<string, any>> | undefined = Array.isArray(data?.default_values) 
+    ? data.default_values 
+    : undefined;
 
-  return { rows, periods, variables };
+  return { rows, periods, variables, default_values };
 }
 
 /** GET: /override_forecasted_mevs/input/?workflow_id=ID */
@@ -107,7 +112,10 @@ export async function overrideGetDataTransformationInput(
   const data = json?.data ?? {};
   const periods: string[] = Array.isArray(data.period) ? data.period : [];
   const variables: string[] = Array.isArray(data.variables) ? data.variables : [];
-  return { periods, variables };
+  const default_values: Array<Record<string, any>> | undefined = Array.isArray(data?.default_values) 
+    ? data.default_values 
+    : undefined;
+  return { periods, variables, default_values };
 }
 
 /** POST: /override_forecasted_mevs/ */
