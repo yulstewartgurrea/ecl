@@ -1,5 +1,5 @@
 ﻿// Step7.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ModelSpec } from "../../../../components/overlay/development/candidate_model/ModelCompareGrid";
 import { useSelector } from "react-redux";
@@ -17,6 +17,7 @@ const Step7: React.FC = () => {
   const [model, setModel] = useState<ModelSpec | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -48,12 +49,103 @@ const Step7: React.FC = () => {
     selectModuleProgress(state, "overlayDevelopment", contextKey)
   );
 
+  // Helper to map raw model data to ModelSpec
+  function mapRowToModelSpec(row: any): ModelSpec {
+    const title = `${row?.Y ?? "Model"}: ${row?.X1 ?? "-"} | ${row?.X2 ?? "-"}`;
+    const variables = [
+      {
+        name: String(row?.X1 ?? "X1"),
+        coeff_X1: Number(row?.coeff_X1 ?? row?.coeff_x1 ?? 0),
+        "p-value_X1": row?.["p-value_X1"] ?? row?.p_value_X1 ?? row?.["p-value_x1"] ?? row?.p_value_x1,
+        vif_X1: row?.vif_X1 ?? row?.vif_x1,
+        raw: row?.coeff_X1 ?? row?.coeff_x1,
+      },
+      {
+        name: String(row?.X2 ?? "X2"),
+        coeff_X1: Number(row?.coeff_X2 ?? row?.coeff_x2 ?? 0),
+        "p-value_X1": row?.["p-value_X2"] ?? row?.p_value_X2 ?? row?.["p-value_x2"] ?? row?.p_value_x2,
+        vif_X1: row?.vif_X2 ?? row?.vif_x2,
+        raw: row?.coeff_X2 ?? row?.coeff_x2,
+      },
+    ];
+
+    return {
+      title,
+      variables,
+      metrics: {
+        Adj_R_Squared: row?.Adj_R_Squared,
+        RMSE: row?.RMSE,
+        MAPE: row?.MAPE,
+        R_Squared: row?.R_Squared,
+      },
+      raw: row,
+      index: row?.index,
+      Y: row?.Y,
+      X1: row?.X1,
+      X2: row?.X2,
+      R_Squared: row?.R_Squared,
+      Adj_R_Squared: row?.Adj_R_Squared,
+      MAPE: row?.MAPE,
+    };
+  }
+
+  // Fetch final models from API if no data in Redux
+  const fetchFinalModels = useCallback(async () => {
+    const wfId = Number(effectiveWorkflowId);
+    if (!Number.isFinite(wfId) || !token) return;
+
+    setLoading(true);
+    setErr(null);
+    try {
+      const url = `${API_BASE}/api/overlay/development/final_models/?workflow_id=${encodeURIComponent(wfId)}&page=1&page_size=1`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: Failed to fetch final models`);
+      }
+
+      const json = await res.json();
+      // API returns: { success: true, data: [...], pagination: {...} }
+      // data is the array directly, not nested
+      if (json?.success && json?.data && Array.isArray(json.data) && json.data.length > 0) {
+        // Take the first model from the response
+        const firstModel = json.data[0];
+        const modelSpec = mapRowToModelSpec(firstModel);
+        setModel(modelSpec);
+      } else {
+        console.log("No final models found in API response:", json);
+      }
+    } catch (e: any) {
+      console.warn("Failed to fetch final models from API:", e);
+      // Don't set error - just silently fail if API doesn't have data
+    } finally {
+      setLoading(false);
+    }
+  }, [effectiveWorkflowId, token]);
+
   useEffect(() => {
     const data = (overlayProgress?.data ?? {}) as {
       step6Selected?: { model?: ModelSpec | null };
     };
-    setModel((data.step6Selected?.model as ModelSpec) ?? null);
-  }, [overlayProgress]);
+    const redxModel = (data.step6Selected?.model as ModelSpec) ?? null;
+    
+    if (redxModel) {
+      // Prefer Redux model if available
+      setModel(redxModel);
+    } else if (effectiveWorkflowId && token) {
+      // If no data in Redux but we have workflowId and token, fetch from API
+      fetchFinalModels();
+    } else {
+      // No workflowId or token, clear model
+      setModel(null);
+    }
+  }, [overlayProgress, effectiveWorkflowId, token, fetchFinalModels]);
 
   async function saveSelectedModel() {
     setErr(null);
@@ -111,86 +203,110 @@ const Step7: React.FC = () => {
     }
   }
 
-  // Download handler: export to Excel (.xls) via HTML table
-  function handleDownload() {
+  // Download handler: use export API
+  async function handleDownload() {
     if (!model) return;
 
-    const workflowNum = Number(effectiveWorkflowId ?? selectedWorkflowId);
-    const safeWorkflowId =
-      Number.isFinite(workflowNum) && workflowNum > 0 ? workflowNum : null;
+    const wfId = Number(effectiveWorkflowId);
+    if (!Number.isFinite(wfId)) {
+      setErr("Missing or invalid workflow id.");
+      return;
+    }
 
-    const r2 =
-      (model.metrics as any)?.R_Squared ?? (model as any)?.R_Squared ?? null;
-    const adjR2 =
-      model.metrics?.Adj_R_Squared ?? (model as any)?.Adj_R_Squared ?? null;
-    const mape = model.metrics?.MAPE ?? (model as any)?.MAPE ?? null;
+    setLoading(true);
+    setErr(null);
+    try {
+      const url = `${API_BASE}/api/overlay/development/final_models/export/?workflow_id=${encodeURIComponent(wfId)}`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "text/csv,application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
 
-    const vars = model.variables ?? [];
+      if (!res.ok) {
+        let msg = `Export failed: HTTP ${res.status}`;
+        try {
+          const t = await res.text();
+          if (t) msg = `${msg} – ${t}`;
+        } catch {}
+        throw new Error(msg);
+      }
 
-    // CSV escape helper
-    const escCsv = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      const cd = res.headers.get("content-disposition") || "";
+      const nameMatch =
+        cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i) ||
+        cd.match(/filename=["']?([^"']+)["']?/i);
+      const fallback = `final_models_${wfId}.csv`;
 
-    const lines: string[] = [];
-
-    // ---- Model summary section ----
-    lines.push("Section,Field,Value");
-    lines.push(`Model Summary,Workflow ID,${escCsv(safeWorkflowId ?? "")}`);
-    lines.push(`Model Summary,Model Title,${escCsv(model.title ?? "")}`);
-    lines.push(`Model Summary,R²,${escCsv(r2 != null ? r2 : "")}`);
-    lines.push(`Model Summary,Adj. R²,${escCsv(adjR2 != null ? adjR2 : "")}`);
-    lines.push(`Model Summary,MAPE,${escCsv(mape != null ? mape : "")}`);
-
-    // Blank line between sections
-    lines.push("");
-
-    // ---- Variables section ----
-    lines.push("Variable,Coefficient,P-Value,VIF");
-    vars.forEach((v) => {
-      lines.push(
-        [
-          escCsv(v.name),
-          escCsv(v.coeff_X1),
-          escCsv((v as any)["p-value_X1"]),
-          escCsv((v as any).vif_X1),
-        ].join(",")
-      );
-    });
-
-    const csvContent = lines.join("\r\n");
-
-    const filename = safeWorkflowId
-      ? `ecl_final_model_wf_${safeWorkflowId}.csv`
-      : `ecl_final_model.csv`;
-
-    // Trigger browser download as CSV
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+      if (ct.includes("csv") || ct.startsWith("text/csv")) {
+        const blob = await res.blob();
+        const filename = (nameMatch && decodeURIComponent(nameMatch[1])) || fallback;
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(href);
+      } else {
+        // If server returns JSON, convert to CSV
+        const json = await res.json();
+        const rows = Array.isArray(json?.data?.data) ? json.data.data : Array.isArray(json?.data) ? json.data : [];
+        if (rows.length === 0) {
+          throw new Error("No data to export");
+        }
+        // Use first row for CSV conversion
+        const headers = Object.keys(rows[0] || {});
+        const csvLines = [
+          headers.join(","),
+          ...rows.map((r: any) => headers.map((h) => {
+            const val = r[h];
+            if (val == null) return "";
+            const s = String(val);
+            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+          }).join(","))
+        ];
+        const csv = "\uFEFF" + csvLines.join("\r\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = fallback;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(href);
+      }
+    } catch (e: any) {
+      setErr(e?.message || "Export failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!model) {
     return (
       <div className="rounded-2xl bg-white p-8 shadow-sm">
         <h2 className="text-2xl font-semibold tracking-tight">
-          No model selected
+          {loading ? "Loading final model..." : "No model selected"}
         </h2>
         <p className="mt-2 text-neutral-600">
-          Please go back to Step 6 and choose a model to proceed.
+          {loading
+            ? "Fetching final model from server..."
+            : "Please go back to Step 6 and choose a model to proceed."}
         </p>
-        <button
-          onClick={() => navigate("/overlay?tab=development&sub=6")}
-          className="mt-4 rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-800"
-        >
+        {!loading && (
+          <button
+            onClick={() => navigate("/overlay?tab=development&sub=6")}
+            className="mt-4 rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-800"
+          >
             Back to Step 6
-        </button>
+          </button>
+        )}
       </div>
     );
   }
@@ -299,9 +415,10 @@ const Step7: React.FC = () => {
         <div className="mt-2 flex flex-wrap items-center justify-end gap-3">
           <button
             onClick={handleDownload}
-            className="cursor-pointer rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-800"
+            disabled={loading || !model}
+            className="cursor-pointer rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-800 disabled:opacity-50"
           >
-             Download
+            {loading ? "Exporting..." : "Download"}
           </button>
 
           <button
