@@ -448,6 +448,10 @@ async def get_override_data_transformation_mevs_input(
                 for i in range(12)
             ]
 
+            filtered_df = combined_monthly_mev_data_interpolation_data.copy()
+            filtered_df['Date'] = pd.to_datetime(filtered_df['Date'], format="%Y-%m-%d")
+            filtered_df = filtered_df[filtered_df['Date'] >= last_time]
+
             # 1. Get all columns that look like X + number (X1, X2, X3, ...)
             cols_to_drop = [
                 "Date",
@@ -461,16 +465,25 @@ async def get_override_data_transformation_mevs_input(
             df_clean.columns = df_clean.columns.str.strip()
             x_cols = df_clean.columns.tolist()
             x_cols = set([col.split('.')[0] for col in x_cols])
+            print(x_cols)
             # remove _growth_12m from x_cols
             # x_cols = [col.replace('_growth_12m', '') for col in x_cols]
             x_values = df_clean.values
+
+
+            filtered_cols = ['Date'] + [f'{i}.Point Forecast' for i in x_cols]
+            filtered_df = filtered_df[filtered_cols]
+
+            # removed T in Date
+            filtered_df['Date'] = filtered_df['Date'].dt.strftime("%m/%d/%Y")
 
             return {
                 'code': 1,
                 'success': True,
                 'data': {
                     'period': data_transformation_periods,
-                    'variables': x_cols
+                    'variables': x_cols,
+                    'default_values': filtered_df.to_dict(orient='records')
                 }
             }
         finally:
