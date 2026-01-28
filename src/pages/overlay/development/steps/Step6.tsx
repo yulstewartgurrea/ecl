@@ -12,6 +12,7 @@ import {
   selectModuleProgress,
   setModuleProgress,
 } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
+import { postCandidateModels } from "../../../../services/candidateModels";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -314,7 +315,7 @@ const Step6: React.FC = () => {
     setSaveMsg(null);
   }
 
-  function handleSaveCandidate() {
+  async function handleSaveCandidate() {
     const wfId = Number(effectiveWorkflowId);
     if (!Number.isFinite(wfId)) {
       setErrMsg("Missing or invalid workflowId.");
@@ -349,10 +350,23 @@ const Step6: React.FC = () => {
           } as OverlayDevelopmentData,
         })
       );
+      
+      // Send to API - only the selected model
+      const selectedModelData = (model as any).raw || model;
+      
+      if (selectedModelData) {
+        await postCandidateModels({
+          apiBase: API_BASE,
+          token,
+          workflowId: wfId,
+          candidate_models: [selectedModelData],
+        });
+      }
+      
       setSavedIdx(chosenIdx);
       setSaveMsg("Final model saved.");
-    } catch {
-      setErrMsg("Failed to save the final model. Please try again.");
+    } catch (e: any) {
+      setErrMsg(e?.message || "Failed to save the final model. Please try again.");
     } finally {
       setSaving(false);
     }
