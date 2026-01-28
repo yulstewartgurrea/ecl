@@ -53,7 +53,7 @@ def clean_monthly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
 
     print('df1', df)
     # combine row 0 and row 2 into a signle row
-    df.iloc[0] = df.iloc[0].str.cat(df.iloc[1], sep=' ')
+    df.iloc[0] = df.iloc[0].str.cat(df.iloc[1], sep='.')
     # remove duplicate words in row
     df.iloc[0] = df.iloc[0].str.replace(r'\b(\w+)\s+\1\b', r'\1', regex=True)
     df = df.drop(1)
@@ -69,6 +69,10 @@ def clean_monthly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
     df = df.reset_index(drop=True)
 
     print('df2', df.columns)
+
+    # change Date. to Date
+    df.columns = df.columns.str.replace('Point', 'Point Forecast')
+    df.columns = df.columns.str.replace('Date.', 'Date')
     
     # create new columns year, month (int), month, ID
     # First, ensure Date column exists and parse it (case-insensitive search)
@@ -148,7 +152,7 @@ def clean_quarterly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
     df = df.drop(1)
     df = df.reset_index(drop=True)
     # combine row 0 and row 2 into a signle row
-    df.iloc[0] = df.iloc[0].str.cat(df.iloc[1], sep=' ')
+    df.iloc[0] = df.iloc[0].str.cat(df.iloc[1], sep='.')
     # remove duplicate words in row
     df.iloc[0] = df.iloc[0].str.replace(r'\b(\w+)\s+\1\b', r'\1', regex=True)
     df = df.drop(1)
@@ -158,6 +162,7 @@ def clean_quarterly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
     df.columns = df.iloc[0].tolist()
     # remove excess space in 
     df.columns = df.columns.str.strip()
+    print('df.columns', df.columns)
 
     # remove column headers that are NaN or empty string
     df = df.loc[:, df.columns != '']
@@ -165,6 +170,9 @@ def clean_quarterly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
     # remove row 0
     df = df.drop(0)
     df = df.reset_index(drop=True)
+
+    df.columns = df.columns.str.replace('Point', 'Point Forecast')
+    df.columns = df.columns.str.replace('Date.', 'Date')
 
     # First, ensure Date column exists and parse it (case-insensitive search)
     date_col_name = None
