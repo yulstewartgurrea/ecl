@@ -462,7 +462,7 @@ async def get_override_data_transformation_mevs_input(
             x_cols = df_clean.columns.tolist()
             x_cols = set([col.split('.')[0] for col in x_cols])
             # remove _growth_12m from x_cols
-            x_cols = [col.replace('_growth_12m', '') for col in x_cols]
+            # x_cols = [col.replace('_growth_12m', '') for col in x_cols]
             x_values = df_clean.values
 
             return {
