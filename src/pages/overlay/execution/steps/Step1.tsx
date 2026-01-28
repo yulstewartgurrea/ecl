@@ -5,6 +5,7 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   CloudArrowDownIcon,
+  InformationCircleIcon,
 } from "@heroicons/react/24/outline";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
@@ -1222,13 +1223,19 @@ export default function Step1() {
             <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-700">Use Final Model</span>
+                <span className="relative group inline-flex items-center">
+                  <InformationCircleIcon className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                  <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-72 -translate-x-1/2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                    If Use Final Model button is toggled on, overlay execution uploaded final model will be used. If not, overlay development final models will be used.
+                  </span>
+                </span>
               </div>
               <button
                 type="button"
                 onClick={() => dispatch(setFinalModelExecutionFile(!finalModelExecutionFile))}
                 className={[
                   "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2",
-                  finalModelExecutionFile ? "bg-gray-300" : "bg-gray-200"
+                  finalModelExecutionFile ? "bg-emerald-500" : "bg-gray-200"
                 ].join(" ")}
                 role="switch"
                 aria-checked={finalModelExecutionFile}
@@ -1273,13 +1280,19 @@ export default function Step1() {
             <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-700">Use Historical Weighted Credit Loss Rates</span>
+                <span className="relative group inline-flex items-center">
+                  <InformationCircleIcon className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                  <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-80 -translate-x-1/2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                    If button is toggled on, overlay execution uploaded historical weighted credit loss will be used. If its off, overlay development historical weighted credit loss will be used.
+                  </span>
+                </span>
               </div>
               <button
                 type="button"
                 onClick={() => dispatch(setHistoricalWeightedCreditLossRateFile(!historicalWeightedCreditLossRateFile))}
                 className={[
                   "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2",
-                  historicalWeightedCreditLossRateFile ? "bg-gray-300" : "bg-gray-200"
+                  historicalWeightedCreditLossRateFile ? "bg-emerald-500" : "bg-gray-200"
                 ].join(" ")}
                 role="switch"
                 aria-checked={historicalWeightedCreditLossRateFile}
