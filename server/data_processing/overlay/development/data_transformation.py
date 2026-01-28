@@ -479,7 +479,8 @@ def compute_correlation_matrix(x_transformed: pd.DataFrame,
 def generate_variable_combinations(x_raw_vars: list,
                                    x_transformed: pd.DataFrame,
                                    excluded_columns: list,
-                                   cancellation_check=None) -> list[list[str]]:
+                                   cancellation_check=None,
+                                   num_vars_taken: int = 2) -> list[list[str]]:
     """
     Generate all valid variable combinations with transformations.
     
@@ -511,7 +512,6 @@ def generate_variable_combinations(x_raw_vars: list,
     x_base_vars = list(set([v.split('.')[0] for v in x_raw_vars]))
     print(f"Base variables: {len(x_base_vars)}")
 
-    num_vars_taken = 2
     comb_no_lags = list(combinations(x_base_vars, num_vars_taken))
     comb_extended = [list(c) for c in comb_no_lags]
     print(f"Base combinations: {len(comb_extended)}")
@@ -685,6 +685,7 @@ def compute_correlations_for_combinations(all_combinations: list[list[str]],
     print(f"Processed {len(all_results)} combinations")
 
     rows = []
+
     for comb, max_cor in all_results:
         row = {f"X{i+1}": comb[i] for i in range(num_vars_taken)}
         row["max_abs_cor"] = max_cor
@@ -795,7 +796,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     if cancellation_check and cancellation_check():
         raise Exception("Job cancelled")
     
-    all_combinations = generate_variable_combinations(x_raw_vars, x_transformed, excluded_columns, cancellation_check)
+    all_combinations = generate_variable_combinations(x_raw_vars, x_transformed, excluded_columns, cancellation_check, num_combinations)
     
     if cancellation_check and cancellation_check():
         raise Exception("Job cancelled")
