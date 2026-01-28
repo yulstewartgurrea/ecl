@@ -111,11 +111,15 @@ const Step7: React.FC = () => {
       }
 
       const json = await res.json();
-      if (json?.success && json?.data?.data && Array.isArray(json.data.data) && json.data.data.length > 0) {
+      // API returns: { success: true, data: [...], pagination: {...} }
+      // data is the array directly, not nested
+      if (json?.success && json?.data && Array.isArray(json.data) && json.data.length > 0) {
         // Take the first model from the response
-        const firstModel = json.data.data[0];
+        const firstModel = json.data[0];
         const modelSpec = mapRowToModelSpec(firstModel);
         setModel(modelSpec);
+      } else {
+        console.log("No final models found in API response:", json);
       }
     } catch (e: any) {
       console.warn("Failed to fetch final models from API:", e);
@@ -132,14 +136,16 @@ const Step7: React.FC = () => {
     const redxModel = (data.step6Selected?.model as ModelSpec) ?? null;
     
     if (redxModel) {
+      // Prefer Redux model if available
       setModel(redxModel);
-    } else if (effectiveWorkflowId) {
-      // If no data in Redux, try fetching from API
+    } else if (effectiveWorkflowId && token) {
+      // If no data in Redux but we have workflowId and token, fetch from API
       fetchFinalModels();
     } else {
+      // No workflowId or token, clear model
       setModel(null);
     }
-  }, [overlayProgress, effectiveWorkflowId, fetchFinalModels]);
+  }, [overlayProgress, effectiveWorkflowId, token, fetchFinalModels]);
 
   async function saveSelectedModel() {
     setErr(null);
