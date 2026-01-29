@@ -233,7 +233,6 @@ const Step5: React.FC<Step5Props> = ({
       setHeaders([]);
       setSelectedFilters([]);
       setPayloadFilters([]);
-      setMfaHeaders([]);
       setHasAppliedFilters(false);
       setHasRunAnalysis(false);
       setSelectedRowsCount(0);
