@@ -21,8 +21,8 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-/* ------------------------- Required columns (Step 5) ------------------------- */
-const REQUIRED_COLUMNS = ["Y", "X1", "X2", "R_Squared", "Adj_R_Squared", "MAPE"];
+/* ------------------------- Helper functions ------------------------- */
+// REQUIRED_COLUMNS removed - headers now come from API only
 const norm = (s: string) => String(s || "").trim().toLowerCase();
 const uniqCaseInsensitive = (arr: string[]) => {
   const seen = new Set<string>();
@@ -142,7 +142,6 @@ const Step5: React.FC<Step5Props> = ({
 
   // split selected vs payload
   const [headers, setHeaders] = useState<string[]>([]);
-  const [mfaHeaders, setMfaHeaders] = useState<string[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<FilterRule[]>([]);
   const [payloadFilters, setPayloadFilters] = useState<FilterRule[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
@@ -197,10 +196,12 @@ const Step5: React.FC<Step5Props> = ({
     }
   }, [selectedWorkflowId, token, currentPage, pageSize]);
 
-  // Fetch MFA headers from API when modal opens
+  // Fetch MFA headers from API - wait for this to complete before setting headers
   const fetchMfaHeaders = useCallback(async () => {
     const wf = Number(selectedWorkflowId);
-    if (!Number.isFinite(wf) || !token) return;
+    if (!Number.isFinite(wf) || !token) {
+      return [];
+    }
 
     try {
       const url = `${API_BASE}/api/overlay/development/filtering_models/mfa_file/headers?workflow_id=${encodeURIComponent(wf)}`;
@@ -213,26 +214,26 @@ const Step5: React.FC<Step5Props> = ({
       });
 
       if (!res.ok) {
-        console.warn("Failed to fetch MFA headers, using fallback headers");
-        setMfaHeaders([]);
-        return;
+        console.warn("Failed to fetch MFA headers");
+        return [];
       }
 
       const data = await res.json();
       const apiHeaders = data?.data?.headers || [];
-      setMfaHeaders(apiHeaders);
+      return apiHeaders;
     } catch (e: any) {
       console.warn("Error fetching MFA headers:", e);
-      setMfaHeaders([]);
+      return [];
     }
   }, [selectedWorkflowId, token]);
 
-  // Load headers + selected on workflow change; ensure REQUIRED present; derive payload for initial render
+  // Load headers + selected on workflow change; wait for MFA headers API to load
   useEffect(() => {
     if (!Number.isFinite(selectedWorkflowId)) {
       setHeaders([]);
       setSelectedFilters([]);
       setPayloadFilters([]);
+      setMfaHeaders([]);
       setHasAppliedFilters(false);
       setHasRunAnalysis(false);
       setSelectedRowsCount(0);
@@ -242,30 +243,36 @@ const Step5: React.FC<Step5Props> = ({
     }
     const wf = Number(selectedWorkflowId);
 
-    // Load captured headers from Step 4, then ensure REQUIRED are present.
-    const captured = loadHeaders(wf);
-    const merged = uniqCaseInsensitive([...captured, ...REQUIRED_COLUMNS]);
+    // Wait for MFA headers API to load before setting headers
+    // Do not include REQUIRED_COLUMNS - only use headers from API
+    const loadHeadersAsync = async () => {
+      // Fetch MFA headers from API first
+      const apiHeaders = await fetchMfaHeaders();
+      
+      // Load captured headers from Step 4
+      const captured = loadHeaders(wf);
+      
+      // Merge captured headers with API headers (no REQUIRED_COLUMNS)
+      const merged = uniqCaseInsensitive([...captured, ...apiHeaders]);
 
-    const sel = loadFilters(wf); // only explicit selections saved by the modal (REQUIRED will be saved after first Apply)
-    setHeaders(merged);
-    setSelectedFilters(sel);
-    setPayloadFilters(buildPayload(merged, sel));
-    setHasSavedSelection(Boolean(persistedSelected?.rows?.length));
+      const sel = loadFilters(wf);
+      setHeaders(merged);
+      setSelectedFilters(sel);
+      setPayloadFilters(buildPayload(merged, sel));
+      setHasSavedSelection(Boolean(persistedSelected?.rows?.length));
 
-    // Reset gating for new workflow
-    setHasAppliedFilters(false);
-    setHasRunAnalysis(false);
-    setSelectedRowsCount(0);
-    setSelectedRows([]);
-    setSaveMsg(null);
-    setSaveMsg(null);
-    setSelectedRowsCount(0);
-    setSelectedRows([]);
-    setHasSavedSelection(false);
-    setSaveMsg(null);
-    setCurrentPage(1);
-    setPagination(null);
-  }, [selectedWorkflowId, persistedSelected]);
+      // Reset gating for new workflow
+      setHasAppliedFilters(false);
+      setHasRunAnalysis(false);
+      setSelectedRowsCount(0);
+      setSelectedRows([]);
+      setSaveMsg(null);
+      setCurrentPage(1);
+      setPagination(null);
+    };
+
+    loadHeadersAsync();
+  }, [selectedWorkflowId, persistedSelected, fetchMfaHeaders]);
 
   // Auto-fetch results on mount & whenever workflow/page/pageSize changes
   useEffect(() => {
@@ -274,12 +281,7 @@ const Step5: React.FC<Step5Props> = ({
     fetchFilteringResults();
   }, [selectedWorkflowId, currentPage, pageSize, fetchFilteringResults]);
 
-  // Fetch MFA headers when modal opens
-  useEffect(() => {
-    if (configOpen) {
-      fetchMfaHeaders();
-    }
-  }, [configOpen, fetchMfaHeaders]);
+  // MFA headers are now loaded when workflow changes, no need to fetch again when modal opens
 
   // Optional: re-fetch when tab gains focus
   useEffect(() => {
@@ -772,7 +774,7 @@ const Step5: React.FC<Step5Props> = ({
       {/* Config Modal */}
       <FilteringConfigModal
         workflowId={Number(selectedWorkflowId)}
-        headers={uniqCaseInsensitive([...headers, ...mfaHeaders])}
+        headers={headers} // headers already includes MFA headers from API
         open={configOpen}
         onClose={() => setConfigOpen(false)}
         onApply={handleApplyFilters} // gets FULL payload; badge reads selected from storage
