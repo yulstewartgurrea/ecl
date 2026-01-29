@@ -49,43 +49,97 @@ const Step7: React.FC = () => {
     selectModuleProgress(state, "overlayDevelopment", contextKey)
   );
 
+  // Helper to find column case-insensitively
+  function findColumn(row: any, colName: string): any {
+    if (!row) return undefined;
+    const colLower = colName.toLowerCase();
+    for (const key in row) {
+      if (key.toLowerCase() === colLower) {
+        return row[key];
+      }
+    }
+    return undefined;
+  }
+
+  // Helper to find all X columns dynamically (X1, X2, X3, ..., Xn)
+  function findAllXColumns(row: any): Array<{ index: number; name: string; value: any }> {
+    if (!row) return [];
+    const xColumns: Array<{ index: number; name: string; value: any }> = [];
+    let i = 1;
+    
+    // Keep looking for X1, X2, X3, ... until we don't find one
+    while (true) {
+      const xName = `X${i}`;
+      const xValue = findColumn(row, xName);
+      if (xValue === undefined || xValue === null || xValue === "") {
+        break; // Stop when we don't find an X column
+      }
+      xColumns.push({ index: i, name: xName, value: xValue });
+      i++;
+    }
+    
+    return xColumns;
+  }
+
   // Helper to map raw model data to ModelSpec
   function mapRowToModelSpec(row: any): ModelSpec {
-    const title = `${row?.Y ?? "Model"}: ${row?.X1 ?? "-"} | ${row?.X2 ?? "-"}`;
-    const variables = [
-      {
-        name: String(row?.X1 ?? "X1"),
-        coeff_X1: Number(row?.coeff_X1 ?? row?.coeff_x1 ?? 0),
-        "p-value_X1": row?.["p-value_X1"] ?? row?.p_value_X1 ?? row?.["p-value_x1"] ?? row?.p_value_x1,
-        vif_X1: row?.vif_X1 ?? row?.vif_x1,
-        raw: row?.coeff_X1 ?? row?.coeff_x1,
-      },
-      {
-        name: String(row?.X2 ?? "X2"),
-        coeff_X1: Number(row?.coeff_X2 ?? row?.coeff_x2 ?? 0),
-        "p-value_X1": row?.["p-value_X2"] ?? row?.p_value_X2 ?? row?.["p-value_x2"] ?? row?.p_value_x2,
-        vif_X1: row?.vif_X2 ?? row?.vif_x2,
-        raw: row?.coeff_X2 ?? row?.coeff_x2,
-      },
-    ];
+    // Find all X columns dynamically
+    const xColumns = findAllXColumns(row);
+    
+    // Build title with all X variables
+    const xNames = xColumns.length > 0 
+      ? xColumns.map(x => x.value).join(" | ")
+      : "-";
+    const title = `${row?.Y ?? findColumn(row, "Y") ?? "Model"}: ${xNames}`;
+    
+    // Build variables array dynamically
+    const variables = xColumns.map((xCol) => {
+      const xName = xCol.name;
+      
+      // Find coefficient (case-insensitive)
+      const coeffKey = `coeff_${xName}`;
+      const coeff = findColumn(row, coeffKey) ?? 0;
+      
+      // Find p-value (case-insensitive, multiple formats)
+      const pvalKey1 = `p-value_${xName}`;
+      const pvalKey2 = `p_value_${xName}`;
+      const pval = findColumn(row, pvalKey1) ?? findColumn(row, pvalKey2);
+      
+      // Find VIF (case-insensitive)
+      const vifKey = `vif_${xName}`;
+      const vif = findColumn(row, vifKey);
+      
+      return {
+        name: String(xCol.value),
+        coeff_X1: Number(coeff), // Keep field name for compatibility
+        "p-value_X1": pval, // Keep field name for compatibility
+        vif_X1: vif, // Keep field name for compatibility
+        raw: coeff,
+      };
+    });
+
+    // Build X object dynamically (X1, X2, X3, etc.)
+    const xObject: Record<string, any> = {};
+    xColumns.forEach((xCol) => {
+      xObject[xCol.name] = xCol.value;
+    });
 
     return {
       title,
       variables,
       metrics: {
-        Adj_R_Squared: row?.Adj_R_Squared,
-        RMSE: row?.RMSE,
-        MAPE: row?.MAPE,
-        R_Squared: row?.R_Squared,
+        Adj_R_Squared: findColumn(row, "Adj_R_Squared") ?? findColumn(row, "adj_r_squared"),
+        RMSE: findColumn(row, "RMSE") ?? findColumn(row, "rmse"),
+        MAPE: findColumn(row, "MAPE") ?? findColumn(row, "mape"),
+        R_Squared: findColumn(row, "R_Squared") ?? findColumn(row, "r_squared"),
       },
       raw: row,
-      index: row?.index,
-      Y: row?.Y,
-      X1: row?.X1,
-      X2: row?.X2,
-      R_Squared: row?.R_Squared,
-      Adj_R_Squared: row?.Adj_R_Squared,
-      MAPE: row?.MAPE,
+      index: findColumn(row, "index"),
+      Y: findColumn(row, "Y") ?? findColumn(row, "y"),
+      ...xObject, // Spread all X columns dynamically
+      R_Squared: findColumn(row, "R_Squared") ?? findColumn(row, "r_squared"),
+      Adj_R_Squared: findColumn(row, "Adj_R_Squared") ?? findColumn(row, "adj_r_squared"),
+      MAPE: findColumn(row, "MAPE") ?? findColumn(row, "mape"),
     };
   }
 

@@ -171,28 +171,7 @@ def filter_one_result_file(
     df = pd.read_csv(fn, low_memory=False)
     print(df)
 
-    # Merge with combinations on X1..Xk to bring in max_abs_cor
-    on_cols = [f"X{i}" for i in range(1, num_vars_taken + 1)]
-    print(on_cols)
-    missing_on = [c for c in on_cols if c not in df.columns]
-    print(missing_on)
-    if missing_on:
-        raise KeyError(f"File {fn} is missing key columns for join: {missing_on}")
-
-    merged = df.merge(combos_df, on=on_cols, how="left", validate="m:1")
-
-    print(merged)
-    print('merged.columns', merged.columns)
-
-    # Build subsets for "if_all" logic
-    # Keep the exact prefixes used in your CSVs; add underscore variants as fallback (case-insensitive).
-    pval_cols = [c for c in merged.columns if c.lower().startswith("p-value")]
-    if not pval_cols:
-        pval_cols = [c for c in merged.columns if c.lower().startswith("p_value")]
-    vif_cols = [c for c in merged.columns if c.lower().startswith("vif")]
-    x_cols   = on_cols  # check X1..Xk names for '.lag_'
-
-    # Helper function to find column case-insensitively
+    # Helper function to find column case-insensitively (defined early for use in merge)
     def find_column(df: pd.DataFrame, col_name: str) -> str | None:
         """Find column name in DataFrame case-insensitively."""
         col_lower = col_name.lower()
@@ -200,6 +179,65 @@ def filter_one_result_file(
             if col.lower() == col_lower:
                 return col
         return None
+
+    # Merge with combinations on X1..Xk to bring in max_abs_cor (case-insensitive matching)
+    # Find actual column names in both dataframes case-insensitively
+    on_cols_df = []  # Column names in df
+    on_cols_combos = []  # Column names in combos_df
+    missing_on = []
+    
+    for i in range(1, num_vars_taken + 1):
+        x_name = f"X{i}"
+        df_col = find_column(df, x_name)
+        combos_col = find_column(combos_df, x_name)
+        
+        if df_col is None:
+            missing_on.append(x_name)
+        else:
+            on_cols_df.append(df_col)
+            # Use the same column name from combos_df, or use df_col if not found
+            if combos_col:
+                on_cols_combos.append(combos_col)
+            else:
+                on_cols_combos.append(df_col)  # Fallback to df column name
+    
+    print(f"Merge columns in df: {on_cols_df}")
+    print(f"Merge columns in combos_df: {on_cols_combos}")
+    
+    if missing_on:
+        raise KeyError(f"File {fn} is missing key columns for join: {missing_on}")
+
+    # Perform merge using actual column names (case-insensitive matching already done)
+    # If column names differ between dataframes, we need to rename them
+    if on_cols_df != on_cols_combos:
+        # Create a mapping for renaming combos_df columns to match df columns
+        rename_map = {combos_col: df_col for combos_col, df_col in zip(on_cols_combos, on_cols_df)}
+        combos_df_renamed = combos_df.rename(columns=rename_map)
+        merged = df.merge(combos_df_renamed, on=on_cols_df, how="left", validate="m:1")
+    else:
+        merged = df.merge(combos_df, on=on_cols_df, how="left", validate="m:1")
+
+    print(merged)
+    print('merged.columns', merged.columns)
+
+    def find_columns_by_prefix(df: pd.DataFrame, prefix: str) -> List[str]:
+        """Find all columns that start with a given prefix (case-insensitive)."""
+        prefix_lower = prefix.lower()
+        return [c for c in df.columns if c.lower().startswith(prefix_lower)]
+
+    # Build subsets for "if_all" logic (case-insensitive)
+    # Find X columns case-insensitively from merged dataframe
+    x_cols = []
+    for i in range(1, num_vars_taken + 1):
+        x_col = find_column(merged, f"X{i}")
+        if x_col:
+            x_cols.append(x_col)
+    
+    # Find p-value and VIF columns case-insensitively
+    pval_cols = find_columns_by_prefix(merged, "p-value")
+    if not pval_cols:
+        pval_cols = find_columns_by_prefix(merged, "p_value")
+    vif_cols = find_columns_by_prefix(merged, "vif")
 
     # Required columns for scalar filters (check case-insensitively)
     required_cols_map = {}
@@ -328,6 +366,12 @@ def filter_one_result_file(
             if column_name.startswith("p-value") or column_name.startswith("p_value") or column_name.startswith("vif"):
                 continue
             
+            # IMPORTANT: Skip X1, X2, X3, etc. columns - these are variable names, not numeric values to filter
+            # X columns should accept ALL values. Only the lag filter (below) can exclude based on variable name patterns.
+            if column_name.startswith("x") and len(column_name) > 1 and column_name[1:].isdigit():
+                # X columns are never filtered by numeric thresholds - they contain variable names, not values
+                continue
+            
             # Convert value to float
             try:
                 threshold = float(value_str)
@@ -347,20 +391,22 @@ def filter_one_result_file(
             if matching_col_lower in ["r_squared", "adj_r_squared"]:
                 # R_Squared and Adj_R_Squared: filter > threshold
                 mask &= pd.to_numeric(merged[matching_col], errors="coerce") > threshold
-            elif matching_col_lower.startswith("x") and matching_col_lower[1:].isdigit():
-                # X1, X2, etc. columns: special handling (skip for now, handled separately)
-                pass
             else:
                 # Default: apply > threshold for other columns (e.g., Y)
+                # Note: X columns are already skipped above, so they never reach here
                 mask &= pd.to_numeric(merged[matching_col], errors="coerce") > threshold
 
-    # Apply X column filter (exclude rows where X columns contain ".lag_")
+    # Apply X column filter (ONLY filter that affects X columns - checks variable name patterns, not numeric values)
+    # This is the ONLY filter that can exclude models based on X columns.
+    # X columns (X1, X2, X3, etc.) contain variable names (strings), not numeric values, so they are never filtered by thresholds.
+    # This filter only checks if variable names contain ".lag_" substring pattern.
     x_filters = [f for f in parsed_filter_list if f.get("column", "").strip().lower().startswith("x")]
     if x_cols and x_filters:
         # Check if any X filter has a non-zero value (meaning we should apply the lag filter)
         should_apply_lag_filter = any(f.get("value", "0") != "0" for f in x_filters)
         if should_apply_lag_filter:
-            # Exclude rows where X columns contain ".lag_"
+            # Exclude rows where ALL X columns contain ".lag_" in their variable names
+            # This filters based on variable name patterns, NOT numeric values
             mask &= ~rowwise_all_str_contains(merged[x_cols], ".lag_")
 
     filtered = merged.loc[mask].copy()

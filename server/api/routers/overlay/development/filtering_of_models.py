@@ -325,6 +325,12 @@ async def get_mfa_file_headers(
             
             # Read just the headers (first row) from the CSV
             headers = pd.read_csv(file_path, nrows=0).columns.tolist()
+
+            # exlcude headers that start with "X" or "x" and end with a number
+            headers = [header for header in headers if not header.startswith("X") and not header.startswith("x") and not header.endswith("X") and not header.endswith("x")]
+
+            # exclude header 'Y' or 'y'
+            headers = [header for header in headers if header.upper() != "Y"]
             
             return JSONResponse(
                 status_code=200,

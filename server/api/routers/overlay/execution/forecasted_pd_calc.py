@@ -26,6 +26,7 @@ from helpers.save_file.save_file import save_csv_data_in_folder
 from helpers.make_json_serializable import make_json_serializable
 from helpers.file_utils import read_data_file
 from helpers.get_latest_file import get_latest_file
+from pathlib import Path
 
 import re
 
@@ -69,7 +70,7 @@ async def calculate_forecasted_pd_calc(workflow_id: int = Form(...),
                 )
 
             # Get transform forecasted mev
-            data_transformation_path = (
+            transform_forecasted_mevs_path = (
                 f"{get_root_folder()}/server/files/"
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
@@ -77,14 +78,32 @@ async def calculate_forecasted_pd_calc(workflow_id: int = Form(...),
                 f"output/overlay/execution/{workflow.loan_product}/transform_forecasted_mevs"
             )
 
+            # Get data from transformation
+            independent_data_transformation_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/execution/{workflow.loan_product}/data_transformation"
+            )
+            independent_data_transformation_path = Path(independent_data_transformation_path)
+
             finals_overlay_model_file = get_latest_file(finals_overlay_model_path)
-            data_transformation_file = get_latest_file(data_transformation_path)
+            transform_forecasted_mevs_file = get_latest_file(transform_forecasted_mevs_path)
+            independent_data_transformation_file = max(
+                independent_data_transformation_path.glob(f"{workflow.loan_product}_Dependent - Transformed with Time*"),
+                key=lambda p: p.stat().st_mtime,   # last modified time
+                default=None
+            )
 
             print('finals_overlay_model_file', finals_overlay_model_file)
-            print('data_transformation_file', data_transformation_file)
+            print('transform_forecasted_mevs_file', transform_forecasted_mevs_file)
+            print('independent_data_transformation_file', independent_data_transformation_file)
 
             finals_overlay_model_df = read_data_file(finals_overlay_model_file)
-            data_transformation_df = read_data_file(data_transformation_file)
+            transform_forecasted_mevs_df = read_data_file(transform_forecasted_mevs_file)
+            independent_data_transformation_df = read_data_file(independent_data_transformation_file)
+            print('independent_data_transformation_df', independent_data_transformation_df)
 
             if not workflow:
                 return JSONResponse(
@@ -109,31 +128,47 @@ async def calculate_forecasted_pd_calc(workflow_id: int = Form(...),
             #     )
 
             if finals_overlay_model_df.empty:
+                print('finals_overlay_model_df is empty')
                 return JSONResponse(
-                    status_code=404,
+                    status_code=400,
                     content= {
                         "code": -1,
                         "success": False,
-                        "msg": "No data interpolation data found for this workflow",
+                        "msg": "No final model data found for this workflow",
                         "data": None
                     }
                 )
 
-            if data_transformation_df.empty:
+            if transform_forecasted_mevs_df.empty:
+                print('transform_forecasted_mevs_df is empty')
                 return JSONResponse(
-                    status_code=404,
+                    status_code=400,
                     content= {
                         "code": -1,
                         "success": False,
-                        "msg": "No override forecasted MEVs data found for this workflow",
+                        "msg": "No transform forecasted MEVs data found for this workflow",
+                        "data": None
+                    }
+                )
+
+            if independent_data_transformation_df.empty:
+                print('independent_data_transformation_df is empty')
+                return JSONResponse(
+                    status_code=400,
+                    content= {
+                        "code": -1,
+                        "success": False,
+                        "msg": "No independent data transformation data found for this workflow. This is required for forecasted PD calc.",
                         "data": None
                     }
                 )
         finally:
             db.close()
 
-        process_forecasted_pd_calc_res = process_forecasted_pd_calc(finals_overlay_model_df, 
-                                                                      data_transformation_df)
+        process_forecasted_pd_calc_res = process_forecasted_pd_calc(
+            finals_overlay_model_df,
+            transform_forecasted_mevs_df,
+            independent_data_transformation_df)
         
         res = {
             'code': 1,
@@ -243,6 +278,13 @@ async def get_forecasted_pd_calc_results(workflow_id: int = Query(...),
                 latest_mlr_file = sorted(multiple_linear_regression_files)[-1]
                 mlr_file_path = os.path.join(forecasted_pd_calc_path, latest_mlr_file)
                 multiple_linear_regression_data = read_data_file(mlr_file_path)
+ 
+                print('multiple_linear_regression_data \n', multiple_linear_regression_data)
+                # Convert Period column to string for JSON serialization
+                if 'Period' in multiple_linear_regression_data.columns:
+                    multiple_linear_regression_data['Period'] = pd.to_datetime(
+                        multiple_linear_regression_data['Period'], errors='coerce'
+                    ).dt.strftime('%Y-%m-%d')
                 # Replace NaN values with None for JSON serialization
                 multiple_linear_regression_data = multiple_linear_regression_data.replace({np.nan: None})
                 multiple_linear_regression_data = multiple_linear_regression_data.to_dict(orient='records')
@@ -263,6 +305,12 @@ async def get_forecasted_pd_calc_results(workflow_id: int = Query(...),
                 latest_pd_file = sorted(forecasted_pd_files)[-1]
                 pd_file_path = os.path.join(forecasted_pd_calc_path, latest_pd_file)
                 forecasted_pd_data = read_data_file(pd_file_path)
+                print()
+                # Convert Period column to string for JSON serialization
+                if 'Period' in forecasted_pd_data.columns:
+                    forecasted_pd_data['Period'] = pd.to_datetime(
+                        forecasted_pd_data['Period'], errors='coerce'
+                    ).dt.strftime('%Y-%m-%d')
                 # Replace NaN values with None for JSON serialization
                 forecasted_pd_data = forecasted_pd_data.replace({np.nan: None})
                 forecasted_pd_data = forecasted_pd_data.to_dict(orient='records')
