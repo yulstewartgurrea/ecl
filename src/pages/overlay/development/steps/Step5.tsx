@@ -247,6 +247,7 @@ const Step5: React.FC<Step5Props> = ({
     // Do not include REQUIRED_COLUMNS - only use headers from API
     const loadHeadersAsync = async () => {
       // Fetch MFA headers from API first
+      // test
       const apiHeaders = await fetchMfaHeaders();
       
       // Load captured headers from Step 4
