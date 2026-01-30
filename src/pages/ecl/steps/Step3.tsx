@@ -5,8 +5,14 @@ import {
   ExclamationTriangleIcon,
   ArrowPathIcon,
   PlayIcon,
+  CloudArrowDownIcon,
 } from "@heroicons/react/24/outline";
-import { useAppSelector } from "../../../redux_toolkit/hooks";
+import { useAppDispatch, useAppSelector } from "../../../redux_toolkit/hooks";
+import {
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../../redux_toolkit/features/progress/moduleProgressSlice";
+import type { RootState } from "../../../redux_toolkit/store";
 
 import AgingCategoryPortfolioEclTable, {
   type AgingPortfolioRow,
@@ -65,7 +71,14 @@ function calcOverallEclRatePercent(allRows: AgingPortfolioRow[]): number {
   return sumLoan > 0 ? (sumWeighted / sumLoan) * 100 : 0;
 }
 
+type EclWeights = {
+  upside: string;
+  baseline: string;
+  downside: string;
+};
+
 export default function Step3() {
+  const dispatch = useAppDispatch();
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
@@ -83,6 +96,13 @@ export default function Step3() {
     // fallback sample
     return 35;
   }, [currentPdTransitionMatrixWorkflowId, currentPdTransitionMatrixWorkflowData]);
+
+  const eclProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "ecl", String(workflowId))
+  );
+  const persistedWeights = (eclProgress?.data as any)?.probabilityWeights as
+    | EclWeights
+    | undefined;
 
   const [rows, setRows] = useState<AgingPortfolioRow[]>([]);
   const [overallEclRatePercent, setOverallEclRatePercent] = useState<number>(0);
@@ -155,7 +175,7 @@ export default function Step3() {
     try {
       const formData = new FormData();
       formData.append("workflow_id", String(workflowId));
-
+      formData.append("probability_weights", JSON.stringify(persistedWeights));
       const res = await fetch(POST_URL, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -169,12 +189,72 @@ export default function Step3() {
         throw new Error(json?.msg || "POST failed.");
       }
 
+      // Save probability weights to Redux after successful POST
+      if (persistedWeights) {
+        dispatch(
+          setModuleProgress({
+            moduleKey: "ecl",
+            contextKey: String(workflowId),
+            data: {
+              probabilityWeights: {
+                upside: String(persistedWeights.upside ?? ""),
+                baseline: String(persistedWeights.baseline ?? ""),
+                downside: String(persistedWeights.downside ?? ""),
+              } as EclWeights,
+            },
+          })
+        );
+      }
+
       // after POST success, GET again
       await fetchSummary();
     } catch (e: any) {
       setError(e?.message || "Failed to run summary compute.");
     } finally {
       setPosting(false);
+    }
+  };
+
+  const exportSummary = async () => {
+    if (!token || !workflowId) return;
+    
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/ecl/summary/export/?workflow_id=${workflowId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        // Get filename from Content-Disposition header or use default
+        const contentDisposition = response.headers.get("Content-Disposition");
+        let filename = "ecl_summary.xlsx";
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData?.msg || "Failed to export summary");
+      }
+    } catch (err: any) {
+      console.error("Error exporting summary:", err);
+      setError(err?.message || "Error exporting summary");
     }
   };
 
@@ -249,9 +329,9 @@ export default function Step3() {
               <button
                 type="button"
                 onClick={runThenGet}
-                disabled={busy || !hasInitialFetched || !needsRun}
+                disabled={busy}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm disabled:opacity-60 disabled:cursor-not-allowed ${
-                  busy || !hasInitialFetched || !needsRun
+                  busy
                     ? "bg-amber-200 text-slate-700"
                     : "bg-amber-400 text-slate-900 hover:brightness-95"
                 }`}
@@ -280,6 +360,17 @@ export default function Step3() {
               >
                 <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 Refresh
+              </button>
+
+              <button
+                type="button"
+                onClick={exportSummary}
+                disabled={busy || rows.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                title="Export summary as Excel file"
+              >
+                <CloudArrowDownIcon className="h-4 w-4" />
+                Export
               </button>
             </div>
           </div>

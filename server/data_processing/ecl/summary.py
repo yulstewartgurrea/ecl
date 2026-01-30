@@ -1,7 +1,9 @@
 import pandas as pd
 import traceback	
 
-def process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, total_loan_balance):
+import json
+
+def process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, total_loan_balance, probability_weights):
     try:
         # Read aging report to get buckets
         aging_report_df = pd.read_excel(aging_report_file)
@@ -17,7 +19,16 @@ def process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, to
         credit_loss_rates_df = pd.read_excel(credit_loss_rates_file)
         credit_loss_rates_df.columns = credit_loss_rates_df.columns.str.strip().str.lower()
         
-        weights = {"upside": 0.0, "baseline": 0.0, "downside": 0.0}
+        try:
+            weights = json.loads(probability_weights) if isinstance(probability_weights, str) else probability_weights
+            weights = {
+                k: float(v)
+                for k, v in weights.items()
+            }
+        except (json.JSONDecodeError, TypeError):
+            weights = {"upside": 0.0, "baseline": 0.0, "downside": 0.0}
+
+        print('weights', weights)
         
         # Look for weights by searching for rows with specific aging category patterns
         # Common patterns: "probability", "weight", "prob", or similar keywords

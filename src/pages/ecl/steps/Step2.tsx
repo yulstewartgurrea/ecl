@@ -7,6 +7,7 @@ import {
   PlayIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CloudArrowDownIcon,
 } from "@heroicons/react/24/outline";
 
 import { useAppSelector } from "../../../redux_toolkit/hooks";
@@ -270,6 +271,49 @@ formData.append(
     }
   };
 
+  const exportEclData = async () => {
+    if (!token || !workflowId) return;
+    
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/ecl/export/?workflow_id=${workflowId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        // Get filename from Content-Disposition header or use default
+        const contentDisposition = response.headers.get("Content-Disposition");
+        let filename = "ecl_data.xlsx";
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData?.msg || "Failed to export ECL data");
+      }
+    } catch (err: any) {
+      console.error("Error exporting ECL data:", err);
+      setError(err?.message || "Error exporting ECL data");
+    }
+  };
+
   // Initial behavior: GET only (once per workflowId)
   useEffect(() => {
     if (!workflowId) return;
@@ -384,6 +428,17 @@ formData.append(
               >
                 <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 Refresh
+              </button>
+
+              <button
+                type="button"
+                onClick={exportEclData}
+                disabled={busy || clientRows.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                title="Export ECL data as Excel file"
+              >
+                <CloudArrowDownIcon className="h-4 w-4" />
+                Export
               </button>
 
               {/* Pagination */}
