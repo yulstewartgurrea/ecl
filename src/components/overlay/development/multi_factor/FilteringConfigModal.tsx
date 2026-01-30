@@ -44,7 +44,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
       setRows(
         existing.length
           ? existing
-          : [{ id: uid(), column: "", operator: "=", value: "" }]
+          : [{ id: uid(), column: "", operator: ">", value: "" }]
       );
       setInvalidValueIds(new Set());
       setTimeout(() => firstInputRef.current?.focus(), 50);
@@ -88,7 +88,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
       {
         id: uid(),
         column: prefill?.column ?? "",
-        operator: prefill?.operator ?? "=",
+        operator: prefill?.operator ?? ">",
         value: prefill?.value ?? "",
       },
     ]);
@@ -121,16 +121,36 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
 
   function handleApply() {
     // 1) Clean user-selected rules (only rows with a column)
-    const selected = rows
+    const selected: FilterRule[] = rows
       .map((r) => ({
         ...r,
         column: r.column.trim(),
-        operator: r.operator ?? "=",
+        operator: (r.operator?.trim() || ">") as FilterRule["operator"],
         value: String(r.value ?? "").trim(),
       }))
       .filter((r) => r.column.length > 0);
 
-    // 2) Validate values: selected must be numeric if provided (non-empty)
+    // 2) Validate: operator must be present and valid
+    const validOperators = [">", "<", ">=", "<=", "==", "!="];
+    const invalidOperatorIds = new Set<string>();
+    for (const r of selected) {
+      if (!r.operator || !validOperators.includes(r.operator)) {
+        invalidOperatorIds.add(r.id);
+      }
+    }
+    if (invalidOperatorIds.size > 0) {
+      setInvalidValueIds(invalidOperatorIds);
+      const firstBad = selected.find((r) => invalidOperatorIds.has(r.id));
+      if (firstBad) {
+        const node = rowRefs.current[firstBad.id];
+        node?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlightRowId(firstBad.id);
+        window.setTimeout(() => setHighlightRowId(null), 900);
+      }
+      return; // block Apply until fixed
+    }
+
+    // 3) Validate values: selected must be numeric if provided (non-empty)
     const badIds = new Set<string>();
     for (const r of selected) {
       if (r.value === "" || !isNumeric(r.value)) badIds.add(r.id);
@@ -147,17 +167,10 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
       return; // block Apply until fixed
     }
 
-    // 3) Build defaults: every header not selected gets value 0
-    const selectedKeys = new Set(selected.map((r) => r.column.toLowerCase()));
-    const defaults: FilterRule[] = headers
-      .filter((h) => !selectedKeys.has(h.toLowerCase()))
-      .map((h) => ({ id: `__def_${h}`, column: h, operator: "=", value: "0" }));
-
-    const finalRules: FilterRule[] = [...selected, ...defaults];
-
+    // 3) Only send selected rules - no defaults
     // Persist ONLY the explicitly selected rules (so the UI stays clean next open)
     saveFilters(workflowId, selected);
-    onApply?.(finalRules);
+    onApply?.(selected);
     onClose();
   }
 
@@ -297,11 +310,11 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                             <div>
                               <label className="block text-[11px] text-neutral-500">Operator</label>
                               <select
-                                value={r.operator ?? "="}
+                                value={r.operator ?? ">"}
                                 onChange={(e) => updateRow(r.id, { operator: e.target.value as any })}
                                 className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
                               >
-                                <option value="=">=</option>
+                                <option value="==">=</option>
                                 <option value=">">&gt;</option>
                                 <option value="<">&lt;</option>
                               </select>

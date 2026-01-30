@@ -61,20 +61,17 @@ type Step5ReadyState = {
 // exclude some utility keys if we have to CSV-convert JSON client-side
 const EXCLUDE_KEYS = new Set(["id", "index", "__rowid__", "_rowIndex"]);
 
-// helper: build the backend payload from headers + selected
-function buildPayload(headers: string[], selected: FilterRule[]): FilterRule[] {
-  const selectedMap = new Map<string, string>();
-  for (const r of selected) {
-    if (!r?.column) continue;
-    selectedMap.set(norm(r.column), String(r.value ?? "0").trim());
-  }
-  const out: FilterRule[] = [];
-  for (const h of headers) {
-    const k = norm(h);
-    const val = selectedMap.has(k) ? selectedMap.get(k)! : "0";
-    out.push({ id: `__payload_${h}`, column: h, value: val });
-  }
-  return out;
+// helper: build the backend payload from selected filters only (no defaults)
+function buildPayload(selected: FilterRule[]): FilterRule[] {
+  // Only return selected filters - no defaults
+  return selected
+    .filter((r) => r?.column && r.value && r.value !== "0")
+    .map((r) => ({
+      id: r.id || `__payload_${r.column}`,
+      column: r.column,
+      value: String(r.value ?? "").trim(),
+      operator: r.operator || ">",
+    }));
 }
 
 // CSV helpers (used only if export endpoint returns JSON)
@@ -257,7 +254,7 @@ const Step5: React.FC<Step5Props> = ({
       const sel = loadFilters(wf);
       setHeaders(merged);
       setSelectedFilters(sel);
-      setPayloadFilters(buildPayload(merged, sel));
+      setPayloadFilters(buildPayload(sel));
       setHasSavedSelection(Boolean(persistedSelected?.rows?.length));
 
       // Reset gating for new workflow
@@ -292,8 +289,15 @@ const Step5: React.FC<Step5Props> = ({
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [selectedWorkflowId, fetchFilteringResults]);
-  function handleApplyFilters(finalRules: FilterRule[]) {
-    setPayloadFilters(finalRules);
+  function handleApplyFilters(selectedRules: FilterRule[]) {
+    // Only use selected rules - no defaults, ensure operator is always present
+    const filteredRules = selectedRules
+      .filter((r) => r.value && r.value !== "0")
+      .map((r) => ({
+        ...r,
+        operator: r.operator || ">", // Ensure operator is always present
+      }));
+    setPayloadFilters(filteredRules);
     if (Number.isFinite(selectedWorkflowId)) {
       setSelectedFilters(loadFilters(Number(selectedWorkflowId)));
     }
@@ -301,10 +305,10 @@ const Step5: React.FC<Step5Props> = ({
     setHasRunAnalysis(false);
     setCurrentPage(1);
     setSaveMsg(null);
-    handleRunFiltering();
+    handleRunFiltering(filteredRules);
   }
 
-  async function handleRunFiltering() {
+  async function handleRunFiltering(filtersToUse?: FilterRule[]) {
     if (!Number.isFinite(selectedWorkflowId)) {
       setErrMsg("Missing or invalid selectedWorkflowId.");
       return;
@@ -321,12 +325,20 @@ const Step5: React.FC<Step5Props> = ({
     setPosting(true);
     setErrMsg(null);
     try {
-      // Send workload_id and filter in the payload
+      // Use filtersToUse if provided (from handleApplyFilters), otherwise use payloadFilters state
+      const filters = filtersToUse || payloadFilters;
+      // Send workload_id and filter in the payload - only selected filters, no defaults
       await postFilteringModels({
         apiBase: API_BASE,
         token,
         workflowId: Number(selectedWorkflowId),
-        filter_list: payloadFilters.map((f) => ({ column: f.column, value: f.value })),
+        filter_list: filters
+          .filter((f) => f.value && f.value !== "0") // Only include filters with non-zero values
+          .map((f) => ({ 
+            column: f.column, 
+            value: f.value, 
+            operator: f.operator || ">" // Ensure operator is always present, default to ">"
+          })),
       });
       // Reset to page 1 after applying filters
       setCurrentPage(1);
@@ -559,7 +571,7 @@ const Step5: React.FC<Step5Props> = ({
         </button>
 
         <button
-          onClick={handleRunFiltering}
+          onClick={() => handleRunFiltering()}
           disabled={posting || loading}
           className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
           title={

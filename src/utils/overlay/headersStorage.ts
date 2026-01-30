@@ -9,7 +9,7 @@ export type FilterRule = {
   id: string;
   column: string;
   value: string;
-  operator?: "=" | ">" | "<";
+  operator?: ">" | "<" | ">=" | "<=" | "==" | "!=";
 };
 
 export function saveHeaders(wfId: number | string, headers: string[]) {
