@@ -6,6 +6,7 @@ import {
   ArrowUpTrayIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
+  CloudArrowDownIcon,
 } from "@heroicons/react/24/outline";
 import { useAppDispatch, useAppSelector } from "../../../redux_toolkit/hooks";
 import {
@@ -244,6 +245,49 @@ export default function Step5() {
     }
   };
 
+  const exportCreditLossRates = async () => {
+    if (!token || !workflowId) return;
+    
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/ecl/credit_loss_rates/export?workflow_id=${workflowId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        // Get filename from Content-Disposition header or use default
+        const contentDisposition = response.headers.get("Content-Disposition");
+        let filename = "credit_loss_rates.xlsx";
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData?.msg || "Failed to export credit loss rates");
+      }
+    } catch (err: any) {
+      console.error("Error exporting credit loss rates:", err);
+      setError(err?.message || "Error exporting credit loss rates");
+    }
+  };
+
   useEffect(() => {
     fetchResults().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -304,6 +348,17 @@ export default function Step5() {
               >
                 <ArrowPathIcon className="h-4 w-4" />
                 Refresh
+              </button>
+
+              <button
+                type="button"
+                onClick={exportCreditLossRates}
+                disabled={loading || posting || rows.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                title="Export credit loss rates as Excel file"
+              >
+                <CloudArrowDownIcon className="h-4 w-4" />
+                Export
               </button>
 
               <button
