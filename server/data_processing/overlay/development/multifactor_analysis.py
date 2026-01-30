@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import sys
+import re
 import math
 import time
 import itertools
@@ -32,9 +33,7 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.diagnostic import (
     acorr_ljungbox,
     het_breuschpagan,
-    acorr_breusch_godfrey,
 )
-from statsmodels.stats.stattools import durbin_watson
 
 from data.excluded_columns import excluded_columns
 
@@ -52,7 +51,7 @@ def load_transformed_data(
     This function:
     1. Finds the latest transformed data files for the portfolio
     2. Loads independent and dependent variable DataFrames
-    3. Drops columns matching forbidden patterns (".asinh.diff_12.lag", ".ln.diff_12.lag")
+    3. Drops columns matching forbidden patterns (".asinh.diff_12.lag", ".ln.diff_12.lag", ".diff_12.lag", ".asinh")
     4. Left-joins X and Y data on 'Time' column
     5. Excludes predefined columns (from excluded_columns list)
     6. Returns separate X, Y DataFrames, merged regression data, and variable name lists
@@ -98,8 +97,9 @@ def load_transformed_data(
 
     print(x_df.columns)
     print(y_df.columns)
-    # # # Drop columns matching pattern ".asinh.diff_12.lag" or ".ln.diff_12.lag"
-    drop_patterns = (".asinh.diff_12.lag", ".ln.diff_12.lag")
+    # # # Drop columns matching forbidden patterns (matching R script filters)
+    # R filters: ".asinh.diff_12.lag", ".ln.diff_12.lag", ".diff_12.lag", ".asinh"
+    drop_patterns = (".asinh.diff_12.lag", ".ln.diff_12.lag", ".diff_12.lag", ".asinh")
     cols_to_drop = [c for c in x_df.columns if any(p in c for p in drop_patterns)]
     x_df = x_df.drop(columns=cols_to_drop, errors="ignore")
 
@@ -131,10 +131,12 @@ def load_combinations(
     
     This function:
     1. Finds the latest combinations file for the portfolio and number of variables
-    2. Extracts columns starting with "X" (X1, X2, ..., Xk)
-    3. Optionally limits the number of combinations (for testing)
-    4. Filters out combinations containing forbidden lag patterns
-    5. Returns as numpy array of strings (shape: n_combinations × num_vars_taken)
+    2. Filters by correlation threshold (max_abs_cor >= 0, max_abs_cor < 0.8) if column exists
+    3. Extracts columns starting with "X" (X1, X2, ..., Xk)
+    4. Optionally limits the number of combinations (for testing)
+    5. Filters out combinations containing forbidden lag patterns
+    6. Filters out combinations with more than 2 non_mev variables
+    7. Returns as numpy array of strings (shape: n_combinations × num_vars_taken)
     
     Args:
         portfolio (str): Portfolio/loan product name
@@ -157,16 +159,28 @@ def load_combinations(
 
     print(df)
 
-    # Keep only columns that start with "X" (X1, X2, ...)
-    xcols = [c for c in df.columns if c.startswith("X")]
+    # Filter by correlation threshold if max_abs_cor column exists (matching R script)
+    # R filters: max_abs_cor >= 0, max_abs_cor < 0.8
+    if 'max_abs_cor' in df.columns:
+        initial_count = len(df)
+        df = df[(df['max_abs_cor'] >= 0) & (df['max_abs_cor'] < 0.8)]
+        filtered_count = len(df)
+        print(f"Correlation filter: {initial_count} -> {filtered_count} combinations (removed {initial_count - filtered_count})")
+    else:
+        print("Warning: 'max_abs_cor' column not found in combinations file. Skipping correlation filter.")
+
+    # Keep only columns that match pattern X1, X2, x1, x2, etc. (case-insensitive)
+    x_pattern = re.compile(r'^[Xx]\d+$', re.IGNORECASE)
+    xcols = [c for c in df.columns if x_pattern.match(c)]
     df = df[xcols]
 
     # Optionally limit the number of combinations (R slices first 4e6)
     if limit is not None:
         df = df.iloc[:limit, :]
 
-    # Filter out any rows where any X contains the forbidden substrings
-    bad_substrings = (".asinh.diff_12.lag", ".ln.diff_12.lag")
+    # Filter out any rows where any X contains the forbidden substrings (matching R script)
+    # R filters: "asinh.diff_12.lag", "ln.diff_12.lag", "diff_12.lag", "asinh"
+    bad_substrings = (".asinh.diff_12.lag", ".ln.diff_12.lag", ".diff_12.lag", ".asinh")
     mask_bad = df.apply(
         lambda row: any(
             (isinstance(v, str) and any(b in v for b in bad_substrings)) for v in row
@@ -174,6 +188,23 @@ def load_combinations(
         axis=1,
     )
     df = df.loc[~mask_bad].reset_index(drop=True)
+
+    # Filter out combinations with more than 2 non_mev variables (matching R script)
+    # R filters: rowSums(across(everything(), ~ grepl("^non_mev", .x))) <= 2
+    def count_non_mev(row):
+        """Count how many variables in the combination start with 'non_mev' (case-insensitive)."""
+        count = 0
+        for val in row:
+            if isinstance(val, str) and val.lower().startswith('non_mev'):
+                count += 1
+        return count
+    
+    non_mev_counts = df.apply(count_non_mev, axis=1)
+    mask_non_mev = non_mev_counts <= 2
+    initial_count = len(df)
+    df = df.loc[mask_non_mev].reset_index(drop=True)
+    filtered_count = len(df)
+    print(f"non_mev filter: {initial_count} -> {filtered_count} combinations (removed {initial_count - filtered_count})")
 
     # Return as numpy array of strings (shape n x k)
     print(df)
@@ -312,14 +343,14 @@ def write_model_stats_for_combo(
        - Shapiro-Wilk (normality of residuals)
        - Ljung-Box (autocorrelation)
        - Breusch-Pagan (heteroskedasticity)
-       - Durbin-Watson (autocorrelation)
-       - Breusch-Godfrey (autocorrelation up to max_bg_order)
+    
+    Note: Durbin-Watson and Breusch-Godfrey tests are excluded to match R script behavior.
     
     Args:
         indep_vars (List[str]): List of independent variable names
         dep_var (str): Dependent variable name
         lr_data (pd.DataFrame): Regression data with all variables and 'Time' column
-        max_bg_order (int): Maximum lag order for Breusch-Godfrey test
+        max_bg_order (int): Maximum lag order for Breusch-Godfrey test (kept for API compatibility, not used)
     
     Returns:
         Dict[str, Any]: Dictionary containing all model statistics:
@@ -332,8 +363,6 @@ def write_model_stats_for_combo(
             - MSE, RMSE, MAPE: Error metrics
             - AIC, BIC: Information criteria
             - ST_pval, BT_pval, BP_pval: Test p-values
-            - DW_stat, DW_pval: Durbin-Watson statistics
-            - BG_order1_pval, BG_order2_pval, ...: Breusch-Godfrey p-values
     """
     # Build formula like: "Y ~ X1 + X2 + ..."
     # Use Q() function directly in formula string to handle variable names with dots
@@ -408,21 +437,8 @@ def write_model_stats_for_combo(
     except Exception:
         bp_p = np.nan
 
-    # Durbin-Watson (stat only; p-value not provided by statsmodels)
-    try:
-        dw_stat = float(durbin_watson(resid))
-        dw_p = np.nan
-    except Exception:
-        dw_stat, dw_p = np.nan, np.nan
-
-    # Breusch-Godfrey up to max order
-    bg_pvals = []
-    for order in range(1, max_bg_order + 1):
-        try:
-            _, pval, _, _ = acorr_breusch_godfrey(model, nlags=order)
-            bg_pvals.append(float(pval))
-        except Exception:
-            bg_pvals.append(np.nan)
+    # Note: Durbin-Watson and Breusch-Godfrey tests are excluded to match R script
+    # R script has these commented out (lines 124-125, 148-149)
 
     # Assemble output — follow the R naming scheme
     k = len(indep_vars)
@@ -465,15 +481,10 @@ def write_model_stats_for_combo(
     result["AIC"] = float(model.aic)
     result["BIC"] = float(model.bic)
 
-    # Tests
+    # Tests (matching R script: only ST_pval, BT_pval, BP_pval)
     result["ST_pval"] = shapiro_p
     result["BT_pval"] = lb_p
     result["BP_pval"] = bp_p
-    result["DW_stat"] = dw_stat
-    result["DW_pval"] = dw_p  # not available; left as NaN
-
-    for order, p in enumerate(bg_pvals, start=1):
-        result[f"BG_order{order}_pval"] = p
 
     # Replace infinity values with NaN for JSON compliance
     result = _replace_inf_with_nan(result)
@@ -572,7 +583,7 @@ def run_mfa(
         dep_var (str): Dependent variable name
         combinations (np.ndarray): Array of shape (n_combos, k) with variable combinations
         regression_data (pd.DataFrame): DataFrame with all variables for regression
-        max_bg_order (int): Maximum lag order for Breusch-Godfrey test
+        max_bg_order (int): Maximum lag order for Breusch-Godfrey test (kept for API compatibility, not used)
         out_csv_path (Path): Base path for output (folder will be created from stem)
         flush_every (int): Number of rows to buffer before writing to disk (default: 100)
         progress_callback (Optional[Callable]): Function to call with (progress%, message) for updates
@@ -612,10 +623,12 @@ def run_mfa(
 
     # Use multiprocessing for all combinations
     # Determine number of workers (increased for better parallelism)
-    if platform.system() == 'Windows':
-        num_workers = max(1, min(cpu_count(), 8))  # Increased limit on Windows
-    else:
-        num_workers = max(1, cpu_count())  # Use all cores on Unix
+    # if platform.system() == 'Windows':
+    #     num_workers = max(1, min(cpu_count(), 8))  # Increased limit on Windows
+    # else:
+    #     num_workers = max(1, cpu_count())  # Use all cores on Unix
+
+    num_workers = max(1, cpu_count())  # Use all cores on Unix
     print(f"Using {num_workers} worker processes for multiprocessing")
     
     # Prepare arguments for each combination (only index and combo, not DataFrame)
