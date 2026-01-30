@@ -75,6 +75,7 @@ export function extractFilteringRows(payload: FilteringPayload): {
 export type FilterRule = {
   column: string;
   value: string;
+  operator?: string;
 };
 
 export async function postFilteringModels(opts: {
@@ -90,8 +91,12 @@ export async function postFilteringModels(opts: {
   const form = new FormData();
   form.append("workload_id", String(workflowId));
   if (filter_list && filter_list.length > 0) {
-    // Convert filter array to JSON string
-    const filterArray = filter_list.map(f => ({ column: f.column, value: f.value }));
+    // Convert filter array to JSON string - include operator
+    const filterArray = filter_list.map(f => ({ 
+      column: f.column, 
+      value: f.value,
+      operator: f.operator || ">" // Ensure operator is always present
+    }));
     form.append("filter_list", JSON.stringify(filterArray));
   } else {
     // Send empty array if no filter_list

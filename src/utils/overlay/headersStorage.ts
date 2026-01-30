@@ -5,7 +5,12 @@ import {
   setModuleProgress,
 } from "../../redux_toolkit/features/progress/moduleProgressSlice";
 
-export type FilterRule = { id: string; column: string; value: string };
+export type FilterRule = {
+  id: string;
+  column: string;
+  value: string;
+  operator?: ">" | "<" | ">=" | "<=" | "==" | "!=";
+};
 
 export function saveHeaders(wfId: number | string, headers: string[]) {
   store.dispatch(

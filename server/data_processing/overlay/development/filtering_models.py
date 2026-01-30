@@ -146,27 +146,37 @@ def filter_one_result_file(
     """
     Filter a single MFA result file based on specified criteria.
     
-    This function applies multiple filtering criteria to MFA (Multifactor Analysis) results:
-    - Scalar filters: max_abs_cor, R_Squared, MAPE, Adj_R_Squared
-    - "If all" filters: p-value columns (all must be < threshold), VIF columns (all must be < threshold)
+    This function applies filtering criteria to MFA (Multifactor Analysis) results.
+    Only filters explicitly provided in parsed_filter_list are applied. No default filters.
+    
+    Filter rules must include:
+    - 'column': Column name to filter (case-insensitive)
+    - 'value': Threshold value (string, "0" to disable)
+    - 'operator': Comparison operator (required): >, <, >=, <=, ==, !=
+    
+    Supported filter types:
+    - Scalar filters: max_abs_cor, R_Squared, MAPE, Adj_R_Squared, and any custom column
+    - "If all" filters: p-value columns (all must pass condition), VIF columns (all must pass condition)
     - X column filters: Exclude rows with lagged variables (containing ".lag_")
-    - Custom filters from parsed_filter_list
     
     The function merges the result file with combinations data to get max_abs_cor values,
-    then applies all filters sequentially, and finally sorts by Adj_R_Squared descending.
+    then applies only the filters specified in parsed_filter_list, and finally sorts by Adj_R_Squared descending.
     
     Args:
         fn (Path): Path to the MFA result CSV file to filter
         combos_df (pd.DataFrame): DataFrame with variable combinations and max_abs_cor values
         num_vars_taken (int): Number of variables in each combination (determines X1..Xk columns)
-        parsed_filter_list (List[Dict[str, str]]): List of filter rules with 'column' and 'value' keys.
-            Values of "0" or empty mean no filter. Supports custom thresholds for any column.
+        parsed_filter_list (List[Dict[str, str]]): List of filter rules. Each rule must have:
+            - 'column': Column name (required)
+            - 'value': Threshold value as string (required, "0" to disable)
+            - 'operator': Comparison operator (required): >, <, >=, <=, ==, !=
     
     Returns:
         pd.DataFrame: Filtered DataFrame sorted by Adj_R_Squared descending, with 'index' column first
     
     Raises:
         KeyError: If required columns are missing after merge
+        ValueError: If filter rules are missing required 'operator' field or have invalid operator
     """
     df = pd.read_csv(fn, low_memory=False)
     print(df)
@@ -250,53 +260,108 @@ def filter_one_result_file(
     # Start with a mask of all True (no filtering initially)
     mask = pd.Series([True] * len(merged), index=merged.index)
 
-    # Helper function to find filter value from parsed_filter_list
-    def get_filter_value(column_name: str, default_value: float = None) -> float | None:
+    # Validate filter list structure - operator is required
+    valid_operators = [">", "<", ">=", "<=", "==", "!="]
+    if parsed_filter_list:
+        for filter_rule in parsed_filter_list:
+            column_name = filter_rule.get("column", "").strip()
+            operator = filter_rule.get("operator", "").strip() if filter_rule.get("operator") else ""
+            
+            if not operator:
+                raise ValueError(f"Filter rule for column '{column_name}' is missing required 'operator' field")
+            
+            if operator not in valid_operators:
+                raise ValueError(f"Filter rule for column '{column_name}' has invalid operator '{operator}'. Valid operators are: {', '.join(valid_operators)}")
+
+    # Helper function to apply operator dynamically
+    def apply_operator(data: pd.Series | pd.DataFrame, threshold: float, operator: str) -> pd.Series | pd.DataFrame:
         """
-        Get filter value for a column from parsed_filter_list.
+        Apply a comparison operator to a series or dataframe with a threshold.
         
-        Searches the parsed_filter_list for a matching column name (case-insensitive).
-        Returns the threshold value if found and not "0", otherwise returns default_value.
-        If value is "0", returns None to indicate no filter should be applied.
+        Args:
+            data (pd.Series | pd.DataFrame): Series or DataFrame to compare
+            threshold (float): Threshold value
+            operator (str): Comparison operator (>, <, >=, <=, ==, !=)
+        
+        Returns:
+            pd.Series | pd.DataFrame: Boolean Series/DataFrame where True means condition passed
+        """
+        numeric_data = pd.to_numeric(data, errors="coerce") if isinstance(data, pd.Series) else to_float_df(data)
+        
+        if operator == ">":
+            return numeric_data > threshold
+        elif operator == "<":
+            return numeric_data < threshold
+        elif operator == ">=":
+            return numeric_data >= threshold
+        elif operator == "<=":
+            return numeric_data <= threshold
+        elif operator == "==":
+            return numeric_data == threshold
+        elif operator == "!=":
+            return numeric_data != threshold
+        else:
+            raise ValueError(f"Invalid operator: {operator}")
+
+    # Helper function to find filter rule from parsed_filter_list
+    def get_filter_rule(column_name: str) -> Dict[str, str] | None:
+        """
+        Get filter rule for a column from parsed_filter_list.
         
         Args:
             column_name (str): Name of the column to find filter for
-            default_value (float, optional): Default threshold if not found in filter list
         
         Returns:
-            float | None: Filter threshold value, or None if no filter should be applied
+            Dict[str, str] | None: Filter rule dict with 'column', 'value', 'operator', or None if not found
         """
         if not parsed_filter_list:
-            return default_value
+            return None
         
         for filter_rule in parsed_filter_list:
             filter_col = filter_rule.get("column", "").strip().lower()
             if filter_col == column_name.lower():
-                value_str = str(filter_rule.get("value", "0")).strip()
-                if value_str and value_str != "0":
-                    try:
-                        return float(value_str)
-                    except (ValueError, TypeError):
-                        pass
-                # If value is "0", return None to disable filter
-                return None
-        return default_value
+                return filter_rule
+        return None
 
-    # Apply default filters for max_abs_cor, R_Squared, and MAPE if not in parsed_filter_list
-    max_abs_cor_threshold = get_filter_value("max_abs_cor", default_value=0.9)
-    if max_abs_cor_threshold is not None:
-        max_abs_cor_col = required_cols_map["max_abs_cor"]
-        mask &= pd.to_numeric(merged[max_abs_cor_col], errors="coerce") < max_abs_cor_threshold
+    # Apply filters only for columns explicitly in payload
+    # max_abs_cor filter
+    max_abs_cor_rule = get_filter_rule("max_abs_cor")
+    if max_abs_cor_rule:
+        value_str = str(max_abs_cor_rule.get("value", "0")).strip()
+        if value_str and value_str != "0":
+            try:
+                threshold = float(value_str)
+                operator = max_abs_cor_rule.get("operator", "").strip()
+                max_abs_cor_col = required_cols_map["max_abs_cor"]
+                mask &= apply_operator(merged[max_abs_cor_col], threshold, operator)
+            except (ValueError, TypeError) as e:
+                print(f"Warning: Invalid filter value '{value_str}' for column 'max_abs_cor', skipping")
 
-    r_squared_threshold = get_filter_value("r_squared", default_value=0.5)
-    if r_squared_threshold is not None:
-        r_squared_col = required_cols_map["r_squared"]
-        mask &= pd.to_numeric(merged[r_squared_col], errors="coerce") > r_squared_threshold
+    # R_Squared filter
+    r_squared_rule = get_filter_rule("r_squared")
+    if r_squared_rule:
+        value_str = str(r_squared_rule.get("value", "0")).strip()
+        if value_str and value_str != "0":
+            try:
+                threshold = float(value_str)
+                operator = r_squared_rule.get("operator", "").strip()
+                r_squared_col = required_cols_map["r_squared"]
+                mask &= apply_operator(merged[r_squared_col], threshold, operator)
+            except (ValueError, TypeError) as e:
+                print(f"Warning: Invalid filter value '{value_str}' for column 'R_Squared', skipping")
 
-    mape_threshold = get_filter_value("mape", default_value=0.5)
-    if mape_threshold is not None:
-        mape_col = required_cols_map["mape"]
-        mask &= pd.to_numeric(merged[mape_col], errors="coerce") < mape_threshold
+    # MAPE filter
+    mape_rule = get_filter_rule("mape")
+    if mape_rule:
+        value_str = str(mape_rule.get("value", "0")).strip()
+        if value_str and value_str != "0":
+            try:
+                threshold = float(value_str)
+                operator = mape_rule.get("operator", "").strip()
+                mape_col = required_cols_map["mape"]
+                mask &= apply_operator(merged[mape_col], threshold, operator)
+            except (ValueError, TypeError) as e:
+                print(f"Warning: Invalid filter value '{value_str}' for column 'MAPE', skipping")
 
     # Apply "if_all" logic for p-value columns
     # Check if any p-value filter exists in parsed_filter_list
@@ -306,22 +371,23 @@ def filter_one_result_file(
                        if f.get("column", "").strip().lower().startswith("p-value") 
                        or f.get("column", "").strip().lower().startswith("p_value")]
     
-    if pval_cols:
+    if pval_cols and pval_filters:
+        # Get the threshold and operator from the first p-value filter with non-zero value
         pval_threshold = None
-        if pval_filters:
-            # Get the threshold from the first p-value filter with non-zero value
-            for f in pval_filters:
-                val = str(f.get("value", "0")).strip()
-                if val and val != "0":
-                    try:
-                        pval_threshold = float(val)
-                        break
-                    except (ValueError, TypeError):
-                        pass
+        pval_operator = None
+        for f in pval_filters:
+            val = str(f.get("value", "0")).strip()
+            if val and val != "0":
+                try:
+                    pval_threshold = float(val)
+                    pval_operator = f.get("operator", "").strip()
+                    break
+                except (ValueError, TypeError):
+                    pass
         
         # Only apply filter if a valid threshold was found (skip if all values are "0")
-        if pval_threshold is not None:
-            mask &= rowwise_all(to_float_df(merged[pval_cols]), lambda d: d < pval_threshold)
+        if pval_threshold is not None and pval_operator:
+            mask &= rowwise_all(to_float_df(merged[pval_cols]), lambda d: apply_operator(d, pval_threshold, pval_operator))
 
     # Apply "if_all" logic for vif columns
     # Check if any vif filter exists in parsed_filter_list
@@ -330,22 +396,23 @@ def filter_one_result_file(
         vif_filters = [f for f in parsed_filter_list 
                       if f.get("column", "").strip().lower().startswith("vif")]
     
-    if vif_cols:
+    if vif_cols and vif_filters:
+        # Get the threshold and operator from the first vif filter with non-zero value
         vif_threshold = None
-        if vif_filters:
-            # Get the threshold from the first vif filter with non-zero value
-            for f in vif_filters:
-                val = str(f.get("value", "0")).strip()
-                if val and val != "0":
-                    try:
-                        vif_threshold = float(val)
-                        break
-                    except (ValueError, TypeError):
-                        pass
+        vif_operator = None
+        for f in vif_filters:
+            val = str(f.get("value", "0")).strip()
+            if val and val != "0":
+                try:
+                    vif_threshold = float(val)
+                    vif_operator = f.get("operator", "").strip()
+                    break
+                except (ValueError, TypeError):
+                    pass
         
         # Only apply filter if a valid threshold was found (skip if all values are "0")
-        if vif_threshold is not None:
-            mask &= rowwise_all(to_float_df(merged[vif_cols]), lambda d: d < vif_threshold)
+        if vif_threshold is not None and vif_operator:
+            mask &= rowwise_all(to_float_df(merged[vif_cols]), lambda d: apply_operator(d, vif_threshold, vif_operator))
 
     # Apply other filters from parsed_filter_list (excluding the ones we already handled)
     if parsed_filter_list:
@@ -358,7 +425,7 @@ def filter_one_result_file(
             if not value_str or value_str == "0":
                 continue
             
-            # Skip columns we already handled with defaults
+            # Skip columns we already handled
             if column_name in handled_columns:
                 continue
             
@@ -370,6 +437,12 @@ def filter_one_result_file(
             # X columns should accept ALL values. Only the lag filter (below) can exclude based on variable name patterns.
             if column_name.startswith("x") and len(column_name) > 1 and column_name[1:].isdigit():
                 # X columns are never filtered by numeric thresholds - they contain variable names, not values
+                continue
+            
+            # Get operator from filter rule
+            operator = filter_rule.get("operator", "").strip()
+            if not operator:
+                print(f"Warning: Filter rule for column '{column_name}' is missing operator, skipping")
                 continue
             
             # Convert value to float
@@ -386,15 +459,8 @@ def filter_one_result_file(
                 print(f"Warning: Column '{column_name}' not found in merged dataframe, skipping filter")
                 continue
             
-            # Apply filter based on column type
-            matching_col_lower = matching_col.lower()
-            if matching_col_lower in ["r_squared", "adj_r_squared"]:
-                # R_Squared and Adj_R_Squared: filter > threshold
-                mask &= pd.to_numeric(merged[matching_col], errors="coerce") > threshold
-            else:
-                # Default: apply > threshold for other columns (e.g., Y)
-                # Note: X columns are already skipped above, so they never reach here
-                mask &= pd.to_numeric(merged[matching_col], errors="coerce") > threshold
+            # Apply filter with operator from payload
+            mask &= apply_operator(merged[matching_col], threshold, operator)
 
     # Apply X column filter (ONLY filter that affects X columns - checks variable name patterns, not numeric values)
     # This is the ONLY filter that can exclude models based on X columns.

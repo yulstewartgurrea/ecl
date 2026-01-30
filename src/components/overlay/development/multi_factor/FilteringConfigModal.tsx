@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { XMarkIcon,  TrashIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, TrashIcon, CheckIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { type FilterRule, saveFilters, loadFilters } from "../../../../utils/overlay/headersStorage";
 
 type Props = {
@@ -41,10 +41,13 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
   useEffect(() => {
     if (open) {
       const existing = loadFilters(workflowId); // only SELECTED rules are persisted
-      setRows(existing.length ? existing : [{ id: uid(), column: "", value: "" }]);
+      setRows(
+        existing.length
+          ? existing
+          : [{ id: uid(), column: "", operator: ">", value: "" }]
+      );
       setInvalidValueIds(new Set());
       setTimeout(() => firstInputRef.current?.focus(), 50);
-      console.log('setSearch: ', setSearch)
     }
   }, [open, workflowId]);
 
@@ -80,7 +83,15 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
   }
 
   function addRow(prefill?: Partial<FilterRule>) {
-    setRows((prev) => [...prev, { id: uid(), column: prefill?.column ?? "", value: prefill?.value ?? "" }]);
+    setRows((prev) => [
+      ...prev,
+      {
+        id: uid(),
+        column: prefill?.column ?? "",
+        operator: prefill?.operator ?? ">",
+        value: prefill?.value ?? "",
+      },
+    ]);
   }
 
   function removeRow(id: string) {
@@ -110,11 +121,36 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
 
   function handleApply() {
     // 1) Clean user-selected rules (only rows with a column)
-    const selected = rows
-      .map((r) => ({ ...r, column: r.column.trim(), value: String(r.value ?? "").trim() }))
+    const selected: FilterRule[] = rows
+      .map((r) => ({
+        ...r,
+        column: r.column.trim(),
+        operator: (r.operator?.trim() || ">") as FilterRule["operator"],
+        value: String(r.value ?? "").trim(),
+      }))
       .filter((r) => r.column.length > 0);
 
-    // 2) Validate values: selected must be numeric if provided (non-empty)
+    // 2) Validate: operator must be present and valid
+    const validOperators = [">", "<", ">=", "<=", "==", "!="];
+    const invalidOperatorIds = new Set<string>();
+    for (const r of selected) {
+      if (!r.operator || !validOperators.includes(r.operator)) {
+        invalidOperatorIds.add(r.id);
+      }
+    }
+    if (invalidOperatorIds.size > 0) {
+      setInvalidValueIds(invalidOperatorIds);
+      const firstBad = selected.find((r) => invalidOperatorIds.has(r.id));
+      if (firstBad) {
+        const node = rowRefs.current[firstBad.id];
+        node?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlightRowId(firstBad.id);
+        window.setTimeout(() => setHighlightRowId(null), 900);
+      }
+      return; // block Apply until fixed
+    }
+
+    // 3) Validate values: selected must be numeric if provided (non-empty)
     const badIds = new Set<string>();
     for (const r of selected) {
       if (r.value === "" || !isNumeric(r.value)) badIds.add(r.id);
@@ -131,17 +167,10 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
       return; // block Apply until fixed
     }
 
-    // 3) Build defaults: every header not selected gets value 0
-    const selectedKeys = new Set(selected.map((r) => r.column.toLowerCase()));
-    const defaults: FilterRule[] = headers
-      .filter((h) => !selectedKeys.has(h.toLowerCase()))
-      .map((h) => ({ id: `__def_${h}`, column: h, value: "0" }));
-
-    const finalRules: FilterRule[] = [...selected, ...defaults];
-
+    // 3) Only send selected rules - no defaults
     // Persist ONLY the explicitly selected rules (so the UI stays clean next open)
     saveFilters(workflowId, selected);
-    onApply?.(finalRules);
+    onApply?.(selected);
     onClose();
   }
 
@@ -156,19 +185,18 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
       <div
         className="
           absolute left-1/2 top-1/2
-          w-[min(100vw-2rem,900px)]
+          w-[min(100vw-2rem,940px)]
           -translate-x-1/2 -translate-y-1/2
-          rounded-2xl bg-white shadow-2xl ring-1 ring-black/5
+          rounded-2xl bg-white shadow-2xl ring-1 ring-neutral-100
           max-h-[85vh] flex flex-col overflow-hidden
         "
       >
         {/* Header */}
-        <div className="flex items-center justify-between  p-4">
+        <div className="flex items-center justify-between p-4 border-b border-neutral-100">
           <div>
-            <h3 className="text-lg font-semibold">Configure Filters</h3>
-            <p className="text-xs text-neutral-600">
-              Choose a column and enter a numeric value, then click <strong>Apply</strong>. These filters will be used
-              when you run the analysis in Step 5.
+            <h3 className="text-lg font-semibold text-neutral-900">Configure Filters</h3>
+            <p className="text-xs text-neutral-500">
+              Choose a column, select an operator, and enter a numeric value. Click <strong>Apply</strong> to save.
             </p>
           </div>
           <button onClick={onClose} className="rounded-md p-2 hover:bg-neutral-100">
@@ -179,25 +207,27 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
         {/* Body (scrolls) */}
         <div className="flex-1 overflow-auto p-4">
           <div className="grid gap-4">
-            {/* Optional search (kept hidden by default; wire up if you want) */}
-            {/* <div className="flex items-center gap-2">
-              <input
-                placeholder="Search column headers"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
+            {/* Search + add */}
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <div className="relative flex-1">
+                <input
+                  placeholder="Search columns (optional)"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 placeholder:text-neutral-400"
+                />
+              </div>
               <button
-                className="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm hover:bg-neutral-50"
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-50"
                 onClick={() => addRow()}
                 title="Add rule"
               >
                 <PlusIcon className="h-4 w-4" /> Add rule
               </button>
-            </div> */}
+            </div>
 
             {/* Quick-pick header chips (scrollable) */}
-            <div className="max-h-36 overflow-auto rounded-md border p-2">
+            <div className="max-h-36 overflow-auto rounded-md border border-neutral-200 bg-neutral-50 p-2">
               <div className="flex flex-wrap gap-2">
                 {filteredHeaders.map((h) => {
                   const count = usageCount.get(h.toLowerCase()) ?? 0;
@@ -209,8 +239,8 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                       className={[
                         "group inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs",
                         active
-                          ? "border-yellow-300 bg-yellow-50 text-yellow-900 ring-1 ring-yellow-400"
-                          : "border-neutral-300 hover:bg-neutral-50 text-neutral-800",
+                          ? "border-yellow-200 bg-yellow-50 text-yellow-900 ring-1 ring-yellow-200"
+                          : "border-neutral-200 hover:bg-white text-neutral-800",
                       ].join(" ")}
                       title={active ? "Already added  click to jump to rule" : "Add rule with this column"}
                       aria-pressed={active}
@@ -237,9 +267,9 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
             </datalist>
 
             {/* COMPACT RULES GRID (2 columns) */}
-            <div className="rounded-md border">
+            <div className="rounded-md border border-neutral-200">
               {/* The grid scrolls; 2 cards per row on md+ */}
-              <div className="p-2 max-h-[48vh] overflow-auto">
+              <div className="p-2 max-h-[48vh] overflow-auto bg-white">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {rows.map((r, idx) => {
                     const isHighlighted = highlightRowId === r.id;
@@ -252,14 +282,14 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                           rowRefs.current[r.id] = el;
                         }}
                         className={[
-                          "relative rounded-lg border px-2 py-2",
-                          isHighlighted ? "ring-2 ring-yellow-400" : "",
+                          "relative rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-2",
+                          isHighlighted ? "ring-2 ring-yellow-200" : "",
                         ].join(" ")}
                       >
                         {/* Remove button */}
                         <button
                           onClick={() => removeRow(r.id)}
-                          className="absolute right-1.5 top-1.5 rounded-md p-1 text-neutral-500 hover:bg-neutral-100"
+                          className="absolute right-1.5 top-1.5 rounded-md p-1 text-neutral-500 hover:bg-white"
                           title="Remove"
                         >
                           <TrashIcon className="h-4 w-4" />
@@ -267,26 +297,44 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
 
                         {/* Inputs (tighter spacing, compact text) */}
                         <div className="space-y-1 text-xs">
+                          <label className="block text-[11px] text-neutral-500">Column</label>
                           <input
                             ref={idx === 0 ? firstInputRef : null}
                             list={listId}
                             placeholder="Type or pick a column"
                             value={r.column}
                             onChange={(e) => updateRow(r.id, { column: e.target.value })}
-                            className="w-full min-w-0 rounded-md border border-neutral-300 px-2 py-1"
+                            className="w-full min-w-0 rounded-md border border-neutral-200 bg-white px-2 py-1"
                           />
-                          <input
-                            type="number"
-                            step="any"
-                            inputMode="decimal"
-                            placeholder="Value (e.g., 0.05, 1, -2.5)"
-                            value={r.value}
-                            onChange={(e) => updateRow(r.id, { value: e.target.value })}
-                            className={[
-                              "w-full min-w-0 rounded-md px-2 py-1",
-                              isInvalid ? "border-red-400 ring-1 ring-red-400" : "border border-neutral-300",
-                            ].join(" ")}
-                          />
+                          <div className="grid grid-cols-[90px_1fr] gap-2">
+                            <div>
+                              <label className="block text-[11px] text-neutral-500">Operator</label>
+                              <select
+                                value={r.operator ?? ">"}
+                                onChange={(e) => updateRow(r.id, { operator: e.target.value as any })}
+                                className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
+                              >
+                                <option value="==">=</option>
+                                <option value=">">&gt;</option>
+                                <option value="<">&lt;</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[11px] text-neutral-500">Value</label>
+                              <input
+                                type="number"
+                                step="any"
+                                inputMode="decimal"
+                                placeholder="e.g., 0.05"
+                                value={r.value}
+                                onChange={(e) => updateRow(r.id, { value: e.target.value })}
+                                className={[
+                                  "w-full min-w-0 rounded-md px-2 py-1 bg-white",
+                                  isInvalid ? "border-red-300 ring-1 ring-red-200" : "border border-neutral-200",
+                                ].join(" ")}
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -305,14 +353,14 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
         </div>
 
         {/* Footer (sticks to bottom) */}
-        <div className="flex items-center justify-between gap-2 border-t p-4">
+        <div className="flex items-center justify-between gap-2 border-t border-neutral-100 p-4">
           <div className="text-xs text-neutral-500">
             {rows.length} rule{rows.length === 1 ? "" : "s"} configured
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm hover:bg-neutral-50"
+              className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm text-neutral-800 hover:bg-neutral-50"
             >
               Cancel
             </button>
