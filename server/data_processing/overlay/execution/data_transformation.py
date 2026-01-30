@@ -727,14 +727,16 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
             if all(len(cols) > 0 for cols in matching_cols_list):
                 # Use first matching column for each base variable
                 names = [matching_cols_list[i][0] for i in range(num_vars_taken)]
-                new_ext.append(names)
+                # Early filtering: only append if all columns exist
+                if all(v in x_transformed.columns for v in names):
+                    new_ext.append(names)
     
     # OLD: Construct names by appending suffix
     # for p in level_gr_perms:
     #     names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
     #     new_ext.append(names)
     
-    comb_extended = [c for c in new_ext if all(v in x_transformed.columns for v in c)]
+    comb_extended = new_ext
     print(f"Valid Level/GR combinations: {len(comb_extended)}")
     if not comb_extended:
         print("No valid Level/GR combinations; check .Level/.GR creation.")
@@ -771,14 +773,16 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
             # Create combinations from matching columns
             if all(len(cols) > 0 for cols in matching_combos):
                 names = [matching_combos[i][0] for i in range(num_vars_taken)]
-                new_ext.append(names)
+                # Early filtering: only append if all columns exist (already checked above, but explicit for consistency)
+                if all(v in x_transformed.columns for v in names):
+                    new_ext.append(names)
     
     # OLD: Construct names by appending transformation suffix
     # for p in trans_perms:
     #     names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
     #     new_ext.append(names)
     
-    comb_extended = [c for c in new_ext if all(v in x_transformed.columns for v in c)]
+    comb_extended = new_ext
     print(f"Valid transformation combinations: {len(comb_extended)}")
 
     # Differencing
@@ -813,14 +817,16 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
             # Create combinations from matching columns
             if all(len(cols) > 0 for cols in matching_combos):
                 names = [matching_combos[i][0] for i in range(num_vars_taken)]
-                new_ext.append(names)
+                # Early filtering: only append if all columns exist (already checked above, but explicit for consistency)
+                if all(v in x_transformed.columns for v in names):
+                    new_ext.append(names)
     
     # OLD: Construct names by appending differencing suffix
     # for p in diff_perms:
     #     names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
     #     new_ext.append(names)
     
-    comb_extended = [c for c in new_ext if all(v in x_transformed.columns for v in c)]
+    comb_extended = new_ext
     print(f"Valid differencing combinations: {len(comb_extended)}")
 
     # Lags
@@ -855,14 +861,16 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
             # Create combinations from matching columns
             if all(len(cols) > 0 for cols in matching_combos):
                 names = [matching_combos[i][0] for i in range(num_vars_taken)]
-                new_ext.append(names)
+                # Early filtering: only append if all columns exist (already checked above, but explicit for consistency)
+                if all(v in x_transformed.columns for v in names):
+                    new_ext.append(names)
     
     # OLD: Construct names by appending lag suffix
     # for p in lag_perms:
     #     names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
     #     new_ext.append(names)
     
-    comb_extended = [c for c in new_ext if all(v in x_transformed.columns for v in c)]
+    comb_extended = new_ext
     print(f"Valid lag combinations: {len(comb_extended)}")
 
     print(f"Generated {len(comb_extended)} total valid combinations")
