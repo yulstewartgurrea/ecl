@@ -5,6 +5,7 @@ import {
   ExclamationTriangleIcon,
   ArrowPathIcon,
   PlayIcon,
+  CloudArrowDownIcon,
 } from "@heroicons/react/24/outline";
 import { useAppDispatch, useAppSelector } from "../../../redux_toolkit/hooks";
 import {
@@ -214,6 +215,49 @@ export default function Step3() {
     }
   };
 
+  const exportSummary = async () => {
+    if (!token || !workflowId) return;
+    
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/ecl/summary/export/?workflow_id=${workflowId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        // Get filename from Content-Disposition header or use default
+        const contentDisposition = response.headers.get("Content-Disposition");
+        let filename = "ecl_summary.xlsx";
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData?.msg || "Failed to export summary");
+      }
+    } catch (err: any) {
+      console.error("Error exporting summary:", err);
+      setError(err?.message || "Error exporting summary");
+    }
+  };
+
   //  Initial: GET only (once per workflowId)
   useEffect(() => {
     if (!workflowId) return;
@@ -316,6 +360,17 @@ export default function Step3() {
               >
                 <ArrowPathIcon className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 Refresh
+              </button>
+
+              <button
+                type="button"
+                onClick={exportSummary}
+                disabled={busy || rows.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                title="Export summary as Excel file"
+              >
+                <CloudArrowDownIcon className="h-4 w-4" />
+                Export
               </button>
             </div>
           </div>

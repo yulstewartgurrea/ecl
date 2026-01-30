@@ -352,17 +352,6 @@ export default function Step5() {
 
               <button
                 type="button"
-                onClick={exportCreditLossRates}
-                disabled={loading || posting || rows.length === 0}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-                title="Export credit loss rates as Excel file"
-              >
-                <CloudArrowDownIcon className="h-4 w-4" />
-                Export
-              </button>
-
-              <button
-                type="button"
                 onClick={submitWeights}
                 disabled={!canSubmit || posting}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold ${
@@ -373,6 +362,17 @@ export default function Step5() {
               >
                 <ArrowUpTrayIcon className="h-4 w-4" />
                 {posting ? "Submitting..." : "Submit & Compute"}
+              </button>
+
+              <button
+                type="button"
+                onClick={exportCreditLossRates}
+                disabled={loading || posting || rows.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                title="Export credit loss rates as Excel file"
+              >
+                <CloudArrowDownIcon className="h-4 w-4" />
+                Export
               </button>
             </div>
           </div>
