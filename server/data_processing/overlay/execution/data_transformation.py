@@ -154,7 +154,7 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
         # Update 1/22/2026: use override_data_transformation_mevs_df instead of final_models_df_copy
         # get X1 column value from final_models_df_copy
         # get all values where column headers pattern are X1, X2, X3, and so on
-        x_series = final_models_df_copy.filter(regex='^X\d+$').iloc[0]
+        x_series = final_models_df_copy.filter(regex='^[Xx]\d+$').iloc[0]
         x_series = [str(v).strip() for v in x_series.tolist() if str(v).strip()]
         x_series = [col.split('.')[0] for col in x_series]
 
