@@ -37,6 +37,7 @@ router = APIRouter(prefix="/api/ecl", tags=["ecl-summary"])
 @router.post("/summary")
 async def get_summary_data(
     workflow_id: int = Form(...),
+    probability_weights: str = Form(...),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -186,7 +187,7 @@ async def get_summary_data(
 
         total_loan_balance = int(xdf.iat[1, 1])
 
-        ecl_res = process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, total_loan_balance)
+        ecl_res = process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, total_loan_balance, probability_weights)
 
         filename = f"{workflow.loan_product}_ecl_summary_{get_time_date()}.xlsx"
         output_folder = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/ecl/{workflow.loan_product}/ecl_summary"

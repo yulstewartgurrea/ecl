@@ -6,7 +6,12 @@ import {
   ArrowPathIcon,
   PlayIcon,
 } from "@heroicons/react/24/outline";
-import { useAppSelector } from "../../../redux_toolkit/hooks";
+import { useAppDispatch, useAppSelector } from "../../../redux_toolkit/hooks";
+import {
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../../redux_toolkit/features/progress/moduleProgressSlice";
+import type { RootState } from "../../../redux_toolkit/store";
 
 import AgingCategoryPortfolioEclTable, {
   type AgingPortfolioRow,
@@ -65,7 +70,14 @@ function calcOverallEclRatePercent(allRows: AgingPortfolioRow[]): number {
   return sumLoan > 0 ? (sumWeighted / sumLoan) * 100 : 0;
 }
 
+type EclWeights = {
+  upside: string;
+  baseline: string;
+  downside: string;
+};
+
 export default function Step3() {
+  const dispatch = useAppDispatch();
   const reduxToken = useAppSelector((s: any) => s.auth.token);
   const token = reduxToken ?? undefined;
 
@@ -83,6 +95,13 @@ export default function Step3() {
     // fallback sample
     return 35;
   }, [currentPdTransitionMatrixWorkflowId, currentPdTransitionMatrixWorkflowData]);
+
+  const eclProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "ecl", String(workflowId))
+  );
+  const persistedWeights = (eclProgress?.data as any)?.probabilityWeights as
+    | EclWeights
+    | undefined;
 
   const [rows, setRows] = useState<AgingPortfolioRow[]>([]);
   const [overallEclRatePercent, setOverallEclRatePercent] = useState<number>(0);
@@ -155,7 +174,7 @@ export default function Step3() {
     try {
       const formData = new FormData();
       formData.append("workflow_id", String(workflowId));
-
+      formData.append("probability_weights", JSON.stringify(persistedWeights));
       const res = await fetch(POST_URL, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -167,6 +186,23 @@ export default function Step3() {
 
       if (!json?.success) {
         throw new Error(json?.msg || "POST failed.");
+      }
+
+      // Save probability weights to Redux after successful POST
+      if (persistedWeights) {
+        dispatch(
+          setModuleProgress({
+            moduleKey: "ecl",
+            contextKey: String(workflowId),
+            data: {
+              probabilityWeights: {
+                upside: String(persistedWeights.upside ?? ""),
+                baseline: String(persistedWeights.baseline ?? ""),
+                downside: String(persistedWeights.downside ?? ""),
+              } as EclWeights,
+            },
+          })
+        );
       }
 
       // after POST success, GET again
@@ -249,9 +285,9 @@ export default function Step3() {
               <button
                 type="button"
                 onClick={runThenGet}
-                disabled={busy || !hasInitialFetched || !needsRun}
+                disabled={busy}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm disabled:opacity-60 disabled:cursor-not-allowed ${
-                  busy || !hasInitialFetched || !needsRun
+                  busy
                     ? "bg-amber-200 text-slate-700"
                     : "bg-amber-400 text-slate-900 hover:brightness-95"
                 }`}
