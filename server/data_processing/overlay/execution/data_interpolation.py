@@ -274,58 +274,59 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         print(f"Interpolation complete!")
         
         # Step 8: Add growth rate columns
-        print("\nStep 8: Adding growth rate columns...")
+        # print("\nStep 8: Adding growth rate columns...")
         
         # Find the 3rd January (index where month is January and it's the 3rd occurrence)
-        jan_indices = monthly_df[monthly_df['month'] == 'Jan'].index.tolist()
-        if len(jan_indices) >= 3:
-            start_calc_idx = jan_indices[2]  # 3rd January (0-indexed: 0, 1, 2)
-            print(f"Found 3rd January at index {start_calc_idx} ({monthly_df.loc[start_calc_idx, 'Date']})")
-        else:
-            start_calc_idx = len(monthly_df)  # If not found, don't calculate
-            print(f"Could not find 3rd January, growth rates will be set to 0")
+        # jan_indices = monthly_df[monthly_df['month'] == 'Jan'].index.tolist()
+        # if len(jan_indices) >= 3:
+        #     start_calc_idx = jan_indices[2]  # 3rd January (0-indexed: 0, 1, 2)
+        #     print(f"Found 3rd January at index {start_calc_idx} ({monthly_df.loc[start_calc_idx, 'Date']})")
+        # else:
+        #     start_calc_idx = len(monthly_df)  # If not found, don't calculate
+        #     print(f"Could not find 3rd January, growth rates will be set to 0")
         
         growth_rate_cols = []
-        for col in valid_numeric_cols:
-            # Create growth rate column name (e.g., "unemp_rate" -> "unemp_rate_growth_12m")
-            # this is the output from arima, the pattern is base_variable then Point or Hi_80 or Lo_80 or Hi_95 or Lo_95
-            # e.g. gni Point or gni Hi_80 or gni Lo_80 or gni Hi_95 or gni Lo_95
-            col_split = col.split(".", 1)
-            base = col_split[0]
-            succeding_cols = col_split[1] if len(col_split) > 1 else "Point"
-            growth_rate_col_name = f"{base}_growth_12m.{succeding_cols}"
-            growth_rate_cols.append(growth_rate_col_name)
-            
-            # Initialize with 0
-            monthly_df[growth_rate_col_name] = 0.0
-            
-            # Calculate growth rate starting from 3rd January
-            # Formula: ((current_value - value_12_months_ago) / value_12_months_ago * 100)
-            for idx in range(start_calc_idx, len(monthly_df)):
-                # Get value 12 months ago (12 rows back)
-                idx_12_months_ago = idx - 12
-                
-                if idx_12_months_ago >= 0:
-                    current_value = monthly_df.loc[idx, col]
-                    value_12_months_ago = monthly_df.loc[idx_12_months_ago, col]
-                    
-                    # Calculate growth rate: ((current - prev) / prev * 100) - percentage format
-                    if pd.notna(current_value) and pd.notna(value_12_months_ago) and value_12_months_ago != 0:
-                        growth_rate = ((current_value - value_12_months_ago) / value_12_months_ago) * 100
-                        monthly_df.loc[idx, growth_rate_col_name] = growth_rate
-                    else:
-                        monthly_df.loc[idx, growth_rate_col_name] = 0.0
-                else:
-                    # Not enough data (less than 12 months), keep as 0
-                    monthly_df.loc[idx, growth_rate_col_name] = 0.0
+        # for col in valid_numeric_cols:
+        #     # Create growth rate column name (e.g., "unemp_rate" -> "unemp_rate_growth_12m")
+        #     # this is the output from arima, the pattern is base_variable then Point or Hi_80 or Lo_80 or Hi_95 or Lo_95
+        #     # e.g. gni Point or gni Hi_80 or gni Lo_80 or gni Hi_95 or gni Lo_95
+        #     col_split = col.split(".", 1)
+        #     base = col_split[0]
+        #     succeding_cols = col_split[1] if len(col_split) > 1 else "Point"
+        #     growth_rate_col_name = f"{base}_growth_12m.{succeding_cols}"
+        #     growth_rate_cols.append(growth_rate_col_name)
+        #     
+        #     # Initialize with 0
+        #     monthly_df[growth_rate_col_name] = 0.0
+        #     
+        #     # Calculate growth rate starting from 3rd January
+        #     # Formula: ((current_value - value_12_months_ago) / value_12_months_ago * 100)
+        #     for idx in range(start_calc_idx, len(monthly_df)):
+        #         # Get value 12 months ago (12 rows back)
+        #         idx_12_months_ago = idx - 12
+        #         
+        #         if idx_12_months_ago >= 0:
+        #             current_value = monthly_df.loc[idx, col]
+        #             value_12_months_ago = monthly_df.loc[idx_12_months_ago, col]
+        #             
+        #             # Calculate growth rate: ((current - prev) / prev * 100) - percentage format
+        #             if pd.notna(current_value) and pd.notna(value_12_months_ago) and value_12_months_ago != 0:
+        #                 growth_rate = ((current_value - value_12_months_ago) / value_12_months_ago) * 100
+        #                 monthly_df.loc[idx, growth_rate_col_name] = growth_rate
+        #             else:
+        #                 monthly_df.loc[idx, growth_rate_col_name] = 0.0
+        #         else:
+        #             # Not enough data (less than 12 months), keep as 0
+        #             monthly_df.loc[idx, growth_rate_col_name] = 0.0
         
-        print(f"Added {len(growth_rate_cols)} growth rate columns with calculations starting from 3rd January")
+        # print(f"Added {len(growth_rate_cols)} growth rate columns with calculations starting from 3rd January")
         
         # Step 9: Reorder columns
         print("\nStep 9: Reordering columns...")
         
         # Put metadata columns first, then numeric columns, then growth rate columns
-        column_order = metadata_cols + valid_numeric_cols + growth_rate_cols
+        # column_order = metadata_cols + valid_numeric_cols + growth_rate_cols
+        column_order = metadata_cols + valid_numeric_cols  # + growth_rate_cols
         # Only include columns that exist
         column_order = [col for col in column_order if col in monthly_df.columns]
         monthly_df = monthly_df[column_order]
