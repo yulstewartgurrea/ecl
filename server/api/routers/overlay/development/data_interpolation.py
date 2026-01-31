@@ -39,18 +39,42 @@ async def get_data_interpolation(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get data interpolation data from OverlayDevelopmentDataInterpolationOutput table
+    Get data interpolation data from file path
     """
     try:
         db = SessionLocal()
         try:
-            # Query the database for data interpolation output
-            interpolation_record = db.query(OverlayDevelopmentDataInterpolationOutput).filter(
-                OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id,
-                OverlayDevelopmentDataInterpolationOutput.user_id == current_user.id
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id, 
+                Workflow.user_id == current_user.id
             ).first()
 
-            if not interpolation_record:
+            if not workflow:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "Workflow not found",
+                        "data": None
+                    }
+                )
+
+            data_interpolation_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{workflow.loan_product}/data_interpolation"
+            )
+
+            data_interpolation_file = max(
+                Path(data_interpolation_path).glob(f"data_interpolation_output_*.csv"),
+                key=lambda p: p.stat().st_mtime,   # last modified time
+                default=None
+            )
+
+            if not data_interpolation_file:
                 return JSONResponse(
                     status_code=404,
                     content={
@@ -61,8 +85,9 @@ async def get_data_interpolation(
                     }
                 )
             
-            # Parse the JSON data from the record
-            data = json.loads(interpolation_record.json_data) if interpolation_record.json_data else []
+            # Read CSV file and convert to JSON
+            df = pd.read_csv(data_interpolation_file)
+            data = df.to_dict(orient='records')
             
             return {
                 "code": 1, 
