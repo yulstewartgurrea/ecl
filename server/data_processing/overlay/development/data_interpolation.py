@@ -352,37 +352,37 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         print(monthly_df[['year', 'month', 'id', 'x']].head(15))
         
         # Step 7: Calculate growth rates
-        print("\nStep 7: Calculating growth rates...")
+        # print("\nStep 7: Calculating growth rates...")
         
         monthly_with_growth = monthly_df.copy()
         
         # Calculate growth rates only for data starting from the first data date
-        first_data_date_idx = monthly_df.index[monthly_df.index >= f"{first_year}-{first_month:02d}-01"][0]
-        first_data_row_idx = monthly_df.index.get_loc(first_data_date_idx)
+        # first_data_date_idx = monthly_df.index[monthly_df.index >= f"{first_year}-{first_month:02d}-01"][0]
+        # first_data_row_idx = monthly_df.index.get_loc(first_data_date_idx)
         
-        print(f"Growth rate calculation starts from: {first_data_date_idx.strftime('%Y-%m')} (row {first_data_row_idx})")
+        # print(f"Growth rate calculation starts from: {first_data_date_idx.strftime('%Y-%m')} (row {first_data_row_idx})")
         
-        for col in numeric_cols:
-            growth_col = f"{col}_growth_12m"
-            
-            # Initialize growth column with NaN
-            monthly_with_growth[growth_col] = np.nan
-            
-            # Calculate growth rates only for rows where we have 12 months of previous data
-            for i in range(first_data_row_idx + 12, len(monthly_with_growth)):
-                current_val = monthly_with_growth[col].iloc[i]
-                prev_val = monthly_with_growth[col].iloc[i-12]
-                
-                # Only calculate if both current and previous values are not zero/NaN
-                if pd.notna(current_val) and pd.notna(prev_val) and prev_val != 0:
-                    monthly_with_growth[growth_col].iloc[i] = (
-                        (current_val - prev_val) / prev_val * 100
-                    )
-                else:
-                    monthly_with_growth[growth_col].iloc[i] = 0
+        # for col in numeric_cols:
+        #     growth_col = f"{col}_growth_12m"
+        #     
+        #     # Initialize growth column with NaN
+        #     monthly_with_growth[growth_col] = np.nan
+        #     
+        #     # Calculate growth rates only for rows where we have 12 months of previous data
+        #     for i in range(first_data_row_idx + 12, len(monthly_with_growth)):
+        #         current_val = monthly_with_growth[col].iloc[i]
+        #         prev_val = monthly_with_growth[col].iloc[i-12]
+        #         
+        #         # Only calculate if both current and previous values are not zero/NaN
+        #         if pd.notna(current_val) and pd.notna(prev_val) and prev_val != 0:
+        #             monthly_with_growth[growth_col].iloc[i] = (
+        #                 (current_val - prev_val) / prev_val * 100
+        #             )
+        #         else:
+        #             monthly_with_growth[growth_col].iloc[i] = 0
         
-        print(f"Added 12-month growth rates for {len(numeric_cols)} variables")
-        print(f"Growth rates calculated from row {first_data_row_idx + 12} onwards")
+        # print(f"Added 12-month growth rates for {len(numeric_cols)} variables")
+        # print(f"Growth rates calculated from row {first_data_row_idx + 12} onwards")
         
         # Step 8: Save output files
         print("\nStep 8: Saving output files...")
