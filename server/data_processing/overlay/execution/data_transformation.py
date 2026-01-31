@@ -1037,7 +1037,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
         raise Exception("Job cancelled")
     
     x_raw = prepare_independent_variables(combine_monthly_mev_data_interpolation_df, excluded_columns)
-    x_raw = add_level_gr_columns(x_raw, excluded_columns)  # NEW: provide .Level and .GR
+    # x_raw = add_level_gr_columns(x_raw, excluded_columns)  # NEW: provide .Level and .GR
     y_raw = prepare_dependent_variables(historical_default_rate_df, excluded_columns)
 
     # Extract base variable names from all columns (including those with forecast suffixes)
