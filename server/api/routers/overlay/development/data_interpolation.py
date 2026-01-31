@@ -29,6 +29,7 @@ from helpers.make_json_serializable import make_json_serializable
 from helpers.format_dataframe_constructor import format_dataframe_constructor
 
 import traceback
+from pathlib import Path
 
 router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development"])
 
@@ -96,12 +97,41 @@ async def export_data_interpolation(
         db = SessionLocal()
         try:
             # Query the database for data interpolation output (same as GET endpoint)
-            interpolation_record = db.query(OverlayDevelopmentDataInterpolationOutput).filter(
-                OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id,
-                OverlayDevelopmentDataInterpolationOutput.user_id == current_user.id
-            ).first()
+            # interpolation_record = db.query(OverlayDevelopmentDataInterpolationOutput).filter(
+            #     OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id,
+            #     OverlayDevelopmentDataInterpolationOutput.user_id == current_user.id
+            # ).first()
 
-            if not interpolation_record:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id, 
+                Workflow.user_id == current_user.id
+            ).first()
+            if not workflow:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "Workflow not found",
+                        "data": None
+                    }
+                )
+
+            data_interpolation_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{workflow.loan_product}/data_interpolation"
+            )
+
+            data_interpolation_file = max(
+                Path(data_interpolation_path).glob(f"data_interpolation_output_*.csv"),
+                key=lambda p: p.stat().st_mtime,   # last modified time
+                default=None
+            )
+
+            if not data_interpolation_file:
                 return JSONResponse(
                     status_code=404,
                     content={
@@ -113,25 +143,8 @@ async def export_data_interpolation(
                 )
             
             # Parse the JSON data from the record
-            data = json.loads(interpolation_record.json_data) if interpolation_record.json_data else []
-            
-            # Convert to DataFrame
-            df = pd.DataFrame(data)
-            
-            # Create CSV in memory
-            output = BytesIO()
-            df.to_csv(output, index=False, encoding='utf-8')
-            output.seek(0)
-            
-            # Generate filename
-            filename = interpolation_record.filename or f"data_interpolation_export_{workflow_id}.csv"
-            
-            # Return as CSV file
-            return StreamingResponse(
-                output,
-                media_type="text/csv",
-                headers={"Content-Disposition": f"attachment; filename={filename}"}
-            )
+            filename = os.path.basename(str(data_interpolation_file))
+            return FileResponse(str(data_interpolation_file), media_type="text/csv", filename=filename)
             
         finally:
             db.close()
