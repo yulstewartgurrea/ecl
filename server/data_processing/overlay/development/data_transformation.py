@@ -492,6 +492,7 @@ def generate_variable_combinations(x_raw_vars: list,
     5. Applying lag permutations: "", ".lag_3", ".lag_6", ".lag_9", ".lag_12" for each
     
     Only combinations where all variables exist in x_transformed are kept.
+    Columns containing both .diff_12 and .lag_12 are excluded for optimization.
     Supports cancellation checks during processing.
     
     Args:
@@ -507,6 +508,11 @@ def generate_variable_combinations(x_raw_vars: list,
         Exception: If cancellation_check returns True
     """
     print("Generating variable combinations...")
+    
+    # Helper function to check if a column should be excluded (has both .diff_12 and .lag_12)
+    def should_exclude_column(col_name: str) -> bool:
+        """Exclude columns that have both .diff_12 and .lag_12 for optimization."""
+        return '.diff_12' in col_name and '.lag_12' in col_name
 
     # base names (raw should not have '.')
     x_base_vars = list(set([v.split('.')[0] for v in x_raw_vars]))
@@ -530,8 +536,8 @@ def generate_variable_combinations(x_raw_vars: list,
             raise Exception("Job cancelled")
         for p in level_gr_perms:
             names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
-            # Early filtering: only append if all columns exist
-            if all(v in x_transformed.columns for v in names):
+            # Early filtering: only append if all columns exist and don't have both .diff_12 and .lag_12
+            if all(v in x_transformed.columns and not should_exclude_column(v) for v in names):
                 new_ext.append(names)
     comb_extended = new_ext
     print(f"Valid Level/GR combinations: {len(comb_extended)}")
@@ -552,8 +558,8 @@ def generate_variable_combinations(x_raw_vars: list,
             raise Exception("Job cancelled")
         for p in trans_perms:
             names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
-            # Early filtering: only append if all columns exist
-            if all(v in x_transformed.columns for v in names):
+            # Early filtering: only append if all columns exist and don't have both .diff_12 and .lag_12
+            if all(v in x_transformed.columns and not should_exclude_column(v) for v in names):
                 new_ext.append(names)
     comb_extended = new_ext
     print(f"Valid transformation combinations: {len(comb_extended)}")
@@ -572,8 +578,8 @@ def generate_variable_combinations(x_raw_vars: list,
             raise Exception("Job cancelled")
         for p in diff_perms:
             names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
-            # Early filtering: only append if all columns exist
-            if all(v in x_transformed.columns for v in names):
+            # Early filtering: only append if all columns exist and don't have both .diff_12 and .lag_12
+            if all(v in x_transformed.columns and not should_exclude_column(v) for v in names):
                 new_ext.append(names)
     comb_extended = new_ext
     print(f"Valid differencing combinations: {len(comb_extended)}")
@@ -592,8 +598,8 @@ def generate_variable_combinations(x_raw_vars: list,
             raise Exception("Job cancelled")
         for p in lag_perms:
             names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
-            # Early filtering: only append if all columns exist
-            if all(v in x_transformed.columns for v in names):
+            # Early filtering: only append if all columns exist and don't have both .diff_12 and .lag_12
+            if all(v in x_transformed.columns and not should_exclude_column(v) for v in names):
                 new_ext.append(names)
     comb_extended = new_ext
     print(f"Valid lag combinations: {len(comb_extended)}")
@@ -760,7 +766,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
         raise Exception("Job cancelled")
     
     x_raw = prepare_independent_variables(combine_monthly_mev_data_interpolation_df, excluded_columns)
-    x_raw = add_level_gr_columns(x_raw, excluded_columns)  # NEW: provide .Level and .GR
+    # x_raw = add_level_gr_columns(x_raw, excluded_columns)  # NEW: provide .Level and .GR
     y_raw = prepare_dependent_variables(historical_default_rate_df, excluded_columns)
 
     # variable lists (raw vars only; no dot suffix)
