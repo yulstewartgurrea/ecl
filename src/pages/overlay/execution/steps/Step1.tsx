@@ -39,8 +39,8 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 /* -----------------------------------------------------------
    Execution document types (must match backend / Postman)
 ----------------------------------------------------------- */
-const DOC_MONTHLY = "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA" as const;
-const DOC_QUARTERLY = "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA" as const;
+const DOC_MONTHLY = "OVERLAY_EXECUTION_MONTHLY_HISTORICAL_MEV" as const;
+const DOC_QUARTERLY = "OVERLAY_EXECUTION_QUARTERLY_HISTORICAL_MEV" as const;
 const DOC_FINAL_MODEL = "OVERLAY_EXECUTION_FINAL_MODEL" as const;
 const DOC_HISTORICAL_WEIGHTED = "OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE" as const;
 type ExecDocType = typeof DOC_MONTHLY | typeof DOC_QUARTERLY | typeof DOC_FINAL_MODEL | typeof DOC_HISTORICAL_WEIGHTED;
@@ -48,8 +48,8 @@ type ExecDocType = typeof DOC_MONTHLY | typeof DOC_QUARTERLY | typeof DOC_FINAL_
 type InputMode = "AUTO_GENERATE" | "UPLOAD_MANUAL";
 
 /** Loosened filename inference:
- *  monthly_*_arima.*   -> DOC_MONTHLY
- *  quarterly_*_arima.* -> DOC_QUARTERLY
+ *  monthly_* -> DOC_MONTHLY
+ *  quarterly_* -> DOC_QUARTERLY
  *  final_*_model.*      -> DOC_FINAL_MODEL
  *  historical_*_weighted.* or *weighted*credit*loss* -> DOC_HISTORICAL_WEIGHTED
  */
@@ -57,7 +57,6 @@ function inferExecDocTypeFromName(name: string): ExecDocType | null {
   const base = name.toLowerCase();
   const isMonthly = /monthly/.test(base);
   const isQuarterly = /quarter/.test(base);
-  const hasArima = /arima/.test(base);
   const isFinalModel = /final.*model/.test(base) || /model.*final/.test(base);
   const isHistoricalWeighted = /historical.*weighted/.test(base) || 
                                /weighted.*credit.*loss/.test(base) ||
@@ -65,8 +64,8 @@ function inferExecDocTypeFromName(name: string): ExecDocType | null {
                                /historical.*rates/.test(base) ||
                                /historical.*weighted.*credit.*loss/.test(base);
   
-  if (isMonthly && hasArima) return DOC_MONTHLY;
-  if (isQuarterly && hasArima) return DOC_QUARTERLY;
+  if (isMonthly) return DOC_MONTHLY;
+  if (isQuarterly) return DOC_QUARTERLY;
   if (isFinalModel) return DOC_FINAL_MODEL;
   if (isHistoricalWeighted) return DOC_HISTORICAL_WEIGHTED;
   return null;
@@ -788,7 +787,6 @@ export default function Step1() {
   );
 
   const isAuto = mode === "AUTO_GENERATE";
-  const disableUploads = isAuto || autoRunning;
 
   return (
     <div className="mx-auto max-w-8xl">
@@ -1015,10 +1013,7 @@ export default function Step1() {
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="text-sm font-semibold text-gray-900">
-                    Auto-generate Monthly + Quarterly MEV ARIMA inputs
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    This will call the generator endpoints and store the generated files under your workflow.
+                    Monthly + Quarterly MEV inputs
                   </div>
 
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1061,7 +1056,7 @@ export default function Step1() {
                   {(existingMonthlyFilename || existingQuarterlyFilename) && (
                     <div className="mt-2">
                       <div className="text-xs font-medium text-gray-600 mb-1.5">
-                        Generated Forecast Results:
+                        Forecast Results:
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {existingMonthlyFilename && (
@@ -1090,28 +1085,6 @@ export default function Step1() {
                     </div>
                   )}
                 </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fetchExistingDocuments()}
-                    disabled={autoRunning}
-                    className="cursor-pointer inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
-                    title="Refresh and show generated/existing documents"
-                  >
-                    Refresh
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={runAutoGenerate}
-                    disabled={autoRunning || !token || !effectiveWorkflowId}
-                    className="cursor-pointer inline-flex items-center justify-center rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200 disabled:opacity-60"
-                    title="Generate Monthly and Quarterly ARIMA inputs"
-                  >
-                    Generate inputs
-                  </button>
-                </div>
               </div>
             </div>
           )}
@@ -1119,101 +1092,123 @@ export default function Step1() {
 
         {/* Body (dropzones) */}
         <div className="grid gap-5 p-5 md:grid-cols-2">
-          {/* MONTHLY */}
-          <div className="space-y-2">
-            <div className="relative">
-              <div className={disableUploads ? "pointer-events-none opacity-60" : ""}>
-                <UploadDropzone
-                  label="Monthly MEV ARIMA Input"
-                  description={
-                    isAuto
-                      ? "Auto-generated from workflow (upload disabled)."
-                      : "CSV or Excel. Name like: monthly_*_arima.*"
-                  }
-                  required
-                  accept={accept}
-                  maxSizeMB={maxSizeMB}
-                  maxFiles={3}
-                  value={monthlyFiles}
-                  onChange={isAuto ? () => {} : handleMonthlyFilesChange}
-                  emptyHint={
-                    isAuto
-                      ? "Click \"Generate inputs\" to create the monthly file..."
-                      : "Waiting for monthly ARIMA file(s)..."
-                  }
-                  variant="card"
-                />
+          {isAuto ? (
+            <>
+              {/* MONTHLY (MEV) */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <UploadDropzone
+                    label="Monthly MEV Input"
+                    description="CSV or Excel. Upload the monthly MEV input."
+                    required
+                    accept={accept}
+                    maxSizeMB={maxSizeMB}
+                    maxFiles={3}
+                    value={monthlyFiles}
+                    onChange={handleMonthlyFilesChange}
+                    emptyHint="Waiting for monthly MEV file(s)..."
+                    variant="card"
+                  />
+
+                  {monthlyFiles.length > 0 &&
+                    monthlyFiles.every((f) => uploadedFiles.has(f.name)) && (
+                      <div className="absolute top-3 right-3 z-10">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
+                          <CheckCircleIcon className="h-3 w-3" />
+                          Ready
+                        </span>
+                      </div>
+                    )}
+                </div>
               </div>
 
-              {disableUploads && (
-                <div className="absolute inset-0 rounded-2xl">
-                  <div className="absolute top-3 right-3 z-10">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-900">
-                      Upload disabled
-                    </span>
-                  </div>
+              {/* QUARTERLY (MEV) */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <UploadDropzone
+                    label="Quarterly MEV Input"
+                    description="CSV or Excel. Upload the quarterly MEV input."
+                    required
+                    accept={accept}
+                    maxSizeMB={maxSizeMB}
+                    maxFiles={3}
+                    value={quarterlyFiles}
+                    onChange={handleQuarterlyFilesChange}
+                    emptyHint="Waiting for quarterly MEV file(s)..."
+                    variant="card"
+                  />
+
+                  {quarterlyFiles.length > 0 &&
+                    quarterlyFiles.every((f) => uploadedFiles.has(f.name)) && (
+                      <div className="absolute top-3 right-3 z-10">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
+                          <CheckCircleIcon className="h-3 w-3" />
+                          Ready
+                        </span>
+                      </div>
+                    )}
                 </div>
-              )}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* MONTHLY (ARIMA) */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <UploadDropzone
+                    label="Monthly MEV ARIMA Input"
+                    description="CSV or Excel. Name like: monthly_*_arima.*"
+                    required
+                    accept={accept}
+                    maxSizeMB={maxSizeMB}
+                    maxFiles={3}
+                    value={monthlyFiles}
+                    onChange={handleMonthlyFilesChange}
+                    emptyHint="Waiting for monthly ARIMA file(s)..."
+                    variant="card"
+                  />
 
-              {monthlyFiles.length > 0 &&
-                monthlyFiles.every((f) => uploadedFiles.has(f.name)) && (
-                  <div className="absolute top-3 right-3 z-10">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
-                      <CheckCircleIcon className="h-3 w-3" />
-                      Ready
-                    </span>
-                  </div>
-                )}
-            </div>
-          </div>
-
-          {/* QUARTERLY */}
-          <div className="space-y-2">
-            <div className="relative">
-              <div className={disableUploads ? "pointer-events-none opacity-60" : ""}>
-                <UploadDropzone
-                  label="Quarterly MEV ARIMA Input"
-                  description={
-                    isAuto
-                      ? "Auto-generated from workflow (upload disabled)."
-                      : "CSV or Excel. Name like: quarterly_*_arima.*"
-                  }
-                  required
-                  accept={accept}
-                  maxSizeMB={maxSizeMB}
-                  maxFiles={3}
-                  value={quarterlyFiles}
-                  onChange={isAuto ? () => {} : handleQuarterlyFilesChange}
-                  emptyHint={
-                    isAuto
-                      ? "Click \"Generate inputs\" to create the quarterly file..."
-                      : "Waiting for quarterly ARIMA file(s)..."
-                  }
-                  variant="card"
-                />
+                  {monthlyFiles.length > 0 &&
+                    monthlyFiles.every((f) => uploadedFiles.has(f.name)) && (
+                      <div className="absolute top-3 right-3 z-10">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
+                          <CheckCircleIcon className="h-3 w-3" />
+                          Ready
+                        </span>
+                      </div>
+                    )}
+                </div>
               </div>
 
-              {disableUploads && (
-                <div className="absolute inset-0 rounded-2xl">
-                  <div className="absolute top-3 right-3 z-10">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-900">
-                      Upload disabled
-                    </span>
-                  </div>
-                </div>
-              )}
+              {/* QUARTERLY (ARIMA) */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <UploadDropzone
+                    label="Quarterly MEV ARIMA Input"
+                    description="CSV or Excel. Name like: quarterly_*_arima.*"
+                    required
+                    accept={accept}
+                    maxSizeMB={maxSizeMB}
+                    maxFiles={3}
+                    value={quarterlyFiles}
+                    onChange={handleQuarterlyFilesChange}
+                    emptyHint="Waiting for quarterly ARIMA file(s)..."
+                    variant="card"
+                  />
 
-              {quarterlyFiles.length > 0 &&
-                quarterlyFiles.every((f) => uploadedFiles.has(f.name)) && (
-                  <div className="absolute top-3 right-3 z-10">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
-                      <CheckCircleIcon className="h-3 w-3" />
-                      Ready
-                    </span>
-                  </div>
-                )}
-            </div>
-          </div>
+                  {quarterlyFiles.length > 0 &&
+                    quarterlyFiles.every((f) => uploadedFiles.has(f.name)) && (
+                      <div className="absolute top-3 right-3 z-10">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
+                          <CheckCircleIcon className="h-3 w-3" />
+                          Ready
+                        </span>
+                      </div>
+                    )}
+                </div>
+              </div>
+            </>
+          )}
 
           {/* FINAL MODEL */}
           <div className="space-y-2">
@@ -1342,12 +1337,7 @@ export default function Step1() {
               </>
             ) : (
               <>
-                <div className="mb-1">
-                  Auto mode enabled. Upload is disabled.
-                </div>
-                <div className="text-gray-500">
-                  Generated/existing files will appear above after Refresh or Generate.
-                </div>
+ 
               </>
             )}
           </div>
