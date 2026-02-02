@@ -60,7 +60,6 @@ export function ModelCompareGrid({
   models,
   className,
   selectedIndex,
-  onSelectedIndexChange,
   chosenIndex,
   onChosenIndexChange,
   selectable = true,
@@ -68,7 +67,7 @@ export function ModelCompareGrid({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // internal fallbacks if not controlled
-  const [internalIndex, setInternalIndex] = useState(0);
+  const [internalIndex] = useState(0);
   const [internalChosen, setInternalChosen] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState(4);
   const [page, setPage] = useState(0);
