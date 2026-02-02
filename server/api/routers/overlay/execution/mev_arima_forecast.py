@@ -122,7 +122,7 @@ async def calculate_mev_monthly_arima_forecast(
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_MONTHLY_HISTORICAL_MEV"
+                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_MONTHLY_HISTORICAL_MEV"
             )
             
             print('monthly_mev_input_path', monthly_mev_input_path)
@@ -307,7 +307,7 @@ async def calculate_mev_quarterly_arima_forecast(
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
-                f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_QUARTERLY_HISTORICAL_MEV"
+                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_QUARTERLY_HISTORICAL_MEV"
             )
             
             print('quarterly_mev_input_path', quarterly_mev_input_path)

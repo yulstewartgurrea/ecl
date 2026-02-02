@@ -341,8 +341,10 @@ const Step5: React.FC = () => {
       <div className="min-h-dvh p-6 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+             Credit Loss Rate Approach
+            </h1>
           </div>
-
           <div className="flex items-center gap-2">
             <button
               type="button"
