@@ -163,23 +163,32 @@ export function ModelCompareGrid({
       </div>
 
       {/* Cards grid */}
-      <div className="grid gap-8 pb-4 pt-2 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
-        {visibleModels.map((m, i) => {
-          const globalIndex = pageStart + i;
-          return (
-            <div key={globalIndex} className="p-2">
-              <SelectableCard
-                data-card={globalIndex}
-                model={m}
-                displayTitle={`Candidate Model ${globalIndex + 1}`}
-                selected={globalIndex === pickedIndex}
-                onSelect={() => choose(globalIndex)}
-                tabIndex={0}
-              />
-            </div>
-          );
-        })}
+      <div className="relative">
+        <div className="flex gap-8 overflow-x-auto pb-4 pt-2 px-2 snap-x snap-mandatory">
+          {visibleModels.map((m, i) => {
+            const globalIndex = pageStart + i;
+            return (
+              <div
+                key={globalIndex}
+                className="snap-start shrink-0 w-[320px] sm:w-[340px] xl:w-[360px]"
+              >
+                <SelectableCard
+                  data-card={globalIndex}
+                  model={m}
+                  displayTitle={`Candidate Model ${globalIndex + 1}`}
+                  selected={globalIndex === pickedIndex}
+                  onSelect={() => choose(globalIndex)}
+                  tabIndex={0}
+                  className="h-full"
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+
+
     </div>
   );
 }
