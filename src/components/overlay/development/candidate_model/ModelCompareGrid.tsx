@@ -167,15 +167,16 @@ export function ModelCompareGrid({
         {visibleModels.map((m, i) => {
           const globalIndex = pageStart + i;
           return (
-            <SelectableCard
-              key={globalIndex}
-              data-card={globalIndex}
-              model={m}
-              displayTitle={`Candidate Model ${globalIndex + 1}`}
-              selected={globalIndex === pickedIndex}
-              onSelect={() => choose(globalIndex)}
-              tabIndex={0}
-            />
+            <div key={globalIndex} className="p-2">
+              <SelectableCard
+                data-card={globalIndex}
+                model={m}
+                displayTitle={`Candidate Model ${globalIndex + 1}`}
+                selected={globalIndex === pickedIndex}
+                onSelect={() => choose(globalIndex)}
+                tabIndex={0}
+              />
+            </div>
           );
         })}
       </div>
