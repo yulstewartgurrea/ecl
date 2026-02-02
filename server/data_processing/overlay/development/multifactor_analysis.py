@@ -453,6 +453,28 @@ def write_model_stats_for_combo(
     # ensure order: Intercept, each X in the same order as indep_vars
     def get_or_nan(series: pd.Series, key: str) -> float:
         return float(series.get(key, np.nan))
+    
+    # Create mapping from original variable names to actual parameter names in model
+    # This handles cases where Q() escaping or variable dropping changes the parameter name
+    actual_param_names = list(model.model.exog_names)  # Includes "Intercept" and all X variables
+    var_name_mapping = {}
+    for orig_var in indep_vars:
+        # Try to find the actual parameter name that matches this variable
+        found = None
+        # First try exact match
+        if orig_var in actual_param_names:
+            found = orig_var
+        else:
+            # Try to match by cleaning Q() wrapper and quotes
+            for param_name in actual_param_names:
+                if param_name == "Intercept":
+                    continue
+                # Remove Q() wrapper and quotes for comparison
+                clean_param = param_name.replace('Q(', '').replace(')', '').strip('"').strip("'")
+                if clean_param == orig_var:
+                    found = param_name
+                    break
+        var_name_mapping[orig_var] = found if found else orig_var  # Fallback to original if not found
 
     # Intercept
     result["intercept"] = get_or_nan(params, "Intercept")
@@ -460,12 +482,13 @@ def write_model_stats_for_combo(
     result["t-value_intercept"] = get_or_nan(tvals, "Intercept")
     result["p-value_intercept"] = get_or_nan(pvals, "Intercept")
 
-    # Each X
+    # Each X - use the mapped parameter names
     for i, x in enumerate(indep_vars, start=1):
-        result[f"coeff_X{i}"] = get_or_nan(params, x)
-        result[f"stderr_X{i}"] = get_or_nan(bse, x)
-        result[f"t-value_X{i}"] = get_or_nan(tvals, x)
-        result[f"p-value_X{i}"] = get_or_nan(pvals, x)
+        actual_param_name = var_name_mapping.get(x, x)
+        result[f"coeff_X{i}"] = get_or_nan(params, actual_param_name)
+        result[f"stderr_X{i}"] = get_or_nan(bse, actual_param_name)
+        result[f"t-value_X{i}"] = get_or_nan(tvals, actual_param_name)
+        result[f"p-value_X{i}"] = get_or_nan(pvals, actual_param_name)
 
     # VIF
     for i in range(k):
