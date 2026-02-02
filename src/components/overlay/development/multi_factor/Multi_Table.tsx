@@ -179,14 +179,24 @@ export function Multi_Table({
     onFilteredChangeRef.current?.(filtered);
   }, [filtered]);
 
+  // ---- id -> row map (avoid full scan per click)
+  const rowIdMap = useMemo(() => {
+    const map = new Map<string | number, Row>();
+    data.forEach((r, i) => {
+      map.set(rowIdOf(r, i), r);
+    });
+    return map;
+  }, [data, getRowId]);
+
   // ---- notify on selection change
   const selectedRows = useMemo(() => {
-    // compute from full data to ensure we keep rows not currently filtered-in (keeps true selection)
-    return data
-      .map((r, i) => ({ r, id: rowIdOf(r, i) }))
-      .filter(({ id }) => selectedIds.has(id))
-      .map(({ r }) => r);
-  }, [data, selectedIds, getRowId]);
+    const out: Row[] = [];
+    selectedIds.forEach((id) => {
+      const row = rowIdMap.get(id);
+      if (row) out.push(row);
+    });
+    return out;
+  }, [selectedIds, rowIdMap]);
 
   const onSelectionChangeRef = useRef(onSelectionChange);
   useEffect(() => {

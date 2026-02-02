@@ -115,8 +115,9 @@ export function buildMacroColumns(
     { key: "year", header: "Year", width: "64px" },
     ...(includeQuarter ? [{ key: "quarter", header: "Quarter", width: "72px" }] : []),
     { key: "month", header: "Month", width: "72px" },
-    { key: "period_id", header: "ID", width: "96px" },
+    { key: "period_id", header: "period_id", width: "96px" },
     { key: "x", header: "x", width: "48px" },
+    { key: "period_id", header: "ID", width: "96px" },
   ];
 
   // ----- QUARTERLY: Levels only -----
