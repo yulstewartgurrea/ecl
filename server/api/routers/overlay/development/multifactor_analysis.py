@@ -222,7 +222,7 @@ async def process_multifactor_analysis(
     workflow_id: int = Form(...),
     target_variable: str = Form('odr.logit', description="Target variable (e.g., odr.logit)"),
     num_vars_taken: int = Form(2, description="Number of variables per combination"),
-    max_combinations: int = Form(1000, description="Maximum number of combinations to test"),
+    max_combinations: int = Form(5, description="Maximum number of combinations to test"),
     max_bgtest_order: int = Form(2, description="Maximum order for Breusch-Godfrey test"),
     current_user: User = Depends(get_current_user)
 ):

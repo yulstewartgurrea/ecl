@@ -147,8 +147,9 @@ export async function postMultiFactorTrigger(opts: {
   apiBase: string;
   token?: string | null;
   workflowId: number;
+  num_vars_taken?: number;
 }): Promise<ApiEnvelope<unknown>> {
-  const { apiBase, token, workflowId } = opts;
+  const { apiBase, token, workflowId, num_vars_taken } = opts;
 
   if (!Number.isFinite(workflowId)) {
     throw new Error("workflowId must be a finite number");
@@ -160,6 +161,9 @@ export async function postMultiFactorTrigger(opts: {
 
   const form = new FormData();
   form.append("workflow_id", String(workflowId));
+  if (num_vars_taken !== undefined) {
+    form.append("num_vars_taken", String(num_vars_taken));
+  }
 
   const res = await xfetch(url, {
     method: "POST",

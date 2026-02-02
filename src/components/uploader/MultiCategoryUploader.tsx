@@ -1,4 +1,4 @@
-﻿// ==========================
+// ==========================
 // components/uploader/MultiCategoryUploader.tsx
 // (validate -> proceed -> upload; halt on failure; "Proceed anyway" forces current then continues)
 // ==========================
@@ -81,6 +81,8 @@ export type MultiCategoryUploaderProps = {
   initialSelectedKey?: string;
   bulk?: BulkModeOptions;
   rightCardsMode?: RightCardsMode;
+  onDocumentTypeChange?: (documentType: string) => void; // Callback when document_type changes (category selection)
+  initialFiles?: Record<string, File[]>; // Initial files to populate (e.g., from existing documents)
 };
 
 const formatFileSize = (bytes: number) => {
@@ -159,6 +161,8 @@ export default function MultiCategoryUploader({
   initialSelectedKey,
   bulk = { enabled: true, assign: "selected", strategy: "sequential" },
   rightCardsMode = "status-only",
+  onDocumentTypeChange,
+  initialFiles,
 }: MultiCategoryUploaderProps) {
   const reduxToken = useAppSelector((state: any) => state.auth?.token) as
     | string
@@ -168,14 +172,46 @@ export default function MultiCategoryUploader({
     () => tokenGetter?.() ?? reduxToken ?? null,
     [tokenGetter, reduxToken]
   );
-  const [selectedKey, setSelectedKey] = useState<string>(
-    initialSelectedKey ?? (categories[0]?.key ?? "")
-  );
+  const initialKey = initialSelectedKey ?? (categories[0]?.key ?? "");
+  const [selectedKey, setSelectedKeyState] = useState<string>(initialKey);
+  
+  // Wrapper function to update selectedKey and notify parent of document_type change
+  const setSelectedKey = useCallback((key: string) => {
+    setSelectedKeyState(key);
+    // document_type is always the selected category key
+    onDocumentTypeChange?.(key);
+  }, [onDocumentTypeChange]);
+  
+  // Notify parent of initial document_type on mount
+  useEffect(() => {
+    if (initialKey) {
+      onDocumentTypeChange?.(initialKey);
+    }
+  }, []); // Only on mount
   const [uploading, setUploading] = useState(false);
 
   // files & results
-  const [filesByKey, setFilesByKey] = useState<Record<string, File[]>>({});
+  const [filesByKey, setFilesByKey] = useState<Record<string, File[]>>(initialFiles ?? {});
   const [uploadResults, setUploadResults] = useState<UploadResultsByCategory>({});
+  
+  // Mark initial files as uploaded and update filesByKey when initialFiles changes
+  useEffect(() => {
+    if (initialFiles && Object.keys(initialFiles).length > 0) {
+      // Update filesByKey with initial files
+      setFilesByKey(initialFiles);
+      
+      // Mark initial files as uploaded
+      const initialUploadResults: UploadResultsByCategory = {};
+      Object.keys(initialFiles).forEach((key) => {
+        initialUploadResults[key] = initialFiles[key].map((file) => ({
+          filename: file.name,
+          success: true,
+          data: { isExisting: true },
+        }));
+      });
+      setUploadResults(initialUploadResults);
+    }
+  }, [initialFiles]); // Run when initialFiles changes
 
   // validation gate
   const [validated, setValidated] = useState<null | "ok" | "error">(null);
