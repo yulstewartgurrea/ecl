@@ -7,6 +7,50 @@ export type BuildOptions = {
   growthSuffix?: string;             // default: "_gr"
 };
 
+const isNumericValue = (v: any) => {
+  if (v == null || v === "") return false;
+  if (typeof v === "number") return Number.isFinite(v);
+  const n = Number(String(v).replace(/,/g, ""));
+  return Number.isFinite(n);
+};
+
+function pickSampleValue(rows: Array<Record<string, any>>, key: string) {
+  for (const r of rows) {
+    if (!r || !(key in r)) continue;
+    const v = (r as any)[key];
+    if (v !== null && v !== undefined && v !== "") return v;
+  }
+  return undefined;
+}
+
+/** Build simple columns directly from backend data (no extra headers). */
+export function buildColumnsFromRows(
+  rows: Array<Record<string, any>>
+): ColumnNode[] {
+  if (!rows || rows.length === 0) return [];
+  const keys = new Set<string>();
+  for (const r of rows) {
+    Object.keys(r || {}).forEach((k) => keys.add(k));
+  }
+
+  const preferred = ["year", "quarter", "month", "period_id", "x"];
+  const preferredKeys = preferred.filter((k) => keys.has(k));
+  const rest = Array.from(keys)
+    .filter((k) => !preferred.includes(k))
+    .sort((a, b) => a.localeCompare(b));
+
+  const ordered = [...preferredKeys, ...rest];
+
+  return ordered.map((key) => {
+    const sample = pickSampleValue(rows, key);
+    return {
+      key,
+      header: key,
+      align: isNumericValue(sample) ? "right" : "left",
+    };
+  });
+}
+
 const leaf = (
   key: string,
   label?: string,

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import MacroTable from "./MacroTable";
-import { buildMacroColumns } from "./Columns";
+import { buildMacroColumns, buildColumnsFromRows } from "./Columns";
 import type { Frequency } from "./Columns";
 
 export type ExeTableProps = {
@@ -19,25 +19,37 @@ export function ExeTable({
   includeQuarterInMonthly,
   growthSuffix,
 }: ExeTableProps) {
-  const columns = useMemo(
-    () =>
-      buildMacroColumns(frequency, {
-        includeQuarterInMonthly,
-        growthSuffix,
-      }),
-    [frequency, includeQuarterInMonthly, growthSuffix]
-  );
+  const columns = useMemo(() => {
+    if (data && data.length > 0) return buildColumnsFromRows(data);
+    return buildMacroColumns(frequency, {
+      includeQuarterInMonthly,
+      growthSuffix,
+    });
+  }, [data, frequency, includeQuarterInMonthly, growthSuffix]);
+
+  if (!data || data.length === 0) return null;
+
+  const formatNoRound = (v: any, decimals = 4) => {
+    if (v == null || v === "") return "";
+    const n =
+      typeof v === "number"
+        ? v
+        : Number(String(v).replace(/,/g, ""));
+    if (!Number.isFinite(n)) return String(v);
+    const factor = 10 ** decimals;
+    const truncated = Math.trunc(n * factor) / factor;
+    return truncated.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  };
 
   return (
     <MacroTable
       columns={columns}
       rows={data}
       getRowId={(r) => (r as any).period_id ?? Math.random().toString(36)}
-      numberFormat={(v) =>
-        typeof v === "number"
-          ? v.toLocaleString(undefined, { maximumFractionDigits: 2 })
-          : v
-      }
+      numberFormat={(v) => formatNoRound(v, 4)}
     />
   );
 }
