@@ -660,6 +660,7 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
     5. Finding actual columns that match lag patterns: "", ".lag_3", ".lag_6", ".lag_9", ".lag_12" for each
     
     Only combinations where all variables exist in x_transformed are kept.
+    Columns containing both .diff_12 and .lag_12 are excluded for optimization.
     Supports cancellation checks during processing.
     
     Args:
@@ -676,6 +677,11 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
         Exception: If cancellation_check returns True
     """
     print("Generating variable combinations...")
+    
+    # Helper function to check if a column should be excluded (has both .diff_12 and .lag_12)
+    def should_exclude_column(col_name: str) -> bool:
+        """Exclude columns that have both .diff_12 and .lag_12 for optimization."""
+        return '.diff_12' in col_name and '.lag_12' in col_name
 
     # NEW: Get base variables from the mapping keys
     x_base_vars = sorted(list(base_var_to_actual_cols.keys()))
@@ -727,8 +733,8 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
             if all(len(cols) > 0 for cols in matching_cols_list):
                 # Use first matching column for each base variable
                 names = [matching_cols_list[i][0] for i in range(num_vars_taken)]
-                # Early filtering: only append if all columns exist
-                if all(v in x_transformed.columns for v in names):
+                # Early filtering: only append if all columns exist and don't have both .diff_12 and .lag_12
+                if all(v in x_transformed.columns and not should_exclude_column(v) for v in names):
                     new_ext.append(names)
     
     # OLD: Construct names by appending suffix
@@ -773,8 +779,8 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
             # Create combinations from matching columns
             if all(len(cols) > 0 for cols in matching_combos):
                 names = [matching_combos[i][0] for i in range(num_vars_taken)]
-                # Early filtering: only append if all columns exist (already checked above, but explicit for consistency)
-                if all(v in x_transformed.columns for v in names):
+                # Early filtering: only append if all columns exist and don't have both .diff_12 and .lag_12
+                if all(v in x_transformed.columns and not should_exclude_column(v) for v in names):
                     new_ext.append(names)
     
     # OLD: Construct names by appending transformation suffix
@@ -817,8 +823,8 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
             # Create combinations from matching columns
             if all(len(cols) > 0 for cols in matching_combos):
                 names = [matching_combos[i][0] for i in range(num_vars_taken)]
-                # Early filtering: only append if all columns exist (already checked above, but explicit for consistency)
-                if all(v in x_transformed.columns for v in names):
+                # Early filtering: only append if all columns exist and don't have both .diff_12 and .lag_12
+                if all(v in x_transformed.columns and not should_exclude_column(v) for v in names):
                     new_ext.append(names)
     
     # OLD: Construct names by appending differencing suffix
@@ -861,8 +867,8 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
             # Create combinations from matching columns
             if all(len(cols) > 0 for cols in matching_combos):
                 names = [matching_combos[i][0] for i in range(num_vars_taken)]
-                # Early filtering: only append if all columns exist (already checked above, but explicit for consistency)
-                if all(v in x_transformed.columns for v in names):
+                # Early filtering: only append if all columns exist and don't have both .diff_12 and .lag_12
+                if all(v in x_transformed.columns and not should_exclude_column(v) for v in names):
                     new_ext.append(names)
     
     # OLD: Construct names by appending lag suffix
@@ -1037,7 +1043,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
         raise Exception("Job cancelled")
     
     x_raw = prepare_independent_variables(combine_monthly_mev_data_interpolation_df, excluded_columns)
-    x_raw = add_level_gr_columns(x_raw, excluded_columns)  # NEW: provide .Level and .GR
+    # x_raw = add_level_gr_columns(x_raw, excluded_columns)  # NEW: provide .Level and .GR
     y_raw = prepare_dependent_variables(historical_default_rate_df, excluded_columns)
 
     # Extract base variable names from all columns (including those with forecast suffixes)
