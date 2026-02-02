@@ -288,7 +288,7 @@ const Step4: React.FC = () => {
       </header>
 
       <main className="mx-auto px-0 md:px-0 pb-8">
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-5 md:px-6 md:py-6">
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-5 md:px-6 md:py-6 max-h-[calc(100vh-220px)] overflow-y-auto">
           <ForecastedPdSummary
             finalModel={finalModel}
             mlrRows={mlrRows}

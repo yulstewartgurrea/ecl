@@ -1,5 +1,5 @@
 // components/overlay/development/candidate_model/ModelCompareGrid.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /* ----------------------- Types ----------------------- */
 
@@ -70,6 +70,8 @@ export function ModelCompareGrid({
   // internal fallbacks if not controlled
   const [internalIndex, setInternalIndex] = useState(0);
   const [internalChosen, setInternalChosen] = useState<number | null>(null);
+  const [pageSize, setPageSize] = useState(4);
+  const [page, setPage] = useState(0);
 
   const activeIndex = selectedIndex ?? internalIndex;
   const pickedIndex = chosenIndex ?? internalChosen ?? -1;
@@ -78,8 +80,8 @@ export function ModelCompareGrid({
     const clamped = Math.max(0, Math.min(idx, models.length - 1));
     if (selectedIndex == null) setInternalIndex(clamped);
     onSelectedIndexChange?.(clamped);
-    const el = containerRef.current?.querySelector<HTMLDivElement>(`[data-card="${clamped}"]`);
-    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    const nextPage = Math.floor(clamped / pageSize);
+    setPage(nextPage);
   }
 
   function choose(idx: number) {
@@ -88,50 +90,51 @@ export function ModelCompareGrid({
     onChosenIndexChange?.(idx);
   }
 
-  // Keep dots in sync while manually scrolling
+  // Responsive page size based on available width
   useEffect(() => {
-    const scroller = containerRef.current;
-    if (!scroller) return;
-    const onScroll = () => {
-      const cards = Array.from(scroller.querySelectorAll<HTMLDivElement>("[data-card]"));
-      if (!cards.length) return;
-      const { left: l0 } = scroller.getBoundingClientRect();
-      let best = 0;
-      let bestDist = Infinity;
-      cards.forEach((card, i) => {
-        const { left } = card.getBoundingClientRect();
-        const dist = Math.abs(left - l0 - 16); // padding offset
-        if (dist < bestDist) {
-          best = i;
-          bestDist = dist;
-        }
-      });
-      if (selectedIndex == null) setInternalIndex(best);
-      onSelectedIndexChange?.(best);
-    };
-    scroller.addEventListener("scroll", onScroll, { passive: true });
-    return () => scroller.removeEventListener("scroll", onScroll);
-  }, [selectedIndex, onSelectedIndexChange]);
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      const width = el.clientWidth;
+      const next =
+        width < 640 ? 1 : width < 900 ? 2 : width < 1200 ? 3 : 4;
+      setPageSize(next);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
-  const prev = () => setIndex(activeIndex - 1);
-  const next = () => setIndex(activeIndex + 1);
+  useEffect(() => {
+    const clamped = Math.max(0, Math.min(activeIndex, models.length - 1));
+    const nextPage = Math.floor(clamped / pageSize);
+    setPage(nextPage);
+  }, [activeIndex, models.length, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(models.length / pageSize));
+  const currentPage = Math.min(page, totalPages - 1);
+  const pageStart = currentPage * pageSize;
+  const pageEnd = Math.min(pageStart + pageSize, models.length);
+  const visibleModels = models.slice(pageStart, pageEnd);
+
+  const prevPage = () => setPage((p) => Math.max(0, p - 1));
+  const nextPage = () => setPage((p) => Math.min(totalPages - 1, p + 1));
 
   return (
-    <div className={className}>
+    <div ref={containerRef} className={className}>
       {/* Controls */}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
-            onClick={prev}
-            disabled={activeIndex === 0}
+            onClick={prevPage}
+            disabled={currentPage === 0}
             className="cursor-pointer rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base font-medium text-neutral-800 disabled:opacity-40"
             aria-label="Previous model"
           >
             ← Previous
           </button>
           <button
-            onClick={next}
-            disabled={activeIndex >= models.length - 1}
+            onClick={nextPage}
+            disabled={currentPage >= totalPages - 1}
             className="cursor-pointer rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base font-medium text-neutral-800 disabled:opacity-40"
             aria-label="Next model"
           >
@@ -142,38 +145,39 @@ export function ModelCompareGrid({
         {/* Page dots */}
         <div className="flex items-center gap-6">
           <span className="text-sm text-neutral-600">
-            {activeIndex + 1} / {models.length}
+            Page {currentPage + 1} / {totalPages}
           </span>
-          <div className="flex cursor-pointer items-center gap-8">
-            {models.map((_, i) => (
+          <div className="flex cursor-pointer items-center gap-2">
+            {Array.from({ length: totalPages }).map((_, i) => (
               <button
                 key={i}
-                onClick={() => setIndex(i)}
-                aria-label={`Go to Model ${i + 1}`}
-                className={`h-4 w-4 rounded-full transition-all ${i === activeIndex ? "bg-neutral-900" : "bg-neutral-300"}`}
+                onClick={() => setPage(i)}
+                aria-label={`Go to Page ${i + 1}`}
+                className={`h-2.5 w-2.5 rounded-full transition-all ${
+                  i === currentPage ? "bg-neutral-900" : "bg-neutral-300"
+                }`}
               />
             ))}
           </div>
         </div>
       </div>
 
-      {/* Cards scroller */}
-      <div
-        ref={containerRef}
-        className="flex gap-6 overflow-x-auto scroll-smooth px-1 pb-4 pt-1"
-        style={{ scrollSnapType: "x mandatory" }}
-      >
-        {models.map((m, i) => (
-          <SelectableCard
-            key={i}
-            data-card={i}
-            model={m}
-            displayTitle={`Candidate Model ${i + 1}`} // ← force the visible title
-            selected={i === pickedIndex}
-            onSelect={() => choose(i)}
-            tabIndex={0}
-          />
-        ))}
+      {/* Cards grid */}
+      <div className="grid gap-6 pb-4 pt-1 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
+        {visibleModels.map((m, i) => {
+          const globalIndex = pageStart + i;
+          return (
+            <SelectableCard
+              key={globalIndex}
+              data-card={globalIndex}
+              model={m}
+              displayTitle={`Candidate Model ${globalIndex + 1}`}
+              selected={globalIndex === pickedIndex}
+              onSelect={() => choose(globalIndex)}
+              tabIndex={0}
+            />
+          );
+        })}
       </div>
     </div>
   );
