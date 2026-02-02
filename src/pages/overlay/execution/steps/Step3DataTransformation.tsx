@@ -666,12 +666,8 @@ export default function OverlayDevelpmentPage3() {
         <div className="mx-auto flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-gray-900">
-              Consolidate all monthly MEVs
+              Data Transformation
             </h1>
-            <p className="text-xs md:text-sm text-gray-500">
-              Apply lag/log/diff transformations to MEVs and take log of default
-              rate data
-            </p>
             <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
               <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                 Config

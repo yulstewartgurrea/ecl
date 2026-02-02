@@ -395,10 +395,7 @@ const Step6: React.FC = () => {
     () => (
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Final Overlay Model</h1>
-          <p className="mt-1 max-w-3xl text-base text-neutral-700">
-            Pick a candidate model and click Save Candidate to set the final model.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">Candidate Models</h1>
 
           {!hasStep5Selection && (
             <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">

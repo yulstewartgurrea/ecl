@@ -290,11 +290,8 @@ export default function Step3DataTransformationCombineForecastedMEVAndInterpolat
           <div className="mx-auto flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-2">
               <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-gray-900">
-                Combine Monthly MEV Data Interpolation
+                Data Transformation Combine Forecasted MEV and Interpolation
               </h1>
-              <p className="text-xs md:text-sm text-gray-500">
-                Combine monthly MEV and interpolation data
-              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -343,11 +340,8 @@ export default function Step3DataTransformationCombineForecastedMEVAndInterpolat
         <div className="mx-auto flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-gray-900">
-              Combine Monthly MEV Data Interpolation
+              Data Transformation Combine Forecasted MEV and Interpolation
             </h1>
-            <p className="text-xs md:text-sm text-gray-500">
-              Combine monthly MEV and interpolation data
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

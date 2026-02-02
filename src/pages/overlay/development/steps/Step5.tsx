@@ -97,8 +97,8 @@ function toCsv(headers: string[], rows: Row[]): string {
 }
 
 const Step5: React.FC<Step5Props> = ({
-  title = "Filtering Models — Selected Regression Outputs",
-  description = "Configure filters, run the analysis, then select one or more models before proceeding to Step 6.",
+  title = "Filtering of Models",
+  description = "",
 }) => {
   const dispatch = useAppDispatch();
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
@@ -640,7 +640,9 @@ const Step5: React.FC<Step5Props> = ({
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          <p className="mt-1 max-w-3xl text-sm text-neutral-600">{description}</p>
+          {description ? (
+            <p className="mt-1 max-w-3xl text-sm text-neutral-600">{description}</p>
+          ) : null}
         </div>
         {headerRight}
       </div>

@@ -249,13 +249,8 @@ const Step4: React.FC = () => {
         <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-              Forecasted PD Calculations
+              Forcasted Loss Rate Calculation
             </h1>
-            <p className="text-sm text-gray-600">
-              This step uses the final overlay model, MLR output, and
-              forecasted PDs to summarize the one-year PDs by scenario for
-              every month.
-            </p>
             {loading && (
               <p className="mt-1 text-xs text-gray-500">
                 Loading forecasted PD data

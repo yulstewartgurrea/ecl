@@ -351,11 +351,8 @@ formData.append(
             </div>
             <div className="min-w-0">
               <h1 className="text-sm font-semibold text-amber-900">
-                ECL by Aging Category
+                ECL Calculations
               </h1>
-              <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                This page shows the ECL calculation using each client™s loan balances by product or across all products as of the reporting date, together with the forward-looking loss rates.
-              </p>
               <div className="mt-2 text-xs text-amber-900/80">
                 Workflow Name: <b>{pdTransitionMatrixWfName || ""}</b>
               </div>

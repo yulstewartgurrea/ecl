@@ -286,12 +286,8 @@ export default function Step3() {
             </div>
             <div className="min-w-0">
               <h1 className="text-sm font-semibold text-amber-900">
-                Step 3  Portfolio-Level ECL
+                Credit Loss Rate Approach
               </h1>
-              <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                This page first loads existing summary results using GET. If there is no computed
-                data yet, click <b>Run</b> to POST and compute, then it will GET again.
-              </p>
               <div className="mt-2 text-xs text-amber-900/80">
                 Workflow Name: <b>{pdTransitionMatrixWfName || ""}</b>
               </div>

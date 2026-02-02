@@ -175,6 +175,37 @@ export async function getDataTransformationResults(opts: {
   return json;
 }
 
+export async function exportDataTransformation(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+  fileType?: string;
+}): Promise<Blob> {
+  const { apiBase, token, workflowId, fileType = "both" } = opts;
+
+  if (!Number.isFinite(workflowId)) {
+    throw new Error("workflowId must be a finite number");
+  }
+
+  const qs = new URLSearchParams({ 
+    workflow_id: String(workflowId),
+    file_type: fileType
+  });
+  const url = `${base(apiBase)}/api/overlay/development/data_transformation_results/export?${qs.toString()}`;
+
+  const res = await xfetch(url, {
+    method: "GET",
+    headers: withAuth(token, { Accept: "application/zip, application/octet-stream, text/csv" }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+
+  return await res.blob();
+}
+
 type ShapeOpts = {
   includeAllIndependent?: boolean;
   maxIndependentCols?: number;

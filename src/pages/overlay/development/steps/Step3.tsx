@@ -23,6 +23,7 @@ import {
   getDataTransformationStatus,
   getDataTransformationResults,
   cancelDataTransformation,
+  exportDataTransformation,
   shapeTransformationResults,
   type DataTransformationStatus,
 } from "../../../../services/dataTransformation";
@@ -399,8 +400,8 @@ export default function OverlayDevelpmentPage3() {
     loadDataOnMount();
   }, [selectedWorkflowId, token, API_BASE]);
 
-  // ---- Export CSV handler (client-side, from current table state) ----
-  const exportCsv = useCallback(() => {
+  // ---- Export handler (API-based) ----
+  const exportCsv = useCallback(async () => {
     if (!selectedWorkflowId && selectedWorkflowId !== 0) return;
     if (!exportReady) return;
 
@@ -408,54 +409,22 @@ export default function OverlayDevelpmentPage3() {
     setExporting(true);
 
     try {
-      // Build column definitions (leaf columns) from ColumnNode[]
-      const mevLeafCols = flattenColumnNodes(mevCols);
-      const defLeafCols = flattenColumnNodes(defCols);
-
-      // Fallback: if no column defs, derive from row keys
-      const buildColsFromRows = (rows: Row[]) => {
-        const first = rows[0] ?? {};
-        return Object.keys(first).map((key) => ({
-          header: key,
-          accessor: key,
-        }));
-      };
-
-      const finalMevCols =
-        mevLeafCols.length === 0 && mevRows.length > 0
-          ? buildColsFromRows(mevRows)
-          : mevLeafCols;
-      const finalDefCols =
-        defLeafCols.length === 0 && defRows.length > 0
-          ? buildColsFromRows(defRows)
-          : defLeafCols;
-
-      const sections: string[] = [];
-
-      if (mevRows.length && finalMevCols.length) {
-        sections.push(
-          buildCsvSection("MEV Data", finalMevCols, mevRows)
-        );
-      }
-
-      if (defRows.length && finalDefCols.length) {
-        sections.push(
-          buildCsvSection("Default Rate Data", finalDefCols, defRows)
-        );
-      }
-
-      if (sections.length === 0) {
-        throw new Error("No table data to export.");
-      }
-
-      const csvContent = sections.join("\n\n");
-      const blob = new Blob([csvContent], {
-        type: "text/csv;charset=utf-8;",
+      const blob = await exportDataTransformation({
+        apiBase: API_BASE,
+        token,
+        workflowId: Number(selectedWorkflowId),
+        fileType: "both",
       });
 
+      // Determine filename based on content type
+      const contentType = blob.type;
+      const isZip = contentType.includes("zip") || contentType.includes("application/zip");
+      const extension = isZip ? "zip" : "csv";
+      const filename = `data_transformation_results_${selectedWorkflowId}.${extension}`;
+
+      // Create download link
       const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const filename = `data_transformation_results_${selectedWorkflowId}.csv`;
       a.href = href;
       a.download = filename;
       document.body.appendChild(a);
@@ -471,10 +440,8 @@ export default function OverlayDevelpmentPage3() {
   }, [
     selectedWorkflowId,
     exportReady,
-    mevCols,
-    defCols,
-    mevRows,
-    defRows,
+    API_BASE,
+    token,
   ]);
 
   const caption =
@@ -486,12 +453,8 @@ export default function OverlayDevelpmentPage3() {
         <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-              Consolidate all monthly MEVs
+              Data Transformation
             </h1>
-            <p className="text-sm text-gray-600">
-              Apply lag/log/diff transformations to MEVs and take log of default
-              rate data
-            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -747,78 +710,4 @@ export default function OverlayDevelpmentPage3() {
   );
 }
 
-/* ----------------- Helpers for CSV export ----------------- */
-
-// Try to mirror the visible columns by flattening ColumnNode tree into leaf columns
-function flattenColumnNodes(cols: ColumnNode[]): { header: string; accessor: string }[] {
-  const out: { header: string; accessor: string }[] = [];
-
-  const visit = (col: any) => {
-    if (!col) return;
-
-    if (Array.isArray(col.children) && col.children.length > 0) {
-      col.children.forEach(visit);
-      return;
-    }
-
-    // Try common access key names used in column configs
-    const accessor =
-      col.accessorKey ||
-      col.key ||
-      col.id ||
-      col.field ||
-      col.columnKey ||
-      col.dataIndex;
-
-    if (!accessor) return;
-
-    const header =
-      col.header ||
-      col.title ||
-      col.label ||
-      col.name ||
-      accessor;
-
-    out.push({
-      header: String(header),
-      accessor: String(accessor),
-    });
-  };
-
-  (cols || []).forEach(visit);
-  return out;
-}
-
-function escapeCsvValue(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  const s = String(v);
-  if (s.includes('"') || s.includes(",") || s.includes("\n") || s.includes("\r")) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
-}
-
-function buildCsvSection(
-  title: string,
-  cols: { header: string; accessor: string }[],
-  rows: Row[]
-): string {
-  const lines: string[] = [];
-
-  // Section title
-  lines.push(`# ${title}`);
-
-  // Header row
-  lines.push(cols.map((c) => escapeCsvValue(c.header)).join(","));
-
-  // Data rows
-  for (const row of rows) {
-    const line = cols
-      .map((c) => escapeCsvValue(row[c.accessor]))
-      .join(",");
-    lines.push(line);
-  }
-
-  return lines.join("\n");
-}
 

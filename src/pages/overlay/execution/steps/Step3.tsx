@@ -334,12 +334,8 @@ export default function OverlayExecutionPage3() {
         <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-              MEV Override Forecast
+              MEVs Forecast Transformation
             </h1>
-            <p className="text-sm text-gray-600">
-              Configure Best / Base / Worst per period, save, then run to generate the
-              transformed table used by the next steps.
-            </p>
           </div>
 
           <div className="hidden md:flex items-center gap-3">

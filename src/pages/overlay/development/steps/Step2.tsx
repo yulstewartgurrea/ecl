@@ -182,12 +182,8 @@ export default function OverlayDevelopmentPage2() {
         <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-              Expected Credit Loss Automation
+              Interpolation
             </h1>
-            <p className="text-sm text-gray-600">
-              Interpolate quarterly MEVs (Quarterly Historical Mevs) into
-              monthly data to match default rate frequency
-            </p>
           </div>
 
           <div className="hidden md:flex items-center gap-3">

@@ -150,17 +150,16 @@ const FlowrateApproachPage = () => {
     }
   };
 
+  const currentStepLabel = developmentSteps[activeSubStep]?.label ?? "Step";
+
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-20 ">
         <div className="mx-auto px-6 py-4 flex items-center justify-between bg-white">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              Flowrate Approach
+              {currentStepLabel}
             </h1>
-            <p className="text-xs text-gray-800">
-              A structured and dynamic framework for estimating credit losses.
-            </p>
           </div>
           {activeSubStep === developmentSteps.length - 1 && (
             <button
