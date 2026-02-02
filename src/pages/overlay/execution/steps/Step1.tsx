@@ -1013,7 +1013,10 @@ export default function Step1() {
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="text-sm font-semibold text-gray-900">
-                    Monthly + Quarterly MEV inputs
+                    Auto-generate Monthly + Quarterly MEV inputs
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    This will call the generator endpoints and store the generated files under your workflow.
                   </div>
 
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1056,7 +1059,7 @@ export default function Step1() {
                   {(existingMonthlyFilename || existingQuarterlyFilename) && (
                     <div className="mt-2">
                       <div className="text-xs font-medium text-gray-600 mb-1.5">
-                        Forecast Results:
+                        Generated Forecast Results:
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {existingMonthlyFilename && (
@@ -1084,6 +1087,28 @@ export default function Step1() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fetchExistingDocuments()}
+                    disabled={autoRunning}
+                    className="cursor-pointer inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60"
+                    title="Refresh and show generated/existing documents"
+                  >
+                    Refresh
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={runAutoGenerate}
+                    disabled={autoRunning || !token || !effectiveWorkflowId}
+                    className="cursor-pointer inline-flex items-center justify-center rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200 disabled:opacity-60"
+                    title="Generate Monthly and Quarterly MEV inputs"
+                  >
+                    Generate inputs
+                  </button>
                 </div>
               </div>
             </div>
@@ -1337,7 +1362,12 @@ export default function Step1() {
               </>
             ) : (
               <>
- 
+                <div className="mb-1">
+                  Auto mode enabled. Upload is disabled.
+                </div>
+                <div className="text-gray-500">
+                  Generated/existing files will appear above after Refresh or Generate.
+                </div>
               </>
             )}
           </div>
