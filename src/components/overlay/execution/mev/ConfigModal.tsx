@@ -290,9 +290,9 @@ export default function ScenarioConfigModalTable({
   const headerBase =
     "px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide";
   const cellBase =
-    "px-2 py-1 text-center align-middle border-b border-gray-200";
+    "px-2 py-1 text-center align-middle border-b border-gray-200 whitespace-nowrap";
   const inputBase =
-    "w-full bg-transparent text-center outline-none rounded-md px-1";
+    "w-full min-w-[96px] bg-transparent text-right tabular-nums outline-none rounded-md px-1";
 
   if (!open) return null;
 
@@ -349,11 +349,11 @@ export default function ScenarioConfigModalTable({
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl">
-            <table className="min-w-[960px] w-full text-sm">
-              <thead>
+          <div className="overflow-auto rounded-xl max-h-[60vh] border border-gray-100">
+            <table className="min-w-max w-full text-sm">
+              <thead className="sticky top-0 z-10">
                 <tr>
-                  <th className="px-3 py-2 text-left w-40 bg-[#F8F8F8]">
+                  <th className="px-3 py-2 text-left w-40 bg-[#F8F8F8] sticky left-0 z-20">
                     Period
                   </th>
                   <th
@@ -376,7 +376,7 @@ export default function ScenarioConfigModalTable({
                   </th>
                 </tr>
                 <tr>
-                  <th className="px-3 py-1 text-left text-xs bg-[#F8F8F8]">
+                  <th className="px-3 py-1 text-left text-xs bg-[#F8F8F8] sticky left-0 z-20">
                     {" "}
                   </th>
                   {["bg-emerald-50", "bg-amber-50", "bg-rose-50"].flatMap(
@@ -408,7 +408,7 @@ export default function ScenarioConfigModalTable({
                     key={r.period}
                     className={i % 2 ? "bg-white" : "bg-gray-50"}
                   >
-                    <td className={`${cellBase} text-left font-medium`}>
+                    <td className={`${cellBase} text-left font-medium sticky left-0 z-10 bg-[#F8F8F8]`}>
                       {r.period}
                     </td>
 
