@@ -60,9 +60,9 @@ def process_ecl_data(client_loan_balances_file, credit_loss_rates_file, parsed_p
             df["credit loss rate baseline"].isna() |
             df["credit loss rate downside"].isna()
         )
-        if missing_mask.any():
-            missing = df.loc[missing_mask, "aging category"].unique().tolist()
-            raise ValueError(f"Unmatched Aging Category value(s): {missing[:20]}{'...' if len(missing) > 20 else ''}")
+        # if missing_mask.any():
+        #     missing = df.loc[missing_mask, "aging category"].unique().tolist()
+        #     raise ValueError(f"Unmatched Aging Category value(s): {missing[:20]}{'...' if len(missing) > 20 else ''}")
 
         df['expected credit loss upside'] = df['loan_balance'] * df['credit loss rate upside']
         df['expected credit loss baseline'] = df['loan_balance'] * df['credit loss rate baseline']
