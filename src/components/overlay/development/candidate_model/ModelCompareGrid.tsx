@@ -1,5 +1,5 @@
 // components/overlay/development/candidate_model/ModelCompareGrid.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 /* ----------------------- Types ----------------------- */
 
@@ -60,7 +60,6 @@ export function ModelCompareGrid({
   models,
   className,
   selectedIndex,
-  onSelectedIndexChange,
   chosenIndex,
   onChosenIndexChange,
   selectable = true,
@@ -68,7 +67,7 @@ export function ModelCompareGrid({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // internal fallbacks if not controlled
-  const [internalIndex, setInternalIndex] = useState(0);
+  const [internalIndex] = useState(0);
   const [internalChosen, setInternalChosen] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState(4);
   const [page, setPage] = useState(0);
@@ -76,13 +75,6 @@ export function ModelCompareGrid({
   const activeIndex = selectedIndex ?? internalIndex;
   const pickedIndex = chosenIndex ?? internalChosen ?? -1;
 
-  function setIndex(idx: number) {
-    const clamped = Math.max(0, Math.min(idx, models.length - 1));
-    if (selectedIndex == null) setInternalIndex(clamped);
-    onSelectedIndexChange?.(clamped);
-    const nextPage = Math.floor(clamped / pageSize);
-    setPage(nextPage);
-  }
 
   function choose(idx: number) {
     if (!selectable) return;
