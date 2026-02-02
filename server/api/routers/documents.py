@@ -5,7 +5,6 @@ import pathlib
 import numpy as np
 import pandas as pd
 import math
-import traceback
 
 from collections import defaultdict, Counter
 from schemas.schemas import DocumentResponse, DocumentCreate , JsonCreate
@@ -2075,6 +2074,114 @@ def get_document_versions(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching document versions: {str(e)}")
 
+@router.get("/workflow-documents")
+def get_documents_by_workflow_and_types(
+    workflow_id: int = Query(..., description="Workflow ID"),
+    document_types: str = Query(..., description="Comma-separated document types (e.g., 'monthly_historical_mev,quarterly_historical_mev')"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get documents filtered by workflow ID and document types.
+    """
+    try:
+        # Parse comma-separated document types
+        doc_types_list = [doc_type.strip() for doc_type in document_types.split(',') if doc_type.strip()]
+        
+        if not doc_types_list:
+            return JSONResponse(
+                status_code=400, 
+                content={"detail": "At least one document type must be provided"}
+            )
+        
+        # Get workflow details from workflow_id
+        from models.models import Workflow
+        workflow = db.query(Workflow).filter(
+            Workflow.id == workflow_id,
+            Workflow.user_id == current_user.id
+        ).first()
+        
+        if not workflow:
+            return JSONResponse(
+                status_code=404, 
+                content={"detail": f"Workflow with ID {workflow_id} not found"}
+            )
+
+        print(workflow)
+        
+        # Build query to get only the first (most recent) document of each document_type
+        from sqlalchemy import func
+        
+        # Use window function to get the latest document of each type
+        from sqlalchemy import func, desc
+        
+        # Subquery with ROW_NUMBER to get only the first (latest) document per type
+        latest_docs_subquery = (
+            db.query(
+                Document.id,
+                Document.document_type,
+                Document.created_at,
+                func.row_number().over(
+                    partition_by=Document.document_type,
+                    order_by=[desc(Document.created_at), desc(Document.id)]
+                ).label("rn")
+            )
+            .filter(
+                Document.workflow_id == workflow_id,
+                Document.user_id == current_user.id,
+                Document.document_type.in_(doc_types_list)
+            )
+            .subquery()
+        )
+        
+        # Main query to get only the first document of each type (rn = 1)
+        query = db.query(Document).join(
+            latest_docs_subquery,
+            Document.id == latest_docs_subquery.c.id
+        ).filter(
+            latest_docs_subquery.c.rn == 1
+        )
+        
+        documents = query.order_by(Document.created_at.desc()).all()
+        
+        if not documents:
+            return JSONResponse(
+                status_code=404, 
+                content={"detail": f"No documents found for workflow_id={workflow_id} with document_types={document_types}"}
+            )
+        
+        # Format response
+        result = []
+        for doc in documents:
+            result.append({
+                "id": doc.id,
+                "filename": doc.filename,
+                "workflow_path": doc.workflow_path,
+                "workflow_id": workflow_id,
+                "version": doc.version,
+                "document_type": doc.document_type,
+                "created_at": doc.created_at.isoformat() if doc.created_at else None,
+                "has_json_data": bool(doc.json_data)
+            })
+        
+        return JSONResponse(content={
+            "code": 1,
+            "msg": "Success",
+            "success": True,
+            "data": result,
+        })
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Something went wrong: {str(e)}",
+                "data": None
+            }
+        )
+
 @router.get("/{document_id}")
 def get_document_by_id(
     document_id: int,
@@ -2367,111 +2474,7 @@ def get_document_by_id(
 
     return response
 
-@router.get("/workflow-documents")
-def get_documents_by_workflow_and_types(
-    workflow_id: int = Query(..., description="Workflow ID"),
-    document_types: str = Query(..., description="Comma-separated document types (e.g., 'monthly_historical_mev,quarterly_historical_mev')"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get documents filtered by workflow ID and document types.
-    """
-    try:
-        # Parse comma-separated document types
-        doc_types_list = [doc_type.strip() for doc_type in document_types.split(',') if doc_type.strip()]
-        
-        if not doc_types_list:
-            return JSONResponse(
-                status_code=400, 
-                content={"detail": "At least one document type must be provided"}
-            )
-        
-        # Get workflow details from workflow_id
-        from models.models import Workflow
-        workflow = db.query(Workflow).filter(
-            Workflow.id == workflow_id,
-            Workflow.user_id == current_user.id
-        ).first()
-        
-        if not workflow:
-            return JSONResponse(
-                status_code=404, 
-                content={"detail": f"Workflow with ID {workflow_id} not found"}
-            )
-        
-        # Build query to get only the first (most recent) document of each document_type
-        from sqlalchemy import func
-        
-        # Use window function to get the latest document of each type
-        from sqlalchemy import func, desc
-        
-        # Subquery with ROW_NUMBER to get only the first (latest) document per type
-        latest_docs_subquery = (
-            db.query(
-                Document.id,
-                Document.document_type,
-                Document.created_at,
-                func.row_number().over(
-                    partition_by=Document.document_type,
-                    order_by=[desc(Document.created_at), desc(Document.id)]
-                ).label("rn")
-            )
-            .filter(
-                Document.workflow_id == workflow_id,
-                Document.user_id == current_user.id,
-                Document.document_type.in_(doc_types_list)
-            )
-            .subquery()
-        )
-        
-        # Main query to get only the first document of each type (rn = 1)
-        query = db.query(Document).join(
-            latest_docs_subquery,
-            Document.id == latest_docs_subquery.c.id
-        ).filter(
-            latest_docs_subquery.c.rn == 1
-        )
-        
-        documents = query.order_by(Document.created_at.desc()).all()
-        
-        if not documents:
-            return JSONResponse(
-                status_code=404, 
-                content={"detail": f"No documents found for workflow_id={workflow_id} with document_types={document_types}"}
-            )
-        
-        # Format response
-        result = []
-        for doc in documents:
-            result.append({
-                "id": doc.id,
-                "filename": doc.filename,
-                "workflow_path": doc.workflow_path,
-                "workflow_id": workflow_id,
-                "version": doc.version,
-                "document_type": doc.document_type,
-                "created_at": doc.created_at.isoformat() if doc.created_at else None,
-                "has_json_data": bool(doc.json_data)
-            })
-        
-        return JSONResponse(content={
-            "code": 1,
-            "msg": "Success",
-            "success": True,
-            "data": result,
-        })
-        
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "code": -1,
-                "success": False,
-                "msg": f"Something went wrong: {str(e)}",
-                "data": None
-            }
-        )
+
 
 
 

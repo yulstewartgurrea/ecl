@@ -353,7 +353,7 @@ async def upload_file(
                     json_data=file_data_json,
                     document_type=document_type,
                     version=1,
-                    workflow_id=workflow_id or 0
+                    workflow_id=workflow_id
                 )
                 db.add(new_document)
                 db.commit()
