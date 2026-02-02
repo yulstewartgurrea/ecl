@@ -163,7 +163,7 @@ export function ModelCompareGrid({
       </div>
 
       {/* Cards grid */}
-      <div className="grid gap-6 pb-4 pt-1 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-8 pb-4 pt-2 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
         {visibleModels.map((m, i) => {
           const globalIndex = pageStart + i;
           return (
@@ -214,7 +214,7 @@ function SelectableCard({
           onSelect();
         }
       }}
-      className={`min-w-[360px] max-w-[480px] flex-1 scroll-mx-4 rounded-2xl border bg-white p-4 transition-all ${border} ${ring}`}
+      className={`min-w-[360px] max-w-[520px] flex-1 scroll-mx-4 rounded-2xl border bg-white p-5 transition-all ${border} ${ring}`}
       style={{ scrollSnapAlign: "start" }}
     >
       {/* Selection pill */}
