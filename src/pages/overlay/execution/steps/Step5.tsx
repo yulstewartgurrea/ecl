@@ -334,12 +334,8 @@ const Step5: React.FC = () => {
         <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h3 className="text-2xl font-bold text-gray-900">
-              Overlay Multiplier Calculation
+              Overlay Multiplier Calculate
             </h3>
-            <p className="text-sm text-gray-600">
-              Calculate the overlay multiplier by comparing the forecasted PDs
-              against the latest observed default rate (ODR) as of the report date.
-            </p>
           </div>
 
           <div className="hidden md:flex items-center gap-3">

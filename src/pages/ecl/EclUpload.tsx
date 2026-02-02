@@ -150,17 +150,16 @@ const FlowrateApproachPage = () => {
     }
   };
 
+  const currentStepLabel = developmentSteps[activeSubStep]?.label ?? "Step";
+
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-20 ">
         <div className="mx-auto px-6 py-4 flex items-center justify-between bg-white">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              Credit Loss Rate
+              {currentStepLabel}
             </h1>
-            <p className="text-xs text-gray-800">
-              This page shows the forward-looking credit loss rates by applying the overlay multipliers to the historical loss rates for each aging category under each scenario. The scenario probability weights are also input in this sheet.
-            </p>
           </div>
           {activeSubStep === developmentSteps.length - 1 && (
             <button

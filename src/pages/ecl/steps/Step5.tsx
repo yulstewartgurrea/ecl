@@ -304,7 +304,7 @@ export default function Step5() {
             </div>
             <div className="min-w-0">
               <h1 className="text-sm font-semibold text-amber-900">
-                Forward-Looking Credit Loss Rate (Probability Weights)
+                Credit Loss Rate
               </h1>
               <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
                 Enter the scenario probability weights then submit. If successful, the system will

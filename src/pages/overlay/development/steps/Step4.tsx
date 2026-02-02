@@ -61,8 +61,8 @@ function toCsv(headers: string[], rows: Row[]): string {
 }
 
 const Step4: React.FC<Step4Props> = ({
-  title = "Multi-Factor Analysis  Regression Results",
-  description = "Run the analysis, then browse paginated results. Use column filters for quick sensitivity checks.",
+  title = "Multi Factor Analysis",
+  description = "",
 }) => {
   const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
     useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
@@ -654,7 +654,9 @@ const Step4: React.FC<Step4Props> = ({
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          <p className="mt-1 max-w-3xl text-sm text-neutral-600">{description}</p>
+          {description ? (
+            <p className="mt-1 max-w-3xl text-sm text-neutral-600">{description}</p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

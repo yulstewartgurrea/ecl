@@ -155,7 +155,7 @@ export default function Step4() {
             </div>
             <div className="min-w-0">
               <h1 className="text-sm font-semibold text-amber-900">
-                Graphical View of Portfolio ECL
+                Output
               </h1>
               
               <p className="mt-1 text-[11px] leading-relaxed text-amber-900/90">

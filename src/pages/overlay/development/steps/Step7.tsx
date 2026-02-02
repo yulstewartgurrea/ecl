@@ -371,12 +371,8 @@ const Step7: React.FC = () => {
         {/* Title */}
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Selected Model Summary
+            Final Model
           </h1>
-          <p className="mt-1 text-neutral-700">
-            You chose <span className="font-semibold">{model.title}</span> in
-            Step 6.
-          </p>
         </div>
 
         {err && (

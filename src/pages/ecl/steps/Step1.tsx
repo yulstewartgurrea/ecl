@@ -487,16 +487,8 @@ export default function Step1() {
         <div className="flex items-center justify-between px-5 py-4 ">
           <div>
             <h3 className="text-lg font-bold tracking-tight text-gray-900">
-              Execution Input Files
+              Inputs
             </h3>
-            <p className="text-xs text-gray-500">
-              Upload your datasets. Accepted types:{" "}
-              <span className="font-medium">{accept}</span>
-            </p>
-            <p className="text-[11px] text-gray-400 mt-1">
-              Workflow Name:{" "}
-              <span className="font-mono">{workflowName || ""}</span>
-            </p>
           </div>
 
           <div className="flex items-center gap-2">
