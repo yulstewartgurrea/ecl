@@ -16,8 +16,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # os: [ubuntu-latest, windows-latest, macos-latest]
-        os: [windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        # os: [windows-latest]
         
     steps:
     - name: Checkout code
@@ -44,7 +44,8 @@ jobs:
     - name: Install system dependencies (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        brew install webkit2gtk gtk+3 libappindicator-gtk3 libssl
+        # Tauri on macOS uses native frameworks and doesn't require additional system dependencies
+        echo "No additional dependencies needed for macOS"
       
     - name: Cache Rust dependencies
       uses: actions/cache@v4
