@@ -87,14 +87,19 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
                 continue
             
             # comapare column from finals model column if it has lag values
+            col_lag = None
             for x_key, x_val in final_models_data.items():
-                temp_col = col.split(' ')[1]
+                temp_col = col.split(' ')[1] if len(col.split(' ')) > 1 else None
 
                 if temp_col and temp_col in x_val:
                     col_lag = x_val
+                    break
                     
             # Check if column name contains lag pattern (e.g., "lag.6" or "lag_6")
             # This identifies columns that need lag transformation
+            if col_lag is None:
+                continue
+                
             lag_match = lag_pattern.search(col_lag)
             print(lag_match)
             if lag_match:
@@ -133,12 +138,17 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
                     
                     # Get values from base column and apply natural logarithm for lag columns
                     # Lag transformations typically use log-transformed values for modeling
-                    lag_values = merged[base_col].copy()
+                    # Ensure we get a Series, not a DataFrame (handle potential duplicate columns)
+                    lag_values = merged[base_col]
+                    if isinstance(lag_values, pd.DataFrame):
+                        # If it's a DataFrame, take the first column or squeeze it
+                        lag_values = lag_values.iloc[:, 0] if lag_values.shape[1] > 0 else pd.Series()
+                    lag_values = lag_values.copy()
                     
                     # Convert to numeric if needed (handle percentage strings)
                     # Remove "%" character if present before converting to numeric
                     # This handles cases where values are stored as "5%" instead of 0.05
-                    if lag_values.dtype == 'object':
+                    if isinstance(lag_values, pd.Series) and lag_values.dtype == 'object':
                         lag_values = lag_values.astype(str).str.replace('%', '', regex=False)
                     lag_values = pd.to_numeric(lag_values, errors='coerce')
                     
