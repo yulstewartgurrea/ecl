@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development
 async def start_model_filtering(
     workload_id: int = Form(...),
     filter_list: str = Form(...),  # JSON string that will be parsed
+    num_of_vars: int = Form(2, description="Number of variables taken"),
     current_user: User = Depends(get_current_user)
 ):
     try:
@@ -53,7 +54,6 @@ async def start_model_filtering(
         
         portfolio = workflow.loan_product
         ODR = "odr.logit"
-        num_of_vars = 2
 
         data_transformation_path = (
             f"{get_root_folder()}/files/"
@@ -117,6 +117,7 @@ async def start_model_filtering(
 @router.get("/filtering_models")
 async def get_filtered_results(
     workflow_id: int = Query(..., description="Workflow ID"),
+    num_of_vars: int = Query(2, description="Number of variables taken"),
     page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     page_size: int = Query(100, ge=1, le=1000, description="Number of rows per page (max 1000)"),
     current_user: User = Depends(get_current_user)
@@ -147,7 +148,6 @@ async def get_filtered_results(
 
             portfolio = workflow.loan_product
             ODR = "odr.logit"
-            num_of_vars = 2
             
             filtering_of_models_path = (
                 f"{get_root_folder()}/files/"
@@ -158,7 +158,7 @@ async def get_filtered_results(
             )
             
             filtering_of_models_file = max(
-                Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{num_of_vars}_var*"),
+                Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{num_of_vars}_var_*"),
                 key=lambda p: p.stat().st_mtime,   # last modified time
                 default=None
             )
@@ -242,6 +242,7 @@ async def get_filtered_results(
 async def get_mfa_file_headers(
     workflow_id: int = Query(..., description="Workflow ID"),
     filename: str = Query("001.csv", description="Filename to read (e.g., 001.csv)"),
+    num_of_vars: int = Query(2, description="Number of variables taken"),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -290,9 +291,12 @@ async def get_mfa_file_headers(
                 )
 
             folder_path = Path(multifactor_analysis_output_path)
+
+            print(folder_path, num_of_vars)
             
             # Look for folders matching the pattern
-            mfa_folders = list(folder_path.glob(f"{portfolio}_mfa_*_*-var_*"))
+            mfa_folders = list(folder_path.glob(f"{portfolio}_mfa_*_{num_of_vars}-var_*"))
+            print('mfa \n', mfa_folders)
             
             if not mfa_folders:
                 return JSONResponse(
@@ -365,6 +369,7 @@ async def get_mfa_file_headers(
 @router.get("/filtering_models/export")
 async def export_filtered_results(
     workflow_id: int = Query(..., description="Workflow ID"),
+    num_of_vars: int = Query(2, description="Number of variables taken"),
     current_user: User = Depends(get_current_user)
 ):
     """Export the latest filtered models CSV based on the same logic as the GET endpoint."""
@@ -388,7 +393,6 @@ async def export_filtered_results(
 
         portfolio = workflow.loan_product
         ODR = "odr.logit"
-        num_of_vars = 2
         
         filtering_of_models_path = (
             f"{get_root_folder()}/files/"
@@ -399,7 +403,7 @@ async def export_filtered_results(
         )
 
         filtering_of_models_file = max(
-            Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{num_of_vars}_var*"),
+            Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{num_of_vars}_var_*"),
             key=lambda p: p.stat().st_mtime,   # last modified time
             default=None
         )

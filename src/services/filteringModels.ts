@@ -83,13 +83,17 @@ export async function postFilteringModels(opts: {
   token?: string | null;
   workflowId: number;
   filter_list?: FilterRule[];
+  num_vars_taken?: number;
 }): Promise<ApiEnvelope<unknown>> {
-  const { apiBase, token, workflowId, filter_list } = opts;
+  const { apiBase, token, workflowId, filter_list, num_vars_taken } = opts;
   if (!Number.isFinite(workflowId)) throw new Error("workflowId must be a finite number");
 
   const url = `${base(apiBase)}/api/overlay/development/filtering_models`;
   const form = new FormData();
   form.append("workload_id", String(workflowId));
+  if (num_vars_taken !== undefined) {
+    form.append("num_of_vars", String(num_vars_taken));
+  }
   if (filter_list && filter_list.length > 0) {
     // Convert filter array to JSON string - include operator
     const filterArray = filter_list.map(f => ({ 
@@ -125,6 +129,7 @@ export async function getFilteringModels(opts: {
   workflowId: number;
   page?: number;
   page_size?: number;
+  num_vars_taken?: number;
 }): Promise<{
   envelope: ApiEnvelope<FilteringPayload>;
   rows: FilteringRow[];
@@ -138,13 +143,16 @@ export async function getFilteringModels(opts: {
     has_previous: boolean;
   };
 }> {
-  const { apiBase, token, workflowId, page = 1, page_size = 100 } = opts;
+  const { apiBase, token, workflowId, page = 1, page_size = 100, num_vars_taken } = opts;
   const qs = new URLSearchParams({
     workflow_id: String(workflowId),
     page: String(page),
     page_size: String(page_size),
-  }).toString();
-  const url = `${base(apiBase)}/api/overlay/development/filtering_models?${qs}`;
+  });
+  if (num_vars_taken !== undefined) {
+    qs.append("num_of_vars", String(num_vars_taken));
+  }
+  const url = `${base(apiBase)}/api/overlay/development/filtering_models?${qs.toString()}`;
 
   const res = await xfetch(url, {
     method: "GET",
