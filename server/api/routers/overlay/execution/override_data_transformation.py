@@ -477,15 +477,20 @@ async def get_override_data_transformation_mevs_input(
             # removed T in Date
             filtered_df['Date'] = filtered_df['Date'].dt.strftime("%m/%d/%Y")
 
-            return {
+            response_data = {
                 'code': 1,
                 'success': True,
                 'data': {
                     'period': data_transformation_periods,
-                    'variables': x_cols,
+                    'variables': list(x_cols),  # Convert set to list for JSON serialization
                     'default_values': filtered_df.to_dict(orient='records')
                 }
             }
+            
+            # Convert NaN values to None for JSON serialization
+            response_data = make_json_serializable(response_data)
+            
+            return response_data
         finally:
             db.close()
 
