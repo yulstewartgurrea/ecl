@@ -7,7 +7,11 @@ type Props = {
   headers: string[];
   open: boolean;
   onClose: () => void;
-  onApply?: (rules: FilterRule[]) => void; // returns SELECTED + DEFAULT(0) rules
+  onApply?: (rules: FilterRule[], num_vars_taken?: number) => void; // returns SELECTED + DEFAULT(0) rules and num_vars_taken
+  initialNumVarsTaken?: number; // Initial value for num_vars_taken
+  token?: string | null; // Auth token for API calls
+  apiBase?: string; // API base URL
+  onHeadersUpdate?: (headers: string[]) => void; // Callback to update headers in parent
 };
 
 function uid() {
@@ -25,10 +29,13 @@ const isNumeric = (v: string) => {
   return Number.isFinite(n);
 };
 
-const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onClose, onApply }) => {
+const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onClose, onApply, initialNumVarsTaken = 2, token, apiBase = "http://localhost:8000", onHeadersUpdate }) => {
   const listId = useId();
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<FilterRule[]>([]);
+  const [num_vars_taken, setNum_vars_taken] = useState<number>(initialNumVarsTaken);
+  const [loadingHeaders, setLoadingHeaders] = useState(false);
+  const [localHeaders, setLocalHeaders] = useState<string[]>(headers);
   const firstInputRef = useRef<HTMLInputElement | null>(null);
 
   // row scrolling + highlight support
@@ -46,16 +53,56 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
           ? existing
           : [{ id: uid(), column: "", operator: ">", value: "" }]
       );
+      setNum_vars_taken(initialNumVarsTaken);
+      setLocalHeaders(headers);
       setInvalidValueIds(new Set());
       setTimeout(() => firstInputRef.current?.focus(), 50);
     }
-  }, [open, workflowId]);
+  }, [open, workflowId, initialNumVarsTaken, headers]);
+
+  // Sync localHeaders when headers prop changes
+  useEffect(() => {
+    setLocalHeaders(headers);
+  }, [headers]);
 
   const filteredHeaders = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return headers;
-    return headers.filter((h) => h.toLowerCase().includes(q));
-  }, [headers, search]);
+    if (!q) return localHeaders;
+    return localHeaders.filter((h) => h.toLowerCase().includes(q));
+  }, [localHeaders, search]);
+
+  // Fetch headers from API
+  const fetchHeaders = async () => {
+    if (!Number.isFinite(Number(workflowId)) || !token) {
+      return;
+    }
+
+    setLoadingHeaders(true);
+    try {
+      const url = `${apiBase}/api/overlay/development/filtering_models/mfa_file/headers/?workflow_id=${encodeURIComponent(Number(workflowId))}&num_of_vars=${encodeURIComponent(num_vars_taken)}`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        console.warn("Failed to fetch MFA headers");
+        return;
+      }
+
+      const data = await res.json();
+      const apiHeaders = data?.data?.headers || [];
+      setLocalHeaders(apiHeaders);
+      onHeadersUpdate?.(apiHeaders);
+    } catch (e: any) {
+      console.warn("Error fetching MFA headers:", e);
+    } finally {
+      setLoadingHeaders(false);
+    }
+  };
 
   // usage map to mark active chips
   const usageCount = useMemo(() => {
@@ -170,7 +217,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
     // 3) Only send selected rules - no defaults
     // Persist ONLY the explicitly selected rules (so the UI stays clean next open)
     saveFilters(workflowId, selected);
-    onApply?.(selected);
+    onApply?.(selected, num_vars_taken);
     onClose();
   }
 
@@ -207,6 +254,50 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
         {/* Body (scrolls) */}
         <div className="flex-1 overflow-auto p-4">
           <div className="grid gap-4">
+            {/* Number of variables per combination */}
+            <div>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label htmlFor="num_vars_taken" className="block text-sm font-medium text-gray-700 mb-2">
+                    Number of variables per combination
+                  </label>
+                  <input
+                    id="num_vars_taken"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={num_vars_taken}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Only allow positive integers
+                      if (value === "" || (Number.isInteger(Number(value)) && Number(value) > 0)) {
+                        setNum_vars_taken(value === "" ? 2 : Number(value));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Prevent decimal point, negative sign, and 'e' key
+                      if (e.key === '.' || e.key === '-' || e.key === 'e' || e.key === 'E') {
+                        e.preventDefault();
+                      }
+                    }}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    placeholder="Enter number of variables per combination"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Must be a positive integer (default: 2)
+                  </p>
+                </div>
+                <button
+                  onClick={fetchHeaders}
+                  disabled={loadingHeaders || !Number.isFinite(Number(workflowId)) || !token}
+                  className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
+                  title="Fetch headers from API"
+                >
+                  {loadingHeaders ? "Loading..." : "Set Headers"}
+                </button>
+              </div>
+            </div>
+
             {/* Search + add */}
             <div className="flex flex-col gap-2 md:flex-row md:items-center">
               <div className="relative flex-1">
@@ -261,7 +352,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
 
             {/* Datalist provider for column input autocomplete */}
             <datalist id={listId}>
-              {headers.map((h) => (
+              {localHeaders.map((h) => (
                 <option key={h} value={h} />
               ))}
             </datalist>

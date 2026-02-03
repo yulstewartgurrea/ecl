@@ -142,6 +142,7 @@ const Step5: React.FC<Step5Props> = ({
   const [selectedFilters, setSelectedFilters] = useState<FilterRule[]>([]);
   const [payloadFilters, setPayloadFilters] = useState<FilterRule[]>([]);
   const [configOpen, setConfigOpen] = useState(false);
+  const [num_vars_taken, setNum_vars_taken] = useState<number>(2);
 
   // Export states
   const [exporting, setExporting] = useState(false);
@@ -175,6 +176,7 @@ const Step5: React.FC<Step5Props> = ({
         workflowId: wf,
         page: currentPage,
         page_size: pageSize,
+        num_vars_taken: num_vars_taken,
       });
       setRows(rows ?? []);
       setTotal(total);
@@ -191,7 +193,7 @@ const Step5: React.FC<Step5Props> = ({
     } finally {
       setLoading(false);
     }
-  }, [selectedWorkflowId, token, currentPage, pageSize]);
+  }, [selectedWorkflowId, token, currentPage, pageSize, num_vars_taken]);
 
   // Fetch MFA headers from API - wait for this to complete before setting headers
   const fetchMfaHeaders = useCallback(async () => {
@@ -201,7 +203,7 @@ const Step5: React.FC<Step5Props> = ({
     }
 
     try {
-      const url = `${API_BASE}/api/overlay/development/filtering_models/mfa_file/headers?workflow_id=${encodeURIComponent(wf)}`;
+      const url = `${API_BASE}/api/overlay/development/filtering_models/mfa_file/headers?workflow_id=${encodeURIComponent(wf)}&num_of_vars=${encodeURIComponent(num_vars_taken)}`;
       const res = await fetch(url, {
         method: "GET",
         headers: {
@@ -222,7 +224,7 @@ const Step5: React.FC<Step5Props> = ({
       console.warn("Error fetching MFA headers:", e);
       return [];
     }
-  }, [selectedWorkflowId, token]);
+  }, [selectedWorkflowId, token, num_vars_taken]);
 
   // Load headers + selected on workflow change; wait for MFA headers API to load
   useEffect(() => {
@@ -235,6 +237,7 @@ const Step5: React.FC<Step5Props> = ({
       setSelectedRowsCount(0);
       setCurrentPage(1);
       setPagination(null);
+      setNum_vars_taken(2);
       return;
     }
     const wf = Number(selectedWorkflowId);
@@ -270,6 +273,26 @@ const Step5: React.FC<Step5Props> = ({
     loadHeadersAsync();
   }, [selectedWorkflowId, persistedSelected, fetchMfaHeaders]);
 
+  // Refetch headers when num_vars_taken changes (after user applies config)
+  useEffect(() => {
+    if (!Number.isFinite(selectedWorkflowId)) return;
+    const wf = Number(selectedWorkflowId);
+    
+    const refetchHeadersAsync = async () => {
+      // Fetch MFA headers from API with new num_vars_taken
+      const apiHeaders = await fetchMfaHeaders();
+      
+      // Load captured headers from Step 4
+      const captured = loadHeaders(wf);
+      
+      // Merge captured headers with API headers
+      const merged = uniqCaseInsensitive([...captured, ...apiHeaders]);
+      setHeaders(merged);
+    };
+    
+    refetchHeadersAsync();
+  }, [num_vars_taken, selectedWorkflowId, fetchMfaHeaders]);
+
   // Auto-fetch results on mount & whenever workflow/page/pageSize changes
   useEffect(() => {
     const wf = Number(selectedWorkflowId);
@@ -289,7 +312,7 @@ const Step5: React.FC<Step5Props> = ({
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [selectedWorkflowId, fetchFilteringResults]);
-  function handleApplyFilters(selectedRules: FilterRule[]) {
+  function handleApplyFilters(selectedRules: FilterRule[], numVarsTaken?: number) {
     // Only use selected rules - no defaults, ensure operator is always present
     const filteredRules = selectedRules
       .filter((r) => r.value && r.value !== "0")
@@ -298,6 +321,9 @@ const Step5: React.FC<Step5Props> = ({
         operator: r.operator || ">", // Ensure operator is always present
       }));
     setPayloadFilters(filteredRules);
+    if (numVarsTaken !== undefined) {
+      setNum_vars_taken(numVarsTaken);
+    }
     if (Number.isFinite(selectedWorkflowId)) {
       setSelectedFilters(loadFilters(Number(selectedWorkflowId)));
     }
@@ -339,6 +365,7 @@ const Step5: React.FC<Step5Props> = ({
             value: f.value, 
             operator: f.operator || ">" // Ensure operator is always present, default to ">"
           })),
+        num_vars_taken: num_vars_taken,
       });
       // Reset to page 1 after applying filters
       setCurrentPage(1);
@@ -401,7 +428,7 @@ const Step5: React.FC<Step5Props> = ({
     try {
       const url = `${API_BASE}/api/overlay/development/filtering_models/export/?workflow_id=${encodeURIComponent(
         String(selectedWorkflowId)
-      )}`;
+      )}&num_of_vars=${encodeURIComponent(num_vars_taken)}`;
 
       const res = await fetch(url, {
         method: "GET",
@@ -557,7 +584,7 @@ const Step5: React.FC<Step5Props> = ({
       <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={() => setConfigOpen(true)}
-          disabled={!Number.isFinite(selectedWorkflowId) || headers.length === 0}
+          // disabled={!Number.isFinite(selectedWorkflowId) || headers.length === 0}
           className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
           title={headers.length === 0 ? "Run Step 4 first to capture headers" : "Configure filters"}
         >
@@ -791,6 +818,20 @@ const Step5: React.FC<Step5Props> = ({
         open={configOpen}
         onClose={() => setConfigOpen(false)}
         onApply={handleApplyFilters} // gets FULL payload; badge reads selected from storage
+        initialNumVarsTaken={num_vars_taken}
+        token={token}
+        apiBase={API_BASE}
+        onHeadersUpdate={(newHeaders) => {
+          // Merge API headers with captured headers from Step 4
+          const wf = Number(selectedWorkflowId);
+          if (Number.isFinite(wf)) {
+            const captured = loadHeaders(wf);
+            const merged = uniqCaseInsensitive([...captured, ...newHeaders]);
+            setHeaders(merged);
+          } else {
+            setHeaders(newHeaders);
+          }
+        }}
       />
     </div>
   );
