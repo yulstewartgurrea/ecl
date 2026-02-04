@@ -2,6 +2,7 @@ export type NormalizedUploadError = {
   title: string;
   userMessage: string;
   userAction: string;
+  issueMessages?: string[];
   debugDetails?: string;
 };
 
@@ -41,6 +42,30 @@ function pickMessage(obj: any): string | undefined {
   }
 
   return undefined;
+}
+
+function extractValidationIssues(input: unknown): string[] {
+  if (!input || typeof input !== "object") return [];
+
+  const obj: any = input;
+  const vr = obj?.data?.validation_results || obj?.validation_results;
+  const issues = Array.isArray(vr?.issues) ? vr.issues : [];
+
+  const messages = issues
+    .map((issue: any) => {
+      const msg = asString(issue?.message);
+      if (msg) return msg;
+
+      const column = asString(issue?.column);
+      const type = asString(issue?.type);
+      if (column && type) return `Column "${column}" has issue: ${type}`;
+      if (column) return `Column "${column}" has an issue`;
+      if (type) return `Issue type: ${type}`;
+      return undefined;
+    })
+    .filter((m): m is string => Boolean(m));
+
+  return messages;
 }
 
 function buildDebugDetails(input: unknown): string | undefined {
@@ -89,6 +114,7 @@ export function normalizeUploadError(input: unknown): NormalizedUploadError {
     title: "Upload failed",
     userMessage: message || DEFAULT_MESSAGE,
     userAction: DEFAULT_ACTION,
+    issueMessages: extractValidationIssues(input),
     debugDetails: buildDebugDetails(input),
   };
 }
