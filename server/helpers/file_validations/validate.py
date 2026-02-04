@@ -43,14 +43,18 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp
     }
     
     # Get the validation type for this document
+    print('DOCUMENT TYPE', document_type)
     validation_type = validation_routing.get(document_type, "generic")
     
     # Route to appropriate validation function
     if validation_type == "flowrate":
+        print('FLOWRATE VALIDATION')
         return validate_flowrate_document(df, document_type, file_name, temp_path)
     elif validation_type == "ecl":
+        print('ECL VALIDATION')
         return validate_ecl_document(df, document_type, file_name, temp_path)
     else:
+        print('GENERIC VALIDATION')
         return validate_generic_document(df, document_type, file_name)
 
 
