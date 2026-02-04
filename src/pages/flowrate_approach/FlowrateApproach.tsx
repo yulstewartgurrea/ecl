@@ -135,7 +135,6 @@ const FlowrateApproachPage = () => {
     } else {
       dispatch(clearStep5Bundle(undefined));
     }
-    setActiveSubStep(0);
     dispatch(
       setPdTransitionMatrixCurrentStep({
         step: 0,

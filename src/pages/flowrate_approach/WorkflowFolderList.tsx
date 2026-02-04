@@ -58,6 +58,7 @@ const WorkflowFolderList: React.FC<WorkflowFolderListProps> = ({
   };
 
   useEffect(() => {
+    console.log('test')
     fetchContents(currentPath);
     console.log("currentPath:", currentPath);
   }, [currentPath]);

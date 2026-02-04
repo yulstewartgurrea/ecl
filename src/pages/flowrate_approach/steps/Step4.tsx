@@ -111,7 +111,7 @@ export default function Step4() {
     };
   }, [workflowId, cached?.rows, rowsLocal, getStep3Data, dispatch]);
 
-  // ✅ pass raw/dynamic rows to charts
+  // pass raw/dynamic rows to charts
   const sourceRows: CreditLossRateAnyRow[] = (cached?.rows ?? rowsLocal ?? []) as any[];
   const rateSetNames = (cached?.rateSets ?? rateSetsLocal ?? []).map((s: any) => s.name);
 
