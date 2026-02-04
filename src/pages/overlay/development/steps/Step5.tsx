@@ -13,7 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import FilteringConfigModal from "../../../../components/overlay/development/multi_factor/FilteringConfigModal";
-import { loadHeaders, loadFilters, type FilterRule } from "../../../../utils/overlay/headersStorage";
+import { loadHeaders, loadFilters, loadFilterLogic, type FilterRule, type FilterLogic } from "../../../../utils/overlay/headersStorage";
 import {
   selectModuleProgress,
   setModuleProgress,
@@ -128,19 +128,12 @@ const Step5: React.FC<Step5Props> = ({
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
-  const [pagination, setPagination] = useState<{
-    page: number;
-    page_size: number;
-    total_rows: number;
-    total_pages: number;
-    has_next: boolean;
-    has_previous: boolean;
-  } | null>(null);
 
   // split selected vs payload
   const [headers, setHeaders] = useState<string[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<FilterRule[]>([]);
   const [payloadFilters, setPayloadFilters] = useState<FilterRule[]>([]);
+  const [filterLogic, setFilterLogic] = useState<FilterLogic>("AND");
   const [configOpen, setConfigOpen] = useState(false);
   const [num_vars_taken, setNum_vars_taken] = useState<number>(2);
 
@@ -162,7 +155,7 @@ const Step5: React.FC<Step5Props> = ({
   const canRun =
     Number.isFinite(selectedWorkflowId) && selectedCount > 0 && hasAppliedFilters;
 
-  // Stable fetcher with pagination
+  // Stable fetcher (load all pages so filters apply to full dataset)
   const fetchFilteringResults = useCallback(async () => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
@@ -170,7 +163,8 @@ const Step5: React.FC<Step5Props> = ({
     setLoading(true);
     setErrMsg(null);
     try {
-      const { rows, total, pagination } = await getFilteringModels({
+      const pageFetchSize = 1000;
+      const first = await getFilteringModels({
         apiBase: API_BASE,
         token,
         workflowId: wf,
@@ -178,17 +172,23 @@ const Step5: React.FC<Step5Props> = ({
         page_size: pageSize,
         num_vars_taken: num_vars_taken,
       });
-      setRows(rows ?? []);
-      setTotal(total);
-      setPagination(pagination ?? null);
-      if (pagination?.page && pagination.page !== currentPage) {
-        setCurrentPage(pagination.page);
+      let allRows = [...(first.rows ?? [])];
+      const totalPages = first.pagination?.total_pages ?? 1;
+      for (let p = 2; p <= totalPages; p += 1) {
+        const next = await getFilteringModels({
+          apiBase: API_BASE,
+          token,
+          workflowId: wf,
+          page: p,
+          page_size: pageFetchSize,
+        });
+        allRows = allRows.concat(next.rows ?? []);
       }
+      setRows(allRows);
+      setTotal(allRows.length);
     } catch (e: any) {
-      console.log(payloadFilters)
       setRows([]);
       setTotal(undefined);
-      setPagination(null);
       setErrMsg(e?.message || "Failed to fetch filtering results.");
     } finally {
       setLoading(false);
@@ -236,8 +236,8 @@ const Step5: React.FC<Step5Props> = ({
       setHasRunAnalysis(false);
       setSelectedRowsCount(0);
       setCurrentPage(1);
-      setPagination(null);
-      setNum_vars_taken(2);
+      // setPagination(null);
+      setNum_vars_taken(num_vars_taken);
       return;
     }
     const wf = Number(selectedWorkflowId);
@@ -255,9 +255,11 @@ const Step5: React.FC<Step5Props> = ({
       const merged = uniqCaseInsensitive([...captured, ...apiHeaders]);
 
       const sel = loadFilters(wf);
+      const logic = loadFilterLogic(wf);
       setHeaders(merged);
       setSelectedFilters(sel);
       setPayloadFilters(buildPayload(sel));
+      setFilterLogic(logic);
       setHasSavedSelection(Boolean(persistedSelected?.rows?.length));
 
       // Reset gating for new workflow
@@ -267,7 +269,6 @@ const Step5: React.FC<Step5Props> = ({
       setSelectedRows([]);
       setSaveMsg(null);
       setCurrentPage(1);
-      setPagination(null);
     };
 
     loadHeadersAsync();
@@ -294,11 +295,12 @@ const Step5: React.FC<Step5Props> = ({
   }, [num_vars_taken, selectedWorkflowId, fetchMfaHeaders]);
 
   // Auto-fetch results on mount & whenever workflow/page/pageSize changes
+
   useEffect(() => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
     fetchFilteringResults();
-  }, [selectedWorkflowId, currentPage, pageSize, fetchFilteringResults]);
+  }, [selectedWorkflowId, fetchFilteringResults]);
 
   // MFA headers are now loaded when workflow changes, no need to fetch again when modal opens
 
@@ -312,7 +314,7 @@ const Step5: React.FC<Step5Props> = ({
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [selectedWorkflowId, fetchFilteringResults]);
-  function handleApplyFilters(selectedRules: FilterRule[], numVarsTaken?: number) {
+  function handleApplyFilters(selectedRules: FilterRule[], numVarsTaken?: number, logic?: FilterLogic) {
     // Only use selected rules - no defaults, ensure operator is always present
     const filteredRules = selectedRules
       .filter((r) => r.value && r.value !== "0")
@@ -324,6 +326,9 @@ const Step5: React.FC<Step5Props> = ({
     if (numVarsTaken !== undefined) {
       setNum_vars_taken(numVarsTaken);
     }
+    if (logic !== undefined) {
+      setFilterLogic(logic);
+    }
     if (Number.isFinite(selectedWorkflowId)) {
       setSelectedFilters(loadFilters(Number(selectedWorkflowId)));
     }
@@ -331,10 +336,10 @@ const Step5: React.FC<Step5Props> = ({
     setHasRunAnalysis(false);
     setCurrentPage(1);
     setSaveMsg(null);
-    handleRunFiltering(filteredRules);
+    handleRunFiltering(filteredRules, logic);
   }
 
-  async function handleRunFiltering(filtersToUse?: FilterRule[]) {
+  async function handleRunFiltering(filtersToUse?: FilterRule[], logicOverride?: FilterLogic) {
     if (!Number.isFinite(selectedWorkflowId)) {
       setErrMsg("Missing or invalid selectedWorkflowId.");
       return;
@@ -353,11 +358,13 @@ const Step5: React.FC<Step5Props> = ({
     try {
       // Use filtersToUse if provided (from handleApplyFilters), otherwise use payloadFilters state
       const filters = filtersToUse || payloadFilters;
+      const logic = logicOverride || filterLogic || "AND";
       // Send workload_id and filter in the payload - only selected filters, no defaults
       await postFilteringModels({
         apiBase: API_BASE,
         token,
         workflowId: Number(selectedWorkflowId),
+        filter_logic: logic,
         filter_list: filters
           .filter((f) => f.value && f.value !== "0") // Only include filters with non-zero values
           .map((f) => ({ 
@@ -579,6 +586,26 @@ const Step5: React.FC<Step5Props> = ({
     setFiltered(filtered);
   }, []);
 
+  const clientPagination = useMemo(() => {
+    const totalRows = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+    const page = Math.min(currentPage, totalPages);
+    return {
+      page,
+      page_size: pageSize,
+      total_rows: totalRows,
+      total_pages: totalPages,
+      has_next: page < totalPages,
+      has_previous: page > 1,
+    };
+  }, [filtered.length, pageSize, currentPage]);
+
+  useEffect(() => {
+    if (currentPage > clientPagination.total_pages) {
+      setCurrentPage(clientPagination.total_pages);
+    }
+  }, [currentPage, clientPagination.total_pages]);
+
   const headerRight = useMemo(
     () => (
       <div className="flex flex-wrap items-center gap-2">
@@ -718,13 +745,13 @@ const Step5: React.FC<Step5Props> = ({
       )}
 
       {/* Controls / pagination */}
-      {pagination && (
+      {clientPagination && (
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <button
               className="cursor-pointer inline-flex items-center gap-1 rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:opacity-50"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={loading || !pagination.has_previous}
+              disabled={loading || !clientPagination.has_previous}
             >
               <ChevronLeftIcon className="h-4 w-4" />
               ← Prev
@@ -736,16 +763,16 @@ const Step5: React.FC<Step5Props> = ({
             <input
               type="number"
               min={1}
-              max={pagination.total_pages}
+              max={clientPagination.total_pages}
               value={currentPage}
               onChange={(e) => {
                 const n = Math.max(1, Number(e.target.value) || 1);
-                setCurrentPage(Math.min(n, pagination.total_pages));
+                setCurrentPage(Math.min(n, clientPagination.total_pages));
               }}
               className="w-16 rounded-md border border-neutral-300 px-2 py-1"
               disabled={loading}
             />
-            <span>/ {pagination.total_pages}</span>
+            <span>/ {clientPagination.total_pages}</span>
           </div>
 
           <div className="ml-auto flex items-center gap-2 text-sm">
@@ -787,14 +814,16 @@ const Step5: React.FC<Step5Props> = ({
           initialSelectedIds={persistedChecked?.ids ?? []}
           getRowId={getRowId}
           onSelectionChange={handleSelectionChange}
+          page={currentPage}
+          pageSize={pageSize}
           emptyMessage="Run analysis (after configuring filters) to see results, then select rows to proceed to Step 6."
         />
       </div>
 
       {/* Footer / counts */}
       <p className="mt-3 text-sm text-neutral-600">
-        {pagination ? (
-          <>Showing {filtered.length} of {pagination.total_rows.toLocaleString()} (page {pagination.page} of {pagination.total_pages}).</>
+        {clientPagination ? (
+          <>Showing {filtered.length} of {clientPagination.total_rows.toLocaleString()} (page {clientPagination.page} of {clientPagination.total_pages}).</>
         ) : (
           <>Showing {filtered.length} of {total ?? rows.length} rows.</>
         )}

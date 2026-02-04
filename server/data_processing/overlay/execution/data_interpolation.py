@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import re
 from datetime import datetime
 from typing import Optional
 import warnings
@@ -15,6 +16,21 @@ def linear_interpolate(x_target: float, x1: float, y1: float, x2: float, y2: flo
     if x2 == x1:
         return y1
     return y1 + (y2 - y1) * (x_target - x1) / (x2 - x1)
+
+
+def parse_quarter_date(value: str) -> Optional[pd.Timestamp]:
+    s = str(value).strip()
+    if not s:
+        return None
+    m = re.match(r"^(\d{4})\s*[-/ ]?\s*Q([1-4])$", s, re.IGNORECASE)
+    if not m:
+        m = re.match(r"^Q([1-4])\s*[-/ ]?\s*(\d{4})$", s, re.IGNORECASE)
+    if not m:
+        return None
+    year = int(m.group(1) if m.group(1).isdigit() else m.group(2))
+    quarter = int(m.group(2) if m.group(2).isdigit() else m.group(1))
+    month = {1: 3, 2: 6, 3: 9, 4: 12}[quarter]
+    return pd.Timestamp(year=year, month=month, day=1) + pd.offsets.MonthEnd(0)
 
 
 def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
@@ -97,8 +113,10 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         df_q = df_quarterly.iloc[data_start_idx:].copy()
         df_q = df_q.reset_index(drop=True)
         
-        # Convert Date to datetime
-        df_q['Date'] = pd.to_datetime(df_q['Date'], errors='coerce')
+        # Convert Date to datetime (support quarter formats)
+        df_q['Date'] = df_q['Date'].apply(
+            lambda v: parse_quarter_date(v) or pd.to_datetime(v, errors='coerce')
+        )
         
         # Remove rows with invalid dates
         df_q = df_q[df_q['Date'].notna()].copy()
@@ -209,7 +227,7 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
             monthly_data_start_idx = len(monthly_df)
         
         print(f"Quarterly data starts at monthly index {monthly_data_start_idx} (date: {quarterly_start_date.strftime('%Y-%m-%d')})")
-        print(f"Months before quarterly data: {monthly_data_start_idx} (will be set to 0)")
+        print(f"Months before quarterly data: {monthly_data_start_idx} (will be set to NaN)")
         
         # Step 7: Interpolate values for each numeric column
         print("\nStep 7: Interpolating values...")
@@ -226,12 +244,12 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
                 monthly_x = row['x']
                 monthly_date = row['Date']
                 
-                # For months before quarterly data starts, set value to 0
+                # For months before quarterly data starts, set value to NaN
                 if idx < monthly_data_start_idx:
-                    interpolated_values.append(0.0)
-                # For months before first December, set value to 0
+                    interpolated_values.append(np.nan)
+                # For months before first December, set value to NaN
                 elif idx < first_dec_idx:
-                    interpolated_values.append(0.0)
+                    interpolated_values.append(np.nan)
                 else:
                     # Starting from first December, perform interpolation
                     # Check if exact match exists (VLOOKUP equivalent)

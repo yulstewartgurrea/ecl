@@ -90,6 +90,12 @@ const Sidebar = () => {
     dispatch(resetStateAuth());
     dispatch(resetPdTransitionMatrixWfHelperData());
     dispatch(resetStateNavUIState());
+    // Clear persisted auth and in-memory uploader caches to avoid stale sessions
+    localStorage.removeItem("persist:root");
+    const g: any = window as any;
+    if (g.__MCU_CACHE__ && typeof g.__MCU_CACHE__.clear === "function") {
+      g.__MCU_CACHE__.clear();
+    }
   };
 
   const handleTabClick = (tabName: string) => {

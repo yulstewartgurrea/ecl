@@ -84,8 +84,9 @@ export async function postFilteringModels(opts: {
   workflowId: number;
   filter_list?: FilterRule[];
   num_vars_taken?: number;
+  filter_logic?: "AND" | "OR";
 }): Promise<ApiEnvelope<unknown>> {
-  const { apiBase, token, workflowId, filter_list, num_vars_taken } = opts;
+  const { apiBase, token, workflowId, filter_list, num_vars_taken, filter_logic } = opts;
   if (!Number.isFinite(workflowId)) throw new Error("workflowId must be a finite number");
 
   const url = `${base(apiBase)}/api/overlay/development/filtering_models`;
@@ -93,6 +94,9 @@ export async function postFilteringModels(opts: {
   form.append("workload_id", String(workflowId));
   if (num_vars_taken !== undefined) {
     form.append("num_of_vars", String(num_vars_taken));
+  }
+  if (filter_logic !== undefined) {
+    form.append("filter_logic", filter_logic ?? "AND");
   }
   if (filter_list && filter_list.length > 0) {
     // Convert filter array to JSON string - include operator

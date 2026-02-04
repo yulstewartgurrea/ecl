@@ -12,6 +12,8 @@ export type FilterRule = {
   operator?: ">" | "<" | ">=" | "<=" | "==" | "!=";
 };
 
+export type FilterLogic = "AND" | "OR";
+
 export function saveHeaders(wfId: number | string, headers: string[]) {
   store.dispatch(
     setModuleProgress({
@@ -50,4 +52,24 @@ export function loadFilters(wfId: number | string): FilterRule[] {
   );
   const data = (entry?.data ?? {}) as Record<string, unknown>;
   return (data.step5Filters as FilterRule[]) ?? [];
+}
+
+export function saveFilterLogic(wfId: number | string, logic: FilterLogic) {
+  store.dispatch(
+    setModuleProgress({
+      moduleKey: "overlayDevelopment",
+      contextKey: String(wfId),
+      data: { step5FilterLogic: logic },
+    })
+  );
+}
+
+export function loadFilterLogic(wfId: number | string): FilterLogic {
+  const entry = selectModuleProgress(
+    store.getState() as any,
+    "overlayDevelopment",
+    String(wfId)
+  );
+  const data = (entry?.data ?? {}) as Record<string, unknown>;
+  return (data.step5FilterLogic as FilterLogic) ?? "AND";
 }

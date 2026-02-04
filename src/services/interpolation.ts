@@ -1,4 +1,7 @@
 let tauriFetchRef: any;
+export function resetInterpolationClient() {
+  tauriFetchRef = null;
+}
 async function xfetch(input: string, init?: RequestInit): Promise<Response> {
   if (!tauriFetchRef) {
     try {
@@ -129,7 +132,12 @@ export function sanitizeInterpolationRows(rows: InterpolationRow[]): Interpolati
   return (rows || [])
     .filter(isDataRow)
     .map((row) => {
-      const out: InterpolationRow = { ...row };
+      const out: InterpolationRow = {};
+      Object.keys(row || {}).forEach((k) => {
+        if (!k) return;
+        if (/^unnamed/i.test(k)) return;
+        out[k] = (row as any)[k];
+      });
       if (!out.period_id) {
         const y = out.year ?? "";
         const m = out.month ?? "";

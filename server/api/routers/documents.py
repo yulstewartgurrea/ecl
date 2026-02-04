@@ -1,4 +1,5 @@
 from typing import List, Optional
+import re
 import json
 import os
 import pathlib
@@ -2150,12 +2151,23 @@ def get_documents_by_workflow_and_types(
                 content={"detail": f"No documents found for workflow_id={workflow_id} with document_types={document_types}"}
             )
         
+        def strip_timestamp(name: str) -> str:
+            base, ext = os.path.splitext(name)
+            m = re.match(r"^(.*)_\d{8}_\d{6}$", base)
+            if not m:
+                return name
+            return f"{m.group(1)}{ext}"
+
         # Format response
         result = []
         for doc in documents:
+            file_path = EXCEL_FILES_DIR / doc.workflow_path / doc.filename
+            size_bytes = file_path.stat().st_size if file_path.exists() else None
             result.append({
                 "id": doc.id,
                 "filename": doc.filename,
+                "original_filename": strip_timestamp(doc.filename),
+                "size_bytes": size_bytes,
                 "workflow_path": doc.workflow_path,
                 "workflow_id": workflow_id,
                 "version": doc.version,

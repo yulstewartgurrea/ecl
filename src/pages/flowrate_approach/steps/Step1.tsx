@@ -8,6 +8,8 @@ import MultiCategoryUploader, {
   type UploadResultsByCategory,
 } from "../../../components/uploader/MultiCategoryUploader";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
+import { useAppDispatch } from "../../../redux_toolkit/hooks";
+import { setModuleProgress } from "../../../redux_toolkit/features/progress/moduleProgressSlice";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -45,6 +47,7 @@ const pathBuilder = (ctx: PathBuilderContext) => {
 };
 
 export default function Step1() {
+  const dispatch = useAppDispatch();
   // Get workflow data + selected fields from Redux
   const {
     currentPdTransitionMatrixWorkflowId,
@@ -169,9 +172,28 @@ export default function Step1() {
     fetchExistingDocuments();
   }, [fetchExistingDocuments]);
 
-  const handleResults = (results: UploadResultsByCategory) => {
-    console.log("Upload results merged:", results);
-  };
+  const handleResults = useCallback(
+    (results: UploadResultsByCategory) => {
+      const requiredKeys = categories.filter((c) => c.required).map((c) => c.key);
+      const isValid = requiredKeys.every((key) => {
+        const rs = results[key] ?? [];
+        const hasSuccess = rs.some((r) => r.success);
+        const hasFailure = rs.some((r) => !r.success);
+        return hasSuccess && !hasFailure;
+      });
+
+      if (workflowId) {
+        dispatch(
+          setModuleProgress({
+            moduleKey: "flowrate",
+            contextKey: `${entity}/${period}/${wfName}/${loanProduct}`,
+            data: { step1Valid: isValid },
+          })
+        );
+      }
+    },
+    [dispatch, workflowId, entity, period, wfName, loanProduct]
+  );
 
   return (
     <div className="min-h-dvh p-4 ">
@@ -182,6 +204,7 @@ export default function Step1() {
         accept=".csv,.xlsx,.xls"
         maxSizeMB={20}
         endpoint="http://localhost:8000/api/document/upload"
+        validateEndpoint="http://localhost:8000/api/document/validate"
         module="FLOWRATE_APPROACH"
         workflowId={String(workflowId)}
         context={context}

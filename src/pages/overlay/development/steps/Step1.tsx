@@ -8,6 +8,7 @@ import type { RootState } from "../../../../redux_toolkit/store";
 import { overlayUploadFile } from "../../../../services/upload";
 
 import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
+import { setModuleProgress } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 import OverlayUploadResultModal, { type IssueRow } from "../../../../components/modals/OverlayUploadResultModal";
 import WorkflowPickerModal from "../../../../components/modals/WorkflowPickerModal";
 
@@ -183,17 +184,16 @@ export default function Step1() {
      Single-file upload helper
   ----------------------------------------------------------- */
   const uploadIndividualFile = useCallback(
-    async (file: File) => {
+    async (file: File, docTypeOverride?: ExecDocType) => {
       const fileName = file.name;
-      console.log(fileName)
+      const docType = docTypeOverride ?? inferExecDocTypeFromName(fileName);
       if (uploadedFiles.has(fileName) || uploadingFiles.has(fileName)) return;
 
       setUploadingFiles((prev) => new Set(prev).add(fileName));
       try {
-        const docType = inferExecDocTypeFromName(fileName);
         if (!docType) {
           throw new Error(
-            "Filename not recognized. Expected names like `monthly_*_arima.*` or `quarterly_*_arima.*`"
+            "File type not recognized for this input."
           );
         }
 
@@ -231,6 +231,7 @@ export default function Step1() {
 
           setSuccessBanner(`${fileName} uploaded successfully!`);
           setUploadModalOpen(false);
+          setUploadIssues([]);
         } else {
           // mark failed
           setFailedFiles((prev) => new Set(prev).add(fileName));
@@ -240,12 +241,11 @@ export default function Step1() {
             return ns;
           });
 
-          const docType2 = inferExecDocTypeFromName(fileName);
-          if (docType2 === DOC_MONTHLY) {
+          if (docType === DOC_MONTHLY) {
             setMonthlyFiles((prev) => prev.filter((f) => f.name !== fileName));
-          } else if (docType2 === DOC_QUARTERLY) {
+          } else if (docType === DOC_QUARTERLY) {
             setQuarterlyFiles((prev) => prev.filter((f) => f.name !== fileName));
-          } else if (docType2 === DOC_HISTORICAL) {
+          } else if (docType === DOC_HISTORICAL) {
             setHistoricalFiles((prev) => prev.filter((f) => f.name !== fileName));
           }
 
@@ -275,11 +275,12 @@ export default function Step1() {
         console.error(`Upload failed for ${fileName}:`, error);
         setFailedFiles((prev) => new Set(prev).add(fileName));
 
-        const docType2 = inferExecDocTypeFromName(fileName);
-        if (docType2 === DOC_MONTHLY) {
+        if (docType === DOC_MONTHLY) {
           setMonthlyFiles((prev) => prev.filter((f) => f.name !== fileName));
-        } else if (docType2 === DOC_QUARTERLY) {
+        } else if (docType === DOC_QUARTERLY) {
           setQuarterlyFiles((prev) => prev.filter((f) => f.name !== fileName));
+        } else if (docType === DOC_HISTORICAL) {
+          setHistoricalFiles((prev) => prev.filter((f) => f.name !== fileName));
         }
 
         setFailedFilesForRetry((prev) => [...prev, file]);
@@ -311,44 +312,62 @@ export default function Step1() {
     [token, workflowPathBase, effectiveWorkflowId, uploadedFiles, uploadingFiles]
   );
 
+  const resetUploadStateForFiles = useCallback((files: File[]) => {
+    const names = new Set(files.map((f) => f.name));
+    if (names.size === 0) return;
+    setUploadedFiles((prev) => {
+      const ns = new Set(prev);
+      names.forEach((n) => ns.delete(n));
+      return ns;
+    });
+    setFailedFiles((prev) => {
+      const ns = new Set(prev);
+      names.forEach((n) => ns.delete(n));
+      return ns;
+    });
+    setFailedFilesForRetry((prev) => prev.filter((f) => !names.has(f.name)));
+    setUploadIssues([]);
+    setSuccessBanner(null);
+  }, []);
+
   // Dropzone handlers  upload new files, ignore placeholders from existing docs
   const handleMonthlyFilesChange = useCallback(
     async (files: File[]) => {
-      console.log('files',files)
+      resetUploadStateForFiles(files);
       setMonthlyFiles(files);
       for (const f of files) {
-        console.log(uploadedFiles,!uploadedFiles.has(f.name) , !uploadingFiles.has(f.name) , !(f as any).isExisting)
         if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
-          console.log('f: ', f)
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_MONTHLY);
         }
       }
     },
-    [uploadIndividualFile, uploadedFiles, uploadingFiles]
+    [resetUploadStateForFiles, uploadIndividualFile, uploadedFiles, uploadingFiles]
   );
 
   const handleQuarterlyFilesChange = useCallback(
     async (files: File[]) => {
+      resetUploadStateForFiles(files);
       setQuarterlyFiles(files);
       for (const f of files) {
         if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_QUARTERLY);
         }
       }
     },
-    [uploadIndividualFile, uploadedFiles, uploadingFiles]
+    [resetUploadStateForFiles, uploadIndividualFile, uploadedFiles, uploadingFiles]
   );
 
     const handleHistoricalFilesChange = useCallback(
     async (files: File[]) => {
+      resetUploadStateForFiles(files);
       setHistoricalFiles(files);
       for (const f of files) {
         if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_HISTORICAL);
         }
       }
     },
-    [uploadIndividualFile, uploadedFiles, uploadingFiles]
+    [resetUploadStateForFiles, uploadIndividualFile, uploadedFiles, uploadingFiles]
   );
 
   // Summary & status
@@ -372,6 +391,19 @@ export default function Step1() {
     if (uploadedCount === totalFiles) return { status: "success", message: `All ${uploadedCount} file(s) uploaded successfully!` };
     return { status: "partial", message: `${uploadedCount}/${totalFiles} files uploaded.` };
   }, [monthlyFiles.length, quarterlyFiles.length, historicalFiles.length, uploadedFiles.size, uploadingFiles.size, failedFiles.size]);
+
+  // Persist Step 1 validity for stepper gating
+  useEffect(() => {
+    if (!Number.isFinite(selectedWorkflowId)) return;
+    const step1Valid = uploadStatus.status === "success";
+    dispatch(
+      setModuleProgress({
+        moduleKey: "overlayDevelopment",
+        contextKey: String(selectedWorkflowId),
+        data: { step1Valid },
+      })
+    );
+  }, [dispatch, selectedWorkflowId, uploadStatus.status]);
 
   // Workflow picker (status already filtered inside modal to "done")
   const handlePickWorkflow = useCallback(
