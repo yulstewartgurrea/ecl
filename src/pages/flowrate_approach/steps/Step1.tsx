@@ -61,12 +61,13 @@ export default function Step1() {
   const dispatch = useAppDispatch();
   // Get workflow data + selected fields from Redux
   const {
+    pdTransitionMatrixWfName,
     currentPdTransitionMatrixWorkflowId,
     currentPdTransitionMatrixWorkflowData,
     selectedPdTransitionMatrixLoanProduct,
     selectedPdTransitionMatrixReportDateStart,
   } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
-  
+
   const token = useAppSelector((state: any) => state.auth?.token) as string | null;
   const [files, setFiles] = useState<File[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
@@ -82,24 +83,20 @@ export default function Step1() {
   // Prefer Redux workflowId, then fallback to 1
   const workflowIdFromRedux =
     currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
-  const workflowId: number = Number.isFinite(Number(workflowIdFromRedux))
-    ? Number(workflowIdFromRedux)
-    : 1;
+  const workflowId = Number(workflowIdFromRedux)
 
   // Prefer values from persisted workflowData; fall back to selected values; finally to sane defaults
-  const entity = currentPdTransitionMatrixWorkflowData?.entity || "Entity 1";
+  const entity = currentPdTransitionMatrixWorkflowData?.entity;
   const period =
-    currentPdTransitionMatrixWorkflowData?.reporting_period || "Monthly";
+    currentPdTransitionMatrixWorkflowData?.reporting_period;
   const wfName =
-    currentPdTransitionMatrixWorkflowData?.workflow_name || "wf3";
+    currentPdTransitionMatrixWorkflowData?.workflow_name;
   const loanProduct =
     currentPdTransitionMatrixWorkflowData?.loan_product ||
-    selectedPdTransitionMatrixLoanProduct ||
-    "GenericLoan";
+    selectedPdTransitionMatrixLoanProduct
   const reportDateStart =
     currentPdTransitionMatrixWorkflowData?.report_date_start ||
-    selectedPdTransitionMatrixReportDateStart ||
-    "2025-01-01";
+    selectedPdTransitionMatrixReportDateStart
 
   const context = {
     entity,
@@ -320,8 +317,6 @@ export default function Step1() {
       const nextName = (w as any).workflow_name ?? (w as any).name ?? "";
       const nextId = typeof (w as any).id === "number" ? (w as any).id : null;
 
-      console.log(`ðŸŽ¯ WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`);
-
       if (nextEntity) dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
       if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
@@ -400,7 +395,7 @@ export default function Step1() {
               Inputs
             </h3>
             <p className="mt-1 text-xs text-gray-600">
-              Workflow: {wfName || "—"}
+              Workflow: {pdTransitionMatrixWfName || "—"}
             </p>
           </div>
           <div className="flex items-center gap-2">
