@@ -7,7 +7,7 @@ type Props = {
   headers: string[];
   open: boolean;
   onClose: () => void;
-  onApply?: (rules: FilterRule[], num_vars_taken?: number, logic: FilterLogic) => void; // returns SELECTED + DEFAULT(0) rules and num_vars_taken
+  onApply?: (rules: FilterRule[], num_vars_taken?: number, logic?: FilterLogic) => void; // returns SELECTED + DEFAULT(0) rules and num_vars_taken
   initialNumVarsTaken?: number; // Initial value for num_vars_taken
   token?: string | null; // Auth token for API calls
   apiBase?: string; // API base URL
