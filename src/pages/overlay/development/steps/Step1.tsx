@@ -24,6 +24,15 @@ import type { Workflow } from "../../../../services/workflow";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
+const toNumberSafe = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
 /* -----------------------------------------------------------
    Execution document types (must match backend / Postman)
 ----------------------------------------------------------- */
@@ -121,12 +130,19 @@ export default function Step1() {
                 ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 : "application/vnd.ms-excel";
 
-          const f = new File([], doc.filename, { type: mime }) as File & {
+          const displayName = doc.original_filename || doc.filename;
+          const f = new File([], displayName, { type: mime }) as File & {
             isExisting?: boolean;
             documentId?: number | string;
+            sizeBytes?: number;
+            serverFilename?: string;
           };
           (f as any).isExisting = true;
           (f as any).documentId = doc.id;
+          (f as any).sizeBytes = toNumberSafe(
+            doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size
+          );
+          (f as any).serverFilename = doc.filename;
           return f;
         });
 
@@ -148,9 +164,9 @@ export default function Step1() {
           }
         }
 
-        setMonthlyFiles(nextMonthly);
-        setQuarterlyFiles(nextQuarterly);
-         setHistoricalFiles(nextHistorical);
+        setMonthlyFiles(nextMonthly.slice(0, 1));
+        setQuarterlyFiles(nextQuarterly.slice(0, 1));
+        setHistoricalFiles(nextHistorical.slice(0, 1));
       }
     } catch (err) {
       console.error("Failed to fetch execution docs:", err);
@@ -336,9 +352,10 @@ export default function Step1() {
   // Dropzone handlers  upload new files, ignore placeholders from existing docs
   const handleMonthlyFilesChange = useCallback(
     async (files: File[]) => {
-      resetUploadStateForFiles(files);
-      setMonthlyFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      resetUploadStateForFiles(single);
+      setMonthlyFiles(single);
+      for (const f of single) {
         if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
           await uploadIndividualFile(f, DOC_MONTHLY);
         }
@@ -349,9 +366,10 @@ export default function Step1() {
 
   const handleQuarterlyFilesChange = useCallback(
     async (files: File[]) => {
-      resetUploadStateForFiles(files);
-      setQuarterlyFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      resetUploadStateForFiles(single);
+      setQuarterlyFiles(single);
+      for (const f of single) {
         if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
           await uploadIndividualFile(f, DOC_QUARTERLY);
         }
@@ -362,9 +380,10 @@ export default function Step1() {
 
     const handleHistoricalFilesChange = useCallback(
     async (files: File[]) => {
-      resetUploadStateForFiles(files);
-      setHistoricalFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      resetUploadStateForFiles(single);
+      setHistoricalFiles(single);
+      for (const f of single) {
         if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
           await uploadIndividualFile(f, DOC_HISTORICAL);
         }
@@ -517,6 +536,9 @@ export default function Step1() {
         <div className="flex items-center justify-between px-5 py-4 ">
           <div>
             <h3 className="text-lg font-bold tracking-tight text-gray-900">Inputs</h3>
+            <p className="mt-1 text-xs text-gray-600">
+              Workflow: {workflowName || "—"}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -566,10 +588,11 @@ export default function Step1() {
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}
-                maxFiles={3}
+                maxFiles={1}
+                multiple={false}
                 value={monthlyFiles}
                 onChange={handleMonthlyFilesChange}
-                emptyHint="Waiting for monthly file(s)"
+                emptyHint="Waiting for monthly file"
                 variant="card"
               />
               {monthlyFiles.length > 0 &&
@@ -593,10 +616,11 @@ export default function Step1() {
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}
-                maxFiles={3}
+                maxFiles={1}
+                multiple={false}
                 value={quarterlyFiles}
                 onChange={handleQuarterlyFilesChange}
-                emptyHint="Waiting for quarterly file(s)"
+                emptyHint="Waiting for quarterly file"
                 variant="card"
               />
               {quarterlyFiles.length > 0 &&
@@ -620,10 +644,11 @@ export default function Step1() {
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}
-                maxFiles={3}
+                maxFiles={1}
+                multiple={false}
                 value={historicalFiles}
                 onChange={handleHistoricalFilesChange}
-                emptyHint="Waiting for historical file(s)"
+                emptyHint="Waiting for historical file"
                 variant="card"
               />
               {historicalFiles.length > 0 &&

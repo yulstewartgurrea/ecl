@@ -13,6 +13,7 @@ import { useAppDispatch, useAppSelector } from "../../redux_toolkit/hooks";
 import type { RootState } from "../../redux_toolkit/store";
 import {
   setPdTransitionMatrixCurrentStep,
+  clearPdTransitionMatrixWorkflowStep,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 import {
   clearModuleProgress,
@@ -138,6 +139,11 @@ const FlowrateApproachPage = () => {
     dispatch(
       setPdTransitionMatrixCurrentStep({
         step: 0,
+        workflowPath: workflowPath || undefined,
+      })
+    );
+    dispatch(
+      clearPdTransitionMatrixWorkflowStep({
         workflowPath: workflowPath || undefined,
       })
     );

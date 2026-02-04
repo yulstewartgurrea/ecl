@@ -37,6 +37,15 @@ import type { Workflow } from "../../../../services/workflow";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
+const toNumberSafe = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
 /* -----------------------------------------------------------
    Execution document types (must match backend / Postman)
 ----------------------------------------------------------- */
@@ -227,8 +236,9 @@ export default function Step1() {
           };
           (f as any).isExisting = true;
           (f as any).documentId = doc.id;
-          (f as any).sizeBytes =
-            typeof doc.size_bytes === "number" ? doc.size_bytes : undefined;
+          (f as any).sizeBytes = toNumberSafe(
+            doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size
+          );
           (f as any).serverFilename = doc.filename;
           (f as any).documentType = doc.document_type;
           return f;
@@ -259,10 +269,10 @@ export default function Step1() {
           }
         }
 
-        setMonthlyFiles(nextMonthly);
-        setQuarterlyFiles(nextQuarterly);
-        setFinalModelFiles(nextFinalModel);
-        setHistoricalWeightedFiles(nextHistoricalWeighted);
+        setMonthlyFiles(nextMonthly.slice(0, 1));
+        setQuarterlyFiles(nextQuarterly.slice(0, 1));
+        setFinalModelFiles(nextFinalModel.slice(0, 1));
+        setHistoricalWeightedFiles(nextHistoricalWeighted.slice(0, 1));
         setUploadedFiles(nextUploaded);
       }
     } catch (err) {
@@ -658,8 +668,9 @@ export default function Step1() {
 // Dropzone handlers - upload new files, ignore placeholders from existing docs
   const handleMonthlyFilesChange = useCallback(
     async (files: File[]) => {
-      setMonthlyFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      setMonthlyFiles(single);
+      for (const f of single) {
         if (
           !uploadedFiles.has(f.name) &&
           !uploadingFiles.has(f.name) &&
@@ -674,8 +685,9 @@ export default function Step1() {
 
   const handleQuarterlyFilesChange = useCallback(
     async (files: File[]) => {
-      setQuarterlyFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      setQuarterlyFiles(single);
+      for (const f of single) {
         if (
           !uploadedFiles.has(f.name) &&
           !uploadingFiles.has(f.name) &&
@@ -690,8 +702,9 @@ export default function Step1() {
 
   const handleFinalModelFilesChange = useCallback(
     async (files: File[]) => {
-      setFinalModelFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      setFinalModelFiles(single);
+      for (const f of single) {
         if (
           !uploadedFiles.has(f.name) &&
           !uploadingFiles.has(f.name) &&
@@ -706,8 +719,9 @@ export default function Step1() {
 
   const handleHistoricalWeightedFilesChange = useCallback(
     async (files: File[]) => {
-      setHistoricalWeightedFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      setHistoricalWeightedFiles(single);
+      for (const f of single) {
         if (
           !uploadedFiles.has(f.name) &&
           !uploadingFiles.has(f.name) &&
@@ -931,6 +945,9 @@ export default function Step1() {
             <h3 className="text-lg font-bold tracking-tight text-gray-900">
               Inputs
             </h3>
+            <p className="mt-1 text-xs text-gray-600">
+              Workflow: {workflowName || "—"}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1136,10 +1153,11 @@ export default function Step1() {
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
-                    maxFiles={3}
+                    maxFiles={1}
+                    multiple={false}
                     value={monthlyFiles}
                     onChange={handleMonthlyFilesChange}
-                    emptyHint="Waiting for monthly MEV file(s)..."
+                    emptyHint="Waiting for monthly MEV file..."
                     variant="card"
                   />
 
@@ -1164,10 +1182,11 @@ export default function Step1() {
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
-                    maxFiles={3}
+                    maxFiles={1}
+                    multiple={false}
                     value={quarterlyFiles}
                     onChange={handleQuarterlyFilesChange}
-                    emptyHint="Waiting for quarterly MEV file(s)..."
+                    emptyHint="Waiting for quarterly MEV file..."
                     variant="card"
                   />
 
@@ -1194,10 +1213,11 @@ export default function Step1() {
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
-                    maxFiles={3}
+                    maxFiles={1}
+                    multiple={false}
                     value={monthlyFiles}
                     onChange={handleMonthlyFilesChange}
-                    emptyHint="Waiting for monthly ARIMA file(s)..."
+                    emptyHint="Waiting for monthly ARIMA file..."
                     variant="card"
                   />
 
@@ -1222,10 +1242,11 @@ export default function Step1() {
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
-                    maxFiles={3}
+                    maxFiles={1}
+                    multiple={false}
                     value={quarterlyFiles}
                     onChange={handleQuarterlyFilesChange}
-                    emptyHint="Waiting for quarterly ARIMA file(s)..."
+                    emptyHint="Waiting for quarterly ARIMA file..."
                     variant="card"
                   />
 
@@ -1281,10 +1302,11 @@ export default function Step1() {
                 required={false}
                 accept={accept}
                 maxSizeMB={maxSizeMB}
-                maxFiles={3}
+                maxFiles={1}
+                multiple={false}
                 value={finalModelFiles}
                 onChange={handleFinalModelFilesChange}
-                emptyHint="Waiting for final model file(s)..."
+                emptyHint="Waiting for final model file..."
                 variant="card"
               />
 
@@ -1338,10 +1360,11 @@ export default function Step1() {
                 required={false}
                 accept={accept}
                 maxSizeMB={maxSizeMB}
-                maxFiles={3}
+                maxFiles={1}
+                multiple={false}
                 value={historicalWeightedFiles}
                 onChange={handleHistoricalWeightedFilesChange}
-                emptyHint="Waiting for historical weighted credit loss rates file(s)..."
+                emptyHint="Waiting for historical weighted credit loss rates file..."
                 variant="card"
               />
 

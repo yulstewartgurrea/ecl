@@ -24,6 +24,15 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 import type { Workflow } from "../../../services/workflow";
 const DOC_AGING_REPORT = "FLOWRATE_APPROACH_AGING_REPORT";
 
+const toNumberSafe = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
 /**
  * Align upload path with workflow path:
  *   entity / loanProduct / period / report_date_start / workflowName / subdir
@@ -154,14 +163,16 @@ export default function Step1() {
           };
           (file as any).isExisting = true;
           (file as any).documentId = doc.id;
-          (file as any).sizeBytes =
-            typeof doc.size_bytes === "number" ? doc.size_bytes : undefined;
+          (file as any).sizeBytes = toNumberSafe(
+            doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size
+          );
           (file as any).serverFilename = doc.filename;
           return file;
         });
 
-        setFiles(existing);
-        setUploadedFiles(new Set(existing.map((f) => f.name)));
+        const onlyOne = existing.slice(0, 1);
+        setFiles(onlyOne);
+        setUploadedFiles(new Set(onlyOne.map((f) => f.name)));
       } else {
         setFiles([]);
       }
@@ -291,9 +302,10 @@ export default function Step1() {
 
   const handleFilesChange = useCallback(
     async (nextFiles: File[]) => {
-      resetUploadStateForFiles(nextFiles);
-      setFiles(nextFiles);
-      for (const f of nextFiles) {
+      const single = nextFiles.slice(-1);
+      resetUploadStateForFiles(single);
+      setFiles(single);
+      for (const f of single) {
         if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
           await uploadIndividualFile(f);
         }
@@ -387,6 +399,9 @@ export default function Step1() {
             <h3 className="text-lg font-bold tracking-tight text-gray-900">
               Inputs
             </h3>
+            <p className="mt-1 text-xs text-gray-600">
+              Workflow: {wfName || "—"}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -434,6 +449,7 @@ export default function Step1() {
                 accept={accept}
                 maxSizeMB={maxSizeMB}
                 maxFiles={1}
+                multiple={false}
                 value={files}
                 onChange={handleFilesChange}
                 emptyHint="Waiting for aging report file"
