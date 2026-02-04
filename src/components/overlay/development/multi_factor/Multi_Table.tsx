@@ -1,6 +1,7 @@
 ﻿// src/components/overlay/development/multi_factor/Multi_Table.tsx
 // Reusable, headless-ish React + Tailwind table with per-column Excel-style filters
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FunnelIcon } from "@heroicons/react/24/outline";
 
 // ========= Types =========
 export type Row = Record<string, unknown>;
@@ -193,13 +194,11 @@ export function Multi_Table({
   }, [derivedColumns, data]);
 
   // Filtering logic:
-  // - In serverMode: treat backend result as the "filtered set". We only allow *page-local* filtering if you want.
-  //   Here we keep your filter UI active but it filters only the current page (data), not the full dataset.
+  // - In serverMode: backend result is the "filtered set". This UI filters only current data/page.
   const filtered = useMemo(() => {
     if (!data?.length) return [];
     if (!derivedColumns.length) return data;
 
-    // page-local filtering (works in both modes, but only applies to current page in server mode)
     return data.filter((row) => {
       for (const col of derivedColumns) {
         const f = filters[col.key];
@@ -239,8 +238,6 @@ export function Multi_Table({
   }, [data, derivedColumns, filters]);
 
   // Visible rows:
-  // - serverMode: data already represents the current page; do not slice
-  // - clientMode: slice according to page/pageSize
   const safePage = Math.max(1, page ?? 1);
   const safePageSize = Math.max(1, pageSize ?? (filtered.length || 1));
 
@@ -248,7 +245,7 @@ export function Multi_Table({
   const pageEnd = pageStart + safePageSize;
 
   const visibleRows = useMemo(() => {
-    if (serverMode) return filtered; // already page-sized from backend
+    if (serverMode) return filtered;
     return filtered.slice(pageStart, pageEnd);
   }, [filtered, pageStart, pageEnd, serverMode]);
 
@@ -302,7 +299,9 @@ export function Multi_Table({
     }
 
     const currentIds = normalizeIds(initialSelectedIds);
-    const prevIds = prevInitialSelectedIdsRef.current ? normalizeIds(prevInitialSelectedIdsRef.current) : new Set();
+    const prevIds = prevInitialSelectedIdsRef.current
+      ? normalizeIds(prevInitialSelectedIdsRef.current)
+      : new Set();
 
     let idsChanged = currentIds.size !== prevIds.size;
     if (!idsChanged) {
@@ -340,16 +339,22 @@ export function Multi_Table({
   const allVisibleSelected =
     selectable &&
     visibleRows.length > 0 &&
-    visibleRows.every((row, i) => selectedIds.has(rowIdOf(row, serverMode ? i : pageStart + i)));
+    visibleRows.every((row, i) =>
+      selectedIds.has(rowIdOf(row, serverMode ? i : pageStart + i))
+    );
 
   function toggleSelectAllVisible() {
     if (!selectable) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (allVisibleSelected) {
-        visibleRows.forEach((row, i) => next.delete(rowIdOf(row, serverMode ? i : pageStart + i)));
+        visibleRows.forEach((row, i) =>
+          next.delete(rowIdOf(row, serverMode ? i : pageStart + i))
+        );
       } else {
-        visibleRows.forEach((row, i) => next.add(rowIdOf(row, serverMode ? i : pageStart + i)));
+        visibleRows.forEach((row, i) =>
+          next.add(rowIdOf(row, serverMode ? i : pageStart + i))
+        );
       }
       return next;
     });
@@ -390,7 +395,10 @@ export function Multi_Table({
   return (
     <div
       ref={tableRef}
-      className={"overflow-visible rounded-2xl border border-neutral-200 bg-white " + (className ?? "")}
+      className={
+        "overflow-visible rounded-2xl border border-neutral-200 bg-white " +
+        (className ?? "")
+      }
     >
       {selectable && (
         <div className="flex items-center gap-3 border-neutral-200 px-3 py-2 text-xs text-neutral-700">
@@ -401,6 +409,7 @@ export function Multi_Table({
             <button
               className="rounded-md border border-neutral-300 bg-white px-2 py-1 hover:bg-neutral-100"
               onClick={clearSelection}
+              type="button"
             >
               Clear
             </button>
@@ -430,25 +439,43 @@ export function Multi_Table({
                   key={col.key}
                   className={
                     "whitespace-nowrap px-3 py-2 font-medium " +
-                    (col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left")
+                    (col.align === "right"
+                      ? "text-right"
+                      : col.align === "center"
+                      ? "text-center"
+                      : "text-left")
                   }
                 >
                   <div className="relative flex items-center gap-2">
                     <span>{col.header ?? headerize(col.key)}</span>
 
                     <button
-                      className="ml-auto rounded-md border border-white/20 px-1.5 py-1 text-xs text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                      type="button"
+                      className={
+                        "ml-auto inline-flex items-center justify-center rounded-md border border-white/20 px-1.5 py-1 text-xs text-white " +
+                        "hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                      }
                       onClick={() =>
                         setFilters((prev) => ({
                           ...prev,
-                          [col.key]: { ...prev[col.key], open: !prev[col.key].open },
+                          [col.key]: {
+                            ...prev[col.key],
+                            open: !prev[col.key].open,
+                          },
                         }))
                       }
                       aria-haspopup="dialog"
                       aria-expanded={filters[col.key]?.open || false}
+                      aria-label={`Filter ${col.header ?? headerize(col.key)}`}
                       title={serverMode ? "Filters apply to this page only" : "Filter"}
                     >
-                      {/* icon omitted in your original */}
+                      <FunnelIcon
+                        className={
+                          "h-4 w-4 " +
+                          (filters[col.key]?.open ? "opacity-100" : "opacity-90")
+                        }
+                        aria-hidden="true"
+                      />
                     </button>
 
                     {filters[col.key]?.open && (
@@ -494,7 +521,10 @@ export function Multi_Table({
                 return (
                   <tr
                     key={String(id)}
-                    className={"border-neutral-100 hover:bg-neutral-50 " + (isSel ? "bg-yellow-50/40" : "")}
+                    className={
+                      "border-neutral-100 hover:bg-neutral-50 " +
+                      (isSel ? "bg-yellow-50/40" : "")
+                    }
                   >
                     {selectable && (
                       <td className="px-3 py-2 align-top">
@@ -512,7 +542,11 @@ export function Multi_Table({
                         key={col.key}
                         className={
                           "px-3 py-2 align-top text-neutral-800 " +
-                          (col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left")
+                          (col.align === "right"
+                            ? "text-right"
+                            : col.align === "center"
+                            ? "text-center"
+                            : "text-left")
                         }
                       >
                         {col.render ? col.render(row[col.key], row) : formatCell(row[col.key])}
@@ -544,7 +578,10 @@ function FilterPopover({
   onClose: () => void;
 }) {
   const allValues = useMemo(() => uniqueValues(rows, columnKey), [rows, columnKey]);
-  const [tempChecked, setTempChecked] = useState<Set<string>>(new Set(filter.checkedValues));
+
+  const [tempChecked, setTempChecked] = useState<Set<string>>(
+    () => new Set(filter.checkedValues)
+  );
   const [tempSearch, setTempSearch] = useState(filter.search);
   const [tempMin, setTempMin] = useState(filter.min ?? "");
   const [tempMax, setTempMax] = useState(filter.max ?? "");
@@ -554,7 +591,8 @@ function FilterPopover({
     return allValues.filter((v) => (q ? v.toLowerCase().includes(q) : true));
   }, [allValues, tempSearch]);
 
-  const allVisibleChecked = filteredList.length > 0 && filteredList.every((v) => tempChecked.has(v));
+  const allVisibleChecked =
+    filteredList.length > 0 && filteredList.every((v) => tempChecked.has(v));
 
   function toggleValue(v: string) {
     setTempChecked((s) => {
@@ -563,6 +601,7 @@ function FilterPopover({
       return next;
     });
   }
+
   function toggleAllVisible() {
     setTempChecked((s) => {
       const next = new Set(s);
@@ -571,12 +610,14 @@ function FilterPopover({
       return next;
     });
   }
+
   function clearAll() {
     setTempChecked(new Set());
     setTempSearch("");
     setTempMin("");
     setTempMax("");
   }
+
   function apply() {
     onChange({
       checkedValues: tempChecked,
@@ -604,7 +645,11 @@ function FilterPopover({
         <div className="max-h-48 overflow-auto rounded-lg border border-neutral-200">
           <div className="sticky top-0 flex items-center gap-2 border-neutral-200 bg-white px-2 py-1.5 text-xs">
             <label className="inline-flex items-center gap-2 select-none">
-              <input type="checkbox" checked={allVisibleChecked} onChange={toggleAllVisible} />
+              <input
+                type="checkbox"
+                checked={allVisibleChecked}
+                onChange={toggleAllVisible}
+              />
               <span className="text-neutral-700">Select shown</span>
             </label>
             <span className="ml-auto text-neutral-500">{filteredList.length} values</span>
@@ -636,13 +681,22 @@ function FilterPopover({
         </div>
 
         <div className="flex justify-end gap-2 pt-1">
-          <button className="rounded-lg px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100" onClick={clearAll}>
+          <button
+            type="button"
+            className="rounded-lg px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
+            onClick={clearAll}
+          >
             Clear
           </button>
-          <button className="rounded-lg px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100" onClick={onClose}>
+          <button
+            type="button"
+            className="rounded-lg px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button
+            type="button"
             className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800"
             onClick={apply}
           >

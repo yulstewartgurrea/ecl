@@ -1,4 +1,4 @@
-﻿import { useNavigate } from "react-router-dom";
+﻿import { useNavigate, useLocation } from "react-router-dom";
 import clsx from "clsx";
 import {
   CalendarIcon,
@@ -26,6 +26,8 @@ import { setModuleProgress } from "../../redux_toolkit/features/progress/moduleP
 
 const TransitionMatrixLanding = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const skipResume = Boolean((location.state as any)?.skipResume);
   const flowrateProgressMap = useAppSelector(
     (state: any) => state.moduleProgress?.modules?.flowrate || {}
   );
@@ -48,21 +50,21 @@ const TransitionMatrixLanding = () => {
   };
 
   // If user has existing flowrate progress, jump back to the Flowrate module steps
-  useEffect(() => {
-    if (!lastFlowrateProgress) return;
-    const data = (lastFlowrateProgress as any)?.data ?? {};
-    if (data?.workflowData) {
-      dispatch(
-        setPdTransitionMatrixWorkflowData({ workflow_data: data.workflowData })
-      );
-    }
-    if (data?.workflowId) {
-      dispatch(
-        setPdTransitionMatrixWorkflowId({ workflow_id: data.workflowId })
-      );
-    }
-    navigate("/page/flowrate");
-  }, [lastFlowrateProgress, navigate, dispatch]);
+useEffect(() => {
+  if (skipResume) return; // ✅ don’t auto-resume right after Finish
+  if (!lastFlowrateProgress) return;
+
+  const data = (lastFlowrateProgress as any)?.data ?? {};
+
+  if (data?.workflowData) {
+    dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: data.workflowData }));
+  }
+  if (data?.workflowId) {
+    dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: data.workflowId }));
+  }
+
+  navigate("/page/flowrate");
+}, [skipResume, lastFlowrateProgress, navigate, dispatch]);
 
   const { isSidebarOpen } = useAppSelector((state: any) => state.navUIState);
   const {

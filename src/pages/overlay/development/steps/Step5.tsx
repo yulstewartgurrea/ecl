@@ -779,7 +779,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
           <button
             onClick={applySearch}
             disabled={loading}
-            className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+            className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
             title="Search"
           >
             <MagnifyingGlassIcon className="h-4 w-4" />
@@ -893,18 +893,6 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
             : "⚠️ Analysis complete. Select at least one row in the table to unlock Step 6."
           : "⚠️ Step 6 is locked until you configure filters, click Apply, and run the analysis."}
       </p>
-
-      {/* Save selection button */}
-      <div className="mt-3">
-        <button
-          onClick={handleSaveSelection}
-          disabled={!Number.isFinite(selectedWorkflowId) || loading || posting || selectedRowsCount === 0}
-          className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-          title="Persist your selected models for Step 6"
-        >
-          Save Selected Models
-        </button>
-      </div>
 
       {/* Config Modal */}
       <FilteringConfigModal
