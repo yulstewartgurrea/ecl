@@ -2,6 +2,7 @@
 // pages/ecl/EclUpload.tsx
 // ==========================
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Stepper from "../../components/stepper/Stepper";
 import Step1 from "./steps/Step1";
 // import Step4 from "./steps/Step4";
@@ -25,6 +26,7 @@ import Step5 from "./steps/Step5";
 
 const FlowrateApproachPage = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
 
   const {
     currentPdTransitionMatrixWorkflowData,
@@ -131,6 +133,7 @@ const FlowrateApproachPage = () => {
         workflowPath: workflowPath || undefined,
       })
     );
+    navigate("/ecl");
   };
 
   const renderSubStepContent = () => {

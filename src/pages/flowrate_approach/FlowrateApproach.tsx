@@ -2,6 +2,7 @@
 // pages/flowrate/FlowrateApproachPage.tsx
 // ==========================
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Stepper from "../../components/stepper/Stepper";
 import Step1 from "./steps/Step1";
 import Step2 from "./steps/Step2";
@@ -22,6 +23,7 @@ import { clearStep5Bundle } from "../../redux_toolkit/features/asa/flowrateStep5
 
 const FlowrateApproachPage = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
 
   const {
     currentPdTransitionMatrixWorkflowData,
@@ -140,6 +142,7 @@ const FlowrateApproachPage = () => {
         workflowPath: workflowPath || undefined,
       })
     );
+    navigate("/flowrate");
   };
 
   const renderSubStepContent = () => {
