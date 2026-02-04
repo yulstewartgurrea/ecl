@@ -13,9 +13,15 @@ import {
 import { useAppSelector, useAppDispatch } from "../../../redux_toolkit/hooks";
 import { setModuleProgress } from "../../../redux_toolkit/features/progress/moduleProgressSlice";
 import { normalizeUploadError } from "../../../utils/uploadErrorNormalizer";
-
+import WorkflowPickerModal from "../../../components/modals/WorkflowPickerModal";
+import {
+  setPdTransitionMatrixSelectedEntity,
+  setPdTransitionMatrixSelectedReportingPeriod,
+  setPdTransitionMatrixWfName,
+  setPdTransitionMatrixWorkflowId,
+} from "../../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
-
+import type { Workflow } from "../../../services/workflow";
 const DOC_AGING_REPORT = "FLOWRATE_APPROACH_AGING_REPORT";
 
 /**
@@ -100,7 +106,9 @@ export default function Step1() {
 
   const accept = ".csv,.xlsx,.xls";
   const maxSizeMB = 20;
+  const [pickerOpen, setPickerOpen] = useState(false);
 
+  
   // Fetch existing documents for the workflow
   const fetchExistingDocuments = useCallback(async () => {
     if (!workflowId || !token) {
@@ -293,7 +301,24 @@ export default function Step1() {
     },
     [resetUploadStateForFiles, uploadIndividualFile, uploadedFiles, uploadingFiles]
   );
+  const handlePickWorkflow = useCallback(
+    (w: Workflow) => {
+      const nextEntity = (w as any).entity ?? "";
+      const nextPeriod = (w as any).reporting_period ?? (w as any).reportingPeriod ?? "";
+      const nextName = (w as any).workflow_name ?? (w as any).name ?? "";
+      const nextId = typeof (w as any).id === "number" ? (w as any).id : null;
 
+      console.log(`ðŸŽ¯ WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`);
+
+      if (nextEntity) dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
+      if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
+      if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
+      dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
+
+      setPickerOpen(false);
+    },
+    [dispatch]
+  );
   const uploadStatus = useMemo(() => {
     const totalFiles = files.length;
     const uploadedCount = uploadedFiles.size;
@@ -364,6 +389,14 @@ export default function Step1() {
             </h3>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 cursor-pointer"
+              disabled={uploadingFiles.size > 0}
+              title="Pick from completed workflows"
+            >
+              Switch Workflow
+            </button>
             {uploadStatus.status === "success" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                 <CheckCircleIcon className="h-4 w-4" />
@@ -417,13 +450,15 @@ export default function Step1() {
                 )}
             </div>
           </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-            <p className="font-semibold">Upload status</p>
-            <p className="text-xs text-gray-500">{uploadStatus.message}</p>
-          </div>
         </div>
       </div>
+            {/* Workflow picker */}
+            <WorkflowPickerModal
+              open={pickerOpen}
+              token={token}
+              onClose={() => setPickerOpen(false)}
+              onSelect={handlePickWorkflow}
+            />
     </div>
   );
 }
