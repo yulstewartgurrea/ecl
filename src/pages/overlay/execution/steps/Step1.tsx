@@ -22,6 +22,7 @@ import { setHistoricalWeightedCreditLossRateFile } from "../../../../redux_toolk
 import OverlayUploadResultModal, {
   type IssueRow,
 } from "../../../../components/modals/OverlayUploadResultModal";
+import { normalizeUploadError } from "../../../../utils/uploadErrorNormalizer";
 import WorkflowPickerModal from "../../../../components/modals/WorkflowPickerModal";
 
 import {
@@ -598,6 +599,7 @@ export default function Step1() {
               fullResponse: result,
               validationStatus,
             },
+            normalized: normalizeUploadError(result.data ?? result.error ?? result),
           };
 
           setUploadIssues([issue]);
@@ -630,6 +632,7 @@ export default function Step1() {
             stack: error?.stack,
             validationStatus: "error",
           },
+          normalized: normalizeUploadError(error),
         };
 
         setUploadIssues([issue]);
