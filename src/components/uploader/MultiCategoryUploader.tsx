@@ -72,6 +72,7 @@ export type MultiCategoryUploaderProps = {
   accept?: string;        // global accept fallback
   maxSizeMB?: number;     // global per-file size fallback
   endpoint?: string;
+  validateEndpoint?: string; // optional server validation endpoint
   module: string;
   workflowId: string | number;
   pathBuilder: (ctx: PathBuilderContext) => string;
@@ -152,6 +153,7 @@ export default function MultiCategoryUploader({
   accept = ".csv,.xlsx,.xls",
   maxSizeMB = 20,
   endpoint = "/api/document/upload",
+  validateEndpoint,
   module,
   workflowId,
   pathBuilder,
@@ -189,6 +191,7 @@ export default function MultiCategoryUploader({
     }
   }, []); // Only on mount
   const [uploading, setUploading] = useState(false);
+  const [validating, setValidating] = useState(false);
 
   // files & results
   const [filesByKey, setFilesByKey] = useState<Record<string, File[]>>(initialFiles ?? {});
@@ -342,7 +345,7 @@ export default function MultiCategoryUploader({
     return accepts.some((a) => a.startsWith(".") && a.slice(1) === ext);
   };
 
-  const validateNow = useCallback(() => {
+  const validateNow = useCallback(async () => {
     const errs: string[] = [];
     for (const c of categories) {
       const files = filesByKey[c.key] ?? [];
@@ -369,12 +372,74 @@ export default function MultiCategoryUploader({
       }
     }
 
-    setValidationErrors(errs);
-    const ok = errs.length === 0;
-    setValidated(ok ? "ok" : "error");
-    if (ok) setShowProceedModal(true);
-    return ok;
-  }, [categories, filesByKey, maxSizeMB, accept]);
+    if (errs.length > 0) {
+      setValidationErrors(errs);
+      setValidated("error");
+      return false;
+    }
+
+    if (!validateEndpoint) {
+      setValidationErrors([]);
+      setValidated("ok");
+      setShowProceedModal(true);
+      return true;
+    }
+
+    setValidating(true);
+    try {
+      const serverErrors: string[] = [];
+      const token = getToken() ?? undefined;
+
+      for (const c of categories) {
+        const files = filesByKey[c.key] ?? [];
+        for (const f of files) {
+          if ((f as any).isExisting) continue;
+          const form = new FormData();
+          form.append("file", f);
+          form.append("document_type", c.key);
+
+          const res = await fetch(validateEndpoint, {
+            method: "POST",
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            body: form,
+          });
+
+          let payload: any = null;
+          try {
+            payload = await res.json();
+          } catch {
+            payload = null;
+          }
+
+          const vr = payload?.data?.validation_results ?? payload?.validation_results;
+          const status = vr?.validation_status ?? (vr?.is_valid ? "passed" : "failed");
+          if (!res.ok || String(status).toLowerCase() !== "passed") {
+            const errorMsg =
+              vr?.message ||
+              (Array.isArray(vr?.errors) && vr.errors.length > 0
+                ? String(vr.errors[0]?.message ?? vr.errors[0])
+                : null) ||
+              payload?.msg ||
+              "Validation failed";
+            serverErrors.push(`${c.label}: ${f.name}  ${errorMsg}`);
+          }
+        }
+      }
+
+      if (serverErrors.length > 0) {
+        setValidationErrors(serverErrors);
+        setValidated("error");
+        return false;
+      }
+
+      setValidationErrors([]);
+      setValidated("ok");
+      setShowProceedModal(true);
+      return true;
+    } finally {
+      setValidating(false);
+    }
+  }, [categories, filesByKey, maxSizeMB, accept, validateEndpoint, getToken]);
 
   /* ---------- clear all ---------- */
   const clearAll = useCallback(() => {
@@ -714,8 +779,8 @@ export default function MultiCategoryUploader({
   /* ---------- Render ---------- */
   return (
     <div
-      className={`mx-auto p-4 sm:p-6 ${uploading ? "cursor-progress" : "cursor-auto"}`}
-      aria-busy={uploading}
+      className={`mx-auto p-4 sm:p-6 ${uploading || validating ? "cursor-progress" : "cursor-auto"}`}
+      aria-busy={uploading || validating}
     >
       <div className="rounded-3xl border border-slate-200 bg-white/70 backdrop-blur-md shadow-sm relative overflow-hidden">
         {/* Sticky top actions */}
@@ -749,18 +814,18 @@ export default function MultiCategoryUploader({
               <button
                 type="button"
                 onClick={validateNow}
-                disabled={uploading}
+                disabled={uploading || validating}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
               >
                 <InformationCircleIcon className="h-4 w-4" />
-                Validate
+                {validating ? "Validating" : "Validate"}
               </button>
               <button
                 type="button"
                 onClick={uploadAll}
-                disabled={!canUpload || uploading}
+                disabled={!canUpload || uploading || validating}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold ${
-                  !canUpload || uploading
+                  !canUpload || uploading || validating
                     ? "bg-amber-300/60 text-slate-700 cursor-not-allowed"
                     : "bg-amber-400 text-slate-900 hover:brightness-95 cursor-pointer"
                 }`}
@@ -772,7 +837,7 @@ export default function MultiCategoryUploader({
               <button
                 type="button"
                 onClick={clearAll}
-                disabled={uploading}
+                disabled={uploading || validating}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
               >
                 <TrashIcon className="h-4 w-4" />
@@ -780,7 +845,12 @@ export default function MultiCategoryUploader({
               </button>
 
               {/* Status chip */}
-              {uploading ? (
+              {validating ? (
+                <Pill tone="blue" title="Validation in progress">
+                  <InformationCircleIcon className="h-4 w-4 mr-1" />
+                  Validating
+                </Pill>
+              ) : uploading ? (
                 <Pill tone="blue" title="Uploading in progress">
                   <ArrowUpTrayIcon className="h-4 w-4 mr-1 animate-pulse" />
                   Uploading

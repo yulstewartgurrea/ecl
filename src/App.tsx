@@ -13,6 +13,7 @@ import BackendLoader from "./components/BackendLoader";
 
 // redux toolkit
 import { useAppSelector } from "./redux_toolkit/hooks";
+import { resetInterpolationClient } from "./services/interpolation";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useEffect, useState } from "react";
@@ -35,6 +36,15 @@ function App() {
       unlistenPromise.then((unlisten) => unlisten());
     };
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    resetInterpolationClient();
+    const g: any = window as any;
+    if (g.__MCU_CACHE__ && typeof g.__MCU_CACHE__.clear === "function") {
+      g.__MCU_CACHE__.clear();
+    }
+  }, [isLoggedIn]);
 
   // Poll backend_is_ready as a fallback — stops automatically once true
   useEffect(() => {

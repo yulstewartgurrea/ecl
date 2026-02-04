@@ -18,6 +18,8 @@ export type ExcelLikeTableProps = {
   className?: string;
   emptyMessage?: string;
   onFilteredChange?: (rows: Row[]) => void;
+  page?: number;
+  pageSize?: number;
 
   /** NEW: selection features */
   selectable?: boolean; // default: false
@@ -29,9 +31,32 @@ export type ExcelLikeTableProps = {
 // ========= Utilities =========
 function isNumberLike(val: unknown) {
   if (val == null) return false;
-  if (typeof val === "number") return true;
-  if (typeof val === "string") return /^-?\d+(?:\.\d+)?$/.test(val.trim());
+  if (typeof val === "number") return Number.isFinite(val);
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (!s) return false;
+    const normalized = s.replace(/,/g, "").replace(/%/g, "");
+    return /^-?\d+(?:\.\d+)?$/.test(normalized);
+  }
   return false;
+}
+
+function parseNumeric(val: unknown): number | null {
+  if (val == null) return null;
+  if (typeof val === "number") return Number.isFinite(val) ? val : null;
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (!s) return null;
+    const normalized = s.replace(/,/g, "").replace(/%/g, "");
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function roundForCompare(n: number, digits = 6) {
+  const p = Math.pow(10, digits);
+  return Math.round(n * p) / p;
 }
 function uniqueValues(rows: Row[], key: string): string[] {
   const set = new Set<string>();
@@ -60,6 +85,8 @@ export function Multi_Table({
   className,
   emptyMessage = "No data",
   onFilteredChange,
+  page,
+  pageSize,
 
   // NEW props (all optional)
   selectable = false,
@@ -156,19 +183,41 @@ export function Multi_Table({
         const raw = row[col.key];
         const strVal = raw == null ? "" : String(raw);
 
+        if (f.search?.trim()) {
+          const needle = f.search.trim().toLowerCase();
+          if (!strVal.toLowerCase().includes(needle)) return false;
+        }
         if (f.checkedValues && f.checkedValues.size > 0) {
           if (!f.checkedValues.has(strVal)) return false;
         }
         if (f.isNumeric && (f.min?.trim() || f.max?.trim())) {
-          const n = Number(strVal);
-          if (!Number.isFinite(n)) return false;
-          if (f.min?.trim() && n < Number(f.min)) return false;
-          if (f.max?.trim() && n > Number(f.max)) return false;
+          const nRaw = parseNumeric(raw);
+          if (nRaw == null) return false;
+          const n = roundForCompare(nRaw);
+          if (f.min?.trim()) {
+            const minVal = parseNumeric(f.min);
+            if (minVal == null) return false;
+            if (n < roundForCompare(minVal)) return false;
+          }
+          if (f.max?.trim()) {
+            const maxVal = parseNumeric(f.max);
+            if (maxVal == null) return false;
+            if (n > roundForCompare(maxVal)) return false;
+          }
         }
       }
       return true;
     });
   }, [data, derivedColumns, filters]);
+
+  const safePage = Math.max(1, page ?? 1);
+  const safePageSize = Math.max(1, pageSize ?? filtered.length || 1);
+  const pageStart = (safePage - 1) * safePageSize;
+  const pageEnd = pageStart + safePageSize;
+  const visibleRows = useMemo(
+    () => filtered.slice(pageStart, pageEnd),
+    [filtered, pageStart, pageEnd]
+  );
 
   const onFilteredChangeRef = useRef(onFilteredChange);
   useEffect(() => {
@@ -265,17 +314,17 @@ export function Multi_Table({
   // ---- select all on current filtered page
   const allVisibleSelected =
     selectable &&
-    filtered.length > 0 &&
-    filtered.every((row, i) => selectedIds.has(rowIdOf(row, i)));
+    visibleRows.length > 0 &&
+    visibleRows.every((row, i) => selectedIds.has(rowIdOf(row, pageStart + i)));
 
   function toggleSelectAllVisible() {
     if (!selectable) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (allVisibleSelected) {
-        filtered.forEach((row, i) => next.delete(rowIdOf(row, i)));
+        visibleRows.forEach((row, i) => next.delete(rowIdOf(row, pageStart + i)));
       } else {
-        filtered.forEach((row, i) => next.add(rowIdOf(row, i)));
+        visibleRows.forEach((row, i) => next.add(rowIdOf(row, pageStart + i)));
       }
       return next;
     });
@@ -423,8 +472,9 @@ export function Multi_Table({
                 </td>
               </tr>
             ) : (
-              filtered.map((row, i) => {
-                const id = rowIdOf(row, i);
+              visibleRows.map((row, i) => {
+                const globalIndex = pageStart + i;
+                const id = rowIdOf(row, globalIndex);
                 const isSel = selectable && selectedIds.has(id);
                 return (
                   <tr
@@ -439,8 +489,8 @@ export function Multi_Table({
                         <input
                           type="checkbox"
                           checked={isSel}
-                          onChange={() => toggleRow(row, i)}
-                          aria-label={`Select row ${i + 1}`}
+                          onChange={() => toggleRow(row, globalIndex)}
+                          aria-label={`Select row ${globalIndex + 1}`}
                         />
                       </td>
                     )}

@@ -64,21 +64,17 @@ const Step7: React.FC = () => {
   // Helper to find all X columns dynamically (X1, X2, X3, ..., Xn)
   function findAllXColumns(row: any): Array<{ index: number; name: string; value: any }> {
     if (!row) return [];
-    const xColumns: Array<{ index: number; name: string; value: any }> = [];
-    let i = 1;
-    
-    // Keep looking for X1, X2, X3, ... until we don't find one
-    while (true) {
-      const xName = `X${i}`;
-      const xValue = findColumn(row, xName);
-      if (xValue === undefined || xValue === null || xValue === "") {
-        break; // Stop when we don't find an X column
-      }
-      xColumns.push({ index: i, name: xName, value: xValue });
-      i++;
-    }
-    
-    return xColumns;
+    const matches: Array<{ index: number; name: string; value: any }> = [];
+    Object.keys(row).forEach((key) => {
+      const m = String(key).match(/^x(\d+)$/i);
+      if (!m) return;
+      const idx = Number(m[1]);
+      const value = row[key];
+      if (value === undefined || value === null || value === "") return;
+      matches.push({ index: idx, name: `X${idx}`, value });
+    });
+    matches.sort((a, b) => a.index - b.index);
+    return matches;
   }
 
   // Helper to map raw model data to ModelSpec

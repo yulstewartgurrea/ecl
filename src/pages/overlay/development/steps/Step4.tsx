@@ -98,6 +98,7 @@ const Step4: React.FC<Step4Props> = ({
   // EXPORT state
   const [exporting, setExporting] = useState(false);
   const [exportErr, setExportErr] = useState<string | null>(null);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
 
   // Files dropdown state
@@ -451,16 +452,33 @@ const Step4: React.FC<Step4Props> = ({
       Number.isFinite(selectedWorkflowId) &&
       !loading &&
       !posting &&
-      ((serverRows?.length ?? 0) > 0 || (total ?? 0) > 0);
+      ((serverRows?.length ?? 0) > 0 || (total ?? 0) > 0 || fileBasedRows.length > 0);
     setExportReady(Boolean(ready));
-  }, [selectedWorkflowId, loading, posting, serverRows, total]);
+  }, [selectedWorkflowId, loading, posting, serverRows, total, fileBasedRows.length]);
 
   // Export the current page via your exact endpoint
   async function exportCurrentPage() {
     if (!Number.isFinite(selectedWorkflowId)) return;
     setExportErr(null);
+    setExportMsg(null);
     setExporting(true);
     try {
+      if (selectedFiles.size > 0 && fileBasedRows.length > 0) {
+        const headers = deriveHeaders(displayRows);
+        const csv = toCsv(headers, displayRows);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const filename = `multifactor_results_selected_${selectedWorkflowId}_p${page}_ps${pageSize}.csv`;
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(href);
+        setExportMsg("Export completed.");
+        return;
+      }
       const url = new URL(`${API_BASE}/api/overlay/development/multifactor_analysis`);
       url.searchParams.set("workflow_id", String(selectedWorkflowId));
       url.searchParams.set("page", String(page));
@@ -502,6 +520,7 @@ const Step4: React.FC<Step4Props> = ({
         a.click();
         a.remove();
         URL.revokeObjectURL(href);
+        setExportMsg("Export completed.");
       } else {
         // Server returned JSON  convert to CSV client-side and download
         const json = await res.json();
@@ -518,6 +537,7 @@ const Step4: React.FC<Step4Props> = ({
         a.click();
         a.remove();
         URL.revokeObjectURL(href);
+        setExportMsg("Export completed.");
       }
     } catch (e: any) {
       setExportErr(e?.message || "Export failed");
@@ -816,6 +836,11 @@ const Step4: React.FC<Step4Props> = ({
       {exportErr && (
         <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {exportErr}
+        </div>
+      )}
+      {exportMsg && (
+        <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          {exportMsg}
         </div>
       )}
       {status && (status.status === "processing" || status.status === "pending") && (

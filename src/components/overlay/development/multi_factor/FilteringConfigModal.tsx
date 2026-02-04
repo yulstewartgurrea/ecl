@@ -1,13 +1,13 @@
 ﻿import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { XMarkIcon, TrashIcon, CheckIcon, PlusIcon } from "@heroicons/react/24/outline";
-import { type FilterRule, saveFilters, loadFilters } from "../../../../utils/overlay/headersStorage";
+import { type FilterRule, type FilterLogic, saveFilters, loadFilters, saveFilterLogic, loadFilterLogic } from "../../../../utils/overlay/headersStorage";
 
 type Props = {
   workflowId: number | string;
   headers: string[];
   open: boolean;
   onClose: () => void;
-  onApply?: (rules: FilterRule[]) => void; // returns SELECTED + DEFAULT(0) rules
+  onApply?: (rules: FilterRule[], logic: FilterLogic) => void; // returns SELECTED rules
 };
 
 function uid() {
@@ -29,6 +29,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
   const listId = useId();
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<FilterRule[]>([]);
+  const [logic, setLogic] = useState<FilterLogic>("AND");
   const firstInputRef = useRef<HTMLInputElement | null>(null);
 
   // row scrolling + highlight support
@@ -41,11 +42,13 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
   useEffect(() => {
     if (open) {
       const existing = loadFilters(workflowId); // only SELECTED rules are persisted
+      const savedLogic = loadFilterLogic(workflowId);
       setRows(
         existing.length
           ? existing
           : [{ id: uid(), column: "", operator: ">", value: "" }]
       );
+      setLogic(savedLogic);
       setInvalidValueIds(new Set());
       setTimeout(() => firstInputRef.current?.focus(), 50);
     }
@@ -170,7 +173,8 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
     // 3) Only send selected rules - no defaults
     // Persist ONLY the explicitly selected rules (so the UI stays clean next open)
     saveFilters(workflowId, selected);
-    onApply?.(selected);
+    saveFilterLogic(workflowId, logic);
+    onApply?.(selected, logic);
     onClose();
   }
 
@@ -216,6 +220,17 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 placeholder:text-neutral-400"
                 />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-neutral-600">Logic</label>
+                <select
+                  value={logic}
+                  onChange={(e) => setLogic(e.target.value as FilterLogic)}
+                  className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm text-neutral-800"
+                >
+                  <option value="AND">AND</option>
+                  <option value="OR">OR</option>
+                </select>
               </div>
               <button
                 className="inline-flex items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-50"

@@ -215,13 +215,21 @@ export default function Step1() {
             : doc.filename.endsWith(".xlsx")
             ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             : "application/vnd.ms-excel";
+          const displayName = doc.original_filename || doc.filename;
 
-          const f = new File([], doc.filename, { type: mime }) as File & {
+          const f = new File([], displayName, { type: mime }) as File & {
             isExisting?: boolean;
             documentId?: number | string;
+            sizeBytes?: number;
+            serverFilename?: string;
+            documentType?: string;
           };
           (f as any).isExisting = true;
           (f as any).documentId = doc.id;
+          (f as any).sizeBytes =
+            typeof doc.size_bytes === "number" ? doc.size_bytes : undefined;
+          (f as any).serverFilename = doc.filename;
+          (f as any).documentType = doc.document_type;
           return f;
         });
 
@@ -234,18 +242,17 @@ export default function Step1() {
         const nextUploaded = new Set<string>();
 
         for (const f of existing) {
-          const doc = result.data.find((d: any) => d.filename === f.name);
-          if (!doc) continue;
-          if (doc.document_type === DOC_MONTHLY) {
+          const docType = (f as any).documentType as ExecDocType | undefined;
+          if (docType === DOC_MONTHLY) {
             nextMonthly.push(f);
             nextUploaded.add(f.name);
-          } else if (doc.document_type === DOC_QUARTERLY) {
+          } else if (docType === DOC_QUARTERLY) {
             nextQuarterly.push(f);
             nextUploaded.add(f.name);
-          } else if (doc.document_type === DOC_FINAL_MODEL) {
+          } else if (docType === DOC_FINAL_MODEL) {
             nextFinalModel.push(f);
             nextUploaded.add(f.name);
-          } else if (doc.document_type === DOC_HISTORICAL_WEIGHTED) {
+          } else if (docType === DOC_HISTORICAL_WEIGHTED) {
             nextHistoricalWeighted.push(f);
             nextUploaded.add(f.name);
           }
@@ -490,17 +497,17 @@ export default function Step1() {
      Single-file upload helper
   ----------------------------------------------------------- */
   const uploadIndividualFile = useCallback(
-    async (file: File) => {
+    async (file: File, docTypeOverride?: ExecDocType) => {
       const fileName = file.name;
+      const docType = docTypeOverride ?? inferExecDocTypeFromName(fileName);
 
       if (uploadedFiles.has(fileName) || uploadingFiles.has(fileName)) return;
 
       setUploadingFiles((prev) => new Set(prev).add(fileName));
       try {
-        const docType = inferExecDocTypeFromName(fileName);
         if (!docType) {
           throw new Error(
-            "Filename not recognized. Expected names like `monthly_*_arima.*`, `quarterly_*_arima.*`, `final_*_model.*`, or `historical_*_weighted.*`"
+            "File type not recognized for this input."
           );
         }
 
@@ -553,30 +560,26 @@ export default function Step1() {
 
           setSuccessBanner(`${fileName} uploaded successfully!`);
           setUploadModalOpen(false);
-        } else {
-          setFailedFiles((prev) => new Set(prev).add(fileName));
-          setUploadedFiles((prev) => {
-            const ns = new Set(prev);
-            ns.delete(fileName);
-            return ns;
-          });
+          setUploadIssues([]);
+      } else {
+        setFailedFiles((prev) => new Set(prev).add(fileName));
+        setUploadedFiles((prev) => {
+          const ns = new Set(prev);
+          ns.delete(fileName);
+          return ns;
+        });
 
-        const docType2 = inferExecDocTypeFromName(fileName);
-        if (docType2 === DOC_MONTHLY) {
+        if (docType === DOC_MONTHLY) {
           setMonthlyFiles((prev) => prev.filter((f) => f.name !== fileName));
-        } else if (docType2 === DOC_QUARTERLY) {
+        } else if (docType === DOC_QUARTERLY) {
           setQuarterlyFiles((prev) =>
             prev.filter((f) => f.name !== fileName)
           );
-        } else if (docType2 === DOC_FINAL_MODEL) {
+        } else if (docType === DOC_FINAL_MODEL) {
           setFinalModelFiles((prev) => prev.filter((f) => f.name !== fileName));
-        } else if (docType2 === DOC_HISTORICAL_WEIGHTED) {
+        } else if (docType === DOC_HISTORICAL_WEIGHTED) {
           setHistoricalWeightedFiles((prev) => prev.filter((f) => f.name !== fileName));
-        } else if (docType2 === DOC_FINAL_MODEL) {
-            setFinalModelFiles((prev) => prev.filter((f) => f.name !== fileName));
-          } else if (docType2 === DOC_HISTORICAL_WEIGHTED) {
-            setHistoricalWeightedFiles((prev) => prev.filter((f) => f.name !== fileName));
-          }
+        }
 
           setFailedFilesForRetry((prev) => [...prev, file]);
 
@@ -604,12 +607,14 @@ export default function Step1() {
       } catch (error: any) {
         console.error(`Upload failed for ${fileName}:`, error);
         setFailedFiles((prev) => new Set(prev).add(fileName));
-
-        const docType2 = inferExecDocTypeFromName(fileName);
-        if (docType2 === DOC_MONTHLY) {
+        if (docType === DOC_MONTHLY) {
           setMonthlyFiles((prev) => prev.filter((f) => f.name !== fileName));
-        } else if (docType2 === DOC_QUARTERLY) {
+        } else if (docType === DOC_QUARTERLY) {
           setQuarterlyFiles((prev) => prev.filter((f) => f.name !== fileName));
+        } else if (docType === DOC_FINAL_MODEL) {
+          setFinalModelFiles((prev) => prev.filter((f) => f.name !== fileName));
+        } else if (docType === DOC_HISTORICAL_WEIGHTED) {
+          setHistoricalWeightedFiles((prev) => prev.filter((f) => f.name !== fileName));
         }
 
         setFailedFilesForRetry((prev) => [...prev, file]);
@@ -657,7 +662,7 @@ export default function Step1() {
           !uploadingFiles.has(f.name) &&
           !(f as any).isExisting
         ) {
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_MONTHLY);
         }
       }
     },
@@ -673,7 +678,7 @@ export default function Step1() {
           !uploadingFiles.has(f.name) &&
           !(f as any).isExisting
         ) {
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_QUARTERLY);
         }
       }
     },
@@ -689,7 +694,7 @@ export default function Step1() {
           !uploadingFiles.has(f.name) &&
           !(f as any).isExisting
         ) {
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_FINAL_MODEL);
         }
       }
     },
@@ -705,7 +710,7 @@ export default function Step1() {
           !uploadingFiles.has(f.name) &&
           !(f as any).isExisting
         ) {
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_HISTORICAL_WEIGHTED);
         }
       }
     },

@@ -68,6 +68,10 @@ const FlowrateApproachPage = () => {
   const persistedStep = useAppSelector((state: RootState) =>
     selectModuleProgress(state, "flowrate", workflowPath || undefined)?.step
   );
+  const step1Valid = useAppSelector((state: RootState) => {
+    const entry = selectModuleProgress(state, "flowrate", workflowPath || undefined);
+    return Boolean((entry?.data as any)?.step1Valid);
+  });
 
   // Prefer persisted module step; fall back to per-workflow step; then legacy currentStep; then 0
   const initialStepForPath =
@@ -92,6 +96,9 @@ const FlowrateApproachPage = () => {
   ];
 
   const commitStepChange = (targetIndex: number) => {
+    if (activeSubStep === 0 && targetIndex > 0 && !step1Valid) {
+      return;
+    }
     setActiveSubStep(targetIndex);
 
     // Persist step in Redux, including the workflowPath so
@@ -177,7 +184,7 @@ const FlowrateApproachPage = () => {
           steps={developmentSteps}
           activeStep={activeSubStep}
           onApprovedStepChange={commitStepChange}
-          canContinue={true}
+        canContinue={activeSubStep === 0 ? step1Valid : true}
         />
       </div>
 
