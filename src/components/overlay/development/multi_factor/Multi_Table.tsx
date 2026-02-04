@@ -211,7 +211,7 @@ export function Multi_Table({
   }, [data, derivedColumns, filters]);
 
   const safePage = Math.max(1, page ?? 1);
-  const safePageSize = Math.max(1, pageSize ?? filtered.length || 1);
+  const safePageSize = Math.max(1, pageSize ?? (filtered.length || 1));
   const pageStart = (safePage - 1) * safePageSize;
   const pageEnd = pageStart + safePageSize;
   const visibleRows = useMemo(
