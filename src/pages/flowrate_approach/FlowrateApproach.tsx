@@ -17,6 +17,7 @@ import {
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 import {
   clearModuleProgress,
+  clearModuleProgressByWorkflowId,
   selectModuleProgress,
   setModuleProgress,
 } from "../../redux_toolkit/features/progress/moduleProgressSlice";
@@ -124,6 +125,17 @@ const FlowrateApproachPage = () => {
   };
 
   const handleFinish = () => {
+    const wfIdFromData = Number(currentPdTransitionMatrixWorkflowData?.id);
+    const wfId = Number.isFinite(wfIdFromData) ? wfIdFromData : undefined;
+
+    if (wfId !== undefined) {
+      dispatch(
+        clearModuleProgressByWorkflowId({
+          moduleKey: "flowrate",
+          workflowId: wfId,
+        })
+      );
+    }
     dispatch(
       clearModuleProgress({
         moduleKey: "flowrate",
@@ -131,8 +143,7 @@ const FlowrateApproachPage = () => {
       })
     );
     if (workflowPath) {
-      const wfId = Number(currentPdTransitionMatrixWorkflowData?.id);
-      dispatch(clearStep5Bundle(Number.isFinite(wfId) ? wfId : undefined));
+      dispatch(clearStep5Bundle(wfId));
     } else {
       dispatch(clearStep5Bundle(undefined));
     }
