@@ -562,7 +562,7 @@ export default function Step1() {
             <div className="relative">
               <UploadDropzone
                 label="Monthly MEV"
-                description="CSV or Excel. Name like: monthly_*_arima.*"
+                description="CSV or Excel"
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}
@@ -589,7 +589,7 @@ export default function Step1() {
             <div className="relative">
               <UploadDropzone
                 label="Quarterly MEV"
-                description="CSV or Excel. Name like: quarterly_*_arima.*"
+                description="CSV or Excel"
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}
@@ -616,7 +616,7 @@ export default function Step1() {
             <div className="relative">
               <UploadDropzone
                 label="HISTORICAL WEIGHTED CREDIT LOSS RATE"
-                description="CSV or Excel. Name like: historical_*_arima.*"
+                description="CSV or Excel"
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}

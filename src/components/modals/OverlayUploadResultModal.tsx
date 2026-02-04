@@ -135,7 +135,7 @@ export default function OverlayUploadResultModal({
           </button>
           <button
             onClick={onProceed}
-            className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-200 disabled:opacity-50 cursor-pointer"
+            className="rounded-xl bg-yellow-300 px-4 py-2.5 text-sm text-gray-800 font-semibold text-white hover:bg-gray-200 disabled:opacity-50 cursor-pointer"
             disabled={isSubmitting || issues.length === 0 || !!proceedDisabledReason}
             title={proceedDisabledReason || "Upload again"}
           >
