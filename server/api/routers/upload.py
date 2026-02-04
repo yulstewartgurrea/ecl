@@ -4,7 +4,7 @@ import pandas as pd
 import os
 from typing import Dict, Any, Union
 import json
-from helpers.validate.validate import validate_document
+from helpers.file_validations.validate import validate_document
 from helpers.save_document_data_in_database import save_document_data_in_database
 from helpers.save_log_data_in_database import save_log_data_in_database
 from models.models import Document, User
@@ -341,16 +341,20 @@ async def upload_file(
 
                 # Step 3: Validate the cleaned data
                 if file.filename.lower().endswith(".csv"):
+                    print('CSV VALIDATION')
                     # Validate cleaned CSV DataFrame
                     validation_results = validate_document(cleaned_df, document_type, file.filename)
                 else:
+                    print('EXCEL VALIDATION')
                     # Excel validation
                     if len(sheet_names) > 1:
+                        print('MULTI-SHEET VALIDATION')
                         # Multi-sheet: pass excel_file to validator
                         validation_results = validate_document(None, document_type, file.filename, excel_file)
                     else:
+                        print('SINGLE-SHEET VALIDATION')
                         # Single sheet: validate cleaned DataFrame
-                        validation_results = validate_document(cleaned_df, document_type, file.filename)
+                        validation_results = validate_document(cleaned_df, document_type, file.filename, excel_file)
             finally:
                 # Ensure ExcelFile is closed
                 if excel_file is not None:
