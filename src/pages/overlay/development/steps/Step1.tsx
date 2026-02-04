@@ -10,6 +10,7 @@ import { overlayUploadFile } from "../../../../services/upload";
 import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
 import { setModuleProgress } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 import OverlayUploadResultModal, { type IssueRow } from "../../../../components/modals/OverlayUploadResultModal";
+import { normalizeUploadError } from "../../../../utils/uploadErrorNormalizer";
 import WorkflowPickerModal from "../../../../components/modals/WorkflowPickerModal";
 
 import {
@@ -265,6 +266,7 @@ export default function Step1() {
               fullResponse: result,
               validationStatus,
             },
+            normalized: normalizeUploadError(result.data ?? result.error ?? result),
           };
 
           setUploadIssues([issue]);
@@ -296,6 +298,7 @@ export default function Step1() {
             stack: error?.stack,
             validationStatus: "error",
           },
+          normalized: normalizeUploadError(error),
         };
 
         setUploadIssues([issue]);
@@ -559,7 +562,7 @@ export default function Step1() {
             <div className="relative">
               <UploadDropzone
                 label="Monthly MEV"
-                description="CSV or Excel. Name like: monthly_*_arima.*"
+                description="CSV or Excel"
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}
@@ -586,7 +589,7 @@ export default function Step1() {
             <div className="relative">
               <UploadDropzone
                 label="Quarterly MEV"
-                description="CSV or Excel. Name like: quarterly_*_arima.*"
+                description="CSV or Excel"
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}
@@ -613,7 +616,7 @@ export default function Step1() {
             <div className="relative">
               <UploadDropzone
                 label="HISTORICAL WEIGHTED CREDIT LOSS RATE"
-                description="CSV or Excel. Name like: historical_*_arima.*"
+                description="CSV or Excel"
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}

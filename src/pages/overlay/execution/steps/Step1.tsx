@@ -22,6 +22,7 @@ import { setHistoricalWeightedCreditLossRateFile } from "../../../../redux_toolk
 import OverlayUploadResultModal, {
   type IssueRow,
 } from "../../../../components/modals/OverlayUploadResultModal";
+import { normalizeUploadError } from "../../../../utils/uploadErrorNormalizer";
 import WorkflowPickerModal from "../../../../components/modals/WorkflowPickerModal";
 
 import {
@@ -598,6 +599,7 @@ export default function Step1() {
               fullResponse: result,
               validationStatus,
             },
+            normalized: normalizeUploadError(result.data ?? result.error ?? result),
           };
 
           setUploadIssues([issue]);
@@ -630,6 +632,7 @@ export default function Step1() {
             stack: error?.stack,
             validationStatus: "error",
           },
+          normalized: normalizeUploadError(error),
         };
 
         setUploadIssues([issue]);
@@ -1129,7 +1132,7 @@ export default function Step1() {
                 <div className="relative">
                   <UploadDropzone
                     label="Monthly MEV Input"
-                    description="CSV or Excel. Upload the monthly MEV input."
+                    description="CSV or Excel."
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
@@ -1157,7 +1160,7 @@ export default function Step1() {
                 <div className="relative">
                   <UploadDropzone
                     label="Quarterly MEV Input"
-                    description="CSV or Excel. Upload the quarterly MEV input."
+                    description="CSV or Excel"
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
@@ -1187,7 +1190,7 @@ export default function Step1() {
                 <div className="relative">
                   <UploadDropzone
                     label="Monthly MEV ARIMA Input"
-                    description="CSV or Excel. Name like: monthly_*_arima.*"
+                    description="CSV or Excel."
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
@@ -1215,7 +1218,7 @@ export default function Step1() {
                 <div className="relative">
                   <UploadDropzone
                     label="Quarterly MEV ARIMA Input"
-                    description="CSV or Excel. Name like: quarterly_*_arima.*"
+                    description="CSV or Excel."
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
@@ -1274,7 +1277,7 @@ export default function Step1() {
             <div className="relative">
               <UploadDropzone
                 label="Final Model"
-                description="CSV or Excel. Name like: final_*_model.* or *model*final*"
+                description="CSV or Excel."
                 required={false}
                 accept={accept}
                 maxSizeMB={maxSizeMB}
@@ -1331,7 +1334,7 @@ export default function Step1() {
             <div className="relative">
               <UploadDropzone
                 label="Historical Weighted Credit Loss Rates"
-                description="CSV or Excel. Name like: historical_*_weighted.* or *weighted*credit*loss*"
+                description="CSV or Excel."
                 required={false}
                 accept={accept}
                 maxSizeMB={maxSizeMB}
