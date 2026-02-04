@@ -40,6 +40,15 @@ export default function OverlayUploadResultModal({
     return first.normalized ?? normalizeUploadError(first.payload ?? first);
   }, [issues]);
 
+  const issueMessages = useMemo(() => {
+    const all: string[] = [];
+    issues.forEach((issue) => {
+      const norm = issue.normalized ?? normalizeUploadError(issue.payload ?? issue);
+      if (norm.issueMessages?.length) all.push(...norm.issueMessages);
+    });
+    return Array.from(new Set(all));
+  }, [issues]);
+
   const [showDetails, setShowDetails] = useState(false);
   useEffect(() => {
     if (open) setShowDetails(false);
@@ -85,6 +94,17 @@ export default function OverlayUploadResultModal({
             <p className="text-sm text-gray-800">{normalized.userMessage}</p>
             <p className="text-sm text-gray-700">{normalized.userAction}</p>
           </div>
+
+          {issueMessages.length > 0 && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <p className="text-sm font-medium text-gray-800">Issues found</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+                {issueMessages.map((msg, idx) => (
+                  <li key={`${msg}-${idx}`}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {detailsText && (
             <div>
