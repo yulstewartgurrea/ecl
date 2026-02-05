@@ -501,16 +501,13 @@ const Step4: React.FC<Step4Props> = ({
         throw new Error(msg);
       }
 
-      const ct = (res.headers.get("content-type") || "").toLowerCase();
       const cd = res.headers.get("content-disposition") || "";
       const nameMatch =
         cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i) ||
         cd.match(/filename=["']?([^"']+)["']?/i);
       const fallbackName = `multifactor_results_${selectedWorkflowId}_p${page}_ps${pageSize}`;
 
-      if (ct.includes("csv") || ct.startsWith("text/csv")) {
-        // Server already returns CSV  download directly
-        const blob = await res.blob();
+       const blob = await res.blob();
         const filename = (nameMatch && decodeURIComponent(nameMatch[1])) || `${fallbackName}.csv`;
         const href = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -521,24 +518,6 @@ const Step4: React.FC<Step4Props> = ({
         a.remove();
         URL.revokeObjectURL(href);
         setExportMsg("Export completed.");
-      } else {
-        // Server returned JSON  convert to CSV client-side and download
-        const json = await res.json();
-        const rows: Row[] = Array.isArray(json?.rows) ? json.rows : Array.isArray(json) ? json : [];
-        const headers = deriveHeaders(rows);
-        const csv = toCsv(headers, rows);
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const filename = `${fallbackName}.csv`;
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(href);
-        setExportMsg("Export completed.");
-      }
     } catch (e: any) {
       setExportErr(e?.message || "Export failed");
     } finally {
@@ -564,89 +543,6 @@ const Step4: React.FC<Step4Props> = ({
     if (Number.isFinite(selectedWorkflowId)) saveHeaders(Number(selectedWorkflowId), []);
   }, [selectedWorkflowId]);
 
-
-  // Load data and check status on page load
-  // useEffect(() => {
-  //   const loadDataOnMount = async () => {
-  //     // Only run if we have a workflow selected and token
-  //     if ((!selectedWorkflowId && selectedWorkflowId !== 0) || !token) {
-  //       return;
-  //     }
-
-  //     setStatusLoading(true);
-  //     setLoading(true);
-  //     try {
-  //       // First, check the job status
-  //       const statusResponse = await getMultiFactorStatus({
-  //         apiBase: API_BASE,
-  //         token,
-  //         workflowId: Number(selectedWorkflowId),
-  //       });
-
-  //       if (statusResponse?.success && statusResponse?.data) {
-  //         setStatus(statusResponse.data);
-          
-  //         // If job is still processing, show status but clear table data
-  //         if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
-  //           setErrMsg(
-  //             `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
-  //           );
-  //           // Clear table data when job is not completed
-  //           setServerRows([]);
-  //           setTotal(undefined);
-  //           setPages(undefined);
-  //           setLoading(false);
-  //           setStatusLoading(false);
-  //           return;
-  //         }
-
-  //         // If job failed, show error and clear table data
-  //         if (statusResponse.data.status === "failed") {
-  //           setErrMsg(
-  //             `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`
-  //           );
-  //           // Clear table data when job is not completed
-  //           setServerRows([]);
-  //           setTotal(undefined);
-  //           setPages(undefined);
-  //           setLoading(false);
-  //           setStatusLoading(false);
-  //           return;
-  //         }
-
-  //         // If job is cancelled, show message and clear table data
-  //         if (statusResponse.data.status === "cancelled") {
-  //           setErrMsg("Job was cancelled.");
-  //           // Clear table data when job is not completed
-  //           setServerRows([]);
-  //           setTotal(undefined);
-  //           setPages(undefined);
-  //           setLoading(false);
-  //           setStatusLoading(false);
-  //           return;
-  //         }
-
-  //         // If job is completed, fetch the results (start from page 1 on mount)
-  //         if (statusResponse.data.status === "completed") {
-  //           // await fetchPage(1, pageSize);
-  //         }
-  //       } else {
-  //         // If status check fails, silently fail on mount - user can manually refresh if needed
-  //         setServerRows([]);
-  //         setTotal(undefined);
-  //         setPages(undefined);
-  //       }
-  //     } catch (err: any) {
-  //       // Silently fail on mount - user can manually refresh if needed
-  //       console.error("Failed to load data on mount:", err);
-  //     } finally {
-  //       setLoading(false);
-  //       setStatusLoading(false);
-  //     }
-  //   };
-
-  //   loadDataOnMount();
-  // }, [selectedWorkflowId, token, API_BASE]);
 
   useEffect(() => {
     if (!totalPages) return;
@@ -784,7 +680,7 @@ const Step4: React.FC<Step4Props> = ({
               setPage(totalPages ? Math.min(n, totalPages) : n);
             }}
             className="w-16 rounded-md border border-neutral-300 px-2 py-1"
-            disabled={!hasTriggered || loading}
+            disabled={loading}
           />
           <span>/ {totalPages ?? "?"}</span>
           
@@ -800,7 +696,7 @@ const Step4: React.FC<Step4Props> = ({
               setPage(1);
             }}
             className="rounded-md border border-neutral-300 px-2 py-1"
-            disabled={!hasTriggered || loading}
+            disabled={loading}
           >
             {[10, 20, 50, 100, 1000].map((n) => (
               <option key={n} value={n}>

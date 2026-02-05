@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from "react-router-dom";
 import Stepper from '../../../components/stepper/Stepper';
 import Step1 from './steps/Step1';
 import Step2 from './steps/Step2';
@@ -26,6 +27,7 @@ import { resetHistoricalWeightedCreditLossRateFile } from '../../../redux_toolki
 
 const OverlayDevelopmentStep1 = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const selectedWorkflowId = useAppSelector(
     (state: RootState) =>
       (state as any).pdTransitionMatrixWfHelper?.currentPdTransitionMatrixWorkflowId
@@ -86,6 +88,7 @@ const OverlayDevelopmentStep1 = () => {
     dispatch(resetFinalModelExecutionFile());
     dispatch(resetHistoricalWeightedCreditLossRateFile());
     setActiveSubStep(0);
+    navigate("/overlay?tab=execution");
   };
 
   const renderSubStepContent = () => {

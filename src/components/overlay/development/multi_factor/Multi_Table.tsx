@@ -1,5 +1,7 @@
-﻿// Reusable, headless-ish React + Tailwind table with per-column Excel-style filters
+﻿// src/components/overlay/development/multi_factor/Multi_Table.tsx
+// Reusable, headless-ish React + Tailwind table with per-column Excel-style filters
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FunnelIcon } from "@heroicons/react/24/outline";
 
 // ========= Types =========
 export type Row = Record<string, unknown>;
@@ -18,12 +20,17 @@ export type ExcelLikeTableProps = {
   className?: string;
   emptyMessage?: string;
   onFilteredChange?: (rows: Row[]) => void;
+
+  // When serverMode=true, page/pageSize are only for UI display controlled by parent
   page?: number;
   pageSize?: number;
 
-  /** NEW: selection features */
-  selectable?: boolean; // default: false
-  getRowId?: (row: Row, index: number) => string | number; // strongly recommended
+  /** NEW: server-side mode */
+  serverMode?: boolean;
+
+  /** selection features */
+  selectable?: boolean;
+  getRowId?: (row: Row, index: number) => string | number;
   initialSelectedIds?: Array<string | number>;
   onSelectionChange?: (rows: Row[], ids: Array<string | number>) => void;
 };
@@ -58,6 +65,7 @@ function roundForCompare(n: number, digits = 6) {
   const p = Math.pow(10, digits);
   return Math.round(n * p) / p;
 }
+
 function uniqueValues(rows: Row[], key: string): string[] {
   const set = new Set<string>();
   for (const r of rows) {
@@ -66,6 +74,18 @@ function uniqueValues(rows: Row[], key: string): string[] {
     set.add(String(v));
   }
   return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
+function formatCell(v: unknown) {
+  if (v == null) return "";
+  if (typeof v === "number") return Number.isFinite(v) ? v.toLocaleString() : String(v);
+  return String(v);
+}
+function headerize(k: string) {
+  return k
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (m) => m.toUpperCase())
+    .replace(/\s+\w+/g, (m) => m);
 }
 
 // ========= Filter State =========
@@ -87,8 +107,8 @@ export function Multi_Table({
   onFilteredChange,
   page,
   pageSize,
+  serverMode = false,
 
-  // NEW props (all optional)
   selectable = false,
   getRowId,
   initialSelectedIds,
@@ -101,27 +121,28 @@ export function Multi_Table({
   }, [columns, data]);
 
   // ---- selection id helper
-  const rowIdOf = (row: Row, idx: number): string | number => {
-    if (getRowId) return getRowId(row, idx);
-    const cands = ["id", "ID", "index", "_id", "uuid", "key"];
-    for (const c of cands) {
-      const v = (row as any)?.[c];
-      if (typeof v === "string" || typeof v === "number") return v;
-    }
-    // fallback: index (only stable if your data order is stable)
-    return idx;
-  };
+  const rowIdOf = useCallback(
+    (row: Row, idx: number): string | number => {
+      if (getRowId) return getRowId(row, idx);
+      const cands = ["id", "ID", "index", "_id", "uuid", "key"];
+      for (const c of cands) {
+        const v = (row as any)?.[c];
+        if (typeof v === "string" || typeof v === "number") return v;
+      }
+      return idx;
+    },
+    [getRowId]
+  );
 
   const normalizeIds = useCallback((ids?: Array<string | number>) => {
     return new Set(ids ?? []);
   }, []);
 
-  // ---- selection set (seed from props if provided)
   const [selectedIds, setSelectedIds] = useState<Set<string | number>>(() =>
     normalizeIds(initialSelectedIds)
   );
 
-  // Initialize filters per column
+  // Initialize filters per column (only meaningful for client mode / page-local filtering)
   const [filters, setFilters] = useState<Record<string, ColumnFilter>>(() => {
     const init: Record<string, ColumnFilter> = {};
     for (const col of derivedColumns) {
@@ -138,7 +159,7 @@ export function Multi_Table({
     return init;
   });
 
-  // Sync filters when columns/data change (guarded to avoid update loops)
+  // Sync filters when columns/data change (guarded)
   useEffect(() => {
     setFilters((prev) => {
       const next: Record<string, ColumnFilter> = {};
@@ -168,18 +189,21 @@ export function Multi_Table({
       }
 
       if (Object.keys(prev).length !== Object.keys(next).length) changed = true;
-
-      return changed ? next : prev; // return prev when nothing changed
+      return changed ? next : prev;
     });
   }, [derivedColumns, data]);
 
-  // Filtering logic
+  // Filtering logic:
+  // - In serverMode: backend result is the "filtered set". This UI filters only current data/page.
   const filtered = useMemo(() => {
     if (!data?.length) return [];
+    if (!derivedColumns.length) return data;
+
     return data.filter((row) => {
       for (const col of derivedColumns) {
         const f = filters[col.key];
         if (!f) continue;
+
         const raw = row[col.key];
         const strVal = raw == null ? "" : String(raw);
 
@@ -187,13 +211,16 @@ export function Multi_Table({
           const needle = f.search.trim().toLowerCase();
           if (!strVal.toLowerCase().includes(needle)) return false;
         }
+
         if (f.checkedValues && f.checkedValues.size > 0) {
           if (!f.checkedValues.has(strVal)) return false;
         }
+
         if (f.isNumeric && (f.min?.trim() || f.max?.trim())) {
           const nRaw = parseNumeric(raw);
           if (nRaw == null) return false;
           const n = roundForCompare(nRaw);
+
           if (f.min?.trim()) {
             const minVal = parseNumeric(f.min);
             if (minVal == null) return false;
@@ -210,15 +237,19 @@ export function Multi_Table({
     });
   }, [data, derivedColumns, filters]);
 
+  // Visible rows:
   const safePage = Math.max(1, page ?? 1);
   const safePageSize = Math.max(1, pageSize ?? (filtered.length || 1));
+
   const pageStart = (safePage - 1) * safePageSize;
   const pageEnd = pageStart + safePageSize;
-  const visibleRows = useMemo(
-    () => filtered.slice(pageStart, pageEnd),
-    [filtered, pageStart, pageEnd]
-  );
 
+  const visibleRows = useMemo(() => {
+    if (serverMode) return filtered;
+    return filtered.slice(pageStart, pageEnd);
+  }, [filtered, pageStart, pageEnd, serverMode]);
+
+  // Report filtered rows to parent
   const onFilteredChangeRef = useRef(onFilteredChange);
   useEffect(() => {
     onFilteredChangeRef.current = onFilteredChange;
@@ -228,16 +259,16 @@ export function Multi_Table({
     onFilteredChangeRef.current?.(filtered);
   }, [filtered]);
 
-  // ---- id -> row map (avoid full scan per click)
+  // ---- id -> row map (for current data only)
   const rowIdMap = useMemo(() => {
     const map = new Map<string | number, Row>();
     data.forEach((r, i) => {
       map.set(rowIdOf(r, i), r);
     });
     return map;
-  }, [data, getRowId]);
+  }, [data, rowIdOf]);
 
-  // ---- notify on selection change
+  // ---- selected rows (only those available in this page map)
   const selectedRows = useMemo(() => {
     const out: Row[] = [];
     selectedIds.forEach((id) => {
@@ -252,30 +283,26 @@ export function Multi_Table({
     onSelectionChangeRef.current = onSelectionChange;
   }, [onSelectionChange]);
 
-  // Track if we're syncing from initialSelectedIds to prevent callback loops
   const isSyncingRef = useRef(false);
   const prevInitialSelectedIdsRef = useRef<typeof initialSelectedIds>(undefined);
 
   useEffect(() => {
-    // Skip callback if we're in the middle of syncing from initialSelectedIds
     if (isSyncingRef.current) return;
-    
-    // Use the memoized selectedRows
     onSelectionChangeRef.current?.(selectedRows, Array.from(selectedIds));
   }, [selectedIds, selectedRows]);
 
-  // ---- sync selection if initialSelectedIds changes (e.g., workflow change)
+  // Sync selection if initialSelectedIds changes
   useEffect(() => {
     if (!initialSelectedIds) {
       prevInitialSelectedIdsRef.current = initialSelectedIds;
       return;
     }
-    
-    // Compare by value to avoid unnecessary updates
+
     const currentIds = normalizeIds(initialSelectedIds);
-    const prevIds = prevInitialSelectedIdsRef.current ? normalizeIds(prevInitialSelectedIdsRef.current) : new Set();
-    
-    // Check if initialSelectedIds actually changed
+    const prevIds = prevInitialSelectedIdsRef.current
+      ? normalizeIds(prevInitialSelectedIdsRef.current)
+      : new Set();
+
     let idsChanged = currentIds.size !== prevIds.size;
     if (!idsChanged) {
       for (const id of currentIds) {
@@ -285,13 +312,10 @@ export function Multi_Table({
         }
       }
     }
-    
-    // Update ref before checking if we need to sync
+
     prevInitialSelectedIdsRef.current = initialSelectedIds;
-    
-    // Only sync if initialSelectedIds changed AND it's different from current selection
     if (!idsChanged) return;
-    
+
     let same = currentIds.size === selectedIds.size;
     if (same) {
       for (const id of currentIds) {
@@ -301,38 +325,45 @@ export function Multi_Table({
         }
       }
     }
+
     if (!same) {
       isSyncingRef.current = true;
       setSelectedIds(currentIds);
-      // Reset the flag in the next tick after state update completes
       requestAnimationFrame(() => {
         isSyncingRef.current = false;
       });
     }
   }, [initialSelectedIds, normalizeIds, selectedIds]);
 
-  // ---- select all on current filtered page
+  // Select all on current visible rows
   const allVisibleSelected =
     selectable &&
     visibleRows.length > 0 &&
-    visibleRows.every((row, i) => selectedIds.has(rowIdOf(row, pageStart + i)));
+    visibleRows.every((row, i) =>
+      selectedIds.has(rowIdOf(row, serverMode ? i : pageStart + i))
+    );
 
   function toggleSelectAllVisible() {
     if (!selectable) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (allVisibleSelected) {
-        visibleRows.forEach((row, i) => next.delete(rowIdOf(row, pageStart + i)));
+        visibleRows.forEach((row, i) =>
+          next.delete(rowIdOf(row, serverMode ? i : pageStart + i))
+        );
       } else {
-        visibleRows.forEach((row, i) => next.add(rowIdOf(row, pageStart + i)));
+        visibleRows.forEach((row, i) =>
+          next.add(rowIdOf(row, serverMode ? i : pageStart + i))
+        );
       }
       return next;
     });
   }
 
-  function toggleRow(row: Row, idxInFiltered: number) {
+  function toggleRow(row: Row, idxInVisible: number) {
     if (!selectable) return;
-    const id = rowIdOf(row, idxInFiltered);
+    const globalIndex = serverMode ? idxInVisible : pageStart + idxInVisible;
+    const id = rowIdOf(row, globalIndex);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
@@ -369,9 +400,8 @@ export function Multi_Table({
         (className ?? "")
       }
     >
-      {/* Selection summary (only when selectable) */}
       {selectable && (
-        <div className="flex items-center gap-3  border-neutral-200 px-3 py-2 text-xs text-neutral-700">
+        <div className="flex items-center gap-3 border-neutral-200 px-3 py-2 text-xs text-neutral-700">
           <span>
             <strong>{selectedIds.size}</strong> selected
           </span>
@@ -379,6 +409,7 @@ export function Multi_Table({
             <button
               className="rounded-md border border-neutral-300 bg-white px-2 py-1 hover:bg-neutral-100"
               onClick={clearSelection}
+              type="button"
             >
               Clear
             </button>
@@ -388,9 +419,8 @@ export function Multi_Table({
 
       <div className="max-h-[100vh] min-h-[38rem] overflow-auto">
         <table className="w-full text-left text-sm">
-          {/* UPDATED header bg */}
           <thead className="sticky top-0 z-10 bg-gray-700 text-white backdrop-blur">
-            <tr className=" border-neutral-200/20">
+            <tr className="border-neutral-200/20">
               {selectable && (
                 <th className="w-10 px-3 py-2">
                   <label className="inline-flex items-center gap-2">
@@ -403,6 +433,7 @@ export function Multi_Table({
                   </label>
                 </th>
               )}
+
               {derivedColumns.map((col) => (
                 <th
                   key={col.key}
@@ -415,11 +446,15 @@ export function Multi_Table({
                       : "text-left")
                   }
                 >
-                  {/* relative so the popover anchors to THIS header */}
                   <div className="relative flex items-center gap-2">
                     <span>{col.header ?? headerize(col.key)}</span>
+
                     <button
-                      className="ml-auto rounded-md border border-white/20 px-1.5 py-1 text-xs text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                      type="button"
+                      className={
+                        "ml-auto inline-flex items-center justify-center rounded-md border border-white/20 px-1.5 py-1 text-xs text-white " +
+                        "hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                      }
                       onClick={() =>
                         setFilters((prev) => ({
                           ...prev,
@@ -431,9 +466,16 @@ export function Multi_Table({
                       }
                       aria-haspopup="dialog"
                       aria-expanded={filters[col.key]?.open || false}
-                      title="Filter"
+                      aria-label={`Filter ${col.header ?? headerize(col.key)}`}
+                      title={serverMode ? "Filters apply to this page only" : "Filter"}
                     >
-                      
+                      <FunnelIcon
+                        className={
+                          "h-4 w-4 " +
+                          (filters[col.key]?.open ? "opacity-100" : "opacity-90")
+                        }
+                        aria-hidden="true"
+                      />
                     </button>
 
                     {filters[col.key]?.open && (
@@ -473,14 +515,14 @@ export function Multi_Table({
               </tr>
             ) : (
               visibleRows.map((row, i) => {
-                const globalIndex = pageStart + i;
-                const id = rowIdOf(row, globalIndex);
+                const id = rowIdOf(row, serverMode ? i : pageStart + i);
                 const isSel = selectable && selectedIds.has(id);
+
                 return (
                   <tr
-                    key={i}
+                    key={String(id)}
                     className={
-                      " border-neutral-100 hover:bg-neutral-50 " +
+                      "border-neutral-100 hover:bg-neutral-50 " +
                       (isSel ? "bg-yellow-50/40" : "")
                     }
                   >
@@ -489,11 +531,12 @@ export function Multi_Table({
                         <input
                           type="checkbox"
                           checked={isSel}
-                          onChange={() => toggleRow(row, globalIndex)}
-                          aria-label={`Select row ${globalIndex + 1}`}
+                          onChange={() => toggleRow(row, i)}
+                          aria-label={`Select row ${i + 1}`}
                         />
                       </td>
                     )}
+
                     {derivedColumns.map((col) => (
                       <td
                         key={col.key}
@@ -520,19 +563,7 @@ export function Multi_Table({
   );
 }
 
-function formatCell(v: unknown) {
-  if (v == null) return "";
-  if (typeof v === "number") return Number.isFinite(v) ? v.toLocaleString() : String(v);
-  return String(v);
-}
-function headerize(k: string) {
-  return k
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (m) => m.toUpperCase())
-    .replace(/\s+\w+/g, (m) => m);
-}
-
-// ========= Popover (anchored under header) =========
+// ========= Popover =========
 function FilterPopover({
   columnKey,
   rows,
@@ -547,8 +578,9 @@ function FilterPopover({
   onClose: () => void;
 }) {
   const allValues = useMemo(() => uniqueValues(rows, columnKey), [rows, columnKey]);
+
   const [tempChecked, setTempChecked] = useState<Set<string>>(
-    new Set(filter.checkedValues)
+    () => new Set(filter.checkedValues)
   );
   const [tempSearch, setTempSearch] = useState(filter.search);
   const [tempMin, setTempMin] = useState(filter.min ?? "");
@@ -569,6 +601,7 @@ function FilterPopover({
       return next;
     });
   }
+
   function toggleAllVisible() {
     setTempChecked((s) => {
       const next = new Set(s);
@@ -577,12 +610,14 @@ function FilterPopover({
       return next;
     });
   }
+
   function clearAll() {
     setTempChecked(new Set());
     setTempSearch("");
     setTempMin("");
     setTempMax("");
   }
+
   function apply() {
     onChange({
       checkedValues: tempChecked,
@@ -608,13 +643,18 @@ function FilterPopover({
         />
 
         <div className="max-h-48 overflow-auto rounded-lg border border-neutral-200">
-          <div className="sticky top-0 flex items-center gap-2  border-neutral-200 bg-white px-2 py-1.5 text-xs">
+          <div className="sticky top-0 flex items-center gap-2 border-neutral-200 bg-white px-2 py-1.5 text-xs">
             <label className="inline-flex items-center gap-2 select-none">
-              <input type="checkbox" checked={allVisibleChecked} onChange={toggleAllVisible} />
+              <input
+                type="checkbox"
+                checked={allVisibleChecked}
+                onChange={toggleAllVisible}
+              />
               <span className="text-neutral-700">Select shown</span>
             </label>
             <span className="ml-auto text-neutral-500">{filteredList.length} values</span>
           </div>
+
           <ul className="divide-y divide-neutral-100">
             {filteredList.map((v) => (
               <li key={v} className="flex items-center gap-2 px-2 py-1.5 text-sm">
@@ -633,6 +673,7 @@ function FilterPopover({
                 </label>
               </li>
             ))}
+
             {filteredList.length === 0 && (
               <li className="px-2 py-2 text-sm text-neutral-500">No values</li>
             )}
@@ -640,13 +681,25 @@ function FilterPopover({
         </div>
 
         <div className="flex justify-end gap-2 pt-1">
-          <button className="rounded-lg px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100" onClick={clearAll}>
+          <button
+            type="button"
+            className="rounded-lg px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
+            onClick={clearAll}
+          >
             Clear
           </button>
-          <button className="rounded-lg px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100" onClick={onClose}>
+          <button
+            type="button"
+            className="rounded-lg px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100"
+            onClick={onClose}
+          >
             Cancel
           </button>
-          <button className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800" onClick={apply}>
+          <button
+            type="button"
+            className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800"
+            onClick={apply}
+          >
             Apply
           </button>
         </div>

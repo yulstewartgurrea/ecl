@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from "react-router-dom";
 import Stepper from '../../../components/stepper/Stepper';
 import Step1 from './steps/Step1';
 import Step2 from './steps/Step2';
@@ -17,6 +18,7 @@ import {
 
 const OverlayDevelopmentStep1 = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const selectedWorkflowId = useAppSelector(
     (state: RootState) =>
       (state as any).pdTransitionMatrixWfHelper?.currentPdTransitionMatrixWorkflowId
@@ -79,6 +81,7 @@ const OverlayDevelopmentStep1 = () => {
       })
     );
     setActiveSubStep(0);
+    navigate("/overlay?tab=development");
   };
 
   const renderSubStepContent = () => {

@@ -5,9 +5,10 @@ import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Settings from "./pages/Settings";
 import Configuration from "./pages/Configuration";
-import WorkflowLists from "./pages/flowrate_approach";
+import WorkflowLists from "./pages/flowrate_approach/index";
 import OverlayLandingPage from "./pages/overlay/Overlay";
 import FlowrateApproachPage from "./pages/flowrate_approach/FlowrateApproach";
+import WorkflowFolderList from "./pages/flowrate_approach/WorkflowFolderList";
 import EclUpload from "./pages/ecl/EclUpload";
 import BackendLoader from "./components/BackendLoader";
 
@@ -95,6 +96,7 @@ function App() {
       >
         <Route index element={<WorkflowLists />} />
         <Route path="flowrate" element={<WorkflowLists />} />
+        <Route path="WorkflowFolderList" element={<WorkflowFolderList/>} />
         <Route path="pd_landing" element={<FlowrateApproachPage />} />
         <Route path="overlay" element={<OverlayLandingPage />} />
         <Route path="settings" element={<Settings />} />

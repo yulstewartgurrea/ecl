@@ -24,6 +24,15 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 import type { Workflow } from "../../../services/workflow";
 const DOC_AGING_REPORT = "FLOWRATE_APPROACH_AGING_REPORT";
 
+const toNumberSafe = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
 /**
  * Align upload path with workflow path:
  *   entity / loanProduct / period / report_date_start / workflowName / subdir
@@ -52,12 +61,13 @@ export default function Step1() {
   const dispatch = useAppDispatch();
   // Get workflow data + selected fields from Redux
   const {
+    pdTransitionMatrixWfName,
     currentPdTransitionMatrixWorkflowId,
     currentPdTransitionMatrixWorkflowData,
     selectedPdTransitionMatrixLoanProduct,
     selectedPdTransitionMatrixReportDateStart,
   } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
-  
+
   const token = useAppSelector((state: any) => state.auth?.token) as string | null;
   const [files, setFiles] = useState<File[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
@@ -73,24 +83,20 @@ export default function Step1() {
   // Prefer Redux workflowId, then fallback to 1
   const workflowIdFromRedux =
     currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
-  const workflowId: number = Number.isFinite(Number(workflowIdFromRedux))
-    ? Number(workflowIdFromRedux)
-    : 1;
+  const workflowId = Number(workflowIdFromRedux)
 
   // Prefer values from persisted workflowData; fall back to selected values; finally to sane defaults
-  const entity = currentPdTransitionMatrixWorkflowData?.entity || "Entity 1";
+  const entity = currentPdTransitionMatrixWorkflowData?.entity;
   const period =
-    currentPdTransitionMatrixWorkflowData?.reporting_period || "Monthly";
+    currentPdTransitionMatrixWorkflowData?.reporting_period;
   const wfName =
-    currentPdTransitionMatrixWorkflowData?.workflow_name || "wf3";
+    currentPdTransitionMatrixWorkflowData?.workflow_name;
   const loanProduct =
     currentPdTransitionMatrixWorkflowData?.loan_product ||
-    selectedPdTransitionMatrixLoanProduct ||
-    "GenericLoan";
+    selectedPdTransitionMatrixLoanProduct
   const reportDateStart =
     currentPdTransitionMatrixWorkflowData?.report_date_start ||
-    selectedPdTransitionMatrixReportDateStart ||
-    "2025-01-01";
+    selectedPdTransitionMatrixReportDateStart
 
   const context = {
     entity,
@@ -154,14 +160,16 @@ export default function Step1() {
           };
           (file as any).isExisting = true;
           (file as any).documentId = doc.id;
-          (file as any).sizeBytes =
-            typeof doc.size_bytes === "number" ? doc.size_bytes : undefined;
+          (file as any).sizeBytes = toNumberSafe(
+            doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size
+          );
           (file as any).serverFilename = doc.filename;
           return file;
         });
 
-        setFiles(existing);
-        setUploadedFiles(new Set(existing.map((f) => f.name)));
+        const onlyOne = existing.slice(0, 1);
+        setFiles(onlyOne);
+        setUploadedFiles(new Set(onlyOne.map((f) => f.name)));
       } else {
         setFiles([]);
       }
@@ -291,9 +299,10 @@ export default function Step1() {
 
   const handleFilesChange = useCallback(
     async (nextFiles: File[]) => {
-      resetUploadStateForFiles(nextFiles);
-      setFiles(nextFiles);
-      for (const f of nextFiles) {
+      const single = nextFiles.slice(-1);
+      resetUploadStateForFiles(single);
+      setFiles(single);
+      for (const f of single) {
         if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
           await uploadIndividualFile(f);
         }
@@ -307,8 +316,6 @@ export default function Step1() {
       const nextPeriod = (w as any).reporting_period ?? (w as any).reportingPeriod ?? "";
       const nextName = (w as any).workflow_name ?? (w as any).name ?? "";
       const nextId = typeof (w as any).id === "number" ? (w as any).id : null;
-
-      console.log(`ðŸŽ¯ WORKFLOW SELECTED: ID=${nextId}, Name='${nextName}', Entity='${nextEntity}', Period='${nextPeriod}'`);
 
       if (nextEntity) dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
@@ -387,6 +394,9 @@ export default function Step1() {
             <h3 className="text-lg font-bold tracking-tight text-gray-900">
               Inputs
             </h3>
+            <p className="mt-1 text-xs text-gray-600">
+              Workflow: {pdTransitionMatrixWfName || "—"}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -434,6 +444,7 @@ export default function Step1() {
                 accept={accept}
                 maxSizeMB={maxSizeMB}
                 maxFiles={1}
+                multiple={false}
                 value={files}
                 onChange={handleFilesChange}
                 emptyHint="Waiting for aging report file"

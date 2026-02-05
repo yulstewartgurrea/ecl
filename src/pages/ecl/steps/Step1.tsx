@@ -28,6 +28,15 @@ import type { Workflow } from "../../../services/workflow";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
+const toNumberSafe = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
 /* -----------------------------------------------------------
    Execution document types (must match backend / Postman)
 ----------------------------------------------------------- */
@@ -163,12 +172,19 @@ export default function Step1() {
             ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             : "application/vnd.ms-excel";
 
-          const f = new File([], doc.filename, { type: mime }) as File & {
+          const displayName = doc.original_filename || doc.filename;
+          const f = new File([], displayName, { type: mime }) as File & {
             isExisting?: boolean;
             documentId?: number | string;
+            sizeBytes?: number;
+            serverFilename?: string;
           };
           (f as any).isExisting = true;
           (f as any).documentId = doc.id;
+          (f as any).sizeBytes = toNumberSafe(
+            doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size
+          );
+          (f as any).serverFilename = doc.filename;
           return f;
         });
 
@@ -183,7 +199,7 @@ export default function Step1() {
           }
         }
 
-        setECLFiles(nextEcl);
+        setECLFiles(nextEcl.slice(0, 1));
       }
     } catch (err) {
       console.error("Failed to fetch execution docs:", err);
@@ -323,9 +339,10 @@ export default function Step1() {
   // Dropzone handler
   const handleEclFilesChange = useCallback(
     async (files: File[]) => {
-      setECLFiles(files);
+      const single = files.slice(-1);
+      setECLFiles(single);
 
-      for (const f of files) {
+      for (const f of single) {
         if (
           !uploadedFiles.has(f.name) &&
           !uploadingFiles.has(f.name) &&
@@ -489,6 +506,9 @@ export default function Step1() {
             <h3 className="text-lg font-bold tracking-tight text-gray-900">
               Inputs
             </h3>
+            <p className="mt-1 text-xs text-gray-600">
+              Workflow: {workflowName || "—"}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -537,10 +557,11 @@ export default function Step1() {
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}
-                maxFiles={3}
+                maxFiles={1}
+                multiple={false}
                 value={eclFiles}
                 onChange={handleEclFilesChange}
-                emptyHint="Waiting for ECL file(s)"
+                emptyHint="Waiting for ECL file"
                 variant="card"
                 // optional: block interaction while retrying
                 disabled={retrySubmitting}

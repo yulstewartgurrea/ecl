@@ -68,7 +68,8 @@ export default function UploadDropzone({
 
   const addFiles = (files: FileList | File[]) => {
     const list = Array.from(files);
-    const next = [...value];
+    const effectiveMaxFiles = multiple ? maxFiles : 1;
+    const next = multiple ? [...value] : [];
     const errs: string[] = [];
 
     list.forEach((f) => {
@@ -88,22 +89,33 @@ export default function UploadDropzone({
         errs.push(`${f.name} is not an accepted type (${accept})`);
         return;
       }
-      if (maxFiles && next.length >= maxFiles) {
-        errs.push(`Max ${maxFiles} file${maxFiles > 1 ? "s" : ""} allowed`);
+      if (effectiveMaxFiles && next.length >= effectiveMaxFiles) {
+        errs.push(
+          `Max ${effectiveMaxFiles} file${effectiveMaxFiles > 1 ? "s" : ""} allowed`
+        );
         return;
       }
       const k = fileKey(f);
-      if (!next.some((x) => fileKey(x) === k)) next.push(f);
+      if (!next.some((x) => fileKey(x) === k)) {
+        if (!multiple) {
+          next.length = 0;
+          next.push(f);
+        } else {
+          next.push(f);
+        }
+      }
     });
 
     setErrors(errs);
     onChange(next);
+    if (inputRef.current) inputRef.current.value = "";
   };
 
   const removeAt = (idx: number) => {
     const next = value.slice();
     next.splice(idx, 1);
     onChange(next);
+    if (inputRef.current) inputRef.current.value = "";
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -123,6 +135,7 @@ export default function UploadDropzone({
   const openPicker = () => !disabled && inputRef.current?.click();
 
   const hasFiles = value.length > 0;
+  const effectiveMaxFiles = multiple ? maxFiles : 1;
 
   const wrapper =
     variant === "compact"
@@ -204,7 +217,12 @@ export default function UploadDropzone({
             </p>
             <p className="text-xs text-gray-500">
               Accepted: <span className="font-medium">{accept}</span>
-              {maxFiles ? ` · Up to ${maxFiles} file${maxFiles > 1 ? "s" : ""}` : ""} · Max {maxSizeMB} MB/file
+              {effectiveMaxFiles
+                ? ` · Up to ${effectiveMaxFiles} file${
+                    effectiveMaxFiles > 1 ? "s" : ""
+                  }`
+                : ""}{" "}
+              · Max {maxSizeMB} MB/file
             </p>
           </div>
         </div>
