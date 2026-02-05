@@ -24,7 +24,7 @@ def validate_flowrate_document(df: pd.DataFrame, document_type: str, file_name: 
     
     # Route directly to appropriate validation function based on document type
     if document_type == "FLOWRATE_APPROACH_WRITE_OFF_ACCOUNTS":
-        print("Flowrate Approach Write Off Accounts")
+        print("Flowrate Approach")
         return validate_write_off_accounts(df, document_type, file_name)
     elif document_type == "FLOWRATE_APPROACH_AGING_REPORT":
         print("Flowrate Approach Aging Report")
@@ -66,7 +66,7 @@ def _get_base_validation_results(file_name: str, document_type: str) -> Dict[str
 
 def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name: str) -> Dict[str, Any]:
     """
-    Specialized validation for Write Off Accounts documents
+    Specialized validation for documents
     """
     validation_results = _get_base_validation_results(file_name, document_type)
     
@@ -93,7 +93,7 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
             validation_results["issues"].append({
                 "type": "missing_required_columns",
                 "columns": missing_required,
-                "message": f"Missing required columns for Write Off Accounts: {', '.join(missing_required)}"
+                "message": f"Missing required columns for: {', '.join(missing_required)}"
             })
         
         # Expected columns - warnings if missing (subset of required for additional validation)
@@ -103,7 +103,7 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
             validation_results["issues"].append({
                 "type": "missing_expected_columns",
                 "columns": missing_expected,
-                "message": f"Missing expected columns for Write Off Accounts: {', '.join(missing_expected)}"
+                "message": f"Missing expected columns for: {', '.join(missing_expected)}"
             })
         
         # Validate numeric columns
@@ -120,7 +120,7 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
                         "column": actual_col_name,
                         "expected": "numeric",
                         "actual": str(df[actual_col_name].dtype),
-                        "message": f"Column '{actual_col_name}' should be numeric for Write Off Accounts"
+                        "message": f"Column '{actual_col_name}' should be numeric for"
                     })
                 else:
                     # Check for negative amounts (might be invalid)
@@ -147,7 +147,7 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
                     validation_results["issues"].append({
                         "type": "date_format",
                         "column": actual_col_name,
-                        "message": f"Column '{actual_col_name}' contains invalid date formats for Write Off Accounts"
+                        "message": f"Column '{actual_col_name}' contains invalid date formats"
                     })
         
         # Add other validations
@@ -159,7 +159,7 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
         validation_results["validation_status"] = "error"
         validation_results["issues"].append({
             "type": "validation_error",
-            "message": f"Error during Write Off Accounts validation: {str(e)}"
+            "message": f"Error during validation: {str(e)}"
         })
         return validation_results
 
