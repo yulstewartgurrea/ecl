@@ -322,6 +322,112 @@ async def get_filtered_results(
             }
         )
 
+@router.get("/filtering_models/column_values")
+async def get_filtered_results_values(
+    workflow_id: int = Query(..., description="Workflow ID"),
+    num_of_vars: int = Query(2, description="Number of variables taken"),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        db = SessionLocal()
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id, 
+                Workflow.user_id == current_user.id
+            ).first()
+            if not workflow:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "Workflow not found",
+                        "data": None
+                    }
+                )
+
+            portfolio = workflow.loan_product
+            ODR = "odr.logit"
+
+            filtering_of_models_path = (
+                f"{get_root_folder()}/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{portfolio}/filtering_of_models"
+            )
+
+            filtering_of_models_file = max(
+                Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{num_of_vars}_var_*"),
+                key=lambda p: p.stat().st_mtime,   # last modified time
+                default=None
+            )
+            
+            if not filtering_of_models_file:
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "code": 1,
+                        "success": True,
+                        "data": []
+                    }
+                )
+
+            # Read CSV file
+            df = pd.read_csv(filtering_of_models_file)
+
+            # Get all columns where values are strings (contain more than 1 letter)
+            # This excludes exponential notation (e.g., 1e-5, 2e10) which only has 1 'e'
+            string_columns = []
+            for col in df.columns:
+                # Check if column contains any string values with at least 2 letters
+                # Convert to string and check if any value contains 2 or more letters
+                col_as_str = df[col].astype(str)
+                # Check if any value in the column contains at least 2 letters (a-z or A-Z)
+                # Pattern matches if there are at least 2 letters (with anything in between)
+                has_multiple_letters = col_as_str.str.contains(r'[a-zA-Z].*[a-zA-Z]', na=False, regex=True).any()
+                if has_multiple_letters:
+                    string_columns.append(col)
+
+            # Get unique values for each column header (only columns with letters)
+            column_unique_values = {}
+            for col in string_columns:
+                # Get unique values, drop NaN, convert to list, and sort
+                unique_vals = df[col].dropna().unique().tolist()
+                # Convert to appropriate type (keep as is, but ensure JSON serializable)
+                # Sort if possible (numbers and strings can be sorted)
+                try:
+                    # Try to sort if all values are of comparable types
+                    unique_vals = sorted(unique_vals, key=lambda x: (str(x).lower() if isinstance(x, str) else x))
+                except (TypeError, ValueError):
+                    # If sorting fails (mixed types), keep original order
+                    pass
+                column_unique_values[col] = make_json_serializable(unique_vals)
+
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "string_columns": string_columns,
+                    "column_unique_values": column_unique_values
+                }
+            )
+        finally:
+            db.close()
+            
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Something went wrong: {str(e)}",
+                "data": None
+            }
+        )
+
 
 @router.get("/filtering_models/mfa_file/headers")
 async def get_mfa_file_headers(
