@@ -65,20 +65,12 @@ const FlowrateApproachPage = () => {
     selectedPdTransitionMatrixLoanProduct,
   ]);
 
-  // IMPORTANT: use a stable key (same idea we used before)
-  const progressKey = useMemo(() => {
-    const wfId = Number(currentPdTransitionMatrixWorkflowData?.id);
-    if (workflowPath) return workflowPath;
-    if (Number.isFinite(wfId) && wfId > 0) return `wf:${wfId}`;
-    return undefined;
-  }, [workflowPath, currentPdTransitionMatrixWorkflowData?.id]);
-
   const persistedStep = useAppSelector((state: RootState) =>
-    selectModuleProgress(state, "flowrate", progressKey)?.step
+    selectModuleProgress(state, "flowrate", workflowPath || undefined)?.step
   );
 
   const step1Valid = useAppSelector((state: RootState) => {
-    const entry = selectModuleProgress(state, "flowrate", progressKey);
+    const entry = selectModuleProgress(state, "flowrate", workflowPath || undefined);
     return Boolean((entry?.data as any)?.step1Valid);
   });
 
@@ -117,7 +109,7 @@ const FlowrateApproachPage = () => {
     dispatch(
       setModuleProgress({
         moduleKey: "flowrate",
-        contextKey: progressKey,
+        contextKey: workflowPath || undefined,
         step: targetIndex,
         data: {
           workflowPath,
@@ -134,7 +126,7 @@ const FlowrateApproachPage = () => {
     dispatch(
       clearModuleProgress({
         moduleKey: "flowrate",
-        contextKey: progressKey,
+        contextKey: workflowPath || undefined,
       })
     );
 
