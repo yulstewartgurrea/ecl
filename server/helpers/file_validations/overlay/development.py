@@ -871,7 +871,7 @@ def validate_overlay_development_quarterly_mev(df: pd.DataFrame, document_type: 
             })
 
         # Validate columns based on their type from row 1 (rates = percentages, count = integers)
-        excluded_columns = {"year", "month (int)", "month", "id", "x"}
+        excluded_columns = {"year", "month (int)", "month", "id", "x", "quarter"}
         excluded_columns_normalized = {col.strip().lower() for col in excluded_columns}
         
         for col in df.columns:
