@@ -1,6 +1,12 @@
 // src/pages/overlay/development/multi_factor/Step5.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Multi_Table, type Row } from "../../../../components/overlay/development/multi_factor/Multi_Table";
+import {
+  Multi_Table,
+  type Row,
+  type ColumnValuesMap,
+  type AppliedSelectionsMap,
+  type FilterItem,
+} from "../../../../components/overlay/development/multi_factor/Multi_Table";
 import { getFilteringModels, postFilteringModels } from "../../../../services/filteringModels";
 import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
@@ -10,19 +16,14 @@ import {
   PlayCircleIcon,
   Cog6ToothIcon,
   ArrowDownTrayIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 
 import FilteringConfigModal from "../../../../components/overlay/development/multi_factor/FilteringConfigModal";
+import PaginationControls from "../../../../components/overlay/development/shared/PaginationControls";
 import {
   loadHeaders,
   loadFilters,
-  loadFilterLogic,
   type FilterRule,
-  type FilterLogic,
 } from "../../../../utils/overlay/headersStorage";
 import { selectModuleProgress, setModuleProgress } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 
@@ -40,6 +41,20 @@ const uniqCaseInsensitive = (arr: string[]) => {
       out.push(h);
     }
   }
+  return out;
+};
+
+const normalizeColumnValues = (payload: unknown): ColumnValuesMap => {
+  if (!payload || typeof payload !== "object") return {};
+  const raw = payload as any;
+  const source = raw.columns && typeof raw.columns === "object" ? raw.columns : raw;
+  if (!source || typeof source !== "object") return {};
+
+  const out: ColumnValuesMap = {};
+  Object.entries(source).forEach(([key, value]) => {
+    if (!Array.isArray(value)) return;
+    out[key] = value.map((v) => String(v));
+  });
   return out;
 };
 
@@ -120,6 +135,8 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
   const overlayData = (overlayProgress?.data ?? {}) as Record<string, unknown>;
   const persistedSelected = overlayData.step5Selected as Step5Persist | undefined;
   const persistedChecked = overlayData.step5Checked as Step5Persist | undefined;
+  const step3Config = overlayData.step3Config as { numOfVars?: number } | undefined;
+  const numVarsTaken = step3Config?.numOfVars ?? 2;
 
   const [loading, setLoading] = useState(false);
   const [posting, setPosting] = useState(false);
@@ -131,7 +148,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
   // Pagination state (server-side)
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(1000);
 
   const [pagination, setPagination] = useState<{
     page: number;
@@ -142,17 +159,15 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
     has_previous: boolean;
   } | null>(null);
 
-  // Global server-side search (BUTTON TRIGGERED)
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-
   // headers + filters
   const [headers, setHeaders] = useState<string[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<FilterRule[]>([]);
   const [payloadFilters, setPayloadFilters] = useState<FilterRule[]>([]);
-  const [filterLogic, setFilterLogic] = useState<FilterLogic>("AND");
   const [configOpen, setConfigOpen] = useState(false);
-  const [num_vars_taken, setNum_vars_taken] = useState<number>(2);
+  const [columnValuesMap, setColumnValuesMap] = useState<ColumnValuesMap>({});
+  const [columnValuesLoading, setColumnValuesLoading] = useState(false);
+  const [appliedSelections, setAppliedSelections] = useState<AppliedSelectionsMap>({});
+  const [appliedFilters, setAppliedFilters] = useState<FilterItem[]>([]);
 
   // Export states
   const [exporting, setExporting] = useState(false);
@@ -170,7 +185,11 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
   const selectedCount = selectedFilters.length;
 
   /* ----------------------- Fetch results (page only) ----------------------- */
-  const fetchFilteringResults = useCallback(async () => {
+  const fetchFilteringResults = useCallback(async (opts?: {
+    page?: number;
+    pageSize?: number;
+    filters?: FilterItem[];
+  }) => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
 
@@ -178,16 +197,18 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
     setErrMsg(null);
 
     try {
+      const pageToUse = opts?.page ?? currentPage;
+      const pageSizeToUse = opts?.pageSize ?? pageSize;
+      const filtersToUse = opts?.filters ?? appliedFilters;
+
       const res = await getFilteringModels({
         apiBase: API_BASE,
         token,
         workflowId: wf,
-        page: currentPage,
-        page_size: pageSize,
-        num_vars_taken: num_vars_taken,
-        // NOTE: only works if backend supports `search` query param
-        // If your backend doesn't support it yet, remove this and keep UI (no functional change).
-        search: search,
+        page: pageToUse,
+        page_size: pageSizeToUse,
+        num_vars_taken: numVarsTaken,
+        filters: filtersToUse,
       } as any);
 
       const pageRows = (res.rows ?? []) as Row[];
@@ -205,17 +226,18 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
     } finally {
       setLoading(false);
     }
-  }, [selectedWorkflowId, token, currentPage, pageSize, num_vars_taken, search]);
+  }, [selectedWorkflowId, token, currentPage, pageSize, numVarsTaken, appliedFilters]);
 
   /* ------------------------- MFA headers fetcher -------------------------- */
-  const fetchMfaHeaders = useCallback(async () => {
+  const fetchColumnValues = useCallback(async () => {
     const wf = Number(selectedWorkflowId);
-    if (!Number.isFinite(wf) || !token) return [];
+    if (!Number.isFinite(wf) || !token) return;
 
+    setColumnValuesLoading(true);
     try {
-      const url = `${API_BASE}/api/overlay/development/filtering_models/mfa_file/headers?workflow_id=${encodeURIComponent(
+      const url = `${API_BASE}/api/overlay/development/filtering_models/column_values/?workflow_id=${encodeURIComponent(
         wf
-      )}&num_of_vars=${encodeURIComponent(num_vars_taken)}`;
+      )}&num_of_vars=${encodeURIComponent(numVarsTaken)}`;
 
       const res = await fetch(url, {
         method: "GET",
@@ -225,13 +247,20 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
         },
       });
 
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data?.data?.headers || [];
+      if (!res.ok) {
+        setColumnValuesMap({});
+        return;
+      }
+
+      const json = await res.json();
+      const normalized = normalizeColumnValues(json);
+      setColumnValuesMap(normalized);
     } catch {
-      return [];
+      setColumnValuesMap({});
+    } finally {
+      setColumnValuesLoading(false);
     }
-  }, [selectedWorkflowId, token, num_vars_taken]);
+  }, [selectedWorkflowId, token, numVarsTaken]);
 
   /* -------------------- Workflow change: load headers --------------------- */
   useEffect(() => {
@@ -239,7 +268,10 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
       setHeaders([]);
       setSelectedFilters([]);
       setPayloadFilters([]);
-      setFilterLogic("AND");
+      setAppliedSelections({});
+      setAppliedFilters([]);
+      setColumnValuesMap({});
+      setColumnValuesLoading(false);
 
       setHasAppliedFilters(false);
       setHasRunAnalysis(false);
@@ -253,62 +285,32 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
       setPagination(null);
 
       setCurrentPage(1);
-      setPageSize(10);
-
-      setSearchInput("");
-      setSearch("");
+      setPageSize(1000);
 
       return;
     }
 
     const wf = Number(selectedWorkflowId);
 
-    const loadHeadersAsync = async () => {
-      const apiHeaders = await fetchMfaHeaders();
-      const captured = loadHeaders(wf);
-      const merged = uniqCaseInsensitive([...captured, ...apiHeaders]);
+    const captured = loadHeaders(wf);
+    const sel = loadFilters(wf);
 
-      const sel = loadFilters(wf);
-      const logic = loadFilterLogic(wf);
+    setHeaders(captured);
+    setSelectedFilters(sel);
+    setPayloadFilters(buildPayload(sel));
 
-      setHeaders(merged);
-      setSelectedFilters(sel);
-      setPayloadFilters(buildPayload(sel));
-      setFilterLogic(logic);
+    setHasSavedSelection(Boolean(persistedSelected?.rows?.length));
 
-      setHasSavedSelection(Boolean(persistedSelected?.rows?.length));
+    // reset gating & paging for new workflow
+    setHasAppliedFilters(false);
+    setHasRunAnalysis(false);
+    setSelectedRowsCount(0);
+    setSelectedRows([]);
+    setSaveMsg(null);
 
-      // reset gating & paging for new workflow
-      setHasAppliedFilters(false);
-      setHasRunAnalysis(false);
-      setSelectedRowsCount(0);
-      setSelectedRows([]);
-      setSaveMsg(null);
-
-      setCurrentPage(1);
-      setPagination(null);
-
-      setSearchInput("");
-      setSearch("");
-    };
-
-    loadHeadersAsync();
-  }, [selectedWorkflowId, persistedSelected, fetchMfaHeaders]);
-
-  /* ------------- Re-fetch headers if num_vars_taken changes -------------- */
-  useEffect(() => {
-    const wf = Number(selectedWorkflowId);
-    if (!Number.isFinite(wf)) return;
-
-    const refetch = async () => {
-      const apiHeaders = await fetchMfaHeaders();
-      const captured = loadHeaders(wf);
-      const merged = uniqCaseInsensitive([...captured, ...apiHeaders]);
-      setHeaders(merged);
-    };
-
-    refetch();
-  }, [num_vars_taken, selectedWorkflowId, fetchMfaHeaders]);
+    setCurrentPage(1);
+    setPagination(null);
+  }, [selectedWorkflowId, persistedSelected]);
 
   /* ---------------- Fetch page when dependencies change ------------------ */
   useEffect(() => {
@@ -316,6 +318,13 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
     if (!Number.isFinite(wf)) return;
     fetchFilteringResults();
   }, [selectedWorkflowId, fetchFilteringResults]);
+
+  /* -------------------- Column values on first load ---------------------- */
+  useEffect(() => {
+    const wf = Number(selectedWorkflowId);
+    if (!Number.isFinite(wf)) return;
+    fetchColumnValues();
+  }, [selectedWorkflowId, numVarsTaken, fetchColumnValues]);
 
   /* ----------------------- Re-fetch on tab focus -------------------------- */
   useEffect(() => {
@@ -328,39 +337,13 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
     return () => window.removeEventListener("focus", onFocus);
   }, [selectedWorkflowId, fetchFilteringResults]);
 
-  /* -------------------------- Search handlers ----------------------------- */
-  const applySearch = useCallback(() => {
-    const next = searchInput.trim();
-    setCurrentPage(1);
-    setSearch(next);
-  }, [searchInput]);
-
-  const clearSearch = useCallback(() => {
-    setSearchInput("");
-    setCurrentPage(1);
-    setSearch("");
-  }, []);
-
-  const onSearchKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        applySearch();
-      }
-    },
-    [applySearch]
-  );
-
   /* ------------------------ Apply filters (POST) -------------------------- */
-  function handleApplyFilters(selectedRules: FilterRule[], numVarsTaken?: number, logic?: FilterLogic) {
+  function handleApplyFilters(selectedRules: FilterRule[]) {
     const filteredRules = selectedRules
       .filter((r) => r.value && r.value !== "0")
       .map((r) => ({ ...r, operator: r.operator || ">" }));
 
     setPayloadFilters(filteredRules);
-
-    if (numVarsTaken !== undefined) setNum_vars_taken(numVarsTaken);
-    if (logic !== undefined) setFilterLogic(logic);
 
     if (Number.isFinite(selectedWorkflowId)) {
       setSelectedFilters(loadFilters(Number(selectedWorkflowId)));
@@ -371,10 +354,10 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
     setCurrentPage(1);
     setSaveMsg(null);
 
-    handleRunFiltering(filteredRules, logic);
+    handleRunFiltering(filteredRules);
   }
 
-  async function handleRunFiltering(filtersToUse?: FilterRule[], logicOverride?: FilterLogic) {
+  async function handleRunFiltering(filtersToUse?: FilterRule[]) {
     if (!Number.isFinite(selectedWorkflowId)) {
       setErrMsg("Missing or invalid selectedWorkflowId.");
       return;
@@ -393,13 +376,11 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
     try {
       const filters = filtersToUse || payloadFilters;
-      const logic = logicOverride || filterLogic || "AND";
 
       await postFilteringModels({
         apiBase: API_BASE,
         token,
         workflowId: Number(selectedWorkflowId),
-        filter_logic: logic as any, // if your service expects it, keep; otherwise remove
         filter_list: filters
           .filter((f) => f.value && f.value !== "0")
           .map((f) => ({
@@ -407,7 +388,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
             value: f.value,
             operator: f.operator || ">",
           })),
-        num_vars_taken: num_vars_taken,
+        num_vars_taken: numVarsTaken,
       } as any);
 
       // after POST, fetch page 1
@@ -420,6 +401,18 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
       setPosting(false);
     }
   }
+
+  const handleApplyHeaderFilters = useCallback(
+    (filters: FilterItem[]) => {
+      setAppliedFilters(filters);
+      setHasAppliedFilters(true);
+      setHasRunAnalysis(true);
+      setCurrentPage(1);
+      setSaveMsg(null);
+      fetchFilteringResults({ page: 1, filters });
+    },
+    [fetchFilteringResults]
+  );
 
   /* -------------------------- Export readiness ---------------------------- */
   useEffect(() => {
@@ -474,7 +467,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
     try {
       const url = `${API_BASE}/api/overlay/development/filtering_models/export/?workflow_id=${encodeURIComponent(
         String(selectedWorkflowId)
-      )}&num_of_vars=${encodeURIComponent(num_vars_taken)}`;
+      )}&num_of_vars=${encodeURIComponent(numVarsTaken)}`;
 
       const res = await fetch(url, {
         method: "GET",
@@ -762,100 +755,17 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
       {saveMsg && <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{saveMsg}</div>}
       {exportErr && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{exportErr}</div>}
 
-      {/* Controls: Search + Pagination */}
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        {/* Search box (manual trigger) */}
-        <div className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2">
-          <span className="text-sm text-neutral-700">Search</span>
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={onSearchKeyDown}
-            placeholder="Type keyword..."
-            className="w-64 rounded-md border border-neutral-300 px-2 py-1 text-sm outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200"
-            disabled={loading}
-          />
-
-          <button
-            onClick={applySearch}
-            disabled={loading}
-            className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
-            title="Search"
-          >
-            <MagnifyingGlassIcon className="h-4 w-4" />
-            Search
-          </button>
-
-          <button
-            onClick={clearSearch}
-            disabled={loading || (searchInput.length === 0 && search.length === 0)}
-            className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50 disabled:opacity-50"
-            title="Clear"
-          >
-            <XMarkIcon className="h-4 w-4" />
-            Clear
-          </button>
-        </div>
-
-        {/* Prev / Next */}
-        <div className="flex items-center gap-2">
-          <button
-            className="cursor-pointer inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm disabled:opacity-50"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={loading || !clientPagination.has_previous}
-          >
-            <ChevronLeftIcon className="h-4 w-4" />
-            Prev
-          </button>
-
-          <button
-            className="cursor-pointer inline-flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm disabled:opacity-50"
-            onClick={() => setCurrentPage((p) => p + 1)}
-            disabled={loading || !clientPagination.has_next}
-          >
-            Next
-            <ChevronRightIcon className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Page input */}
-        <div className="flex items-center gap-2 text-sm">
-          <span>Page</span>
-          <input
-            type="number"
-            min={1}
-            max={clientPagination.total_pages}
-            value={currentPage}
-            onChange={(e) => {
-              const n = Math.max(1, Number(e.target.value) || 1);
-              setCurrentPage(Math.min(n, clientPagination.total_pages));
-            }}
-            className="w-16 rounded-md border border-neutral-300 px-2 py-1"
-            disabled={loading}
-          />
-          <span>/ {clientPagination.total_pages}</span>
-        </div>
-
-        {/* Page size */}
-        <div className="ml-auto flex items-center gap-2 text-sm">
-          <span>Rows per page</span>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              setPageSize(n);
-              setCurrentPage(1);
-            }}
-            className="rounded-md border border-neutral-300 bg-white px-2 py-1"
-            disabled={loading}
-          >
-            {[10, 20, 50, 100, 1000].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="mb-3">
+        <PaginationControls
+          pagination={clientPagination}
+          currentCount={rows.length}
+          onPageChange={(page) => setCurrentPage(page)}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+          disabled={loading}
+        />
       </div>
 
       {/* Table */}
@@ -868,6 +778,12 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
         <Multi_Table
           data={rows}
+          serverMode
+          columnValuesMap={columnValuesMap}
+          columnValuesLoading={columnValuesLoading}
+          appliedSelections={appliedSelections}
+          onAppliedSelectionsChange={setAppliedSelections}
+          onApplyFilters={handleApplyHeaderFilters}
           selectable
           initialSelectedIds={persistedChecked?.ids ?? []}
           getRowId={(r, idx) => getRowId(r)}
@@ -875,13 +791,6 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
           emptyMessage="Run analysis (after configuring filters) to see results, then select rows to proceed to Step 6."
         />
       </div>
-
-      {/* Footer / counts */}
-      <p className="mt-3 text-sm text-neutral-600">
-        Showing <strong>{rows.length.toLocaleString()}</strong> rows on this page • Total{" "}
-        <strong>{clientPagination.total_rows.toLocaleString()}</strong> rows (page{" "}
-        <strong>{clientPagination.page}</strong> of <strong>{clientPagination.total_pages}</strong>).
-      </p>
 
       {/* Status hint */}
       <p className="mt-1 text-xs text-neutral-700">
@@ -901,19 +810,6 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
         open={configOpen}
         onClose={() => setConfigOpen(false)}
         onApply={handleApplyFilters}
-        initialNumVarsTaken={num_vars_taken}
-        token={token}
-        apiBase={API_BASE}
-        onHeadersUpdate={(newHeaders) => {
-          const wf = Number(selectedWorkflowId);
-          if (Number.isFinite(wf)) {
-            const captured = loadHeaders(wf);
-            const merged = uniqCaseInsensitive([...captured, ...newHeaders]);
-            setHeaders(merged);
-          } else {
-            setHeaders(newHeaders);
-          }
-        }}
       />
     </div>
   );

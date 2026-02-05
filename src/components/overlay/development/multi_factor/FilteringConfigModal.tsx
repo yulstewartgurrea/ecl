@@ -1,17 +1,13 @@
 ﻿import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { XMarkIcon, TrashIcon, CheckIcon, PlusIcon } from "@heroicons/react/24/outline";
-import { type FilterRule, type FilterLogic, saveFilters, loadFilters, saveFilterLogic, loadFilterLogic } from "../../../../utils/overlay/headersStorage";
+import { type FilterRule, saveFilters, loadFilters } from "../../../../utils/overlay/headersStorage";
 
 type Props = {
   workflowId: number | string;
   headers: string[];
   open: boolean;
   onClose: () => void;
-  onApply?: (rules: FilterRule[], num_vars_taken?: number, logic?: FilterLogic) => void; // returns SELECTED + DEFAULT(0) rules and num_vars_taken
-  initialNumVarsTaken?: number; // Initial value for num_vars_taken
-  token?: string | null; // Auth token for API calls
-  apiBase?: string; // API base URL
-  onHeadersUpdate?: (headers: string[]) => void; // Callback to update headers in parent
+  onApply?: (rules: FilterRule[]) => void;
 };
 
 function uid() {
@@ -29,14 +25,11 @@ const isNumeric = (v: string) => {
   return Number.isFinite(n);
 };
 
-const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onClose, onApply, initialNumVarsTaken = 2, token, apiBase = "http://localhost:8000", onHeadersUpdate }) => {
+const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onClose, onApply }) => {
   const listId = useId();
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<FilterRule[]>([]);
-  const [num_vars_taken, setNum_vars_taken] = useState<number>(initialNumVarsTaken);
-  const [loadingHeaders, setLoadingHeaders] = useState(false);
   const [localHeaders, setLocalHeaders] = useState<string[]>(headers);
-  const [logic, setLogic] = useState<FilterLogic>("AND");
   const firstInputRef = useRef<HTMLInputElement | null>(null);
 
   // row scrolling + highlight support
@@ -49,19 +42,16 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
   useEffect(() => {
     if (open) {
       const existing = loadFilters(workflowId); // only SELECTED rules are persisted
-      const savedLogic = loadFilterLogic(workflowId);
       setRows(
         existing.length
           ? existing
           : [{ id: uid(), column: "", operator: ">", value: "" }]
       );
-      setNum_vars_taken(initialNumVarsTaken);
       setLocalHeaders(headers);
-      setLogic(savedLogic);
       setInvalidValueIds(new Set());
       setTimeout(() => firstInputRef.current?.focus(), 50);
     }
-  }, [open, workflowId, initialNumVarsTaken, headers]);
+  }, [open, workflowId, headers]);
 
   // Sync localHeaders when headers prop changes
   useEffect(() => {
@@ -73,39 +63,6 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
     if (!q) return localHeaders;
     return localHeaders.filter((h) => h.toLowerCase().includes(q));
   }, [localHeaders, search]);
-
-  // Fetch headers from API
-  const fetchHeaders = async () => {
-    if (!Number.isFinite(Number(workflowId)) || !token) {
-      return;
-    }
-
-    setLoadingHeaders(true);
-    try {
-      const url = `${apiBase}/api/overlay/development/filtering_models/mfa_file/headers/?workflow_id=${encodeURIComponent(Number(workflowId))}&num_of_vars=${encodeURIComponent(num_vars_taken)}`;
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) {
-        console.warn("Failed to fetch MFA headers");
-        return;
-      }
-
-      const data = await res.json();
-      const apiHeaders = data?.data?.headers || [];
-      setLocalHeaders(apiHeaders);
-      onHeadersUpdate?.(apiHeaders);
-    } catch (e: any) {
-      console.warn("Error fetching MFA headers:", e);
-    } finally {
-      setLoadingHeaders(false);
-    }
-  };
 
   // usage map to mark active chips
   const usageCount = useMemo(() => {
@@ -220,8 +177,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
     // 3) Only send selected rules - no defaults
     // Persist ONLY the explicitly selected rules (so the UI stays clean next open)
     saveFilters(workflowId, selected);
-    onApply?.(selected, num_vars_taken, logic);
-    saveFilterLogic(workflowId, logic);
+    onApply?.(selected);
     onClose();
   }
 
@@ -247,7 +203,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
           <div>
             <h3 className="text-lg font-semibold text-neutral-900">Configure Filters</h3>
             <p className="text-xs text-neutral-500">
-              Choose a column, select an operator, and enter a numeric value. Click <strong>Apply</strong> to save.
+              Add rules to narrow the model list. Click <strong>Apply</strong> to save.
             </p>
           </div>
           <button onClick={onClose} className="rounded-md p-2 hover:bg-neutral-100">
@@ -258,50 +214,6 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
         {/* Body (scrolls) */}
         <div className="flex-1 overflow-auto p-4">
           <div className="grid gap-4">
-            {/* Number of variables per combination */}
-            <div>
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <label htmlFor="num_vars_taken" className="block text-sm font-medium text-gray-700 mb-2">
-                    Number of variables per combination
-                  </label>
-                  <input
-                    id="num_vars_taken"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={num_vars_taken}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      // Only allow positive integers
-                      if (value === "" || (Number.isInteger(Number(value)) && Number(value) > 0)) {
-                        setNum_vars_taken(value === "" ? 2 : Number(value));
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      // Prevent decimal point, negative sign, and 'e' key
-                      if (e.key === '.' || e.key === '-' || e.key === 'e' || e.key === 'E') {
-                        e.preventDefault();
-                      }
-                    }}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                    placeholder="Enter number of variables per combination"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Must be a positive integer (default: 2)
-                  </p>
-                </div>
-                <button
-                  onClick={fetchHeaders}
-                  disabled={loadingHeaders || !Number.isFinite(Number(workflowId)) || !token}
-                  className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
-                  title="Fetch headers from API"
-                >
-                  {loadingHeaders ? "Loading..." : "Set Headers"}
-                </button>
-              </div>
-            </div>
-
             {/* Search + add */}
             <div className="flex flex-col gap-2 md:flex-row md:items-center">
               <div className="relative flex-1">
@@ -311,17 +223,6 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 placeholder:text-neutral-400"
                 />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-neutral-600">Logic</label>
-                <select
-                  value={logic}
-                  onChange={(e) => setLogic(e.target.value as FilterLogic)}
-                  className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm text-neutral-800"
-                >
-                  <option value="AND">AND</option>
-                  <option value="OR">OR</option>
-                </select>
               </div>
               <button
                 className="inline-flex items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-50"

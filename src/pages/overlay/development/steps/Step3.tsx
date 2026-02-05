@@ -9,6 +9,7 @@ import type { ColumnNode } from "../../../../components/overlay/development/data
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
+import { selectModuleProgress } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 import {
   PlayCircleIcon,
   ArrowPathIcon,
@@ -27,6 +28,7 @@ import {
   shapeTransformationResults,
   type DataTransformationStatus,
 } from "../../../../services/dataTransformation";
+import { saveStep3Config } from "../../../../utils/overlay/headersStorage";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -65,7 +67,35 @@ export default function OverlayDevelpmentPage3() {
 
   // Configuration states
   const [showConfig, setShowConfig] = useState(false);
-  const [numCombinations, setNumCombinations] = useState<number>(2);
+  const contextKey =
+    Number.isFinite(Number(selectedWorkflowId)) && Number(selectedWorkflowId) > 0
+      ? String(selectedWorkflowId)
+      : undefined;
+  const overlayProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "overlayDevelopment", contextKey)
+  );
+  const storedConfig = (overlayProgress?.data as any)?.step3Config as
+    | { numOfVars?: number }
+    | undefined;
+
+  const [numCombinations, setNumCombinations] = useState<number>(
+    storedConfig?.numOfVars ?? 2
+  );
+
+  useEffect(() => {
+    const wf = Number(selectedWorkflowId);
+    if (!Number.isFinite(wf)) return;
+    if (storedConfig?.numOfVars && storedConfig.numOfVars !== numCombinations) {
+      setNumCombinations(storedConfig.numOfVars);
+    }
+  }, [selectedWorkflowId, storedConfig?.numOfVars, numCombinations]);
+
+  useEffect(() => {
+    const wf = Number(selectedWorkflowId);
+    if (!Number.isFinite(wf)) return;
+    const next = Number.isFinite(numCombinations) && numCombinations > 0 ? numCombinations : 2;
+    saveStep3Config(wf, { numOfVars: next });
+  }, [selectedWorkflowId, numCombinations]);
 
 
   // ---- Core loader (POST or GET-only) ----
