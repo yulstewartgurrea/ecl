@@ -826,7 +826,7 @@ def validate_overlay_development_quarterly_mev(df: pd.DataFrame, document_type: 
                         "type": "format_validation",
                         "column": id_col,
                         "invalid_count": invalid_id_count,
-                        "message": f"Column '{id_col}' must be exactly 'YYYY-<Mon>' (e.g., 2025-Mar, 2025-Jun, 2025-Sep, 2025-Dec) and match year/month columns. Examples: {examples}"
+                        "message": f"Column '{id_col}' must be exactly 'YYYY-<Mon>' (e.g., 2025-Mar, 2025-Jun, 2025-Sep, 2025-Dec) and match year/month columns."
                     })
         except Exception as e:
             validation_results["validation_status"] = "failed"
