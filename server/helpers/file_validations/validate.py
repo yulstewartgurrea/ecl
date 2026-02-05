@@ -4,6 +4,9 @@ from typing import Dict, List, Any
 
 from .flowrate_validation import validate_flowrate_document
 from .validate_generic_document import validate_generic_document
+from .overlay.development import validate_overlay_development_document
+from .overlay.execution import validate_overlay_execution_document
+from .ecl import validate_ecl_document
 
 def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp_path = None) -> Dict[str, Any]:
     """
@@ -21,10 +24,17 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp
     
     # Define which validation function to use for each document type
     validation_routing = {
-        # Overlay Development types - use generic validation
-        "OVERLAY_DEVELOPMENT_MONTHLY_HISTORICAL_MEV": "generic",
-        "OVERLAY_DEVELOPMENT_QUARTERLY_HISTORICAL_MEV": "generic", 
-        "OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE": "generic",
+        # Overlay Development types - use specialized validation
+        "OVERLAY_DEVELOPMENT_MONTHLY_HISTORICAL_MEV": "overlay_development",
+        "OVERLAY_DEVELOPMENT_QUARTERLY_HISTORICAL_MEV": "overlay_development", 
+        "OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE": "overlay_development",
+
+        "OVERLAY_DEVELOPMENT_EXECUTION_MONTHLY_HISTORICAL_MEV": "overlay_execution",
+        "OVERLAY_DEVELOPMENT_EXECUTION_QUARTERLY_HISTORICAL_MEV": "overlay_execution", 
+        "OVERLAY_DEVELOPMENT_EXECUTION_HISTORICAL_DEFAULT_RATE": "overlay_execution",
+        "OVERLAY_DEVELOPMENT_EXECUTION_MONTHLY_FORECASTED_MEV_ARIMA": "overlay_execution",
+        "OVERLAY_DEVELOPMENT_EXECUTION_QUARTERLY_FORECASTED_MEV_ARIMA": "overlay_execution",
+        "OVERLAY_DEVELOPMENT_EXECUTION_FINAL_OVERLAY_MODEL": "overlay_execution",
         
         # Flowrate Approach types - use specialized validation
         "FLOWRATE_APPROACH_WRITE_OFF_ACCOUNTS": "flowrate",
@@ -50,6 +60,12 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp
     if validation_type == "flowrate":
         print('FLOWRATE VALIDATION')
         return validate_flowrate_document(df, document_type, file_name, temp_path)
+    elif validation_type == "overlay_development":
+        print('OVERLAY DEVELOPMENT VALIDATION')
+        return validate_overlay_development_document(df, document_type, file_name, temp_path)
+    elif validation_type == "overlay_execution":
+        print('OVERLAY EXECUTION VALIDATION')
+        return validate_overlay_execution_document(df, document_type, file_name, temp_path)
     elif validation_type == "ecl":
         print('ECL VALIDATION')
         return validate_ecl_document(df, document_type, file_name, temp_path)
