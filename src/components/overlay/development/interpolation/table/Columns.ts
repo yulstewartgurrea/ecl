@@ -33,7 +33,7 @@ export function buildColumnsFromRows(
     Object.keys(r || {}).forEach((k) => keys.add(k));
   }
 
-  const preferred = ["year", "quarter", "month", "period_id", "x"];
+  const preferred = ["year", "quarter", "month", "period_id", "id", "x"];
   const preferredKeys = preferred.filter((k) => keys.has(k));
   const rest = Array.from(keys)
     .filter((k) => !preferred.includes(k))
@@ -116,8 +116,8 @@ export function buildMacroColumns(
     ...(includeQuarter ? [{ key: "quarter", header: "Quarter", width: "72px" }] : []),
     { key: "month", header: "Month", width: "72px" },
     { key: "period_id", header: "period_id", width: "96px" },
+    { key: "id", header: "id", width: "96px" },
     { key: "x", header: "x", width: "48px" },
-    { key: "period_id", header: "ID", width: "96px" },
   ];
 
   // ----- QUARTERLY: Levels only -----

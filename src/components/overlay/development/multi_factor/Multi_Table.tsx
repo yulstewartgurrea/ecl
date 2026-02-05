@@ -14,6 +14,10 @@ export type ColumnDef = {
   render?: (value: unknown, row: Row) => React.ReactNode;
 };
 
+export type ColumnValuesMap = Record<string, string[]>;
+export type AppliedSelectionsMap = Record<string, string[]>;
+export type FilterItem = { column: string; values: string[] };
+
 export type ExcelLikeTableProps = {
   data: Row[];
   columns?: ColumnDef[];
@@ -27,6 +31,13 @@ export type ExcelLikeTableProps = {
 
   /** NEW: server-side mode */
   serverMode?: boolean;
+
+  /** NEW: server-driven column values (for header filters) */
+  columnValuesMap?: ColumnValuesMap;
+  columnValuesLoading?: boolean;
+  appliedSelections?: AppliedSelectionsMap;
+  onAppliedSelectionsChange?: (next: AppliedSelectionsMap) => void;
+  onApplyFilters?: (filters: FilterItem[]) => void;
 
   /** selection features */
   selectable?: boolean;
@@ -88,6 +99,14 @@ function headerize(k: string) {
     .replace(/\s+\w+/g, (m) => m);
 }
 
+function setEqualsArray(set: Set<string>, arr?: string[]) {
+  if (!arr || set.size !== arr.length) return false;
+  for (const v of arr) {
+    if (!set.has(v)) return false;
+  }
+  return true;
+}
+
 // ========= Filter State =========
 export type ColumnFilter = {
   checkedValues: Set<string>;
@@ -108,6 +127,11 @@ export function Multi_Table({
   page,
   pageSize,
   serverMode = false,
+  columnValuesMap,
+  columnValuesLoading = false,
+  appliedSelections,
+  onAppliedSelectionsChange,
+  onApplyFilters,
 
   selectable = false,
   getRowId,
@@ -193,11 +217,41 @@ export function Multi_Table({
     });
   }, [derivedColumns, data]);
 
+  useEffect(() => {
+    if (!appliedSelections) return;
+    setFilters((prev) => {
+      let changed = false;
+      const next: Record<string, ColumnFilter> = { ...prev };
+
+      for (const col of derivedColumns) {
+        const applied = appliedSelections[col.key];
+        const existing = prev[col.key];
+        if (!existing) continue;
+
+        if (applied && !setEqualsArray(existing.checkedValues, applied)) {
+          next[col.key] = {
+            ...existing,
+            checkedValues: new Set(applied),
+          };
+          changed = true;
+        }
+
+        if (!applied && existing.checkedValues.size > 0) {
+          next[col.key] = { ...existing, checkedValues: new Set() };
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [appliedSelections, derivedColumns]);
+
   // Filtering logic:
-  // - In serverMode: backend result is the "filtered set". This UI filters only current data/page.
+  // - In serverMode: backend result is the "filtered set".
   const filtered = useMemo(() => {
     if (!data?.length) return [];
     if (!derivedColumns.length) return data;
+    if (serverMode) return data;
 
     return data.filter((row) => {
       for (const col of derivedColumns) {
@@ -235,7 +289,7 @@ export function Multi_Table({
       }
       return true;
     });
-  }, [data, derivedColumns, filters]);
+  }, [data, derivedColumns, filters, serverMode]);
 
   // Visible rows:
   const safePage = Math.max(1, page ?? 1);
@@ -483,6 +537,15 @@ export function Multi_Table({
                         columnKey={col.key}
                         rows={data}
                         filter={filters[col.key]}
+                        values={
+                          columnValuesMap
+                            ? columnValuesMap[col.key] ?? []
+                            : undefined
+                        }
+                        valuesLoading={columnValuesLoading}
+                        appliedSelections={appliedSelections}
+                        onAppliedSelectionsChange={onAppliedSelectionsChange}
+                        onApplyFilters={onApplyFilters}
                         onClose={() =>
                           setFilters((prev) => ({
                             ...prev,
@@ -568,23 +631,40 @@ function FilterPopover({
   columnKey,
   rows,
   filter,
+  values,
+  valuesLoading,
+  appliedSelections,
+  onAppliedSelectionsChange,
+  onApplyFilters,
   onChange,
   onClose,
 }: {
   columnKey: string;
   rows: Row[];
   filter: ColumnFilter;
+  values?: string[];
+  valuesLoading?: boolean;
+  appliedSelections?: AppliedSelectionsMap;
+  onAppliedSelectionsChange?: (next: AppliedSelectionsMap) => void;
+  onApplyFilters?: (filters: FilterItem[]) => void;
   onChange: (update: Partial<ColumnFilter>) => void;
   onClose: () => void;
 }) {
-  const allValues = useMemo(() => uniqueValues(rows, columnKey), [rows, columnKey]);
+  const allValues = useMemo(() => {
+    if (values) return values;
+    if (valuesLoading) return [];
+    return uniqueValues(rows, columnKey);
+  }, [values, valuesLoading, rows, columnKey]);
 
   const [tempChecked, setTempChecked] = useState<Set<string>>(
     () => new Set(filter.checkedValues)
   );
   const [tempSearch, setTempSearch] = useState(filter.search);
-  const [tempMin, setTempMin] = useState(filter.min ?? "");
-  const [tempMax, setTempMax] = useState(filter.max ?? "");
+  
+  useEffect(() => {
+    setTempChecked(new Set(filter.checkedValues));
+    setTempSearch(filter.search);
+  }, [filter.checkedValues, filter.search]);
 
   const filteredList = useMemo(() => {
     const q = tempSearch.trim().toLowerCase();
@@ -614,16 +694,28 @@ function FilterPopover({
   function clearAll() {
     setTempChecked(new Set());
     setTempSearch("");
-    setTempMin("");
-    setTempMax("");
   }
 
   function apply() {
+    const nextApplied: AppliedSelectionsMap = {
+      ...(appliedSelections ?? {}),
+      [columnKey]: Array.from(tempChecked),
+    };
+    if (nextApplied[columnKey].length === 0) {
+      delete nextApplied[columnKey];
+    }
+
+    if (onApplyFilters) {
+      const list: FilterItem[] = Object.entries(nextApplied)
+        .filter(([, vals]) => Array.isArray(vals) && vals.length > 0)
+        .map(([column, vals]) => ({ column, values: vals }));
+      onApplyFilters(list);
+    }
+
+    onAppliedSelectionsChange?.(nextApplied);
     onChange({
       checkedValues: tempChecked,
       search: tempSearch,
-      min: tempMin,
-      max: tempMax,
     });
     onClose();
   }
@@ -656,7 +748,10 @@ function FilterPopover({
           </div>
 
           <ul className="divide-y divide-neutral-100">
-            {filteredList.map((v) => (
+            {valuesLoading && (
+              <li className="px-2 py-2 text-sm text-neutral-500">Loading…</li>
+            )}
+            {!valuesLoading && filteredList.map((v) => (
               <li key={v} className="flex items-center gap-2 px-2 py-1.5 text-sm">
                 <input
                   id={`${columnKey}-${v}`}
@@ -674,7 +769,7 @@ function FilterPopover({
               </li>
             ))}
 
-            {filteredList.length === 0 && (
+            {!valuesLoading && filteredList.length === 0 && (
               <li className="px-2 py-2 text-sm text-neutral-500">No values</li>
             )}
           </ul>

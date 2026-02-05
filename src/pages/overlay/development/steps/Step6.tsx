@@ -8,6 +8,7 @@ import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks"
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import PaginationControls from "../../../../components/overlay/development/shared/PaginationControls";
 import {
   selectModuleProgress,
   setModuleProgress,
@@ -53,42 +54,75 @@ function modelSignature(m: ModelSpec): string {
   });
 }
 
+function findColumn(row: any, colName: string): any {
+  if (!row) return undefined;
+  const colLower = colName.toLowerCase();
+  for (const key in row) {
+    if (key.toLowerCase() === colLower) return row[key];
+  }
+  return undefined;
+}
+
+function findAllXColumns(row: any): Array<{ index: number; name: string; value: any }> {
+  if (!row) return [];
+  const matches: Array<{ index: number; name: string; value: any }> = [];
+  Object.keys(row).forEach((key) => {
+    const m = String(key).match(/^x(\d+)$/i);
+    if (!m) return;
+    const idx = Number(m[1]);
+    const value = row[key];
+    if (value === undefined || value === null || value === "") return;
+    matches.push({ index: idx, name: `X${idx}`, value });
+  });
+  matches.sort((a, b) => a.index - b.index);
+  return matches;
+}
+
 function mapStep5RowToModelSpec(row: any): ModelSpec {
-  const title = `${row?.Y ?? "Model"}: ${row?.X1 ?? "-"} | ${row?.X2 ?? "-"}`;
-  const variables = [
-    {
-      name: String(row?.X1 ?? "X1"),
-      coeff_X1: Number(row?.coeff_X1 ?? row?.coeff_x1 ?? 0),
-      "p-value_X1": row?.["p-value_X1"] ?? row?.p_value_X1 ?? row?.["p-value_x1"] ?? row?.p_value_x1,
-      vif_X1: row?.vif_X1 ?? row?.vif_x1,
-      raw: row?.coeff_X1 ?? row?.coeff_x1,
-    },
-    {
-      name: String(row?.X2 ?? "X2"),
-      coeff_X1: Number(row?.coeff_X2 ?? row?.coeff_x2 ?? 0),
-      "p-value_X1": row?.["p-value_X2"] ?? row?.p_value_X2 ?? row?.["p-value_x2"] ?? row?.p_value_x2,
-      vif_X1: row?.vif_X2 ?? row?.vif_x2,
-      raw: row?.coeff_X2 ?? row?.coeff_x2,
-    },
-  ];
+  const xColumns = findAllXColumns(row);
+  const xNames = xColumns.length > 0 ? xColumns.map((x) => x.value).join(" | ") : "-";
+  const title = `${row?.Y ?? findColumn(row, "Y") ?? "Model"}: ${xNames}`;
+
+  const variables = xColumns.map((xCol) => {
+    const xName = xCol.name;
+    const coeffKey = `coeff_${xName}`;
+    const coeff = findColumn(row, coeffKey) ?? 0;
+    const pvalKey1 = `p-value_${xName}`;
+    const pvalKey2 = `p_value_${xName}`;
+    const pval = findColumn(row, pvalKey1) ?? findColumn(row, pvalKey2);
+    const vifKey = `vif_${xName}`;
+    const vif = findColumn(row, vifKey);
+
+    return {
+      name: String(xCol.value),
+      coeff_X1: Number(coeff),
+      "p-value_X1": pval,
+      vif_X1: vif,
+      raw: coeff,
+    };
+  });
+
+  const xObject: Record<string, any> = {};
+  xColumns.forEach((xCol) => {
+    xObject[xCol.name] = xCol.value;
+  });
 
   return {
     title,
     variables,
     metrics: {
-      Adj_R_Squared: row?.Adj_R_Squared,
-      RMSE: row?.RMSE,
-      MAPE: row?.MAPE,
-      R_Squared: row?.R_Squared,
+      Adj_R_Squared: findColumn(row, "Adj_R_Squared"),
+      RMSE: findColumn(row, "RMSE"),
+      MAPE: findColumn(row, "MAPE"),
+      R_Squared: findColumn(row, "R_Squared"),
     },
     raw: row,
-    index: row?.index,
-    Y: row?.Y,
-    X1: row?.X1,
-    X2: row?.X2,
-    R_Squared: row?.R_Squared,
-    Adj_R_Squared: row?.Adj_R_Squared,
-    MAPE: row?.MAPE,
+    index: findColumn(row, "index"),
+    Y: findColumn(row, "Y"),
+    ...xObject,
+    R_Squared: findColumn(row, "R_Squared"),
+    Adj_R_Squared: findColumn(row, "Adj_R_Squared"),
+    MAPE: findColumn(row, "MAPE"),
   };
 }
 
@@ -134,8 +168,8 @@ const Step6: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  const [page] = useState(1);
-  const [pageSize] = useState(6);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(1000);
   const [total, setTotal] = useState<number | undefined>(undefined);
   // pagination state retained for API parity (UI uses page=1)
   const [chosenIdx, setChosenIdx] = useState<number | null>(null);
@@ -143,6 +177,34 @@ const Step6: React.FC = () => {
   const [shortlist, setShortlist] = useState<ModelSpec[]>([]);
   const [hasStep5Selection, setHasStep5Selection] = useState<boolean>(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+  const totalRows = models.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / Math.max(1, pageSize)));
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageEnd = Math.min(pageStart + pageSize, totalRows);
+
+  const pagedModels = useMemo(
+    () => models.slice(pageStart, pageEnd),
+    [models, pageStart, pageEnd]
+  );
+
+  const pagination = useMemo(
+    () => ({
+      page: currentPage,
+      page_size: pageSize,
+      total_rows: totalRows,
+      total_pages: totalPages,
+      has_next: currentPage < totalPages,
+      has_previous: currentPage > 1,
+    }),
+    [currentPage, pageSize, totalRows, totalPages]
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   // Export state
   const [exporting, setExporting] = useState(false);
@@ -234,13 +296,6 @@ const Step6: React.FC = () => {
       ((models?.length ?? 0) > 0 || (total ?? 0) > 0);
     setExportReady(Boolean(ready));
   }, [selectedWorkflowId, loading, saving, models, total]);
-
-  // Refetch when user changes page or pageSize after trigger
-  useEffect(() => {
-    if (!Number.isFinite(Number(effectiveWorkflowId))) return;
-    hydrateFromStep5();
-  }, [page, pageSize, effectiveWorkflowId, hydrateFromStep5]);
-
 
   // Export handler (uses your exact endpoint)
   async function exportCsv() {
@@ -540,10 +595,23 @@ const Step6: React.FC = () => {
           </div>
         ) : (
           <div className="items-center cursor-pointer">
+            <div className="mb-4">
+              <PaginationControls
+                pagination={pagination}
+                currentCount={pagedModels.length}
+                onPageChange={(page) => setCurrentPage(page)}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setCurrentPage(1);
+                }}
+                disabled={loading}
+              />
+            </div>
             <ModelCompareGrid
-              models={models}
+              models={pagedModels}
               chosenIndex={chosenIdx}
               onChosenIndexChange={handleChoose}
+              displayOffset={pageStart}
             />
           </div>
         )}
