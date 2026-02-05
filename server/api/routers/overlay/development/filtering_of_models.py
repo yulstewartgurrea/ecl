@@ -25,7 +25,6 @@ router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development
 async def start_model_filtering(
     workload_id: int = Form(...),
     filter_list: str = Form(...),  # JSON string that will be parsed
-    num_of_vars: int = Form(2, description="Number of variables taken"),
     filter_logic: str = Form("AND"),
     current_user: User = Depends(get_current_user)
 ):
@@ -124,7 +123,6 @@ async def start_model_filtering(
 @router.get("/filtering_models")
 async def get_filtered_results(
     workflow_id: int = Query(..., description="Workflow ID"),
-    num_of_vars: int = Query(2, description="Number of variables taken"),
     page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     page_size: int = Query(100, ge=1, le=1000, description="Number of rows per page (max 1000)"),
     filter: Optional[str] = Query(None, description="JSON array of filter objects. Format: [{\"column\": \"X1\", \"values\": [\"value1\", \"value2\"]}]"),
@@ -325,7 +323,6 @@ async def get_filtered_results(
 @router.get("/filtering_models/column_values")
 async def get_filtered_results_values(
     workflow_id: int = Query(..., description="Workflow ID"),
-    num_of_vars: int = Query(2, description="Number of variables taken"),
     current_user: User = Depends(get_current_user)
 ):
     try:
@@ -433,7 +430,6 @@ async def get_filtered_results_values(
 async def get_mfa_file_headers(
     workflow_id: int = Query(..., description="Workflow ID"),
     filename: str = Query("001.csv", description="Filename to read (e.g., 001.csv)"),
-    num_of_vars: int = Query(2, description="Number of variables taken"),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -560,7 +556,6 @@ async def get_mfa_file_headers(
 @router.get("/filtering_models/export")
 async def export_filtered_results(
     workflow_id: int = Query(..., description="Workflow ID"),
-    num_of_vars: int = Query(2, description="Number of variables taken"),
     current_user: User = Depends(get_current_user)
 ):
     """Export the latest filtered models CSV based on the same logic as the GET endpoint."""
