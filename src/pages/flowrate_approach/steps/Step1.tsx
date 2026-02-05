@@ -82,10 +82,12 @@ export default function Step1() {
 
   console.log("Step1 - Workflow Data:", currentPdTransitionMatrixWorkflowData);
 
-  // Prefer Redux workflowId, then fallback to 1
+  // Prefer Redux workflowId, then fallback to workflow data
   const workflowIdFromRedux =
     currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
-  const workflowId = Number(workflowIdFromRedux)
+  const workflowId = Number.isFinite(Number(workflowIdFromRedux))
+    ? Number(workflowIdFromRedux)
+    : undefined;
 
   // Prefer values from persisted workflowData; fall back to selected values; finally to sane defaults
   const entity =
@@ -117,6 +119,10 @@ export default function Step1() {
     reportDateStart,
     subdir: "input/flowrate_approach",
   };
+
+  const workflowPath = [entity, period, wfName, loanProduct]
+    .filter(Boolean)
+    .join("/");
 
   console.log("Uploader context:", context);
   console.log("Step1 - final workflowId:", workflowId);
@@ -341,12 +347,12 @@ export default function Step1() {
   }, [files.length, uploadedFiles.size, uploadingFiles.size, failedFiles.size]);
 
   useEffect(() => {
-    if (!workflowId) return;
+    if (!workflowPath) return;
     const step1Valid = uploadStatus.status === "success";
     dispatch(
       setModuleProgress({
         moduleKey: "flowrate",
-        contextKey: `${entity}/${period}/${wfName}/${loanProduct}`,
+        contextKey: workflowPath,
         data: {
           step1Valid,
           step1Status: uploadStatus.status,
@@ -354,7 +360,7 @@ export default function Step1() {
         },
       })
     );
-  }, [dispatch, workflowId, entity, period, wfName, loanProduct, uploadStatus.status]);
+  }, [dispatch, workflowPath, uploadStatus.status, uploadStatus.message]);
 
   return (
     <div className="mx-auto max-w-8xl">

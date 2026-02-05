@@ -187,6 +187,17 @@ export default function CreditLossRateCharts({
     [rows, dateKeyCandidates, weightedKeyCandidates, excludeKeyCandidates]
   );
 
+  const filteredRows = useMemo(() => {
+    const dk = schema.dateKey;
+    if (!dk) return rows;
+    return rows.filter((r) => {
+      const raw = r?.[dk];
+      if (raw == null) return true;
+      const val = String(raw).trim().toLowerCase();
+      return val !== "average" && val !== "avg";
+    });
+  }, [rows, schema.dateKey]);
+
   const [tab, setTab] = useState<"weighted" | "bucket">("weighted");
   const [bucketKey, setBucketKey] = useState<string>("");
   const [visibleBuckets, setVisibleBuckets] = useState<string[]>([]);
@@ -213,24 +224,24 @@ export default function CreditLossRateCharts({
     const dk = schema.dateKey;
 
     if (!wk) return [];
-    return rows.map((r) => ({
+    return filteredRows.map((r) => ({
       date: dk ? String(r?.[dk] ?? "") : "",
       weighted: toPct(toFraction(r?.[wk])),
     }));
-  }, [rows, schema.dateKey, schema.weightedKey]);
+  }, [filteredRows, schema.dateKey, schema.weightedKey]);
 
   const multiBucketSeries = useMemo(() => {
     const dk = schema.dateKey;
 
     if (!schema.bucketKeys.length) return [];
-    return rows.map((r) => {
+    return filteredRows.map((r) => {
       const o: any = { date: dk ? String(r?.[dk] ?? "") : "" };
       for (const k of schema.bucketKeys) {
         o[k] = toPct(toFraction(r?.[k]));
       }
       return o;
     });
-  }, [rows, schema.dateKey, schema.bucketKeys]);
+  }, [filteredRows, schema.dateKey, schema.bucketKeys]);
 
   async function exportPNG() {
     if (!enableExport) return;
