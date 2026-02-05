@@ -71,6 +71,8 @@ const FlowrateApproachPage = () => {
 
   const step1Valid = useAppSelector((state: RootState) => {
     const entry = selectModuleProgress(state, "flowrate", workflowPath || undefined);
+    const status = (entry?.data as any)?.step1Status as string | undefined;
+    if (status) return status === "success";
     return Boolean((entry?.data as any)?.step1Valid);
   });
 
