@@ -7,7 +7,11 @@ type Props = {
   headers: string[];
   open: boolean;
   onClose: () => void;
-  onApply?: (rules: FilterRule[]) => void;
+  onApply?: (rules: FilterRule[], num_vars_taken?: number) => void;
+  initialNumVarsTaken?: number;
+  token?: string | null;
+  apiBase?: string;
+  onHeadersUpdate?: (headers: string[]) => void;
 };
 
 function uid() {
@@ -25,11 +29,24 @@ const isNumeric = (v: string) => {
   return Number.isFinite(n);
 };
 
-const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onClose, onApply }) => {
+const FilteringConfigModal: React.FC<Props> = ({
+  workflowId,
+  headers,
+  open,
+  onClose,
+  onApply,
+  initialNumVarsTaken = 2,
+  token,
+  apiBase = "http://localhost:8000",
+  onHeadersUpdate,
+}) => {
   const listId = useId();
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<FilterRule[]>([]);
   const [localHeaders, setLocalHeaders] = useState<string[]>(headers);
+
+  const [loadingHeaders, setLoadingHeaders] = useState(false);
+
   const firstInputRef = useRef<HTMLInputElement | null>(null);
 
   // row scrolling + highlight support
@@ -39,24 +56,77 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
   // value-validation flags
   const [invalidValueIds, setInvalidValueIds] = useState<Set<string>>(new Set());
 
+  // Keep num vars available for API call + callback (but no UI input)
+  const num_vars_taken = initialNumVarsTaken;
+
   useEffect(() => {
-    if (open) {
-      const existing = loadFilters(workflowId); // only SELECTED rules are persisted
-      setRows(
-        existing.length
-          ? existing
-          : [{ id: uid(), column: "", operator: ">", value: "" }]
-      );
-      setLocalHeaders(headers);
-      setInvalidValueIds(new Set());
-      setTimeout(() => firstInputRef.current?.focus(), 50);
-    }
+    if (!open) return;
+
+    const existing = loadFilters(workflowId); // only SELECTED rules are persisted
+    setRows(existing.length ? existing : [{ id: uid(), column: "", operator: ">", value: "" }]);
+    setLocalHeaders(headers);
+    setInvalidValueIds(new Set());
+    setTimeout(() => firstInputRef.current?.focus(), 50);
   }, [open, workflowId, headers]);
 
   // Sync localHeaders when headers prop changes
   useEffect(() => {
     setLocalHeaders(headers);
   }, [headers]);
+
+  // Fetch headers from API automatically (useEffect instead of button)
+  useEffect(() => {
+    if (!open) return;
+
+    const wid = Number(workflowId);
+    if (!Number.isFinite(wid)) return;
+    if (!token) return;
+
+    let cancelled = false;
+
+    const fetchHeaders = async () => {
+      setLoadingHeaders(true);
+      try {
+        const url =
+          `${apiBase}/api/overlay/development/filtering_models/mfa_file/headers/` +
+          `?workflow_id=${encodeURIComponent(wid)}` +
+          `&num_of_vars=${encodeURIComponent(num_vars_taken)}`;
+
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) {
+          console.warn("Failed to fetch MFA headers");
+          return;
+        }
+
+        const data = await res.json();
+        const apiHeaders: string[] = data?.data?.headers ?? [];
+
+        if (cancelled) return;
+
+        if (Array.isArray(apiHeaders) && apiHeaders.length > 0) {
+          setLocalHeaders(apiHeaders);
+          onHeadersUpdate?.(apiHeaders);
+        }
+      } catch (e) {
+        if (!cancelled) console.warn("Error fetching MFA headers:", e);
+      } finally {
+        if (!cancelled) setLoadingHeaders(false);
+      }
+    };
+
+    fetchHeaders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, workflowId, token, apiBase, num_vars_taken, onHeadersUpdate]);
 
   const filteredHeaders = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -77,6 +147,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
 
   function updateRow(id: string, patch: Partial<FilterRule>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
     // live-validate the value if patch includes value
     if (Object.prototype.hasOwnProperty.call(patch, "value")) {
       const val = String((patch as any).value ?? "");
@@ -110,7 +181,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
     });
   }
 
-  // When a chip is clicked: if already used  jump to it; else add a prefilled rule
+  // When a chip is clicked: if already used jump to it; else add a prefilled rule
   function handleChipClick(header: string) {
     const lower = header.toLowerCase();
     const existing = rows.find((r) => eq(r.column, lower) || eq(r.column, header));
@@ -137,27 +208,24 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
       }))
       .filter((r) => r.column.length > 0);
 
-    // 2) Validate: operator must be present and valid
+    // 2) Validate operator
     const validOperators = [">", "<", ">=", "<=", "==", "!="];
     const invalidOperatorIds = new Set<string>();
     for (const r of selected) {
-      if (!r.operator || !validOperators.includes(r.operator)) {
-        invalidOperatorIds.add(r.id);
-      }
+      if (!r.operator || !validOperators.includes(r.operator)) invalidOperatorIds.add(r.id);
     }
     if (invalidOperatorIds.size > 0) {
       setInvalidValueIds(invalidOperatorIds);
       const firstBad = selected.find((r) => invalidOperatorIds.has(r.id));
       if (firstBad) {
-        const node = rowRefs.current[firstBad.id];
-        node?.scrollIntoView({ behavior: "smooth", block: "center" });
+        rowRefs.current[firstBad.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
         setHighlightRowId(firstBad.id);
         window.setTimeout(() => setHighlightRowId(null), 900);
       }
-      return; // block Apply until fixed
+      return;
     }
 
-    // 3) Validate values: selected must be numeric if provided (non-empty)
+    // 3) Validate values: required + numeric
     const badIds = new Set<string>();
     for (const r of selected) {
       if (r.value === "" || !isNumeric(r.value)) badIds.add(r.id);
@@ -166,18 +234,15 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
       setInvalidValueIds(badIds);
       const firstBad = selected.find((r) => badIds.has(r.id));
       if (firstBad) {
-        const node = rowRefs.current[firstBad.id];
-        node?.scrollIntoView({ behavior: "smooth", block: "center" });
+        rowRefs.current[firstBad.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
         setHighlightRowId(firstBad.id);
         window.setTimeout(() => setHighlightRowId(null), 900);
       }
-      return; // block Apply until fixed
+      return;
     }
 
-    // 3) Only send selected rules - no defaults
-    // Persist ONLY the explicitly selected rules (so the UI stays clean next open)
     saveFilters(workflowId, selected);
-    onApply?.(selected);
+    onApply?.(selected, num_vars_taken);
     onClose();
   }
 
@@ -188,7 +253,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
       {/* Overlay */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Dialog (fixed height with scrolling body) */}
+      {/* Dialog */}
       <div
         className="
           absolute left-1/2 top-1/2
@@ -203,15 +268,18 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
           <div>
             <h3 className="text-lg font-semibold text-neutral-900">Configure Filters</h3>
             <p className="text-xs text-neutral-500">
-              Add rules to narrow the model list. Click <strong>Apply</strong> to save.
+              Choose a column, select an operator, and enter a numeric value. Click <strong>Apply</strong> to save.
             </p>
+            {loadingHeaders && (
+              <p className="mt-1 text-[11px] text-neutral-500">Loading headers...</p>
+            )}
           </div>
-          <button onClick={onClose} className="rounded-md p-2 hover:bg-neutral-100">
+          <button onClick={onClose} className="rounded-md p-2 hover:bg-neutral-100" aria-label="Close">
             <XMarkIcon className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Body (scrolls) */}
+        {/* Body */}
         <div className="flex-1 overflow-auto p-4">
           <div className="grid gap-4">
             {/* Search + add */}
@@ -233,7 +301,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
               </button>
             </div>
 
-            {/* Quick-pick header chips (scrollable) */}
+            {/* Quick-pick header chips */}
             <div className="max-h-36 overflow-auto rounded-md border border-neutral-200 bg-neutral-50 p-2">
               <div className="flex flex-wrap gap-2">
                 {filteredHeaders.map((h) => {
@@ -249,13 +317,15 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                           ? "border-yellow-200 bg-yellow-50 text-yellow-900 ring-1 ring-yellow-200"
                           : "border-neutral-200 hover:bg-white text-neutral-800",
                       ].join(" ")}
-                      title={active ? "Already added  click to jump to rule" : "Add rule with this column"}
+                      title={active ? "Already added click to jump to rule" : "Add rule with this column"}
                       aria-pressed={active}
                     >
                       {active && <CheckIcon className="h-3.5 w-3.5" />}
                       <span className="truncate max-w-[12rem]">{h}</span>
                       {active && (
-                        <span className="ml-1 rounded-full bg-yellow-100 px-1.5 text-[10px] leading-4">{count}</span>
+                        <span className="ml-1 rounded-full bg-yellow-100 px-1.5 text-[10px] leading-4">
+                          {count}
+                        </span>
                       )}
                     </button>
                   );
@@ -266,16 +336,15 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
               </div>
             </div>
 
-            {/* Datalist provider for column input autocomplete */}
+            {/* Datalist provider */}
             <datalist id={listId}>
               {localHeaders.map((h) => (
                 <option key={h} value={h} />
               ))}
             </datalist>
 
-            {/* COMPACT RULES GRID (2 columns) */}
+            {/* Rules grid */}
             <div className="rounded-md border border-neutral-200">
-              {/* The grid scrolls; 2 cards per row on md+ */}
               <div className="p-2 max-h-[48vh] overflow-auto bg-white">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {rows.map((r, idx) => {
@@ -293,7 +362,6 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                           isHighlighted ? "ring-2 ring-yellow-200" : "",
                         ].join(" ")}
                       >
-                        {/* Remove button */}
                         <button
                           onClick={() => removeRow(r.id)}
                           className="absolute right-1.5 top-1.5 rounded-md p-1 text-neutral-500 hover:bg-white"
@@ -302,7 +370,6 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                           <TrashIcon className="h-4 w-4" />
                         </button>
 
-                        {/* Inputs (tighter spacing, compact text) */}
                         <div className="space-y-1 text-xs">
                           <label className="block text-[11px] text-neutral-500">Column</label>
                           <input
@@ -313,6 +380,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                             onChange={(e) => updateRow(r.id, { column: e.target.value })}
                             className="w-full min-w-0 rounded-md border border-neutral-200 bg-white px-2 py-1"
                           />
+
                           <div className="grid grid-cols-[90px_1fr] gap-2">
                             <div>
                               <label className="block text-[11px] text-neutral-500">Operator</label>
@@ -326,6 +394,7 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                                 <option value="<">&lt;</option>
                               </select>
                             </div>
+
                             <div>
                               <label className="block text-[11px] text-neutral-500">Value</label>
                               <input
@@ -355,11 +424,10 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
                 </div>
               </div>
             </div>
-            {/* END rules grid */}
           </div>
         </div>
 
-        {/* Footer (sticks to bottom) */}
+        {/* Footer */}
         <div className="flex items-center justify-between gap-2 border-t border-neutral-100 p-4">
           <div className="text-xs text-neutral-500">
             {rows.length} rule{rows.length === 1 ? "" : "s"} configured
@@ -385,4 +453,3 @@ const FilteringConfigModal: React.FC<Props> = ({ workflowId, headers, open, onCl
 };
 
 export default FilteringConfigModal;
-
