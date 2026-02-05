@@ -332,7 +332,7 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                         "column": col,
                         "expected": "numeric",
                         "actual": str(df[col].dtype),
-                        "message": f"Column '{col}' should be numeric for Write Off Accounts"
+                        "message": f"Column '{col}' should be numeric for"
                     })
                 else:
                     # Check for negative amounts (might be invalid)
@@ -877,7 +877,7 @@ def validate_mis_data(df: pd.DataFrame, document_type: str, file_name: str) -> D
                         "column": col,
                         "expected": "numeric",
                         "actual": str(df[col].dtype),
-                        "message": f"Column '{col}' should be numeric for Write Off Accounts"
+                        "message": f"Column '{col}' should be numeric for"
                     })
                 else:
                     # Check for negative amounts (might be invalid)
