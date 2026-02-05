@@ -4,7 +4,8 @@ import pandas as pd
 
 from fastapi import APIRouter, Depends, HTTPException, Form, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+import json
 
 from models.models import User, Workflow
 from core.security import get_current_user
@@ -126,6 +127,7 @@ async def get_filtered_results(
     num_of_vars: int = Query(2, description="Number of variables taken"),
     page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     page_size: int = Query(100, ge=1, le=1000, description="Number of rows per page (max 1000)"),
+    filter: Optional[str] = Query(None, description="JSON array of filter objects. Format: [{\"column\": \"X1\", \"values\": [\"value1\", \"value2\"]}]"),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -133,6 +135,13 @@ async def get_filtered_results(
     
     Returns the best performing models that passed all filtering criteria.
     Supports pagination to handle large datasets efficiently.
+    
+    Filtering:
+    - Use 'filter' query parameter with JSON array of filter objects
+    - Format: [{"column": "X1", "values": ["value1", "value2", "value3"]}, {"column": "X2", "values": ["value4"]}]
+    - Filters are applied to ALL rows before pagination
+    - Multiple values for the same column use OR logic (X1 can be value1 OR value2 OR value3)
+    - Different columns use AND logic (X1 must match AND X2 must match)
     """
     try:
         db = SessionLocal()
@@ -187,8 +196,78 @@ async def get_filtered_results(
             
             # Read CSV file
             df = pd.read_csv(filtering_of_models_file)
+
+            print(df)
             
-            # Calculate pagination
+            # Apply filters if provided
+            if filter:
+                try:
+                    # Parse JSON filter parameter
+                    filter_list = json.loads(filter) if isinstance(filter, str) else filter
+                    
+                    # Validate filter format
+                    if not isinstance(filter_list, list):
+                        return JSONResponse(
+                            status_code=400,
+                            content={
+                                "code": -1,
+                                "success": False,
+                                "msg": "Filter parameter must be a JSON array of filter objects",
+                                "data": None
+                            }
+                        )
+                    
+                    # Start with all rows (True mask)
+                    mask = pd.Series([True] * len(df), index=df.index)
+                    
+                    # Apply each filter
+                    for filter_obj in filter_list:
+                        if not isinstance(filter_obj, dict):
+                            continue
+                        
+                        column_name = filter_obj.get("column")
+                        values = filter_obj.get("values")
+                        
+                        if not column_name or not values:
+                            continue
+                        
+                        # Check if column exists in dataframe
+                        if column_name not in df.columns:
+                            continue
+                        
+                        # Ensure values is a list
+                        if not isinstance(values, list):
+                            values = [values]
+                        
+                        # Use OR logic within a column (value can be any of the filter_values)
+                        column_mask = df[column_name].isin(values)
+                        mask = mask & column_mask
+                    
+                    # Filter the dataframe
+                    df = df[mask].reset_index(drop=True)
+                    
+                except json.JSONDecodeError:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "code": -1,
+                            "success": False,
+                            "msg": "Invalid JSON format in filter parameter",
+                            "data": None
+                        }
+                    )
+                except Exception as e:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "code": -1,
+                            "success": False,
+                            "msg": f"Error processing filter: {str(e)}",
+                            "data": None
+                        }
+                    )
+            
+            # Calculate pagination on filtered data
             total_rows = len(df)
             total_pages = (total_rows + page_size - 1) // page_size if total_rows > 0 else 0
             
