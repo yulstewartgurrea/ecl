@@ -462,6 +462,10 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
                         "data": None
                     }
                 )
+
+            workflow.number_of_combinations = num_combinations
+            db.commit()
+            db.refresh(workflow)
             
             # Also check database for pending/processing jobs (handles multi-process scenarios)
             existing_job = db.query(OverlayDevelopmentDataTransformationJob).filter(
