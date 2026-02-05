@@ -195,20 +195,10 @@ export default function Step1() {
     fetchExistingDocuments();
   }, [fetchExistingDocuments]);
 
-  const resetUploadStateForFiles = useCallback((filesToReset: File[]) => {
-    const names = new Set(filesToReset.map((f) => f.name));
-    if (names.size === 0) return;
-    setUploadedFiles((prev) => {
-      const ns = new Set(prev);
-      names.forEach((n) => ns.delete(n));
-      return ns;
-    });
-    setFailedFiles((prev) => {
-      const ns = new Set(prev);
-      names.forEach((n) => ns.delete(n));
-      return ns;
-    });
-    setFailedFilesForRetry((prev) => prev.filter((f) => !names.has(f.name)));
+  const resetAllUploadState = useCallback(() => {
+    setUploadedFiles(new Set());
+    setFailedFiles(new Set());
+    setFailedFilesForRetry([]);
     setUploadIssues([]);
     setSuccessBanner(null);
   }, []);
@@ -311,7 +301,7 @@ export default function Step1() {
   const handleFilesChange = useCallback(
     async (nextFiles: File[]) => {
       const single = nextFiles.slice(-1);
-      resetUploadStateForFiles(single);
+      resetAllUploadState();
       setFiles(single);
       for (const f of single) {
         if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
@@ -319,7 +309,7 @@ export default function Step1() {
         }
       }
     },
-    [resetUploadStateForFiles, uploadIndividualFile, uploadedFiles, uploadingFiles]
+    [resetAllUploadState, uploadIndividualFile, uploadedFiles, uploadingFiles]
   );
   const handlePickWorkflow = useCallback(
     (w: Workflow) => {
