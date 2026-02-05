@@ -18,7 +18,6 @@ import {
 import {
   clearModuleProgress,
   clearModuleProgressByWorkflowId,
-  selectModuleProgress,
   setModuleProgress,
 } from "../../redux_toolkit/features/progress/moduleProgressSlice";
 import { clearStep5Bundle } from "../../redux_toolkit/features/asa/flowrateStep5Slice";
@@ -28,6 +27,7 @@ const FlowrateApproachPage = () => {
   const navigate = useNavigate();
 
   const {
+    currentPdTransitionMatrixWorkflowId,
     currentPdTransitionMatrixWorkflowData,
     selectedPdTransitionMatrixEntity,
     selectedPdTransitionMatrixReportingPeriod,
@@ -65,22 +65,47 @@ const FlowrateApproachPage = () => {
     selectedPdTransitionMatrixLoanProduct,
   ]);
 
-  // IMPORTANT: use a stable key (same idea we used before)
-  const progressKey = useMemo(() => {
-    const wfId = Number(currentPdTransitionMatrixWorkflowData?.id);
-    if (workflowPath) return workflowPath;
-    if (Number.isFinite(wfId) && wfId > 0) return `wf:${wfId}`;
+  const workflowIdForKey = useMemo(() => {
+    const wfIdRaw =
+      currentPdTransitionMatrixWorkflowId ??
+      currentPdTransitionMatrixWorkflowData?.id;
+    const wfId = Number(wfIdRaw);
+    return Number.isFinite(wfId) && wfId > 0 ? wfId : undefined;
+  }, [currentPdTransitionMatrixWorkflowId, currentPdTransitionMatrixWorkflowData?.id]);
+
+  const flowrateProgressMap = useAppSelector(
+    (state: RootState) => state.moduleProgress?.modules?.flowrate || {}
+  ) as Record<string, any>;
+
+  const progressEntry = useMemo(() => {
+    if (workflowPath && flowrateProgressMap[workflowPath]) {
+      return flowrateProgressMap[workflowPath];
+    }
+    if (workflowIdForKey) {
+      return (
+        flowrateProgressMap[`wf:${workflowIdForKey}`] ||
+        Object.values(flowrateProgressMap).find(
+          (entry: any) => (entry?.data as any)?.workflowId === workflowIdForKey
+        )
+      );
+    }
     return undefined;
-  }, [workflowPath, currentPdTransitionMatrixWorkflowData?.id]);
+  }, [flowrateProgressMap, workflowPath, workflowIdForKey]);
 
-  const persistedStep = useAppSelector((state: RootState) =>
-    selectModuleProgress(state, "flowrate", progressKey)?.step
-  );
+  const persistedStep = progressEntry?.step;
 
-  const step1Valid = useAppSelector((state: RootState) => {
-    const entry = selectModuleProgress(state, "flowrate", progressKey);
-    return Boolean((entry?.data as any)?.step1Valid);
-  });
+  const step1Status = useMemo(() => {
+    const status = (progressEntry?.data as any)?.step1Status as string | undefined;
+    return status ?? "empty";
+  }, [progressEntry]);
+  const canProceedFromUpload = step1Status === "success";
+  const [step1GateMsg, setStep1GateMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (canProceedFromUpload || step1Status === "empty" || step1Status === "uploading") {
+      setStep1GateMsg(null);
+    }
+  }, [canProceedFromUpload, step1Status]);
 
   const initialStepForPath =
     (persistedStep !== undefined
@@ -95,6 +120,12 @@ const FlowrateApproachPage = () => {
     setActiveSubStep(initialStepForPath);
   }, [initialStepForPath]);
 
+  useEffect(() => {
+    if (step1Status === "success" && step1GateMsg) {
+      setStep1GateMsg(null);
+    }
+  }, [step1Status, step1GateMsg]);
+
   const developmentSteps = [
     { label: "Inputs", completed: false },
     { label: "Flowrate Approach", completed: false },
@@ -103,9 +134,19 @@ const FlowrateApproachPage = () => {
   ];
 
   const commitStepChange = (targetIndex: number) => {
-    if (activeSubStep === 0 && targetIndex > 0 && !step1Valid) return;
+    if (activeSubStep === 0 && targetIndex > 0 && !canProceedFromUpload) {
+      if (step1Status === "error") {
+        setStep1GateMsg(
+          "You cannot proceed to the next step because there is an error in your upload."
+        );
+      } else {
+        setStep1GateMsg("Please upload a valid file before proceeding.");
+      }
+      return;
+    }
 
     setActiveSubStep(targetIndex);
+    if (step1GateMsg) setStep1GateMsg(null);
 
     dispatch(
       setPdTransitionMatrixCurrentStep({
@@ -117,7 +158,7 @@ const FlowrateApproachPage = () => {
     dispatch(
       setModuleProgress({
         moduleKey: "flowrate",
-        contextKey: progressKey,
+        contextKey: workflowPath || undefined,
         step: targetIndex,
         data: {
           workflowPath,
@@ -134,7 +175,7 @@ const FlowrateApproachPage = () => {
     dispatch(
       clearModuleProgress({
         moduleKey: "flowrate",
-        contextKey: progressKey,
+        contextKey: workflowPath || undefined,
       })
     );
 
@@ -214,9 +255,17 @@ const FlowrateApproachPage = () => {
           steps={developmentSteps}
           activeStep={activeSubStep}
           onApprovedStepChange={commitStepChange}
-          canContinue={activeSubStep === 0 ? step1Valid : true}
+          canContinue={activeSubStep === 0 ? canProceedFromUpload : true}
         />
       </div>
+
+      {activeSubStep === 0 && step1GateMsg && (
+        <div className="mx-auto px-4 pt-2">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {step1GateMsg}
+          </div>
+        </div>
+      )}
 
       <div className="mx-auto lg:px-4">{renderSubStepContent()}</div>
     </div>
