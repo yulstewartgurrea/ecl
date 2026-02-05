@@ -221,7 +221,6 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
 async def process_multifactor_analysis(
     workflow_id: int = Form(...),
     target_variable: str = Form('odr.logit', description="Target variable (e.g., odr.logit)"),
-    num_vars_taken: int = Form(2, description="Number of variables per combination"),
     max_combinations: int = Form(5, description="Maximum number of combinations to test"),
     max_bgtest_order: int = Form(2, description="Maximum order for Breusch-Godfrey test"),
     current_user: User = Depends(get_current_user)
@@ -302,7 +301,7 @@ async def process_multifactor_analysis(
         # Start background thread
         thread = threading.Thread(
             target=run_multifactor_analysis_background,
-            args=(new_job.id, workflow_id, current_user.id, target_variable, num_vars_taken, max_bgtest_order),
+            args=(new_job.id, workflow_id, current_user.id, target_variable, workflow.number_of_combinations, max_bgtest_order),
             daemon=True
         )
         thread.start()

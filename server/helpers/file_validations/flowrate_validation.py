@@ -24,7 +24,7 @@ def validate_flowrate_document(df: pd.DataFrame, document_type: str, file_name: 
     
     # Route directly to appropriate validation function based on document type
     if document_type == "FLOWRATE_APPROACH_WRITE_OFF_ACCOUNTS":
-        print("Flowrate Approach Write Off Accounts")
+        print("Flowrate Approach")
         return validate_write_off_accounts(df, document_type, file_name)
     elif document_type == "FLOWRATE_APPROACH_AGING_REPORT":
         print("Flowrate Approach Aging Report")
@@ -66,7 +66,7 @@ def _get_base_validation_results(file_name: str, document_type: str) -> Dict[str
 
 def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name: str) -> Dict[str, Any]:
     """
-    Specialized validation for Write Off Accounts documents
+    Specialized validation for documents
     """
     validation_results = _get_base_validation_results(file_name, document_type)
     
@@ -93,7 +93,7 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
             validation_results["issues"].append({
                 "type": "missing_required_columns",
                 "columns": missing_required,
-                "message": f"Missing required columns for Write Off Accounts: {', '.join(missing_required)}"
+                "message": f"Missing required columns for: {', '.join(missing_required)}"
             })
         
         # Expected columns - warnings if missing (subset of required for additional validation)
@@ -103,7 +103,7 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
             validation_results["issues"].append({
                 "type": "missing_expected_columns",
                 "columns": missing_expected,
-                "message": f"Missing expected columns for Write Off Accounts: {', '.join(missing_expected)}"
+                "message": f"Missing expected columns for: {', '.join(missing_expected)}"
             })
         
         # Validate numeric columns
@@ -120,7 +120,7 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
                         "column": actual_col_name,
                         "expected": "numeric",
                         "actual": str(df[actual_col_name].dtype),
-                        "message": f"Column '{actual_col_name}' should be numeric for Write Off Accounts"
+                        "message": f"Column '{actual_col_name}' should be numeric for"
                     })
                 else:
                     # Check for negative amounts (might be invalid)
@@ -147,7 +147,7 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
                     validation_results["issues"].append({
                         "type": "date_format",
                         "column": actual_col_name,
-                        "message": f"Column '{actual_col_name}' contains invalid date formats for Write Off Accounts"
+                        "message": f"Column '{actual_col_name}' contains invalid date formats"
                     })
         
         # Add other validations
@@ -159,9 +159,128 @@ def validate_write_off_accounts(df: pd.DataFrame, document_type: str, file_name:
         validation_results["validation_status"] = "error"
         validation_results["issues"].append({
             "type": "validation_error",
-            "message": f"Error during Write Off Accounts validation: {str(e)}"
+            "message": f"Error during validation: {str(e)}"
         })
         return validation_results
+
+
+def _validate_aging_column_patterns(df: pd.DataFrame, validation_results: Dict[str, Any]) -> None:
+    """
+    Validates columns with patterns PAR/MPD/DPD followed by numbers.
+    Rules:
+    - Must start with 1
+    - Must be in ascending order
+    - After 1, increments must be exactly 30 (1, 30, 60, 90, 120, ...)
+    - Only one prefix type (PAR, MPD, or DPD) should exist
+    - Case-insensitive: par/PAR/Par, mpd/MPD/Mpd, dpd/DPD/Dpd are all treated the same
+    
+    Args:
+        df: DataFrame to validate
+        validation_results: Validation results dictionary to update
+    """
+    # Pattern to match: PAR/MPD/DPD followed by optional space and number
+    # re.IGNORECASE ensures case-insensitive matching (par/PAR/Par, mpd/MPD/Mpd, etc.)
+    pattern = re.compile(r'^(PAR|MPD|DPD)\s*(\d+)$', re.IGNORECASE)
+    
+    # Group columns by prefix (normalized to uppercase for consistency)
+    prefix_groups = {'PAR': [], 'MPD': [], 'DPD': []}
+    
+    # Scan all columns and group by prefix (case-insensitive)
+    for col in df.columns:
+        match = pattern.match(str(col).strip())
+        if match:
+            # Normalize prefix to uppercase (par -> PAR, Mpd -> MPD, etc.)
+            prefix = match.group(1).upper()
+            number = int(match.group(2))
+            prefix_groups[prefix].append((col, number))
+    
+    # Check if only one prefix type exists (PAR, MPD, or DPD - not multiple)
+    found_prefixes = [prefix for prefix, cols in prefix_groups.items() if cols]
+    if len(found_prefixes) > 1:
+        # Get all column names from all found prefixes
+        all_columns = []
+        for prefix in found_prefixes:
+            all_columns.extend([col for col, _ in prefix_groups[prefix]])
+        
+        validation_results["validation_status"] = "failed"
+        validation_results["issues"].append({
+            "type": "aging_column_pattern",
+            "prefixes": found_prefixes,
+            "columns": all_columns,
+            "message": f"Only one prefix type (PAR, MPD, or DPD) should exist, but found multiple: {', '.join(found_prefixes)}. Columns: {', '.join(all_columns)}"
+        })
+        return  # Exit early since multiple prefixes is an error
+    
+    # Validate each prefix group
+    for prefix, columns_with_numbers in prefix_groups.items():
+        if not columns_with_numbers:
+            continue  # Skip if no columns found for this prefix
+        
+        # Sort by number to check order
+        columns_with_numbers.sort(key=lambda x: x[1])
+        numbers = [num for _, num in columns_with_numbers]
+        column_names = [col for col, _ in columns_with_numbers]
+        
+        # Check if starts with 1
+        if numbers[0] != 1:
+            validation_results["validation_status"] = "failed"
+            validation_results["issues"].append({
+                "type": "aging_column_pattern",
+                "prefix": prefix,
+                "columns": column_names,
+                "message": f"{prefix} columns must start with 1, but found starting value: {numbers[0]}. Columns: {', '.join(column_names)}"
+            })
+            continue
+        
+        # Check if in ascending order
+        if numbers != sorted(numbers):
+            validation_results["validation_status"] = "failed"
+            validation_results["issues"].append({
+                "type": "aging_column_pattern",
+                "prefix": prefix,
+                "columns": column_names,
+                "message": f"{prefix} columns are not in ascending order. Found: {', '.join(column_names)}"
+            })
+            continue
+        
+        # Check if increments are by 30 after 1
+        # Pattern: 1, then 30, then 60, 90, 120, etc. (increments of 30)
+        missing_values = []
+        for i in range(1, len(numbers)):
+            if i == 1:
+                # After 1, the next value MUST be 30
+                expected = 30
+            else:
+                # After 30, each subsequent value must be previous + 30
+                expected = numbers[i-1] + 30
+            
+            if numbers[i] != expected:
+                # Check if it's a missing intermediate value (gap is more than 30)
+                if numbers[i] > expected:
+                    # There's a gap - missing intermediate values
+                    for missing_val in range(expected, numbers[i], 30):
+                        missing_values.append(f"{prefix} {missing_val}")
+                else:
+                    # Invalid increment
+                    validation_results["validation_status"] = "failed"
+                    validation_results["issues"].append({
+                        "type": "aging_column_pattern",
+                        "prefix": prefix,
+                        "columns": column_names,
+                        "message": f"{prefix} columns must follow pattern: 1, 30, 60, 90... Found '{column_names[i]}' with value {numbers[i]} but expected {expected} after '{column_names[i-1]}'"
+                    })
+                    break
+        
+        # Report missing intermediate values
+        if missing_values:
+            validation_results["validation_status"] = "failed"
+            validation_results["issues"].append({
+                "type": "aging_column_pattern",
+                "prefix": prefix,
+                "columns": column_names,
+                "missing_columns": missing_values,
+                "message": f"{prefix} columns are missing intermediate values: {', '.join(missing_values)}. Found columns: {', '.join(column_names)}"
+            })
 
 
 def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, temp_path: str) -> Dict[str, Any]:
@@ -175,81 +294,14 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
     validation_results = _get_base_validation_results(file_name, document_type)
 
     try:
-
-        print(df)
-        
-        # temporarily commented until format is decided
-        # cleaned_data = clean_document(df, document_type, file_name, temp_path)
-        # # print("validate_aging_report \n", df)
-
-        # # Check if required fields exist and are not None or empty
-        # required_fields = {
-        #     "report_date": "Report date",
-        #     "total_borrowers": "Total borrowers", 
-        #     "number_of_delinquents": "Number of delinquents",
-        #     "total_loan_portfolio": "Total loan portfolio",
-        #     "products": "Products"
-        # }
-        
-        # for field_key, field_name in required_fields.items():
-        #     if field_key not in cleaned_data:
-        #         validation_results["validation_status"] = "failed"
-        #         validation_results["issues"].append({
-        #             "type": "missing_required_field",
-        #             "field": field_key,
-        #             "message": f"Missing required field '{field_name}' in aging report"
-        #         })
-        #     elif cleaned_data[field_key] is None:
-        #         validation_results["validation_status"] = "failed"
-        #         validation_results["issues"].append({
-        #             "type": "null_required_field",
-        #             "field": field_key,
-        #             "message": f"Required field '{field_name}' is null in aging report"
-        #         })
-        #     elif field_key == "products" and isinstance(cleaned_data[field_key], list) and len(cleaned_data[field_key]) == 0:
-        #         validation_results["validation_status"] = "failed"
-        #         validation_results["issues"].append({
-        #             "type": "empty_required_field",
-        #             "field": field_key,
-        #             "message": f"Required field '{field_name}' is empty (no products found) in aging report"
-        #         })
-        #     elif field_key != "products" and cleaned_data[field_key] == "":
-        #         validation_results["validation_status"] = "failed"
-        #         validation_results["issues"].append({
-        #             "type": "empty_required_field",
-        #             "field": field_key,
-        #             "message": f"Required field '{field_name}' is empty in aging report"
-        #         })
-        
-        # prod_arr = []
-        # for i in cleaned_data["products"]:
-        #     print(i['data'])
-        #     prod_arr.append(i["data"][0])
-        
-        # df = pd.DataFrame(prod_arr)
+        # Validate PAR/MPD/DPD column patterns
+        _validate_aging_column_patterns(df, validation_results)
 
         # Required columns
         required_columns = [
             "Date",	
             "Total Loan Balance with C/P",
-            "0 day",
-            "PAR 1  (1 & 30 days)",
-            "PAR 30  (31 & 60 days)",
-            "PAR 60  (61 & 90 days)",
-            "PAR 90  (91 & 120 days)",
-            "PAR 120  (121 & 180 days)",
-            "PAR 180  (181 & 240 days)",
-            "PAR 240  (241 & 360 days)",
-            "PAR 360  (361 & Up days)",
-            # "Aging Category", 
-            # "Product Counts", 
-            # "Loan Balance w/ CP", 
-            # "Loan Balance Principal", 
-            # "NET PAR Amount Loan Balance w/ CP", 
-            # "NET PAR Amount Loan Balance Principal", 
-            # "NET PAR % (Gross PAR/TLP)", 
-            # "Repayment Rate", 
-            # "GROSS PAR % (Gross PAR/TLP)"
+            "0 Day"
         ]
         required_columns = [col.strip().lower() for col in required_columns]
         missing_required = [col for col in required_columns if col not in df.columns]
@@ -263,15 +315,7 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
         
         numeric_columns = [
             "Total Loan Balance with C/P",
-            "0 day",
-            "PAR 1  (1 & 30 days)",
-            "PAR 30  (31 & 60 days)",
-            "PAR 60  (61 & 90 days)",
-            "PAR 90  (91 & 120 days)",
-            "PAR 120  (121 & 180 days)",
-            "PAR 180  (181 & 240 days)",
-            "PAR 240  (241 & 360 days)",
-            "PAR 360  (361 & Up days)",
+            "0 Day"
         ]
         numeric_columns = [col.strip().lower() for col in numeric_columns]
         for col in numeric_columns:
@@ -288,7 +332,7 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                         "column": col,
                         "expected": "numeric",
                         "actual": str(df[col].dtype),
-                        "message": f"Column '{col}' should be numeric for Write Off Accounts"
+                        "message": f"Column '{col}' should be numeric for"
                     })
                 else:
                     # Check for negative amounts (might be invalid)
@@ -300,21 +344,48 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                             "message": f"Column '{col}' has {negative_count} negative values - verify if this is correct"
                         })
 
-        # Validate date format (YYYY-MM-DD)
+        # Validate date format (MM/DD/YYYY)
         date_columns = ["date"]  # Add your date column names here
-        for col in date_columns:
-            if col in df.columns:
+        for col_lower in date_columns:
+            # Find the actual column name (case-insensitive)
+            actual_col = None
+            for col in df.columns:
+                if col.strip().lower() == col_lower:
+                    actual_col = col
+                    break
+            
+            if actual_col is not None:
                 try:
                     # Check if column is already datetime type
-                    if pd.api.types.is_datetime64_any_dtype(df[col]):
-                        # Convert datetime to YYYY-MM-DD string format
-                        date_strings = df[col].dt.strftime('%Y-%m-%d')
+                    if pd.api.types.is_datetime64_any_dtype(df[actual_col]):
+                        # Convert datetime to MM/DD/YYYY string format
+                        date_strings = df[actual_col].dt.strftime('%m/%d/%Y')
                     else:
-                        # Convert to datetime first, then to string format
-                        date_strings = pd.to_datetime(df[col], errors='raise').dt.strftime('%Y-%m-%d')
+                        # Try to parse as MM/DD/YYYY format first
+                        # If that fails, try pandas default parsing
+                        try:
+                            # Try parsing with MM/DD/YYYY format
+                            parsed_dates = pd.to_datetime(df[actual_col], format='%m/%d/%Y', errors='coerce')
+                            # Check if all dates were successfully parsed
+                            if parsed_dates.isna().any():
+                                # Some dates couldn't be parsed with MM/DD/YYYY format
+                                invalid_count = parsed_dates.isna().sum()
+                                validation_results["validation_status"] = "failed"
+                                validation_results["issues"].append({
+                                    "type": "date_format",
+                                    "column": actual_col,
+                                    "invalid_count": int(invalid_count),
+                                    "message": f"Column '{actual_col}' has {invalid_count} values not in MM/DD/YYYY format"
+                                })
+                                continue
+                            date_strings = parsed_dates.dt.strftime('%m/%d/%Y')
+                        except:
+                            # Fallback: try pandas default parsing
+                            parsed_dates = pd.to_datetime(df[actual_col], errors='coerce')
+                            date_strings = parsed_dates.dt.strftime('%m/%d/%Y')
                     
-                    # Check for specific YYYY-MM-DD format
-                    date_pattern = r'^\d{4}-\d{2}-\d{2}$'
+                    # Check for specific MM/DD/YYYY format
+                    date_pattern = r'^\d{2}/\d{2}/\d{4}$'
                     invalid_format_count = 0
                     
                     for idx, value in date_strings.items():
@@ -325,17 +396,17 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                         validation_results["validation_status"] = "failed"
                         validation_results["issues"].append({
                             "type": "date_format",
-                            "column": col,
+                            "column": actual_col,
                             "invalid_count": invalid_format_count,
-                            "message": f"Column '{col}' has {invalid_format_count} values not in YYYY-MM-DD format"
+                            "message": f"Column '{actual_col}' has {invalid_format_count} values not in MM/DD/YYYY format"
                         })
                         
-                except:
+                except Exception as e:
                     validation_results["validation_status"] = "failed"
                     validation_results["issues"].append({
                         "type": "date_format",
-                        "column": col,
-                        "message": f"Column '{col}' contains invalid date formats"
+                        "column": actual_col,
+                        "message": f"Column '{actual_col}' contains invalid date formats. Expected MM/DD/YYYY format. Error: {str(e)}"
                     })
 
         # Check for duplicate columns
@@ -806,7 +877,7 @@ def validate_mis_data(df: pd.DataFrame, document_type: str, file_name: str) -> D
                         "column": col,
                         "expected": "numeric",
                         "actual": str(df[col].dtype),
-                        "message": f"Column '{col}' should be numeric for Write Off Accounts"
+                        "message": f"Column '{col}' should be numeric for"
                     })
                 else:
                     # Check for negative amounts (might be invalid)

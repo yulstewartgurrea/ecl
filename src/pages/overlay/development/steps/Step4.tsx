@@ -609,7 +609,7 @@ const Step4: React.FC<Step4Props> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Configuration Button */}
-          <button
+          {/* <button
             onClick={() => setShowConfig(true)}
             disabled={posting || loading || !Number.isFinite(selectedWorkflowId)}
             className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
@@ -617,7 +617,7 @@ const Step4: React.FC<Step4Props> = ({
           >
             <Cog6ToothIcon className="h-4 w-4" />
             Config
-          </button>
+          </button> */}
 
           {/* Run */}
           <button
