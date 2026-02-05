@@ -47,7 +47,13 @@ const uniqCaseInsensitive = (arr: string[]) => {
 const normalizeColumnValues = (payload: unknown): ColumnValuesMap => {
   if (!payload || typeof payload !== "object") return {};
   const raw = payload as any;
-  const source = raw.columns && typeof raw.columns === "object" ? raw.columns : raw;
+  const source =
+    raw.column_unique_values && typeof raw.column_unique_values === "object"
+      ? raw.column_unique_values
+      : raw.columns && typeof raw.columns === "object"
+      ? raw.columns
+      : raw;
+
   if (!source || typeof source !== "object") return {};
 
   const out: ColumnValuesMap = {};
