@@ -140,7 +140,7 @@ export default function Step4() {
         ) : (
           <CreditLossRateCharts
             data={sourceRows}
-            rateSets={rateSetNames.length ? rateSetNames : ["Historical (avg of months)"]}
+            rateSets={rateSetNames}
             title="Credit Loss Rate Approach – Visuals"
             enableExport={false}
           />

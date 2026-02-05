@@ -165,7 +165,7 @@ function deriveSchema(rows: CreditLossRateAnyRow[], opts?: Partial<Props>) {
 export default function CreditLossRateCharts({
   data,
   title = "Credit Loss Rate – Charts",
-  rateSets = ["Historical (avg of months)"],
+  rateSets = [],
   selectedRateSet,
   onChangeRateSet,
   loading,
@@ -265,18 +265,22 @@ export default function CreditLossRateCharts({
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-sm ml-2">Rate set:</label>
-          <select
-            className="text-sm rounded-md border border-gray-200 bg-white px-3 py-1 shadow-sm focus:outline-none"
-            value={selectedRateSet ?? rateSets[0]}
-            onChange={(e) => onChangeRateSet?.(e.target.value)}
-          >
-            {rateSets.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+          {rateSets.length > 0 && (
+            <>
+              <label className="text-sm ml-2">Rate set:</label>
+              <select
+                className="text-sm rounded-md border border-gray-200 bg-white px-3 py-1 shadow-sm focus:outline-none"
+                value={selectedRateSet ?? rateSets[0]}
+                onChange={(e) => onChangeRateSet?.(e.target.value)}
+              >
+                {rateSets.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
 
           {enableExport && (
             <button
