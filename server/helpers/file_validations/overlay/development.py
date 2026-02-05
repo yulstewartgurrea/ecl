@@ -310,7 +310,7 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
         validation_results["validation_status"] = "error"
         validation_results["issues"].append({
             "type": "validation_error",
-            "message": f"Error during Write Off Accounts validation: {str(e)}"
+            "message": f"Error during validation: {str(e)}"
         })
         return validation_results
 
@@ -358,7 +358,7 @@ def validate_overlay_development_monthly_mev(df: pd.DataFrame, document_type: st
             validation_results["issues"].append({
                 "type": "missing_required_columns",
                 "columns": missing_required,
-                "message": f"Missing required columns for Write Off Accounts: {', '.join(missing_required)}"
+                "message": f"Missing required columns for: {', '.join(missing_required)}"
             })
         
         # Check for duplicate columns
@@ -627,13 +627,13 @@ def validate_overlay_development_monthly_mev(df: pd.DataFrame, document_type: st
         validation_results["validation_status"] = "error"
         validation_results["issues"].append({
             "type": "validation_error",
-            "message": f"Error during Write Off Accounts validation: {str(e)}"
+            "message": f"Error during validation: {str(e)}"
         })
         return validation_results
 
 def validate_overlay_development_quarterly_mev(df: pd.DataFrame, document_type: str, file_name: str) -> Dict[str, Any]:
     """
-    Specialized validation for Write Off Accounts documents
+    Specialized validation for documents
     """
     validation_results = _get_base_validation_results(file_name, document_type)
     
@@ -675,7 +675,7 @@ def validate_overlay_development_quarterly_mev(df: pd.DataFrame, document_type: 
             validation_results["issues"].append({
                 "type": "missing_required_columns",
                 "columns": missing_required,
-                "message": f"Missing required columns for Write Off Accounts: {', '.join(missing_required)}"
+                "message": f"Missing required columns for: {', '.join(missing_required)}"
             })
         
         # Check for duplicate columns
@@ -979,7 +979,7 @@ def validate_overlay_development_quarterly_mev(df: pd.DataFrame, document_type: 
         validation_results["validation_status"] = "error"
         validation_results["issues"].append({
             "type": "validation_error",
-            "message": f"Error during Write Off Accounts validation: {str(e)}"
+            "message": f"Error during validation: {str(e)}"
         })
         return validation_results
 
