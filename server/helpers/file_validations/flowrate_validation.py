@@ -344,23 +344,48 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                             "message": f"Column '{col}' has {negative_count} negative values - verify if this is correct"
                         })
 
-        # Validate date format (YYYY-MM-DD)
+        # Validate date format (MM/DD/YYYY)
         date_columns = ["date"]  # Add your date column names here
-        for col in date_columns:
-            if col in df.columns.str.lower():
-                print(df.columns.str.lower())
-                print(col)
+        for col_lower in date_columns:
+            # Find the actual column name (case-insensitive)
+            actual_col = None
+            for col in df.columns:
+                if col.strip().lower() == col_lower:
+                    actual_col = col
+                    break
+            
+            if actual_col is not None:
                 try:
                     # Check if column is already datetime type
-                    if pd.api.types.is_datetime64_any_dtype(df[col]):
-                        # Convert datetime to YYYY-MM-DD string format
-                        date_strings = df[col].dt.strftime('%Y-%m-%d')
+                    if pd.api.types.is_datetime64_any_dtype(df[actual_col]):
+                        # Convert datetime to MM/DD/YYYY string format
+                        date_strings = df[actual_col].dt.strftime('%m/%d/%Y')
                     else:
-                        # Convert to datetime first, then to string format
-                        date_strings = pd.to_datetime(df[col], errors='raise').dt.strftime('%Y-%m-%d')
+                        # Try to parse as MM/DD/YYYY format first
+                        # If that fails, try pandas default parsing
+                        try:
+                            # Try parsing with MM/DD/YYYY format
+                            parsed_dates = pd.to_datetime(df[actual_col], format='%m/%d/%Y', errors='coerce')
+                            # Check if all dates were successfully parsed
+                            if parsed_dates.isna().any():
+                                # Some dates couldn't be parsed with MM/DD/YYYY format
+                                invalid_count = parsed_dates.isna().sum()
+                                validation_results["validation_status"] = "failed"
+                                validation_results["issues"].append({
+                                    "type": "date_format",
+                                    "column": actual_col,
+                                    "invalid_count": int(invalid_count),
+                                    "message": f"Column '{actual_col}' has {invalid_count} values not in MM/DD/YYYY format"
+                                })
+                                continue
+                            date_strings = parsed_dates.dt.strftime('%m/%d/%Y')
+                        except:
+                            # Fallback: try pandas default parsing
+                            parsed_dates = pd.to_datetime(df[actual_col], errors='coerce')
+                            date_strings = parsed_dates.dt.strftime('%m/%d/%Y')
                     
-                    # Check for specific YYYY-MM-DD format
-                    date_pattern = r'^\d{4}-\d{2}-\d{2}$'
+                    # Check for specific MM/DD/YYYY format
+                    date_pattern = r'^\d{2}/\d{2}/\d{4}$'
                     invalid_format_count = 0
                     
                     for idx, value in date_strings.items():
@@ -371,17 +396,17 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                         validation_results["validation_status"] = "failed"
                         validation_results["issues"].append({
                             "type": "date_format",
-                            "column": col,
+                            "column": actual_col,
                             "invalid_count": invalid_format_count,
-                            "message": f"Column '{col}' has {invalid_format_count} values not in YYYY-MM-DD format"
+                            "message": f"Column '{actual_col}' has {invalid_format_count} values not in MM/DD/YYYY format"
                         })
                         
-                except:
+                except Exception as e:
                     validation_results["validation_status"] = "failed"
                     validation_results["issues"].append({
                         "type": "date_format",
-                        "column": col,
-                        "message": f"Column '{col}' contains invalid date formats"
+                        "column": actual_col,
+                        "message": f"Column '{actual_col}' contains invalid date formats. Expected MM/DD/YYYY format. Error: {str(e)}"
                     })
 
         # Check for duplicate columns
