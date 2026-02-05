@@ -29,12 +29,12 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp
         "OVERLAY_DEVELOPMENT_QUARTERLY_HISTORICAL_MEV": "overlay_development", 
         "OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE": "overlay_development",
 
-        "OVERLAY_DEVELOPMENT_EXECUTION_MONTHLY_HISTORICAL_MEV": "overlay_execution",
-        "OVERLAY_DEVELOPMENT_EXECUTION_QUARTERLY_HISTORICAL_MEV": "overlay_execution", 
-        "OVERLAY_DEVELOPMENT_EXECUTION_HISTORICAL_DEFAULT_RATE": "overlay_execution",
-        "OVERLAY_DEVELOPMENT_EXECUTION_MONTHLY_FORECASTED_MEV_ARIMA": "overlay_execution",
-        "OVERLAY_DEVELOPMENT_EXECUTION_QUARTERLY_FORECASTED_MEV_ARIMA": "overlay_execution",
-        "OVERLAY_DEVELOPMENT_EXECUTION_FINAL_OVERLAY_MODEL": "overlay_execution",
+        "OVERLAY_EXECUTION_MONTHLY_HISTORICAL_MEV": "overlay_execution",
+        "OVERLAY_EXECUTION_QUARTERLY_HISTORICAL_MEV": "overlay_execution", 
+        "OVERLAY_EXECUTION_HISTORICAL_DEFAULT_RATE": "overlay_execution",
+        "OVERLAY_EXECUTION_MONTHLY_FORECASTED_MEV_ARIMA": "overlay_execution",
+        "OVERLAY_EXECUTION_QUARTERLY_FORECASTED_MEV_ARIMA": "overlay_execution",
+        "OVERLAY_EXECUTION_FINAL_OVERLAY_MODEL": "overlay_execution",
         
         # Flowrate Approach types - use specialized validation
         "FLOWRATE_APPROACH_WRITE_OFF_ACCOUNTS": "flowrate",
