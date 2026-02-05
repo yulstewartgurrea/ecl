@@ -64,6 +64,8 @@ export default function Step1() {
     pdTransitionMatrixWfName,
     currentPdTransitionMatrixWorkflowId,
     currentPdTransitionMatrixWorkflowData,
+    selectedPdTransitionMatrixEntity,
+    selectedPdTransitionMatrixReportingPeriod,
     selectedPdTransitionMatrixLoanProduct,
     selectedPdTransitionMatrixReportDateStart,
   } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
@@ -86,17 +88,26 @@ export default function Step1() {
   const workflowId = Number(workflowIdFromRedux)
 
   // Prefer values from persisted workflowData; fall back to selected values; finally to sane defaults
-  const entity = currentPdTransitionMatrixWorkflowData?.entity;
+  const entity =
+    currentPdTransitionMatrixWorkflowData?.entity ||
+    selectedPdTransitionMatrixEntity ||
+    "Entity 1";
   const period =
-    currentPdTransitionMatrixWorkflowData?.reporting_period;
+    currentPdTransitionMatrixWorkflowData?.reporting_period ||
+    selectedPdTransitionMatrixReportingPeriod ||
+    "Monthly";
   const wfName =
-    currentPdTransitionMatrixWorkflowData?.workflow_name;
+    currentPdTransitionMatrixWorkflowData?.workflow_name ||
+    pdTransitionMatrixWfName ||
+    "wf3";
   const loanProduct =
     currentPdTransitionMatrixWorkflowData?.loan_product ||
-    selectedPdTransitionMatrixLoanProduct
+    selectedPdTransitionMatrixLoanProduct ||
+    "";
   const reportDateStart =
     currentPdTransitionMatrixWorkflowData?.report_date_start ||
-    selectedPdTransitionMatrixReportDateStart
+    selectedPdTransitionMatrixReportDateStart ||
+    "";
 
   const context = {
     entity,
@@ -346,7 +357,11 @@ export default function Step1() {
       setModuleProgress({
         moduleKey: "flowrate",
         contextKey: `${entity}/${period}/${wfName}/${loanProduct}`,
-        data: { step1Valid },
+        data: {
+          step1Valid,
+          step1Status: uploadStatus.status,
+          step1Message: uploadStatus.message,
+        },
       })
     );
   }, [dispatch, workflowId, entity, period, wfName, loanProduct, uploadStatus.status]);
