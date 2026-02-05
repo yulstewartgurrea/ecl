@@ -89,7 +89,7 @@ async def start_model_filtering(
         run_filter_models(
             portfolio,
             ODR,
-            num_of_vars,
+            workflow.number_of_combinations,
             data_transformation_path,
             data_multifactor_analysis_path,
             data_filtering_of_models_path,
@@ -173,7 +173,7 @@ async def get_filtered_results(
             )
             
             filtering_of_models_file = max(
-                Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{num_of_vars}_var_*"),
+                Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{workflow.number_of_combinations}_var_*"),
                 key=lambda p: p.stat().st_mtime,   # last modified time
                 default=None
             )
@@ -358,7 +358,7 @@ async def get_filtered_results_values(
             )
 
             filtering_of_models_file = max(
-                Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{num_of_vars}_var_*"),
+                Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{workflow.number_of_combinations}_var_*"),
                 key=lambda p: p.stat().st_mtime,   # last modified time
                 default=None
             )
@@ -483,10 +483,10 @@ async def get_mfa_file_headers(
 
             folder_path = Path(multifactor_analysis_output_path)
 
-            print(folder_path, num_of_vars)
+            print(folder_path, workflow.number_of_combinations)
             
             # Look for folders matching the pattern
-            mfa_folders = list(folder_path.glob(f"{portfolio}_mfa_*_{num_of_vars}-var_*"))
+            mfa_folders = list(folder_path.glob(f"{portfolio}_mfa_*_{workflow.number_of_combinations}-var_*"))
             print('mfa \n', mfa_folders)
             
             if not mfa_folders:
@@ -594,7 +594,7 @@ async def export_filtered_results(
         )
 
         filtering_of_models_file = max(
-            Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{num_of_vars}_var_*"),
+            Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{workflow.number_of_combinations}_var_*"),
             key=lambda p: p.stat().st_mtime,   # last modified time
             default=None
         )

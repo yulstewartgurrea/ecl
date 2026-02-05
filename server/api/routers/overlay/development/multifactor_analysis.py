@@ -302,7 +302,7 @@ async def process_multifactor_analysis(
         # Start background thread
         thread = threading.Thread(
             target=run_multifactor_analysis_background,
-            args=(new_job.id, workflow_id, current_user.id, target_variable, num_vars_taken, max_bgtest_order),
+            args=(new_job.id, workflow_id, current_user.id, target_variable, workflow.number_of_combinations, max_bgtest_order),
             daemon=True
         )
         thread.start()
