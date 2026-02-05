@@ -5,7 +5,7 @@ import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Settings from "./pages/Settings";
 import Configuration from "./pages/Configuration";
-import WorkflowLists from "./pages/flowrate_approach";
+import WorkflowLists from "./pages/flowrate_approach/index";
 import OverlayLandingPage from "./pages/overlay/Overlay";
 import FlowrateApproachPage from "./pages/flowrate_approach/FlowrateApproach";
 import WorkflowFolderList from "./pages/flowrate_approach/WorkflowFolderList";
