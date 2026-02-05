@@ -123,6 +123,7 @@ export default function Step1() {
   const workflowPath = [entity, period, wfName, loanProduct]
     .filter(Boolean)
     .join("/");
+  const progressKey = workflowPath || (workflowId ? `wf:${workflowId}` : undefined);
 
   console.log("Uploader context:", context);
   console.log("Step1 - final workflowId:", workflowId);
@@ -347,20 +348,29 @@ export default function Step1() {
   }, [files.length, uploadedFiles.size, uploadingFiles.size, failedFiles.size]);
 
   useEffect(() => {
-    if (!workflowPath) return;
+    if (!progressKey) return;
     const step1Valid = uploadStatus.status === "success";
     dispatch(
       setModuleProgress({
         moduleKey: "flowrate",
-        contextKey: workflowPath,
+        contextKey: progressKey,
         data: {
+          workflowId,
+          workflowPath,
           step1Valid,
           step1Status: uploadStatus.status,
           step1Message: uploadStatus.message,
         },
       })
     );
-  }, [dispatch, workflowPath, uploadStatus.status, uploadStatus.message]);
+  }, [
+    dispatch,
+    progressKey,
+    workflowId,
+    workflowPath,
+    uploadStatus.status,
+    uploadStatus.message,
+  ]);
 
   return (
     <div className="mx-auto max-w-8xl">

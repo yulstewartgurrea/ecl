@@ -18,7 +18,6 @@ import {
 import {
   clearModuleProgress,
   clearModuleProgressByWorkflowId,
-  selectModuleProgress,
   setModuleProgress,
 } from "../../redux_toolkit/features/progress/moduleProgressSlice";
 import { clearStep5Bundle } from "../../redux_toolkit/features/asa/flowrateStep5Slice";
@@ -28,6 +27,7 @@ const FlowrateApproachPage = () => {
   const navigate = useNavigate();
 
   const {
+    currentPdTransitionMatrixWorkflowId,
     currentPdTransitionMatrixWorkflowData,
     selectedPdTransitionMatrixEntity,
     selectedPdTransitionMatrixReportingPeriod,
@@ -65,17 +65,47 @@ const FlowrateApproachPage = () => {
     selectedPdTransitionMatrixLoanProduct,
   ]);
 
-  const persistedStep = useAppSelector((state: RootState) =>
-    selectModuleProgress(state, "flowrate", workflowPath || undefined)?.step
-  );
+  const workflowIdForKey = useMemo(() => {
+    const wfIdRaw =
+      currentPdTransitionMatrixWorkflowId ??
+      currentPdTransitionMatrixWorkflowData?.id;
+    const wfId = Number(wfIdRaw);
+    return Number.isFinite(wfId) && wfId > 0 ? wfId : undefined;
+  }, [currentPdTransitionMatrixWorkflowId, currentPdTransitionMatrixWorkflowData?.id]);
 
-  const step1Status = useAppSelector((state: RootState) => {
-    const entry = selectModuleProgress(state, "flowrate", workflowPath || undefined);
-    const status = (entry?.data as any)?.step1Status as string | undefined;
+  const flowrateProgressMap = useAppSelector(
+    (state: RootState) => state.moduleProgress?.modules?.flowrate || {}
+  ) as Record<string, any>;
+
+  const progressEntry = useMemo(() => {
+    if (workflowPath && flowrateProgressMap[workflowPath]) {
+      return flowrateProgressMap[workflowPath];
+    }
+    if (workflowIdForKey) {
+      return (
+        flowrateProgressMap[`wf:${workflowIdForKey}`] ||
+        Object.values(flowrateProgressMap).find(
+          (entry: any) => (entry?.data as any)?.workflowId === workflowIdForKey
+        )
+      );
+    }
+    return undefined;
+  }, [flowrateProgressMap, workflowPath, workflowIdForKey]);
+
+  const persistedStep = progressEntry?.step;
+
+  const step1Status = useMemo(() => {
+    const status = (progressEntry?.data as any)?.step1Status as string | undefined;
     return status ?? "empty";
-  });
+  }, [progressEntry]);
   const canProceedFromUpload = step1Status === "success";
   const [step1GateMsg, setStep1GateMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (canProceedFromUpload || step1Status === "empty" || step1Status === "uploading") {
+      setStep1GateMsg(null);
+    }
+  }, [canProceedFromUpload, step1Status]);
 
   const initialStepForPath =
     (persistedStep !== undefined
@@ -89,6 +119,12 @@ const FlowrateApproachPage = () => {
   useEffect(() => {
     setActiveSubStep(initialStepForPath);
   }, [initialStepForPath]);
+
+  useEffect(() => {
+    if (step1Status === "success" && step1GateMsg) {
+      setStep1GateMsg(null);
+    }
+  }, [step1Status, step1GateMsg]);
 
   const developmentSteps = [
     { label: "Inputs", completed: false },
