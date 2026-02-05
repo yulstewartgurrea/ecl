@@ -69,12 +69,13 @@ const FlowrateApproachPage = () => {
     selectModuleProgress(state, "flowrate", workflowPath || undefined)?.step
   );
 
-  const step1Valid = useAppSelector((state: RootState) => {
+  const step1Status = useAppSelector((state: RootState) => {
     const entry = selectModuleProgress(state, "flowrate", workflowPath || undefined);
     const status = (entry?.data as any)?.step1Status as string | undefined;
-    if (status) return status === "success";
-    return Boolean((entry?.data as any)?.step1Valid);
+    return status ?? "empty";
   });
+  const canProceedFromUpload = step1Status === "success";
+  const [step1GateMsg, setStep1GateMsg] = useState<string | null>(null);
 
   const initialStepForPath =
     (persistedStep !== undefined
@@ -97,9 +98,19 @@ const FlowrateApproachPage = () => {
   ];
 
   const commitStepChange = (targetIndex: number) => {
-    if (activeSubStep === 0 && targetIndex > 0 && !step1Valid) return;
+    if (activeSubStep === 0 && targetIndex > 0 && !canProceedFromUpload) {
+      if (step1Status === "error") {
+        setStep1GateMsg(
+          "You cannot proceed to the next step because there is an error in your upload."
+        );
+      } else {
+        setStep1GateMsg("Please upload a valid file before proceeding.");
+      }
+      return;
+    }
 
     setActiveSubStep(targetIndex);
+    if (step1GateMsg) setStep1GateMsg(null);
 
     dispatch(
       setPdTransitionMatrixCurrentStep({
@@ -208,9 +219,17 @@ const FlowrateApproachPage = () => {
           steps={developmentSteps}
           activeStep={activeSubStep}
           onApprovedStepChange={commitStepChange}
-          canContinue={activeSubStep === 0 ? step1Valid : true}
+          canContinue={activeSubStep === 0 ? canProceedFromUpload : true}
         />
       </div>
+
+      {activeSubStep === 0 && step1GateMsg && (
+        <div className="mx-auto px-4 pt-2">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {step1GateMsg}
+          </div>
+        </div>
+      )}
 
       <div className="mx-auto lg:px-4">{renderSubStepContent()}</div>
     </div>

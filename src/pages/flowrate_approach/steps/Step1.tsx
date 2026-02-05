@@ -343,7 +343,7 @@ export default function Step1() {
     if (uploadingCount > 0) return { status: "uploading", message: `Uploading ${uploadingCount} file(s)...` };
     if (failedCount > 0) return { status: "error", message: `${failedCount} file(s) failed to upload.` };
     if (uploadedCount === totalFiles) return { status: "success", message: `All ${uploadedCount} file(s) uploaded successfully.` };
-    return { status: "partial", message: `${uploadedCount}/${totalFiles} files uploaded.` };
+    return { status: "idle", message: "Waiting for upload." };
   }, [files.length, uploadedFiles.size, uploadingFiles.size, failedFiles.size]);
 
   useEffect(() => {
@@ -434,12 +434,6 @@ export default function Step1() {
               <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
                 <ExclamationTriangleIcon className="h-4 w-4" />
                 Upload Failed
-              </span>
-            )}
-            {uploadStatus.status === "partial" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-medium text-yellow-700">
-                <ExclamationTriangleIcon className="h-4 w-4" />
-                Partial Upload
               </span>
             )}
           </div>
