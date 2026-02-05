@@ -687,7 +687,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
         </button>
 
         <button
-          onClick={fetchFilteringResults}
+          onClick={() => fetchFilteringResults()}
           disabled={loading || !Number.isFinite(selectedWorkflowId)}
           className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
           title={!selectedWorkflowId ? "Pick a workflow on Step 1" : "Fetch latest results once"}
