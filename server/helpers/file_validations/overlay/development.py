@@ -70,7 +70,7 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
             validation_results["issues"].append({
                 "type": "missing_required_columns",
                 "columns": missing_required,
-                "message": f"Missing required columns for Write Off Accounts: {', '.join(missing_required)}"
+                "message": f"Missing required columns: {', '.join(missing_required)}"
             })
         
         # Check for duplicate columns
