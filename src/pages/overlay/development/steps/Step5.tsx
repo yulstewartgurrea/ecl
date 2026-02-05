@@ -1,5 +1,5 @@
 // src/pages/overlay/development/multi_factor/Step5.tsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Multi_Table,
   type Row,
@@ -20,29 +20,16 @@ import {
 
 import FilteringConfigModal from "../../../../components/overlay/development/multi_factor/FilteringConfigModal";
 import PaginationControls from "../../../../components/overlay/development/shared/PaginationControls";
+import { loadHeaders, loadFilters, type FilterRule } from "../../../../utils/overlay/headersStorage";
 import {
-  loadHeaders,
-  loadFilters,
-  type FilterRule,
-} from "../../../../utils/overlay/headersStorage";
-import { selectModuleProgress, setModuleProgress } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
+  selectModuleProgress,
+  setModuleProgress,
+} from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 /* ------------------------- Helper functions ------------------------- */
 const norm = (s: string) => String(s || "").trim().toLowerCase();
-const uniqCaseInsensitive = (arr: string[]) => {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const h of arr) {
-    const k = norm(h);
-    if (!seen.has(k)) {
-      seen.add(k);
-      out.push(h);
-    }
-  }
-  return out;
-};
 
 const normalizeColumnValues = (payload: unknown): ColumnValuesMap => {
   if (!payload || typeof payload !== "object") return {};
@@ -51,8 +38,8 @@ const normalizeColumnValues = (payload: unknown): ColumnValuesMap => {
     raw.column_unique_values && typeof raw.column_unique_values === "object"
       ? raw.column_unique_values
       : raw.columns && typeof raw.columns === "object"
-      ? raw.columns
-      : raw;
+        ? raw.columns
+        : raw;
 
   if (!source || typeof source !== "object") return {};
 
@@ -116,7 +103,9 @@ function deriveCsvHeaders(rows: Row[]): string[] {
 }
 function toCsv(headers: string[], rows: Row[]): string {
   const head = headers.join(",");
-  const body = rows.map((r) => headers.map((h) => escapeCsv((r as any)[h])).join(",")).join("\n");
+  const body = rows
+    .map((r) => headers.map((h) => escapeCsv((r as any)[h])).join(","))
+    .join("\n");
   return "\uFEFF" + head + "\n" + body;
 }
 
@@ -190,49 +179,75 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
   const selectedCount = selectedFilters.length;
 
+  // --- helpers to prevent infinite selection loops ---
+  const selectionIdOf = useCallback((r: Row) => {
+    return String(
+      (r as any).index ??
+        (r as any).id ??
+        `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`
+    );
+  }, []);
+
+  const idsKey = useCallback((ids: Array<string | number>) => {
+    return ids.map(String).sort().join("|");
+  }, []);
+
+  const lastSelectionKeyRef = useRef<string>("");
+
+  const normalizeHeaders = useCallback((arr: string[]) => {
+    return (arr || []).map((h) => String(h ?? "").trim()).filter(Boolean);
+  }, []);
+  const sameHeaders = useCallback(
+    (a: string[], b: string[]) => {
+      const A = normalizeHeaders(a).map((x) => x.toLowerCase()).sort().join("|");
+      const B = normalizeHeaders(b).map((x) => x.toLowerCase()).sort().join("|");
+      return A === B;
+    },
+    [normalizeHeaders]
+  );
+
   /* ----------------------- Fetch results (page only) ----------------------- */
-  const fetchFilteringResults = useCallback(async (opts?: {
-    page?: number;
-    pageSize?: number;
-    filters?: FilterItem[];
-  }) => {
-    const wf = Number(selectedWorkflowId);
-    if (!Number.isFinite(wf)) return;
+  const fetchFilteringResults = useCallback(
+    async (opts?: { page?: number; pageSize?: number; filters?: FilterItem[] }) => {
+      const wf = Number(selectedWorkflowId);
+      if (!Number.isFinite(wf)) return;
 
-    setLoading(true);
-    setErrMsg(null);
+      setLoading(true);
+      setErrMsg(null);
 
-    try {
-      const pageToUse = opts?.page ?? currentPage;
-      const pageSizeToUse = opts?.pageSize ?? pageSize;
-      const filtersToUse = opts?.filters ?? appliedFilters;
+      try {
+        const pageToUse = opts?.page ?? currentPage;
+        const pageSizeToUse = opts?.pageSize ?? pageSize;
+        const filtersToUse = opts?.filters ?? appliedFilters;
 
-      const res = await getFilteringModels({
-        apiBase: API_BASE,
-        token,
-        workflowId: wf,
-        page: pageToUse,
-        page_size: pageSizeToUse,
-        num_vars_taken: numVarsTaken,
-        filters: filtersToUse,
-      } as any);
+        const res = await getFilteringModels({
+          apiBase: API_BASE,
+          token,
+          workflowId: wf,
+          page: pageToUse,
+          page_size: pageSizeToUse,
+          num_vars_taken: numVarsTaken,
+          filters: filtersToUse,
+        } as any);
 
-      const pageRows = (res.rows ?? []) as Row[];
-      setRows(pageRows);
+        const pageRows = (res.rows ?? []) as Row[];
+        setRows(pageRows);
 
-      const totalRows = res.pagination?.total_rows ?? res.total ?? pageRows.length ?? 0;
-      setTotal(totalRows);
+        const totalRows = res.pagination?.total_rows ?? res.total ?? pageRows.length ?? 0;
+        setTotal(totalRows);
 
-      setPagination(res.pagination ?? null);
-    } catch (e: any) {
-      setRows([]);
-      setTotal(0);
-      setPagination(null);
-      setErrMsg(e?.message || "Failed to fetch filtering results.");
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedWorkflowId, token, currentPage, pageSize, numVarsTaken, appliedFilters]);
+        setPagination(res.pagination ?? null);
+      } catch (e: any) {
+        setRows([]);
+        setTotal(0);
+        setPagination(null);
+        setErrMsg(e?.message || "Failed to fetch filtering results.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedWorkflowId, token, currentPage, pageSize, numVarsTaken, appliedFilters]
+  );
 
   /* ------------------------- MFA headers fetcher -------------------------- */
   const fetchColumnValues = useCallback(async () => {
@@ -259,8 +274,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
       }
 
       const json = await res.json();
-      const normalized = normalizeColumnValues(json);
-      setColumnValuesMap(normalized);
+      setColumnValuesMap(normalizeColumnValues(json));
     } catch {
       setColumnValuesMap({});
     } finally {
@@ -293,6 +307,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
       setCurrentPage(1);
       setPageSize(1000);
 
+      lastSelectionKeyRef.current = "";
       return;
     }
 
@@ -307,7 +322,6 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
     setHasSavedSelection(Boolean(persistedSelected?.rows?.length));
 
-    // reset gating & paging for new workflow
     setHasAppliedFilters(false);
     setHasRunAnalysis(false);
     setSelectedRowsCount(0);
@@ -316,6 +330,8 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
     setCurrentPage(1);
     setPagination(null);
+
+    lastSelectionKeyRef.current = "";
   }, [selectedWorkflowId, persistedSelected]);
 
   /* ---------------- Fetch page when dependencies change ------------------ */
@@ -397,7 +413,6 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
         num_vars_taken: numVarsTaken,
       } as any);
 
-      // after POST, fetch page 1
       setCurrentPage(1);
       await fetchFilteringResults();
       setHasRunAnalysis(true);
@@ -435,7 +450,8 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
   useEffect(() => {
     if (!Number.isFinite(selectedWorkflowId)) return;
 
-    const readyForStep6 = hasAppliedFilters && hasRunAnalysis && selectedRowsCount > 0 && hasSavedSelection;
+    const readyForStep6 =
+      hasAppliedFilters && hasRunAnalysis && selectedRowsCount > 0 && hasSavedSelection;
 
     const payload: Step5ReadyState = {
       readyForStep6,
@@ -515,9 +531,13 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
         URL.revokeObjectURL(href);
       } else {
         const json = await res.json();
-        const jsonRows: Row[] = Array.isArray(json?.rows) ? json.rows : Array.isArray(json) ? json : [];
-        const headers = deriveCsvHeaders(jsonRows);
-        const csv = toCsv(headers, jsonRows);
+        const jsonRows: Row[] = Array.isArray(json?.rows)
+          ? json.rows
+          : Array.isArray(json)
+            ? json
+            : [];
+        const hdrs = deriveCsvHeaders(jsonRows);
+        const csv = toCsv(hdrs, jsonRows);
 
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
         const href = URL.createObjectURL(blob);
@@ -539,11 +559,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
   }
 
   /* ---------------------- Selection + persistence ------------------------- */
-  const getRowId = useCallback((r: Row) => {
-    return String(
-      (r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`
-    );
-  }, []);
+  const getRowId = useCallback((r: Row) => selectionIdOf(r), [selectionIdOf]);
 
   const handleSaveSelection = useCallback(() => {
     const wf = Number(selectedWorkflowId);
@@ -556,10 +572,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
       return;
     }
 
-    const ids = selectedRows.map((r) =>
-      String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`)
-    );
-
+    const ids = selectedRows.map((r) => selectionIdOf(r));
     const payload = { ids, rows: selectedRows, savedAt: new Date().toISOString() };
 
     dispatch(
@@ -580,34 +593,44 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
     setHasSavedSelection(true);
     setSaveMsg(`Saved ${selectedRows.length} model(s).`);
     setErrMsg(null);
-  }, [selectedWorkflowId, selectedRows, dispatch, contextKey]);
+  }, [selectedWorkflowId, selectedRows, dispatch, contextKey, selectionIdOf]);
 
+  // ✅ FIX: make selection updates idempotent to stop maximum update depth
   const handleSelectionChange = useCallback(
-    (selRows: Row[]) => {
+    (selRows: Row[], idsFromTable?: Array<string | number>) => {
       const wf = Number(selectedWorkflowId);
+      if (!Number.isFinite(wf)) return;
 
-      // if user clears selection but we have persisted selection, keep it (your existing behavior)
-      if (Number.isFinite(wf) && (!selRows || selRows.length === 0)) {
-        const existingCount = Array.isArray(persistedChecked?.rows) ? persistedChecked.rows.length : 0;
+      // Keep existing behavior: if user clears but we have persisted selection, keep it
+      if (!selRows || selRows.length === 0) {
+        const existingCount = Array.isArray(persistedChecked?.rows)
+          ? persistedChecked.rows.length
+          : 0;
         if (existingCount > 0) return;
       }
 
-      const currentIds = (selRows || [])
-        .map((r) => String((r as any).index ?? (r as any).id ?? `${(r as any).Y}|${(r as any).X1}|${(r as any).X2}`))
-        .sort();
+      const computedIds = Array.isArray(idsFromTable) && idsFromTable.length
+        ? idsFromTable.map(String)
+        : (selRows || []).map((r) => selectionIdOf(r));
 
-      const persistedIds = (persistedChecked?.ids || []).map(String).sort();
+      const keyNow = idsKey(computedIds);
+      if (keyNow === lastSelectionKeyRef.current) return; // no-op, prevents loop
+      lastSelectionKeyRef.current = keyNow;
 
-      const selectionChanged =
-        currentIds.length !== persistedIds.length || currentIds.some((id, i) => id !== persistedIds[i]);
-
-      setSelectedRowsCount(selRows.length);
+      setSelectedRowsCount(selRows?.length ?? 0);
       setSelectedRows(selRows || []);
       setHasSavedSelection(false);
       setSaveMsg(null);
 
-      if (Number.isFinite(wf) && selectionChanged) {
-        const payload = { ids: currentIds, rows: selRows || [], savedAt: new Date().toISOString() };
+      const persistedIdsKey = idsKey((persistedChecked?.ids || []).map(String));
+      const selectionChanged = keyNow !== persistedIdsKey;
+
+      if (selectionChanged) {
+        const payload = {
+          ids: computedIds,
+          rows: selRows || [],
+          savedAt: new Date().toISOString(),
+        };
 
         dispatch(
           setModuleProgress({
@@ -625,7 +648,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
         );
       }
     },
-    [selectedWorkflowId, persistedChecked, dispatch, contextKey]
+    [selectedWorkflowId, persistedChecked, dispatch, contextKey, selectionIdOf, idsKey]
   );
 
   /* -------------------------- Derived pagination -------------------------- */
@@ -664,10 +687,13 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
           <Cog6ToothIcon className="h-4 w-4" />
           Configure
           {selectedCount > 0 && (
-            <span className="ml-1 rounded-full bg-neutral-200 px-2 py-0.5 text-xs">{selectedCount}</span>
+            <span className="ml-1 rounded-full bg-neutral-200 px-2 py-0.5 text-xs">
+              {selectedCount}
+            </span>
           )}
         </button>
 
+        {/* DO NOT CHANGE SAVE MODELS BEHAVIOR */}
         <button
           onClick={() => handleRunFiltering()}
           disabled={posting || loading}
@@ -676,10 +702,10 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
             !Number.isFinite(selectedWorkflowId)
               ? "Pick a workflow on Step 1 first."
               : !selectedCount
-              ? "Add at least one filter via Configure."
-              : !hasAppliedFilters
-              ? "After configuring filters, click Apply in the modal before running the analysis."
-              : "Run analysis using the configured filters."
+                ? "Add at least one filter via Configure."
+                : !hasAppliedFilters
+                  ? "After configuring filters, click Apply in the modal before running the analysis."
+                  : "Run analysis using the configured filters."
           }
         >
           <PlayCircleIcon className="h-4 w-4" />
@@ -701,7 +727,11 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
           disabled={!exportReady || exporting || !Number.isFinite(selectedWorkflowId)}
           className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
           title={
-            !Number.isFinite(selectedWorkflowId) ? "Pick a workflow on Step 1" : !exportReady ? "Load results first" : "Download CSV"
+            !Number.isFinite(selectedWorkflowId)
+              ? "Pick a workflow on Step 1"
+              : !exportReady
+                ? "Load results first"
+                : "Download CSV"
           }
         >
           <ArrowDownTrayIcon className="h-4 w-4" />
@@ -710,15 +740,15 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
       </div>
     ),
     [
+      headers.length,
+      selectedCount,
       posting,
       loading,
       selectedWorkflowId,
-      headers.length,
-      selectedCount,
-      exportReady,
-      exporting,
       hasAppliedFilters,
       fetchFilteringResults,
+      exportReady,
+      exporting,
     ]
   );
 
@@ -728,7 +758,9 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          {description ? <p className="mt-1 max-w-3xl text-sm text-neutral-600">{description}</p> : null}
+          {description ? (
+            <p className="mt-1 max-w-3xl text-sm text-neutral-600">{description}</p>
+          ) : null}
         </div>
         {headerRight}
       </div>
@@ -753,13 +785,26 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
           </li>
         </ol>
         <p className="mt-2">
-          You can only continue to <strong>Step 6</strong> after you have run the analysis and selected models in the table.
+          You can only continue to <strong>Step 6</strong> after you have run the analysis and selected models in the
+          table.
         </p>
       </div>
 
-      {errMsg && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{errMsg}</div>}
-      {saveMsg && <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{saveMsg}</div>}
-      {exportErr && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{exportErr}</div>}
+      {errMsg && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {errMsg}
+        </div>
+      )}
+      {saveMsg && (
+        <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          {saveMsg}
+        </div>
+      )}
+      {exportErr && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {exportErr}
+        </div>
+      )}
 
       <div className="mb-3">
         <PaginationControls
@@ -774,11 +819,12 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
         />
       </div>
 
-      {/* Table */}
       <div className="relative">
         {loading && (
           <div className="absolute inset-0 z-10 grid place-items-center rounded-2xl bg-white/60 backdrop-blur-sm">
-            <div className="animate-pulse rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm">Loading…</div>
+            <div className="animate-pulse rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm">
+              Loading…
+            </div>
           </div>
         )}
 
@@ -792,30 +838,34 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
           onApplyFilters={handleApplyHeaderFilters}
           selectable
           initialSelectedIds={persistedChecked?.ids ?? []}
-          getRowId={(r, idx) => getRowId(r)}
-          onSelectionChange={(selRows) => handleSelectionChange(selRows)}
+          getRowId={(r) => getRowId(r)}
+          onSelectionChange={(selRows, ids) => handleSelectionChange(selRows, ids)}
           emptyMessage="Run analysis (after configuring filters) to see results, then select rows to proceed to Step 6."
         />
       </div>
 
-      {/* Status hint */}
       <p className="mt-1 text-xs text-neutral-700">
         {hasAppliedFilters && hasRunAnalysis
           ? selectedRowsCount > 0
             ? hasSavedSelection
-              ? "✅ Models saved. Step 6 can now be unlocked."
-              : "⚠️ Selection made. Click Save Models to unlock Step 6."
-            : "⚠️ Analysis complete. Select at least one row in the table to unlock Step 6."
-          : "⚠️ Step 6 is locked until you configure filters, click Apply, and run the analysis."}
+              ? "Models saved. Step 6 can now be unlocked."
+              : "Selection made. Click Save Models to unlock Step 6."
+            : "Analysis complete. Select at least one row in the table to unlock Step 6."
+          : "Step 6 is locked until you configure filters, click Apply, and run the analysis."}
       </p>
 
-      {/* Config Modal */}
       <FilteringConfigModal
         workflowId={Number(selectedWorkflowId)}
         headers={headers}
         open={configOpen}
         onClose={() => setConfigOpen(false)}
         onApply={handleApplyFilters}
+        token={token}
+        apiBase={API_BASE}
+        onHeadersUpdate={(newHeaders) => {
+          const next = (newHeaders || []).filter(Boolean);
+          setHeaders((prev) => (sameHeaders(prev, next) ? prev : next));
+        }}
       />
     </div>
   );
