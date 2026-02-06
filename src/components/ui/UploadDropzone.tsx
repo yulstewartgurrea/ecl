@@ -145,7 +145,7 @@ export default function UploadDropzone({
   const dropPad = variant === "compact" ? "m-3 p-4" : "m-4 p-5";
   const titleSize = variant === "compact" ? "text-sm" : "text-sm";
   const listPad = variant === "compact" ? "px-3 pb-3" : "px-4 pb-4";
-
+  console.log('hasFiles: ', value)
   return (
     <div className={[wrapper, className].filter(Boolean).join(" ")}>
       {/* Header */}
@@ -195,7 +195,6 @@ export default function UploadDropzone({
           ref={inputRef}
           type="file"
           accept={accept}
-          multiple={multiple}
           hidden
           onChange={(e) => e.target.files && addFiles(e.target.files)}
         />
