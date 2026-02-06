@@ -3,11 +3,8 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { XMarkIcon, TrashIcon, CheckIcon, PlusIcon } from "@heroicons/react/24/outline";
 import {
   type FilterRule,
-  type FilterLogic,
   saveFilters,
   loadFilters,
-  saveFilterLogic,
-  loadFilterLogic,
 } from "../../../../utils/overlay/headersStorage";
 
 type Props = {
@@ -15,7 +12,7 @@ type Props = {
   headers: string[];
   open: boolean;
   onClose: () => void;
-  onApply?: (rules: FilterRule[], numVarsTaken?: number, logic?: FilterLogic) => void;
+  onApply?: (rules: FilterRule[], numVarsTaken?: number) => void;
   initialNumVarsTaken?: number;
   token?: string | null;
   apiBase?: string;
@@ -49,7 +46,6 @@ const FilteringConfigModal: React.FC<Props> = ({
   const listId = useId();
 
   const [rows, setRows] = useState<FilterRule[]>([]);
-  const [logic, setLogic] = useState<FilterLogic>("AND");
   const [search, setSearch] = useState("");
   const [localHeaders, setLocalHeaders] = useState<string[]>([]);
   const [loadingHeaders, setLoadingHeaders] = useState(false);
@@ -61,7 +57,6 @@ const FilteringConfigModal: React.FC<Props> = ({
   // fetch-once-per-open guard (stronger than a simple boolean)
   const openSeqRef = useRef(0);
   const lastFetchedKeyRef = useRef<string>("");
-  const num_vars_taken = initialNumVarsTaken;
   /* ---------------- Modal open lifecycle ---------------- */
 
   useEffect(() => {
@@ -70,10 +65,8 @@ const FilteringConfigModal: React.FC<Props> = ({
     openSeqRef.current += 1;
 
     const saved = loadFilters(workflowId);
-    const savedLogic = loadFilterLogic(workflowId);
 
     setRows(saved); // no default row
-    setLogic(savedLogic);
     setInvalidValueIds(new Set());
     setSearch("");
 
@@ -107,8 +100,8 @@ const FilteringConfigModal: React.FC<Props> = ({
       console.log('json2: ')
       try {
         const url =
-          `${apiBase}/api/overlay/development/filtering_models/mfa_file/headers/` +
-          `?workflow_id=${encodeURIComponent(wid)}&num_of_vars=${encodeURIComponent(num_vars_taken)}`;
+          `${apiBase}/api/overlay/development/filtering_models/mfa_file/headers` +
+          `?workflow_id=${encodeURIComponent(wid)}`;
 console.log('url: ', url)
         const res = await fetch(url, {
           method: "GET",
@@ -127,12 +120,17 @@ console.log('url: ', url)
 
         const json = await res.json();
         console.log('json: ', json)
+        console.log('json.data: ', json?.data)
+        console.log('json.data.headers: ', json?.data?.headers)
         const apiHeaders: string[] = json?.data?.headers ?? [];
+        console.log('apiHeaders: ', apiHeaders)
 
         if (Array.isArray(apiHeaders) && apiHeaders.length > 0) {
+          console.log('Setting localHeaders with', apiHeaders.length, 'headers')
           setLocalHeaders(apiHeaders);
           onHeadersUpdate?.(apiHeaders);
         } else {
+          console.log('No headers from API, falling back to props headers')
           // fallback to props headers if API returns empty
           if (Array.isArray(headers) && headers.length > 0) setLocalHeaders(headers);
         }
@@ -219,6 +217,7 @@ console.log('url: ', url)
   }
 
   function handleApply() {
+    console.log('handleApply - rows:', rows);
     // only keep truly valid selections
     const selected: FilterRule[] = rows
       .map((r) => ({
@@ -229,6 +228,8 @@ console.log('url: ', url)
       }))
       .filter((r) => r.column.length > 0);
 
+    console.log('handleApply - selected after column filter:', selected);
+
     const validOperators = [">", "<", ">=", "<=", "==", "!="];
     const bad = new Set<string>();
 
@@ -237,14 +238,17 @@ console.log('url: ', url)
       if (!r.value || !isNumeric(r.value)) bad.add(r.id);
     }
 
+    console.log('handleApply - bad rules:', Array.from(bad));
+    console.log('handleApply - selected before validation:', selected);
+
     if (bad.size > 0) {
       setInvalidValueIds(bad);
       return;
     }
 
+    console.log('handleApply - calling onApply with:', selected);
     saveFilters(workflowId, selected);
-    saveFilterLogic(workflowId, logic);
-    onApply?.(selected, initialNumVarsTaken, logic);
+    onApply?.(selected, initialNumVarsTaken);
     onClose();
   }
 
@@ -292,18 +296,6 @@ console.log('url: ', url)
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:bg-neutral-50"
                 />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-neutral-500">Logic</span>
-                <select
-                  value={logic}
-                  onChange={(e) => setLogic(e.target.value as FilterLogic)}
-                  className="rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-900 outline-none focus:bg-neutral-50"
-                >
-                  <option value="AND">AND</option>
-                  <option value="OR">OR</option>
-                </select>
               </div>
 
               <button

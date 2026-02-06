@@ -30,7 +30,6 @@ type Props = {
 
 export default function OverlayUploadResultModal({
   open,
-  title = "Upload Validation",
   issues,
   isSubmitting,
   onClose,

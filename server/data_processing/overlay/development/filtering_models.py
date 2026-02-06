@@ -440,8 +440,8 @@ def filter_one_result_file(
             value_str = str(filter_rule.get("value", "0")).strip()
             
             # Skip if value is "0" or empty (no filter)
-            if not value_str or value_str == "0":
-                continue
+            # if not value_str or value_str == "0":
+            #     continue
             
             # Skip columns we already handled
             if column_name in handled_columns:

@@ -413,7 +413,6 @@ export default function Step1() {
 
       <OverlayUploadResultModal
         open={uploadModalOpen}
-        title="Upload Error"
         issues={uploadIssues}
         //  show loader on modal button too
         isSubmitting={retrySubmitting}

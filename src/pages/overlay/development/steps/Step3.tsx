@@ -78,8 +78,8 @@ export default function OverlayDevelpmentPage3() {
     | { numOfVars?: number }
     | undefined;
 
-  const [numCombinations, setNumCombinations] = useState<number>(
-    storedConfig?.numOfVars ?? 2
+  const [numCombinations, setNumCombinations] = useState<number | undefined>(
+    storedConfig?.numOfVars
   );
 
   useEffect(() => {
@@ -88,13 +88,14 @@ export default function OverlayDevelpmentPage3() {
     if (storedConfig?.numOfVars && storedConfig.numOfVars !== numCombinations) {
       setNumCombinations(storedConfig.numOfVars);
     }
-  }, [selectedWorkflowId, storedConfig?.numOfVars, numCombinations]);
+  }, [selectedWorkflowId, storedConfig?.numOfVars]);
 
   useEffect(() => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
-    const next = Number.isFinite(numCombinations) && numCombinations > 0 ? numCombinations : 2;
-    saveStep3Config(wf, { numOfVars: next });
+    if (numCombinations !== undefined && Number.isFinite(numCombinations) && numCombinations > 0) {
+      saveStep3Config(wf, { numOfVars: numCombinations });
+    }
   }, [selectedWorkflowId, numCombinations]);
 
 
@@ -621,12 +622,14 @@ export default function OverlayDevelpmentPage3() {
                     type="number"
                     min="1"
                     step="1"
-                    value={numCombinations}
+                    value={numCombinations ?? ""}
                     onChange={(e) => {
                       const value = e.target.value;
                       // Only allow positive integers
-                      if (value === "" || (Number.isInteger(Number(value)) && Number(value) > 0)) {
-                        setNumCombinations(value === "" ? 2 : Number(value));
+                      if (value === "") {
+                        setNumCombinations(undefined);
+                      } else if (Number.isInteger(Number(value)) && Number(value) > 0) {
+                        setNumCombinations(Number(value));
                       }
                     }}
                     onKeyDown={(e) => {
@@ -639,7 +642,7 @@ export default function OverlayDevelpmentPage3() {
                     placeholder="Enter number of combinations"
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Must be a positive integer (default: 2)
+                    Must be a positive integer
                   </p>
                 </div>
               </div>
@@ -655,11 +658,11 @@ export default function OverlayDevelpmentPage3() {
               </button>
               <button
                 onClick={() => {
-                  if (numCombinations > 0 && Number.isInteger(numCombinations)) {
+                  if (numCombinations !== undefined && numCombinations > 0 && Number.isInteger(numCombinations)) {
                     setShowConfig(false);
                   }
                 }}
-                disabled={!Number.isInteger(numCombinations) || numCombinations <= 0}
+                disabled={numCombinations === undefined || !Number.isInteger(numCombinations) || numCombinations <= 0}
                 className="rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save
