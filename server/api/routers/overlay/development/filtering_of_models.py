@@ -25,7 +25,6 @@ router = APIRouter(prefix="/api/overlay/development", tags=["overlay-development
 async def start_model_filtering(
     workload_id: int = Form(...),
     filter_list: str = Form(...),  # JSON string that will be parsed
-    filter_logic: str = Form("AND"),
     current_user: User = Depends(get_current_user)
 ):
     try:
@@ -81,10 +80,6 @@ async def start_model_filtering(
         )
         os.makedirs(data_filtering_of_models_path, exist_ok=True)
 
-        logic = str(filter_logic or "AND").upper()
-        if logic not in ["AND", "OR"]:
-            logic = "AND"
-
         run_filter_models(
             portfolio,
             ODR,
@@ -92,8 +87,7 @@ async def start_model_filtering(
             data_transformation_path,
             data_multifactor_analysis_path,
             data_filtering_of_models_path,
-            parsed_filter_list,
-            logic
+            parsed_filter_list
         )
 
         return JSONResponse(
