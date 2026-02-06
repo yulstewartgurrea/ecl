@@ -8,7 +8,7 @@ from .overlay.development import validate_overlay_development_document
 from .overlay.execution import validate_overlay_execution_document
 from .ecl import validate_ecl_document
 
-def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp_path = None, workflow_id=None) -> Dict[str, Any]:
+def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp_path = None) -> Dict[str, Any]:
     """
     Main validation function that routes to appropriate validator based on document type
     
@@ -65,7 +65,7 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp
         return validate_overlay_development_document(df, document_type, file_name, temp_path)
     elif validation_type == "overlay_execution":
         print('OVERLAY EXECUTION VALIDATION')
-        return validate_overlay_execution_document(df, document_type, file_name, temp_path, workflow_id)
+        return validate_overlay_execution_document(df, document_type, file_name, temp_path)
     elif validation_type == "ecl":
         print('ECL VALIDATION')
         return validate_ecl_document(df, document_type, file_name, temp_path)

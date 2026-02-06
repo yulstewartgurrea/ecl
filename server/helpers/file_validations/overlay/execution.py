@@ -32,7 +32,7 @@ def validate_overlay_execution_document(df: pd.DataFrame, document_type: str, fi
     elif document_type == "OVERLAY_EXECUTION_QUARTERLY_HISTORICAL_MEV":
         print("Overlay Execution Quarterly Historical MEV")
         return validate_overlay_development_quarterly_mev(df, document_type, file_name)
-    elif document_type == "OVERLAY_EXECUTION_HISTORICAL_DEFAULT_RATE":
+    elif document_type == "OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE":
         print("Overlay Execution Historical Default Rate")
         return validate_monthly_historical_credit_loss_rates(df, document_type, file_name)
     elif document_type == "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA":
@@ -41,7 +41,7 @@ def validate_overlay_execution_document(df: pd.DataFrame, document_type: str, fi
     elif document_type == "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA":
         print("Overlay Execution Quarterly Forecasted MEV ARIMA")
         return validate_quarterly_forecasted_mev_arima(df, document_type, file_name)
-    elif document_type == "OVERLAY_EXECUTION_FINAL_OVERLAY_MODEL":
+    elif document_type == "OVERLAY_EXECUTION_FINAL_MODEL":
         print("Overlay Execution Final Overlay Model")
         return validate_final_overlay_model(df, document_type, file_name)
     else:
