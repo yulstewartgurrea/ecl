@@ -615,7 +615,6 @@ export default function Step1() {
       {/* Upload Results / Retry Modal */}
       <OverlayUploadResultModal
         open={uploadModalOpen}
-        title="Upload Error"
         issues={uploadIssues}
         isSubmitting={false}
         onClose={() => setUploadModalOpen(false)}

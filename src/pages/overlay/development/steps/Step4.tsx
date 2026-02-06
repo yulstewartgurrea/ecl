@@ -22,7 +22,6 @@ import {
   ChevronLeftIcon,     //  NEW (for Prev)
   XCircleIcon,
   FolderIcon,
-  Cog6ToothIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 
@@ -140,8 +139,6 @@ const Step4: React.FC<Step4Props> = ({
   }, [pages, total, pageSize, serverRows, selectedFiles, fileBasedRows]);
 
   const canPrev = page > 1;
-
-  const canNext = totalPages ? page < totalPages : serverRows.length === pageSize;
 
   useEffect(() => {
     if (numVarsFromConfig !== num_vars_taken) {
