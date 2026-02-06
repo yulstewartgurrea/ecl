@@ -27,6 +27,7 @@ import {
 
 // NEW: headers storage helper
 import { saveHeaders, saveStep3Config } from "../../../../utils/overlay/headersStorage";
+import ConfirmCancelModal from "../../../../components/modals/ConfirmCancelModal";
 
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
@@ -94,6 +95,9 @@ const Step4: React.FC<Step4Props> = ({
   const MAX_FILE_ROWS = 100000; // 100k row limit
 
   const [hasTriggered, setHasTriggered] = useState(false);
+
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+
 
   // EXPORT state
   const [exporting, setExporting] = useState(false);
@@ -439,7 +443,7 @@ const Step4: React.FC<Step4Props> = ({
   }, [selectedFiles]);
 
   // Cancel multifactor analysis
-  const onCancel = async () => {
+const onCancel = async () => {
     if (!Number.isFinite(selectedWorkflowId)) {
       setErrMsg("Please select a workflow on Step 1 before cancelling.");
       return;
@@ -467,6 +471,7 @@ const Step4: React.FC<Step4Props> = ({
       setCancelling(false);
     }
   };
+
 
   // Enable export once we have data and not loading/posting
   useEffect(() => {
@@ -641,7 +646,7 @@ const Step4: React.FC<Step4Props> = ({
           {/* Cancel (only show when job is pending or processing) */}
           {status && (status.status === "pending" || status.status === "processing") && (
             <button
-              onClick={onCancel}
+              onClick={() => setConfirmCancelOpen(true)}
               disabled={cancelling || !Number.isFinite(selectedWorkflowId)}
               className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
               title={
@@ -655,6 +660,7 @@ const Step4: React.FC<Step4Props> = ({
               />
               {cancelling ? "Cancelling" : "Cancel"}
             </button>
+
           )}
 
           {/* Files Button */}
@@ -676,6 +682,19 @@ const Step4: React.FC<Step4Props> = ({
 
         </div>
       </div>
+      <ConfirmCancelModal
+        open={confirmCancelOpen}
+        loading={cancelling}
+        title="Cancel Process"
+        message="⚠️ This action will cancel the ongoing multifactor analysis process. Any running computation will stop at the next checkpoint. Do you want to continue?"
+        confirmText="Yes, cancel process"
+        cancelText="No, keep running"
+        onClose={() => setConfirmCancelOpen(false)}
+        onConfirm={async () => {
+          setConfirmCancelOpen(false);
+          await onCancel();
+        }}
+      />
 
       {/* Controls / pagination */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
