@@ -28,9 +28,6 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-/* ------------------------- Helper functions ------------------------- */
-const norm = (s: string) => String(s || "").trim().toLowerCase();
-
 const normalizeColumnValues = (payload: unknown): ColumnValuesMap => {
   if (!payload || typeof payload !== "object") return {};
   const raw = payload as any;
@@ -173,7 +170,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
   const [hasAppliedFilters, setHasAppliedFilters] = useState(false);
   const [hasRunAnalysis, setHasRunAnalysis] = useState(false);
   const [selectedRowsCount, setSelectedRowsCount] = useState(0);
-  const [selectedRows, setSelectedRows] = useState<Row[]>([]);
+  const [_selectedRows, setSelectedRows] = useState<Row[]>([]);
   const [hasSavedSelection, setHasSavedSelection] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
@@ -361,9 +358,11 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
   /* ------------------------ Apply filters (POST) -------------------------- */
   function handleApplyFilters(selectedRules: FilterRule[]) {
+    console.log('handleApplyFilters - received selectedRules:', selectedRules);
     const filteredRules = selectedRules
-      .filter((r) => r.value && r.value !== "0")
+      .filter((r) => r.value)
       .map((r) => ({ ...r, operator: r.operator || ">" }));
+    console.log('handleApplyFilters - filteredRules after filter:', filteredRules);
 
     setPayloadFilters(filteredRules);
 
@@ -398,18 +397,21 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
     try {
       const filters = filtersToUse || payloadFilters;
+      console.log('handleRunFiltering - filters before filter:', filters);
+      const finalFilters = filters
+        .filter((f) => f.value)
+        .map((f) => ({
+          column: f.column,
+          value: f.value,
+          operator: f.operator || ">",
+        }));
+      console.log('handleRunFiltering - finalFilters after filter:', finalFilters);
 
       await postFilteringModels({
         apiBase: API_BASE,
         token,
         workflowId: Number(selectedWorkflowId),
-        filter_list: filters
-          .filter((f) => f.value && f.value !== "0")
-          .map((f) => ({
-            column: f.column,
-            value: f.value,
-            operator: f.operator || ">",
-          })),
+        filter_list: finalFilters,
         num_vars_taken: numVarsTaken,
       } as any);
 
@@ -560,40 +562,6 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
   /* ---------------------- Selection + persistence ------------------------- */
   const getRowId = useCallback((r: Row) => selectionIdOf(r), [selectionIdOf]);
-
-  const handleSaveSelection = useCallback(() => {
-    const wf = Number(selectedWorkflowId);
-    if (!Number.isFinite(wf)) {
-      setErrMsg("Pick a workflow on Step 1 first.");
-      return;
-    }
-    if (!selectedRows.length) {
-      setErrMsg("Select one or more rows before saving.");
-      return;
-    }
-
-    const ids = selectedRows.map((r) => selectionIdOf(r));
-    const payload = { ids, rows: selectedRows, savedAt: new Date().toISOString() };
-
-    dispatch(
-      setModuleProgress({
-        moduleKey: "overlayDevelopment",
-        contextKey,
-        data: { step5Selected: payload },
-      })
-    );
-
-    dispatch(
-      setModuleProgress({
-        moduleKey: "overlayDevelopment",
-        data: { lastWorkflowId: wf },
-      })
-    );
-
-    setHasSavedSelection(true);
-    setSaveMsg(`Saved ${selectedRows.length} model(s).`);
-    setErrMsg(null);
-  }, [selectedWorkflowId, selectedRows, dispatch, contextKey, selectionIdOf]);
 
   // ✅ FIX: make selection updates idempotent to stop maximum update depth
   const handleSelectionChange = useCallback(

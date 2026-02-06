@@ -17,7 +17,6 @@ export type IssueRow = {
 
 export default function OverlayUploadResultModal({
   open,
-  title = "Upload Validation",
   issues,
   isSubmitting,
   onClose,
@@ -25,7 +24,6 @@ export default function OverlayUploadResultModal({
   proceedDisabledReason,
 }: {
   open: boolean;
-  title?: string;
   issues: IssueRow[];
   isSubmitting: boolean;
   onClose: () => void;

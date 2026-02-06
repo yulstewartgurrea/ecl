@@ -63,7 +63,7 @@ function extractValidationIssues(input: unknown): string[] {
       if (type) return `Issue type: ${type}`;
       return undefined;
     })
-    .filter((m): m is string => Boolean(m));
+    .filter((m: any): m is string => Boolean(m));
 
   return messages;
 }

@@ -57,7 +57,6 @@ const FilteringConfigModal: React.FC<Props> = ({
   // fetch-once-per-open guard (stronger than a simple boolean)
   const openSeqRef = useRef(0);
   const lastFetchedKeyRef = useRef<string>("");
-  const num_vars_taken = initialNumVarsTaken;
   /* ---------------- Modal open lifecycle ---------------- */
 
   useEffect(() => {
