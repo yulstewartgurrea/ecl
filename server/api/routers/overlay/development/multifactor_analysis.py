@@ -295,13 +295,17 @@ async def process_multifactor_analysis(
             db.commit()
             db.refresh(new_job)
             
+            # Extract workflow.number_of_combinations before session closes
+            # to avoid DetachedInstanceError in background thread
+            number_of_combinations = workflow.number_of_combinations
+            
         finally:
             db.close()
         
         # Start background thread
         thread = threading.Thread(
             target=run_multifactor_analysis_background,
-            args=(new_job.id, workflow_id, current_user.id, target_variable, workflow.number_of_combinations, max_bgtest_order),
+            args=(new_job.id, workflow_id, current_user.id, target_variable, number_of_combinations, max_bgtest_order),
             daemon=True
         )
         thread.start()

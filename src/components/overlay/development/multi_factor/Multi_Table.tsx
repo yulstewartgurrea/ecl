@@ -14,6 +14,10 @@ export type ColumnDef = {
   render?: (value: unknown, row: Row) => React.ReactNode;
 };
 
+export type ColumnValuesMap = Record<string, string[]>;
+export type AppliedSelectionsMap = Record<string, string[]>;
+export type FilterItem = { column: string; values: string[] };
+
 export type ExcelLikeTableProps = {
   data: Row[];
   columns?: ColumnDef[];
@@ -27,6 +31,13 @@ export type ExcelLikeTableProps = {
 
   /** NEW: server-side mode */
   serverMode?: boolean;
+
+  /** NEW: server-driven column values (for header filters) */
+  columnValuesMap?: ColumnValuesMap;
+  columnValuesLoading?: boolean;
+  appliedSelections?: AppliedSelectionsMap;
+  onAppliedSelectionsChange?: (next: AppliedSelectionsMap) => void;
+  onApplyFilters?: (filters: FilterItem[]) => void;
 
   /** selection features */
   selectable?: boolean;
@@ -81,11 +92,69 @@ function formatCell(v: unknown) {
   if (typeof v === "number") return Number.isFinite(v) ? v.toLocaleString() : String(v);
   return String(v);
 }
+
 function headerize(k: string) {
   return k
     .replace(/_/g, " ")
     .replace(/\b\w/g, (m) => m.toUpperCase())
     .replace(/\s+\w+/g, (m) => m);
+}
+
+function setEqualsArray(set: Set<string>, arr?: string[]) {
+  if (!arr || set.size !== arr.length) return false;
+  for (const v of arr) {
+    if (!set.has(v)) return false;
+  }
+  return true;
+}
+
+/**
+ * Show header filter ONLY when the column's values are "string-like identifiers"
+ * (e.g. "gno_23", "gnp", "23gno") and NOT purely numeric ("12345" or "1234").
+ *
+ * Rule: If a value contains at least 1 letter (A-Z) => allow filter.
+ * If values are only digits / numeric-like => no filter.
+ */
+function isFilterableStringValue(val: unknown): boolean {
+  if (val == null) return false;
+
+  // number -> not filterable
+  if (typeof val === "number") return false;
+
+  const s = String(val).trim();
+  if (!s) return false;
+
+  // If value is numeric-like (e.g. "1234", "12.3", "1,234", "50%") => not filterable
+  if (isNumberLike(s)) return false;
+
+  // Must contain at least one letter
+  return /[a-zA-Z]/.test(s);
+}
+
+/**
+ * Decide whether a column should show the header filter icon.
+ * We look for the first meaningful value in:
+ *  - server-provided columnValuesMap[col.key] (preferred)
+ *  - otherwise, data rows for this column
+ *
+ * If that sample is a "filterable string value", show filter.
+ */
+function shouldShowHeaderFilter(opts: {
+  colKey: string;
+  data: Row[];
+  columnValues?: string[];
+}): boolean {
+  const { colKey, data, columnValues } = opts;
+
+  // Prefer server-provided distinct values if available
+  if (Array.isArray(columnValues) && columnValues.length > 0) {
+    const sample = columnValues.find((v) => v != null && String(v).trim() !== "");
+    return isFilterableStringValue(sample);
+  }
+
+  // Otherwise find first non-null sample from rows
+  const sample = data.find((r) => r[colKey] != null)?.[colKey];
+  return isFilterableStringValue(sample);
 }
 
 // ========= Filter State =========
@@ -108,6 +177,11 @@ export function Multi_Table({
   page,
   pageSize,
   serverMode = false,
+  columnValuesMap,
+  columnValuesLoading = false,
+  appliedSelections,
+  onAppliedSelectionsChange,
+  onApplyFilters,
 
   selectable = false,
   getRowId,
@@ -193,11 +267,41 @@ export function Multi_Table({
     });
   }, [derivedColumns, data]);
 
+  useEffect(() => {
+    if (!appliedSelections) return;
+    setFilters((prev) => {
+      let changed = false;
+      const next: Record<string, ColumnFilter> = { ...prev };
+
+      for (const col of derivedColumns) {
+        const applied = appliedSelections[col.key];
+        const existing = prev[col.key];
+        if (!existing) continue;
+
+        if (applied && !setEqualsArray(existing.checkedValues, applied)) {
+          next[col.key] = {
+            ...existing,
+            checkedValues: new Set(applied),
+          };
+          changed = true;
+        }
+
+        if (!applied && existing.checkedValues.size > 0) {
+          next[col.key] = { ...existing, checkedValues: new Set() };
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [appliedSelections, derivedColumns]);
+
   // Filtering logic:
-  // - In serverMode: backend result is the "filtered set". This UI filters only current data/page.
+  // - In serverMode: backend result is the "filtered set".
   const filtered = useMemo(() => {
     if (!data?.length) return [];
     if (!derivedColumns.length) return data;
+    if (serverMode) return data;
 
     return data.filter((row) => {
       for (const col of derivedColumns) {
@@ -235,7 +339,7 @@ export function Multi_Table({
       }
       return true;
     });
-  }, [data, derivedColumns, filters]);
+  }, [data, derivedColumns, filters, serverMode]);
 
   // Visible rows:
   const safePage = Math.max(1, page ?? 1);
@@ -434,72 +538,87 @@ export function Multi_Table({
                 </th>
               )}
 
-              {derivedColumns.map((col) => (
-                <th
-                  key={col.key}
-                  className={
-                    "whitespace-nowrap px-3 py-2 font-medium " +
-                    (col.align === "right"
-                      ? "text-right"
-                      : col.align === "center"
-                      ? "text-center"
-                      : "text-left")
-                  }
-                >
-                  <div className="relative flex items-center gap-2">
-                    <span>{col.header ?? headerize(col.key)}</span>
+              {derivedColumns.map((col) => {
+                const showFilter = shouldShowHeaderFilter({
+                  colKey: col.key,
+                  data,
+                  columnValues: columnValuesMap ? columnValuesMap[col.key] : undefined,
+                });
 
-                    <button
-                      type="button"
-                      className={
-                        "ml-auto inline-flex items-center justify-center rounded-md border border-white/20 px-1.5 py-1 text-xs text-white " +
-                        "hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-                      }
-                      onClick={() =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [col.key]: {
-                            ...prev[col.key],
-                            open: !prev[col.key].open,
-                          },
-                        }))
-                      }
-                      aria-haspopup="dialog"
-                      aria-expanded={filters[col.key]?.open || false}
-                      aria-label={`Filter ${col.header ?? headerize(col.key)}`}
-                      title={serverMode ? "Filters apply to this page only" : "Filter"}
-                    >
-                      <FunnelIcon
-                        className={
-                          "h-4 w-4 " +
-                          (filters[col.key]?.open ? "opacity-100" : "opacity-90")
-                        }
-                        aria-hidden="true"
-                      />
-                    </button>
+                return (
+                  <th
+                    key={col.key}
+                    className={
+                      "whitespace-nowrap px-3 py-2 font-medium " +
+                      (col.align === "right"
+                        ? "text-right"
+                        : col.align === "center"
+                        ? "text-center"
+                        : "text-left")
+                    }
+                  >
+                    <div className="relative flex items-center gap-2">
+                      <span>{col.header ?? headerize(col.key)}</span>
 
-                    {filters[col.key]?.open && (
-                      <FilterPopover
-                        columnKey={col.key}
-                        rows={data}
-                        filter={filters[col.key]}
-                        onClose={() =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            [col.key]: { ...prev[col.key], open: false },
-                          }))
-                        }
-                        onChange={(upd) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            [col.key]: { ...prev[col.key], ...upd },
-                          }))
-                        }
-                      />
-                    )}
-                  </div>
-                </th>
-              ))}
+                      {showFilter && (
+                        <button
+                          type="button"
+                          className={
+                            "ml-auto inline-flex items-center justify-center rounded-md border border-white/20 px-1.5 py-1 text-xs text-white " +
+                            "hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                          }
+                          onClick={() =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              [col.key]: {
+                                ...prev[col.key],
+                                open: !prev[col.key].open,
+                              },
+                            }))
+                          }
+                          aria-haspopup="dialog"
+                          aria-expanded={filters[col.key]?.open || false}
+                          aria-label={`Filter ${col.header ?? headerize(col.key)}`}
+                          title={serverMode ? "Filters apply to this page only" : "Filter"}
+                        >
+                          <FunnelIcon
+                            className={
+                              "h-4 w-4 " +
+                              (filters[col.key]?.open ? "opacity-100" : "opacity-90")
+                            }
+                            aria-hidden="true"
+                          />
+                        </button>
+                      )}
+
+                      {showFilter && filters[col.key]?.open && (
+                        <FilterPopover
+                          columnKey={col.key}
+                          rows={data}
+                          filter={filters[col.key]}
+                          values={columnValuesMap ? columnValuesMap[col.key] ?? [] : undefined}
+                          valuesLoading={columnValuesLoading}
+                          appliedSelections={appliedSelections}
+                          onAppliedSelectionsChange={onAppliedSelectionsChange}
+                          onApplyFilters={onApplyFilters}
+                          onClose={() =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              [col.key]: { ...prev[col.key], open: false },
+                            }))
+                          }
+                          onChange={(upd) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              [col.key]: { ...prev[col.key], ...upd },
+                            }))
+                          }
+                        />
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
 
@@ -537,19 +656,19 @@ export function Multi_Table({
                       </td>
                     )}
 
-                    {derivedColumns.map((col) => (
+                    {derivedColumns.map((c) => (
                       <td
-                        key={col.key}
+                        key={c.key}
                         className={
                           "px-3 py-2 align-top text-neutral-800 " +
-                          (col.align === "right"
+                          (c.align === "right"
                             ? "text-right"
-                            : col.align === "center"
+                            : c.align === "center"
                             ? "text-center"
                             : "text-left")
                         }
                       >
-                        {col.render ? col.render(row[col.key], row) : formatCell(row[col.key])}
+                        {c.render ? c.render(row[c.key], row) : formatCell(row[c.key])}
                       </td>
                     ))}
                   </tr>
@@ -568,23 +687,40 @@ function FilterPopover({
   columnKey,
   rows,
   filter,
+  values,
+  valuesLoading,
+  appliedSelections,
+  onAppliedSelectionsChange,
+  onApplyFilters,
   onChange,
   onClose,
 }: {
   columnKey: string;
   rows: Row[];
   filter: ColumnFilter;
+  values?: string[];
+  valuesLoading?: boolean;
+  appliedSelections?: AppliedSelectionsMap;
+  onAppliedSelectionsChange?: (next: AppliedSelectionsMap) => void;
+  onApplyFilters?: (filters: FilterItem[]) => void;
   onChange: (update: Partial<ColumnFilter>) => void;
   onClose: () => void;
 }) {
-  const allValues = useMemo(() => uniqueValues(rows, columnKey), [rows, columnKey]);
+  const allValues = useMemo(() => {
+    if (Array.isArray(values)) return values;
+    if (valuesLoading) return [];
+    return uniqueValues(rows, columnKey);
+  }, [values, valuesLoading, rows, columnKey]);
 
   const [tempChecked, setTempChecked] = useState<Set<string>>(
     () => new Set(filter.checkedValues)
   );
   const [tempSearch, setTempSearch] = useState(filter.search);
-  const [tempMin, setTempMin] = useState(filter.min ?? "");
-  const [tempMax, setTempMax] = useState(filter.max ?? "");
+
+  useEffect(() => {
+    setTempChecked(new Set(filter.checkedValues));
+    setTempSearch(filter.search);
+  }, [filter.checkedValues, filter.search]);
 
   const filteredList = useMemo(() => {
     const q = tempSearch.trim().toLowerCase();
@@ -614,16 +750,28 @@ function FilterPopover({
   function clearAll() {
     setTempChecked(new Set());
     setTempSearch("");
-    setTempMin("");
-    setTempMax("");
   }
 
   function apply() {
+    const nextApplied: AppliedSelectionsMap = {
+      ...(appliedSelections ?? {}),
+      [columnKey]: Array.from(tempChecked),
+    };
+    if (nextApplied[columnKey].length === 0) {
+      delete nextApplied[columnKey];
+    }
+
+    if (onApplyFilters) {
+      const list: FilterItem[] = Object.entries(nextApplied)
+        .filter(([, vals]) => Array.isArray(vals) && vals.length > 0)
+        .map(([column, vals]) => ({ column, values: vals }));
+      onApplyFilters(list);
+    }
+
+    onAppliedSelectionsChange?.(nextApplied);
     onChange({
       checkedValues: tempChecked,
       search: tempSearch,
-      min: tempMin,
-      max: tempMax,
     });
     onClose();
   }
@@ -656,25 +804,30 @@ function FilterPopover({
           </div>
 
           <ul className="divide-y divide-neutral-100">
-            {filteredList.map((v) => (
-              <li key={v} className="flex items-center gap-2 px-2 py-1.5 text-sm">
-                <input
-                  id={`${columnKey}-${v}`}
-                  type="checkbox"
-                  checked={tempChecked.has(v)}
-                  onChange={() => toggleValue(v)}
-                />
-                <label
-                  htmlFor={`${columnKey}-${v}`}
-                  className="line-clamp-1 select-none text-neutral-900"
-                  title={v}
-                >
-                  {v}
-                </label>
-              </li>
-            ))}
+            {valuesLoading && (
+              <li className="px-2 py-2 text-sm text-neutral-500">Loading…</li>
+            )}
 
-            {filteredList.length === 0 && (
+            {!valuesLoading &&
+              filteredList.map((v) => (
+                <li key={v} className="flex items-center gap-2 px-2 py-1.5 text-sm">
+                  <input
+                    id={`${columnKey}-${v}`}
+                    type="checkbox"
+                    checked={tempChecked.has(v)}
+                    onChange={() => toggleValue(v)}
+                  />
+                  <label
+                    htmlFor={`${columnKey}-${v}`}
+                    className="line-clamp-1 select-none text-neutral-900"
+                    title={v}
+                  >
+                    {v}
+                  </label>
+                </li>
+              ))}
+
+            {!valuesLoading && filteredList.length === 0 && (
               <li className="px-2 py-2 text-sm text-neutral-500">No values</li>
             )}
           </ul>
@@ -697,7 +850,7 @@ function FilterPopover({
           </button>
           <button
             type="button"
-            className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800"
+            className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
             onClick={apply}
           >
             Apply

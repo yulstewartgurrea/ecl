@@ -1,5 +1,5 @@
 // components/overlay/development/candidate_model/ModelCompareGrid.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 
 /* ----------------------- Types ----------------------- */
 
@@ -42,16 +42,15 @@ export type ModelCompareGridProps = {
   models: ModelSpec[];
   className?: string;
 
-  /** index of the card currently centered in the scroller */
-  selectedIndex?: number;
-  onSelectedIndexChange?: (index: number) => void;
-
   /** index the user chose (selected model) */
   chosenIndex?: number | null;
   onChosenIndexChange?: (index: number) => void;
 
   /** enable/disable choosing; default: true */
   selectable?: boolean;
+
+  /** offset for display numbering and selection mapping */
+  displayOffset?: number;
 };
 
 /* ----------------------- Grid ----------------------- */
@@ -59,20 +58,12 @@ export type ModelCompareGridProps = {
 export function ModelCompareGrid({
   models,
   className,
-  selectedIndex,
   chosenIndex,
   onChosenIndexChange,
   selectable = true,
+  displayOffset = 0,
 }: ModelCompareGridProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // internal fallbacks if not controlled
-  const [internalIndex] = useState(0);
   const [internalChosen, setInternalChosen] = useState<number | null>(null);
-  const [pageSize, setPageSize] = useState(4);
-  const [page, setPage] = useState(0);
-
-  const activeIndex = selectedIndex ?? internalIndex;
   const pickedIndex = chosenIndex ?? internalChosen ?? -1;
 
 
@@ -82,105 +73,25 @@ export function ModelCompareGrid({
     onChosenIndexChange?.(idx);
   }
 
-  // Responsive page size based on available width
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => {
-      const width = el.clientWidth;
-      const next =
-        width < 640 ? 1 : width < 900 ? 2 : width < 1200 ? 3 : 4;
-      setPageSize(next);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const clamped = Math.max(0, Math.min(activeIndex, models.length - 1));
-    const nextPage = Math.floor(clamped / pageSize);
-    setPage(nextPage);
-  }, [activeIndex, models.length, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(models.length / pageSize));
-  const currentPage = Math.min(page, totalPages - 1);
-  const pageStart = currentPage * pageSize;
-  const pageEnd = Math.min(pageStart + pageSize, models.length);
-  const visibleModels = models.slice(pageStart, pageEnd);
-
-  const prevPage = () => setPage((p) => Math.max(0, p - 1));
-  const nextPage = () => setPage((p) => Math.min(totalPages - 1, p + 1));
-
   return (
-    <div ref={containerRef} className={className}>
-      {/* Controls */}
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={prevPage}
-            disabled={currentPage === 0}
-            className="cursor-pointer rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base font-medium text-neutral-800 disabled:opacity-40"
-            aria-label="Previous model"
-          >
-            ← Previous
-          </button>
-          <button
-            onClick={nextPage}
-            disabled={currentPage >= totalPages - 1}
-            className="cursor-pointer rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base font-medium text-neutral-800 disabled:opacity-40"
-            aria-label="Next model"
-          >
-            Next →
-          </button>
-        </div>
-
-        {/* Page dots */}
-        <div className="flex items-center gap-6">
-          <span className="text-sm text-neutral-600">
-            Page {currentPage + 1} / {totalPages}
-          </span>
-          <div className="flex cursor-pointer items-center gap-2">
-            {Array.from({ length: totalPages }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setPage(i)}
-                aria-label={`Go to Page ${i + 1}`}
-                className={`h-2.5 w-2.5 rounded-full transition-all ${
-                  i === currentPage ? "bg-neutral-900" : "bg-neutral-300"
-                }`}
-              />
-            ))}
-          </div>
-        </div>
+    <div className={className}>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {models.map((m, i) => {
+          const globalIndex = displayOffset + i;
+          return (
+            <SelectableCard
+              key={globalIndex}
+              data-card={globalIndex}
+              model={m}
+              displayTitle={`Candidate Model ${globalIndex + 1}`}
+              selected={globalIndex === pickedIndex}
+              onSelect={() => choose(globalIndex)}
+              tabIndex={0}
+              className="w-full"
+            />
+          );
+        })}
       </div>
-
-      {/* Cards grid */}
-      <div className="relative">
-        <div className="flex gap-8 overflow-x-auto pb-4 pt-2 px-2 snap-x snap-mandatory">
-          {visibleModels.map((m, i) => {
-            const globalIndex = pageStart + i;
-            return (
-              <div
-                key={globalIndex}
-                className="snap-start shrink-0 w-[320px] sm:w-[340px] xl:w-[360px]"
-              >
-                <SelectableCard
-                  data-card={globalIndex}
-                  model={m}
-                  displayTitle={`Candidate Model ${globalIndex + 1}`}
-                  selected={globalIndex === pickedIndex}
-                  onSelect={() => choose(globalIndex)}
-                  tabIndex={0}
-                  className="h-full"
-                />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-
-
     </div>
   );
 }
@@ -216,8 +127,7 @@ function SelectableCard({
           onSelect();
         }
       }}
-      className={`min-w-[360px] max-w-[520px] flex-1 scroll-mx-4 rounded-2xl border bg-white p-5 transition-all ${border} ${ring}`}
-      style={{ scrollSnapAlign: "start" }}
+      className={`w-full rounded-2xl border bg-white p-5 transition-all ${border} ${ring}`}
     >
       {/* Selection pill */}
       <div className="mb-2 flex items-center justify-between">

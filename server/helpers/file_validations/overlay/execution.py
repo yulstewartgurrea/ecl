@@ -35,15 +35,15 @@ def validate_overlay_execution_document(df: pd.DataFrame, document_type: str, fi
     elif document_type == "OVERLAY_EXECUTION_HISTORICAL_DEFAULT_RATE":
         print("Overlay Execution Historical Default Rate")
         return validate_monthly_historical_credit_loss_rates(df, document_type, file_name)
-    elif document_type == "OVERLAY_EXECUTION_MONTHLY_FORECASTED_MEV_ARIMA":
+    elif document_type == "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA":
         print("Overlay Execution Monthly Forecasted MEV ARIMA")
-        return validate_final_overlay_model(df, document_type, file_name, temp_path)
-    elif document_type == "OVERLAY_EXECUTION_QUARTERLY_FORECASTED_MEV_ARIMA":
+        return validate_monthly_forecasted_mev_arima(df, document_type, file_name)
+    elif document_type == "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA":
         print("Overlay Execution Quarterly Forecasted MEV ARIMA")
-        return validate_quarterly_forecasted_mev_arima(df, document_type, file_name, temp_path)
+        return validate_quarterly_forecasted_mev_arima(df, document_type, file_name)
     elif document_type == "OVERLAY_EXECUTION_FINAL_OVERLAY_MODEL":
         print("Overlay Execution Final Overlay Model")
-        return validate_final_overlay_model(df, document_type, file_name, temp_path)
+        return validate_final_overlay_model(df, document_type, file_name)
     else:
         print("Overlay Execution Generic")
         return validate_generic_document(df, document_type, file_name)
@@ -65,16 +65,17 @@ def _get_base_validation_results(file_name: str, document_type: str) -> Dict[str
 
 def validate_monthly_forecasted_mev_arima(df: pd.DataFrame, document_type: str, file_name: str) -> Dict[str, Any]:
     """
-    Specialized validation for Write Off Accounts documents
+    Specialized validation for documents
     """
     validation_results = _get_base_validation_results(file_name, document_type)
     
     try:
+        print('validate_monthly_forecasted_mev_arima', df)
         # Normalize column names for comparison (lowercase, strip spaces)
         df_columns_normalized = [col.strip().lower() for col in df.columns]
         
         # Required columns - validation fails if missing
-        required_columns = ["aging bucket", "ttc pd"]
+        required_columns = ["date", "year", "month (int)", "month", "id"]
         
         missing_required = [col for col in required_columns if col not in df_columns_normalized]
         if missing_required:
@@ -94,6 +95,21 @@ def validate_monthly_forecasted_mev_arima(df: pd.DataFrame, document_type: str, 
                 "type": "duplicate_columns",
                 "columns": duplicate_columns,
                 "message": f"Duplicate columns found: {', '.join(duplicate_columns)}"
+            })
+
+        # Check for unnamed columns (e.g., "Unnamed: 0", "Unnamed: 1")
+        unnamed_columns = []
+        for col in df.columns:
+            # Check if column name matches pattern "Unnamed:" or "unnamed:" followed by optional number
+            if re.match(r'^[Uu]nnamed\s*:\s*\d*$', str(col).strip()):
+                unnamed_columns.append(col)
+        
+        if unnamed_columns:
+            validation_results["validation_status"] = "failed"
+            validation_results["issues"].append({
+                "type": "unnamed_columns",
+                "columns": unnamed_columns,
+                "message": f"Found unnamed columns: {', '.join(unnamed_columns)}."
             })
 
         # Check for missing data in each column
@@ -183,6 +199,21 @@ def validate_quarterly_forecasted_mev_arima(df: pd.DataFrame, document_type: str
                 "message": f"Duplicate columns found: {', '.join(duplicate_columns)}"
             })
 
+        # Check for unnamed columns (e.g., "Unnamed: 0", "Unnamed: 1")
+        unnamed_columns = []
+        for col in df.columns:
+            # Check if column name matches pattern "Unnamed:" or "unnamed:" followed by optional number
+            if re.match(r'^[Uu]nnamed\s*:\s*\d*$', str(col).strip()):
+                unnamed_columns.append(col)
+        
+        if unnamed_columns:
+            validation_results["validation_status"] = "failed"
+            validation_results["issues"].append({
+                "type": "unnamed_columns",
+                "columns": unnamed_columns,
+                "message": f"Found unnamed columns: {', '.join(unnamed_columns)}."
+            })
+
         # Check for missing data in each column
         missing_data = {}
         for column in df.columns:
@@ -239,7 +270,7 @@ def validate_quarterly_forecasted_mev_arima(df: pd.DataFrame, document_type: str
 
 def validate_final_overlay_model(df: pd.DataFrame, document_type: str, file_name: str) -> Dict[str, Any]:
     """
-    Specialized validation for Write Off Accounts documents
+    Specialized validation for documents
     """
     validation_results = _get_base_validation_results(file_name, document_type)
     
@@ -256,7 +287,7 @@ def validate_final_overlay_model(df: pd.DataFrame, document_type: str, file_name
             validation_results["issues"].append({
                 "type": "missing_required_columns",
                 "columns": missing_required,
-                "message": f"Missing required columns for Write Off Accounts: {', '.join(missing_required)}"
+                "message": f"Missing required columns for: {', '.join(missing_required)}"
             })
         
         # Check for duplicate columns
@@ -320,6 +351,6 @@ def validate_final_overlay_model(df: pd.DataFrame, document_type: str, file_name
         validation_results["validation_status"] = "error"
         validation_results["issues"].append({
             "type": "validation_error",
-            "message": f"Error during Write Off Accounts validation: {str(e)}"
+            "message": f"Error during validation: {str(e)}"
         })
         return validation_results

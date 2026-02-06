@@ -64,6 +64,8 @@ export default function Step1() {
     pdTransitionMatrixWfName,
     currentPdTransitionMatrixWorkflowId,
     currentPdTransitionMatrixWorkflowData,
+    selectedPdTransitionMatrixEntity,
+    selectedPdTransitionMatrixReportingPeriod,
     selectedPdTransitionMatrixLoanProduct,
     selectedPdTransitionMatrixReportDateStart,
   } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
@@ -80,23 +82,34 @@ export default function Step1() {
 
   console.log("Step1 - Workflow Data:", currentPdTransitionMatrixWorkflowData);
 
-  // Prefer Redux workflowId, then fallback to 1
+  // Prefer Redux workflowId, then fallback to workflow data
   const workflowIdFromRedux =
     currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
-  const workflowId = Number(workflowIdFromRedux)
+  const workflowId = Number.isFinite(Number(workflowIdFromRedux))
+    ? Number(workflowIdFromRedux)
+    : undefined;
 
   // Prefer values from persisted workflowData; fall back to selected values; finally to sane defaults
-  const entity = currentPdTransitionMatrixWorkflowData?.entity;
+  const entity =
+    currentPdTransitionMatrixWorkflowData?.entity ||
+    selectedPdTransitionMatrixEntity ||
+    "Entity 1";
   const period =
-    currentPdTransitionMatrixWorkflowData?.reporting_period;
+    currentPdTransitionMatrixWorkflowData?.reporting_period ||
+    selectedPdTransitionMatrixReportingPeriod ||
+    "Monthly";
   const wfName =
-    currentPdTransitionMatrixWorkflowData?.workflow_name;
+    currentPdTransitionMatrixWorkflowData?.workflow_name ||
+    pdTransitionMatrixWfName ||
+    "wf3";
   const loanProduct =
     currentPdTransitionMatrixWorkflowData?.loan_product ||
-    selectedPdTransitionMatrixLoanProduct
+    selectedPdTransitionMatrixLoanProduct ||
+    "";
   const reportDateStart =
     currentPdTransitionMatrixWorkflowData?.report_date_start ||
-    selectedPdTransitionMatrixReportDateStart
+    selectedPdTransitionMatrixReportDateStart ||
+    "";
 
   const context = {
     entity,
@@ -106,6 +119,11 @@ export default function Step1() {
     reportDateStart,
     subdir: "input/flowrate_approach",
   };
+
+  const workflowPath = [entity, period, wfName, loanProduct]
+    .filter(Boolean)
+    .join("/");
+  const progressKey = workflowPath || (workflowId ? `wf:${workflowId}` : undefined);
 
   console.log("Uploader context:", context);
   console.log("Step1 - final workflowId:", workflowId);
@@ -184,20 +202,10 @@ export default function Step1() {
     fetchExistingDocuments();
   }, [fetchExistingDocuments]);
 
-  const resetUploadStateForFiles = useCallback((filesToReset: File[]) => {
-    const names = new Set(filesToReset.map((f) => f.name));
-    if (names.size === 0) return;
-    setUploadedFiles((prev) => {
-      const ns = new Set(prev);
-      names.forEach((n) => ns.delete(n));
-      return ns;
-    });
-    setFailedFiles((prev) => {
-      const ns = new Set(prev);
-      names.forEach((n) => ns.delete(n));
-      return ns;
-    });
-    setFailedFilesForRetry((prev) => prev.filter((f) => !names.has(f.name)));
+  const resetAllUploadState = useCallback(() => {
+    setUploadedFiles(new Set());
+    setFailedFiles(new Set());
+    setFailedFilesForRetry([]);
     setUploadIssues([]);
     setSuccessBanner(null);
   }, []);
@@ -300,7 +308,7 @@ export default function Step1() {
   const handleFilesChange = useCallback(
     async (nextFiles: File[]) => {
       const single = nextFiles.slice(-1);
-      resetUploadStateForFiles(single);
+      resetAllUploadState();
       setFiles(single);
       for (const f of single) {
         if (!uploadedFiles.has(f.name) && !uploadingFiles.has(f.name) && !(f as any).isExisting) {
@@ -308,7 +316,7 @@ export default function Step1() {
         }
       }
     },
-    [resetUploadStateForFiles, uploadIndividualFile, uploadedFiles, uploadingFiles]
+    [resetAllUploadState, uploadIndividualFile, uploadedFiles, uploadingFiles]
   );
   const handlePickWorkflow = useCallback(
     (w: Workflow) => {
@@ -336,20 +344,33 @@ export default function Step1() {
     if (uploadingCount > 0) return { status: "uploading", message: `Uploading ${uploadingCount} file(s)...` };
     if (failedCount > 0) return { status: "error", message: `${failedCount} file(s) failed to upload.` };
     if (uploadedCount === totalFiles) return { status: "success", message: `All ${uploadedCount} file(s) uploaded successfully.` };
-    return { status: "partial", message: `${uploadedCount}/${totalFiles} files uploaded.` };
+    return { status: "idle", message: "Waiting for upload." };
   }, [files.length, uploadedFiles.size, uploadingFiles.size, failedFiles.size]);
 
   useEffect(() => {
-    if (!workflowId) return;
+    if (!progressKey) return;
     const step1Valid = uploadStatus.status === "success";
     dispatch(
       setModuleProgress({
         moduleKey: "flowrate",
-        contextKey: `${entity}/${period}/${wfName}/${loanProduct}`,
-        data: { step1Valid },
+        contextKey: progressKey,
+        data: {
+          workflowId,
+          workflowPath,
+          step1Valid,
+          step1Status: uploadStatus.status,
+          step1Message: uploadStatus.message,
+        },
       })
     );
-  }, [dispatch, workflowId, entity, period, wfName, loanProduct, uploadStatus.status]);
+  }, [
+    dispatch,
+    progressKey,
+    workflowId,
+    workflowPath,
+    uploadStatus.status,
+    uploadStatus.message,
+  ]);
 
   return (
     <div className="mx-auto max-w-8xl">
@@ -423,12 +444,6 @@ export default function Step1() {
               <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
                 <ExclamationTriangleIcon className="h-4 w-4" />
                 Upload Failed
-              </span>
-            )}
-            {uploadStatus.status === "partial" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-medium text-yellow-700">
-                <ExclamationTriangleIcon className="h-4 w-4" />
-                Partial Upload
               </span>
             )}
           </div>

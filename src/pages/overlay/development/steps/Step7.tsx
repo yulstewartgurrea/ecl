@@ -136,6 +136,7 @@ const Step7: React.FC = () => {
       R_Squared: findColumn(row, "R_Squared") ?? findColumn(row, "r_squared"),
       Adj_R_Squared: findColumn(row, "Adj_R_Squared") ?? findColumn(row, "adj_r_squared"),
       MAPE: findColumn(row, "MAPE") ?? findColumn(row, "mape"),
+      
     };
   }
 
@@ -440,9 +441,9 @@ const Step7: React.FC = () => {
         {/* Key metrics (keep consistent with Step 6) */}
         <div className="grid gap-4 md:grid-cols-3">
           <StatTile
-            label="R²"
+            label="RMSE"
             value={fmtPercent(
-              (model.metrics as any)?.R_Squared ?? (model as any)?.R_Squared
+              (model.metrics as any)?.RMSE ?? (model as any)?.RMSE
             )}
           />
           <StatTile

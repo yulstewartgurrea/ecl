@@ -50,6 +50,13 @@ const mimeFromName = (name: string) => {
   return "application/vnd.ms-excel";
 };
 
+const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
+const uniqueFiles = (files: File[]) => {
+  const map = new Map<string, File>();
+  files.forEach((f) => map.set(fileKey(f), f));
+  return Array.from(map.values());
+};
+
 /* -----------------------------------------------------------
    Execution document types (must match backend / Postman)
 ----------------------------------------------------------- */
@@ -379,7 +386,7 @@ export default function Step1() {
   ----------------------------------------------------------- */
   const handleMonthlyFilesChange = useCallback(
     async (files: File[]) => {
-      const single = files.slice(-1);
+      const single = uniqueFiles(files).slice(-1);
       resetUploadStateForFiles(single);
       setMonthlyFiles(single);
 
@@ -400,7 +407,7 @@ export default function Step1() {
 
   const handleQuarterlyFilesChange = useCallback(
     async (files: File[]) => {
-      const single = files.slice(-1);
+      const single = uniqueFiles(files).slice(-1);
       resetUploadStateForFiles(single);
       setQuarterlyFiles(single);
 
@@ -421,7 +428,7 @@ export default function Step1() {
 
   const handleHistoricalFilesChange = useCallback(
     async (files: File[]) => {
-      const single = files.slice(-1);
+      const single = uniqueFiles(files).slice(-1);
       resetUploadStateForFiles(single);
       setHistoricalFiles(single);
 
