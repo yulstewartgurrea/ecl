@@ -87,6 +87,7 @@ async def get_data_interpolation(
             
             # Read CSV file and convert to JSON
             df = pd.read_csv(data_interpolation_file)
+            df = df.where(pd.notna(df), None)
             data = df.to_dict(orient='records')
             
             return {

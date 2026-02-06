@@ -424,7 +424,7 @@ export default function ScenarioConfigModalTable({
                           <input
                             required
                             inputMode="decimal"
-                            pattern="^[0-9]*\.?[0-9]*$"
+                            type="text"
                             placeholder="e.g. 5.6%"
                             value={val}
                             onFocus={() => stripPercentOnFocus(i, "upside", v)}
@@ -454,7 +454,7 @@ export default function ScenarioConfigModalTable({
                           <input
                             required
                             inputMode="decimal"
-                            pattern="^[0-9]*\.?[0-9]*$"
+                            type="text"
                             placeholder="e.g. 5.6%"
                             value={val}
                             onFocus={() => stripPercentOnFocus(i, "base", v)}
@@ -484,7 +484,7 @@ export default function ScenarioConfigModalTable({
                           <input
                             required
                             inputMode="decimal"
-                            pattern="^[0-9]*\.?[0-9]*$"
+                            type="text"
                             placeholder="e.g. 5.6%"
                             value={val}
                             onFocus={() => stripPercentOnFocus(i, "downside", v)}
