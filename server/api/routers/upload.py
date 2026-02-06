@@ -343,18 +343,18 @@ async def upload_file(
                 if file.filename.lower().endswith(".csv"):
                     print('CSV VALIDATION')
                     # Validate cleaned CSV DataFrame
-                    validation_results = validate_document(cleaned_df, document_type, file.filename)
+                    validation_results = validate_document(cleaned_df, document_type, file.filename, workflow_id)
                 else:
                     print('EXCEL VALIDATION')
                     # Excel validation
                     if len(sheet_names) > 1:
                         print('MULTI-SHEET VALIDATION')
                         # Multi-sheet: pass excel_file to validator
-                        validation_results = validate_document(None, document_type, file.filename, excel_file)
+                        validation_results = validate_document(None, document_type, file.filename, excel_file, workflow_id)
                     else:
                         print('SINGLE-SHEET VALIDATION')
                         # Single sheet: validate cleaned DataFrame
-                        validation_results = validate_document(cleaned_df, document_type, file.filename, excel_file)
+                        validation_results = validate_document(cleaned_df, document_type, file.filename, excel_file, workflow_id)
             finally:
                 # Ensure ExcelFile is closed
                 if excel_file is not None:
