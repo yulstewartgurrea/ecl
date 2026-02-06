@@ -258,15 +258,14 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         
         print(f"First quarter with x value: {first_year} Q{first_quarter} (Month {first_month}) with x={first_x_value}")
         
-        # Step 4: Create monthly index for ALL months from 2012-01 to 2024-12
-        print("\nStep 4: Creating monthly index for all months...")
+        # Step 4: Create monthly index starting from the first actual data point
+        print("\nStep 4: Creating monthly index starting from first data point...")
         
-        start_year = df['year'].min()
         end_year = df['year'].max()
         
-        # Create monthly date range for ALL months
+        # Create monthly date range starting from the first actual data point
         monthly_dates = pd.date_range(
-            start=f"{start_year}-01-01",
+            start=f"{first_year}-{first_month:02d}-01",
             end=f"{end_year}-12-31",
             freq='MS'  # Month start
         )
@@ -283,14 +282,11 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         monthly_df['quarter'] = monthly_df.index.quarter
         monthly_df['id'] = monthly_df['year'].astype(str) + '-' + monthly_df.index.strftime('%b')
         
-        # Set x column to start from 0 at the first data date and increment by 0.1
+        # Set x column to start from 0 and increment by 0.1
+        # Since monthly_dates now starts from first_year-first_month, x starts at 0
         monthly_df['x'] = 0.0
-        first_data_date_idx = monthly_df.index[monthly_df.index >= f"{first_year}-{first_month:02d}-01"][0]
-        first_data_row_idx = monthly_df.index.get_loc(first_data_date_idx)
-        
-        # Set x values starting from the first data date
-        for i in range(first_data_row_idx, len(monthly_df)):
-            monthly_df['x'].iloc[i] = (i - first_data_row_idx) * 0.1
+        for i in range(len(monthly_df)):
+            monthly_df['x'].iloc[i] = i * 0.1
         
         # Step 6: Interpolate quarterly data to monthly
         print("\nStep 6: Interpolating quarterly to monthly data...")
@@ -316,6 +312,30 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             # Create quarterly series with proper dates
             quarterly_temp = df_clean[['year', 'quarter', col]].copy()
             
+            # Find the first date where this column has a valid (non-NaN) value
+            # This could be zero or non-zero - we just need the first actual data point
+            first_valid_row = None
+            for idx, row in quarterly_temp.iterrows():
+                val = row[col]
+                # Check if value is valid (not NaN) - zero is still a valid starting point
+                if pd.notna(val):
+                    first_valid_row = row
+                    break
+            
+            if first_valid_row is None:
+                print(f"      Warning: Column {col} has no valid data, setting all values to None")
+                monthly_df[col] = None
+                continue
+            
+            # Get the first data date for this column
+            col_first_year = int(first_valid_row['year'])
+            col_first_quarter = int(first_valid_row['quarter'])
+            col_first_month = quarter_to_month[col_first_quarter]
+            col_first_data_date = f"{col_first_year}-{col_first_month:02d}-01"
+            col_first_value = first_valid_row[col]
+            
+            print(f"      First data point for {col}: {col_first_year} Q{col_first_quarter} (Month {col_first_month}) with value={col_first_value}")
+            
             # Convert quarter to month (Q1=Mar=3, Q2=Jun=6, Q3=Sep=9, Q4=Dec=12)
             quarterly_temp['month'] = quarterly_temp['quarter'].map(quarter_to_month).astype(int)
             quarterly_temp['day'] = 1  # Set day to 1
@@ -333,10 +353,8 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
             monthly_series = monthly_series.interpolate(method='linear')
             monthly_series = monthly_series.fillna(method='ffill').fillna(method='bfill')
             
-            # All variables start from 2012-Dec (Q4) where x begins
-            first_data_date = f"{first_year}-{first_month:02d}-01"
-            
-            monthly_series.loc[monthly_series.index < first_data_date] = 0
+            # Set all values before this column's first data date to None
+            monthly_series.loc[monthly_series.index < col_first_data_date] = None
             
             monthly_df[col] = monthly_series.values
         
@@ -416,7 +434,7 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         print(f"Processing date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"Quarterly data rows: {len(df)}")
         print(f"Monthly data rows: {len(monthly_df)}")
-        print(f"Date range: {start_year}-{end_year}")
+        # print(f"Date range: {start_year}-{end_year}")
         print(f"First quarter with x value: {first_year} Q{first_quarter} (Month {first_month}) with x={first_x_value}")
         print(f"Variables interpolated: {len(numeric_cols)}")
         print(f"Interpolation method: Linear interpolation (Quarterly to Monthly)")
@@ -426,16 +444,16 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         # Verify specific data points
         print(f"\nData Verification:")
         # Dynamic verification - check first month, month before start, and start month
-        first_month_id = f"{start_year}-Jan"
+        # first_month_id = f"{start_year}-Jan"
         month_before_start_id = f"{first_year}-{month_names[first_month-1] if first_month > 1 else 12}"
         start_month_id = f"{first_year}-{month_names[first_month]}"
         
-        print(f"   {first_month_id}: x={monthly_df[monthly_df['id']==first_month_id]['x'].iloc[0] if first_month_id in monthly_df['id'].values else 'Not found'}")
-        print(f"   {first_month_id}: GDP={monthly_df[monthly_df['id']==first_month_id]['gdp'].iloc[0] if first_month_id in monthly_df['id'].values else 'Not found'}")
-        print(f"   {month_before_start_id}: x={monthly_df[monthly_df['id']==month_before_start_id]['x'].iloc[0] if month_before_start_id in monthly_df['id'].values else 'Not found'}")
-        print(f"   {month_before_start_id}: GDP={monthly_df[monthly_df['id']==month_before_start_id]['gdp'].iloc[0] if month_before_start_id in monthly_df['id'].values else 'Not found'}")
-        print(f"   {start_month_id}: x={monthly_df[monthly_df['id']==start_month_id]['x'].iloc[0] if start_month_id in monthly_df['id'].values else 'Not found'}")
-        print(f"   {start_month_id}: GDP={monthly_df[monthly_df['id']==start_month_id]['gdp'].iloc[0] if start_month_id in monthly_df['id'].values else 'Not found'}")
+        # print(f"   {first_month_id}: x={monthly_df[monthly_df['id']==first_month_id]['x'].iloc[0] if first_month_id in monthly_df['id'].values else 'Not found'}")
+        # print(f"   {first_month_id}: GDP={monthly_df[monthly_df['id']==first_month_id]['gdp'].iloc[0] if first_month_id in monthly_df['id'].values else 'Not found'}")
+        # print(f"   {month_before_start_id}: x={monthly_df[monthly_df['id']==month_before_start_id]['x'].iloc[0] if month_before_start_id in monthly_df['id'].values else 'Not found'}")
+        # print(f"   {month_before_start_id}: GDP={monthly_df[monthly_df['id']==month_before_start_id]['gdp'].iloc[0] if month_before_start_id in monthly_df['id'].values else 'Not found'}")
+        # print(f"   {start_month_id}: x={monthly_df[monthly_df['id']==start_month_id]['x'].iloc[0] if start_month_id in monthly_df['id'].values else 'Not found'}")
+        # print(f"   {start_month_id}: GDP={monthly_df[monthly_df['id']==start_month_id]['gdp'].iloc[0] if start_month_id in monthly_df['id'].values else 'Not found'}")
         # Dynamic verification based on actual data
         first_data_id_formatted = f"{first_year}-{month_names[first_month]}"
         
@@ -458,8 +476,10 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         print("="*60)
         
         # Clean and convert DataFrames for JSON serialization
-        monthly_df_clean = monthly_df.replace([np.inf, -np.inf], 0).fillna(0)
-        monthly_with_growth_clean = monthly_with_growth.replace([np.inf, -np.inf], 0).fillna(0)
+        # monthly_df_clean = monthly_df.replace([np.inf, -np.inf], 0).fillna(0)
+        # monthly_with_growth_clean = monthly_with_growth.replace([np.inf, -np.inf], 0).fillna(0)
+        monthly_df_clean = monthly_df
+        monthly_with_growth_clean = monthly_with_growth
         
         # Add back the non-numeric year rows to the final output
         if len(non_numeric_rows) > 0:
