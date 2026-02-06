@@ -93,7 +93,7 @@ export default function OverlayDevelpmentPage3() {
   useEffect(() => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
-    if (Number.isFinite(numCombinations) && numCombinations > 0) {
+    if (numCombinations !== undefined && Number.isFinite(numCombinations) && numCombinations > 0) {
       saveStep3Config(wf, { numOfVars: numCombinations });
     }
   }, [selectedWorkflowId, numCombinations]);
@@ -658,11 +658,11 @@ export default function OverlayDevelpmentPage3() {
               </button>
               <button
                 onClick={() => {
-                  if (numCombinations > 0 && Number.isInteger(numCombinations)) {
+                  if (numCombinations !== undefined && numCombinations > 0 && Number.isInteger(numCombinations)) {
                     setShowConfig(false);
                   }
                 }}
-                disabled={!Number.isInteger(numCombinations) || numCombinations <= 0}
+                disabled={numCombinations === undefined || !Number.isInteger(numCombinations) || numCombinations <= 0}
                 className="rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save
