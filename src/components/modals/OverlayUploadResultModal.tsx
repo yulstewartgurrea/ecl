@@ -152,9 +152,9 @@ export default function OverlayUploadResultModal({
             disabled={
               isSubmitting || issues.length === 0 || !!proceedDisabledReason
             }
-            title={proceedDisabledReason || "Upload again"}
+            title={proceedDisabledReason || "Proceed"}
           >
-            {isSubmitting ? "Uploading..." : "Upload again"}
+            {isSubmitting ? "Proceeding..." : "Proceed"}
           </button>
         </div>
       </div>
