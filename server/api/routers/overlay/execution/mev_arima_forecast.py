@@ -257,6 +257,8 @@ async def calculate_mev_monthly_arima_forecast(
             db.add(hist_document)
             db.commit()
             db.refresh(hist_document)
+
+            document_id = new_document.id
             
         finally:
             db.close()
@@ -266,7 +268,7 @@ async def calculate_mev_monthly_arima_forecast(
             'success': True,
             'msg': 'Monthly MEV ARIMA forecast processed successfully',
             'data': {
-                'document_id': new_document.id,
+                'document_id': document_id,
                 'filename': filename,
                 'total_variables': len([col for col in forecast_result.columns if col != 'Date']),
                 'total_periods': len(forecast_result)
@@ -474,6 +476,8 @@ async def calculate_mev_quarterly_arima_forecast(
             db.add(hist_document)
             db.commit()
             db.refresh(hist_document)
+
+            document_id = new_document.id
             
         finally:
             db.close()
@@ -483,7 +487,7 @@ async def calculate_mev_quarterly_arima_forecast(
             'success': True,
             'msg': 'Quarterly MEV ARIMA forecast processed successfully',
             'data': {
-                'document_id': new_document.id,
+                'document_id': document_id,
                 'filename': filename,
                 'total_variables': len([col for col in forecast_result.columns if col != 'Date']),
                 'total_periods': len(forecast_result)
