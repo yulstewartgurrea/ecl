@@ -4,16 +4,34 @@ import {
   selectModuleProgress,
   setModuleProgress,
 } from "../../redux_toolkit/features/progress/moduleProgressSlice";
-
+export type FilterLogic = "AND" | "OR";
 export type FilterRule = {
   id: string;
   column: string;
   value: string;
   operator?: ">" | "<" | ">=" | "<=" | "==" | "!=";
 };
-
-export type FilterLogic = "AND" | "OR";
-
+export function loadFilterLogic(wfId: number | string): FilterLogic {
+  const entry = selectModuleProgress(
+    store.getState() as any,
+    "overlayDevelopment",
+    String(wfId)
+  );
+  const data = (entry?.data ?? {}) as Record<string, unknown>;
+  return (data.step5FilterLogic as FilterLogic) ?? "AND";
+}
+export type Step3Config = {
+  numOfVars: number;
+};
+export function saveFilterLogic(wfId: number | string, logic: FilterLogic) {
+  store.dispatch(
+    setModuleProgress({
+      moduleKey: "overlayDevelopment",
+      contextKey: String(wfId),
+      data: { step5FilterLogic: logic },
+    })
+  );
+}
 export function saveHeaders(wfId: number | string, headers: string[]) {
   store.dispatch(
     setModuleProgress({
@@ -54,22 +72,22 @@ export function loadFilters(wfId: number | string): FilterRule[] {
   return (data.step5Filters as FilterRule[]) ?? [];
 }
 
-export function saveFilterLogic(wfId: number | string, logic: FilterLogic) {
+export function saveStep3Config(wfId: number | string, config: Step3Config) {
   store.dispatch(
     setModuleProgress({
       moduleKey: "overlayDevelopment",
       contextKey: String(wfId),
-      data: { step5FilterLogic: logic },
+      data: { step3Config: config },
     })
   );
 }
 
-export function loadFilterLogic(wfId: number | string): FilterLogic {
+export function loadStep3Config(wfId: number | string): Step3Config | null {
   const entry = selectModuleProgress(
     store.getState() as any,
     "overlayDevelopment",
     String(wfId)
   );
   const data = (entry?.data ?? {}) as Record<string, unknown>;
-  return (data.step5FilterLogic as FilterLogic) ?? "AND";
+  return (data.step3Config as Step3Config) ?? null;
 }

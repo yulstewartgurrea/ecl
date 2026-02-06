@@ -14,6 +14,7 @@ import {
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
+import { selectModuleProgress } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 import {
   ArrowPathIcon,
   PlayCircleIcon,
@@ -26,7 +27,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 // NEW: headers storage helper
-import { saveHeaders } from "../../../../utils/overlay/headersStorage";
+import { saveHeaders, saveStep3Config } from "../../../../utils/overlay/headersStorage";
 
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
@@ -109,7 +110,19 @@ const Step4: React.FC<Step4Props> = ({
 
   // Configuration states
   const [showConfig, setShowConfig] = useState(false);
-  const [num_vars_taken, setNum_vars_taken] = useState<number>(2);
+  const contextKey =
+    Number.isFinite(Number(selectedWorkflowId)) && Number(selectedWorkflowId) > 0
+      ? String(selectedWorkflowId)
+      : undefined;
+  const overlayProgress = useAppSelector((state: RootState) =>
+    selectModuleProgress(state, "overlayDevelopment", contextKey)
+  );
+  const storedConfig = (overlayProgress?.data as any)?.step3Config as
+    | { numOfVars?: number }
+    | undefined;
+  const numVarsFromConfig = storedConfig?.numOfVars ?? 2;
+
+  const [num_vars_taken, setNum_vars_taken] = useState<number>(numVarsFromConfig);
 
   const totalPages = useMemo(() => {
     // If files are selected, calculate pages from file-based rows
@@ -129,7 +142,19 @@ const Step4: React.FC<Step4Props> = ({
   const canPrev = page > 1;
 
   const canNext = totalPages ? page < totalPages : serverRows.length === pageSize;
-  console.log(canNext)
+
+  useEffect(() => {
+    if (numVarsFromConfig !== num_vars_taken) {
+      setNum_vars_taken(numVarsFromConfig);
+    }
+  }, [numVarsFromConfig, num_vars_taken]);
+
+  useEffect(() => {
+    const wf = Number(selectedWorkflowId);
+    if (!Number.isFinite(wf)) return;
+    if (!Number.isFinite(num_vars_taken) || num_vars_taken <= 0) return;
+    saveStep3Config(wf, { numOfVars: num_vars_taken });
+  }, [selectedWorkflowId, num_vars_taken]);
   const displayRows = useMemo(() => {
     // If files are selected, use file-based rows
     if (selectedFiles.size > 0 && fileBasedRows.length > 0) {
@@ -584,7 +609,7 @@ const Step4: React.FC<Step4Props> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Configuration Button */}
-          <button
+          {/* <button
             onClick={() => setShowConfig(true)}
             disabled={posting || loading || !Number.isFinite(selectedWorkflowId)}
             className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
@@ -592,7 +617,7 @@ const Step4: React.FC<Step4Props> = ({
           >
             <Cog6ToothIcon className="h-4 w-4" />
             Config
-          </button>
+          </button> */}
 
           {/* Run */}
           <button

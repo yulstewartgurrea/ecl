@@ -69,6 +69,8 @@ export type FilterRule = {
   operator?: string;
 };
 
+export type FilterItem = { column: string; values: string[] };
+
 export async function postFilteringModels(opts: {
   apiBase: string;
   token?: string | null;
@@ -127,6 +129,7 @@ export async function getFilteringModels(opts: {
   page?: number;
   page_size?: number;
   num_vars_taken?: number;
+  filters?: FilterItem[];
 
   // NEW: server-side search/sort (optional)
   search?: string;
@@ -145,6 +148,7 @@ export async function getFilteringModels(opts: {
     page = 1,
     page_size = 100,
     num_vars_taken,
+    filters,
     search,
     sort_by,
     sort_dir,
@@ -157,6 +161,9 @@ export async function getFilteringModels(opts: {
   });
 
   if (num_vars_taken !== undefined) qs.append("num_of_vars", String(num_vars_taken));
+  if (filters && filters.length > 0) {
+    qs.append("filter", JSON.stringify(filters));
+  }
   if (search && search.trim()) qs.append("search", search.trim());
   if (sort_by && sort_by.trim()) qs.append("sort_by", sort_by.trim());
   if (sort_dir) qs.append("sort_dir", sort_dir);
