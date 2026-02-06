@@ -26,18 +26,7 @@ import { resetPdTransitionMatrixWfHelperData } from "../redux_toolkit/features/p
 // ----- Sidebar items (unchanged except for added tabs) -----
 const sidebarOptions: any[] = [
   { tabName: "Flowrate Approach", icon: ChartBarIcon, subTabs: [] },
-  // {
-  //   tabName: "Probability of Default (PD)",
-  //   icon: PercentBadgeIcon,
-  //   subTabs: [
-  //     { subTabName: "Transition Matrix Approach" },
-  //     { subTabName: "Approach 2" },
-  //     { subTabName: "Approach 3" },
-  //   ],
-  // },
   { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
-  // { tabName: "Loss Given Default (LGD)", icon: ArrowTrendingDownIcon, subTabs: [] },
-  // { tabName: "Exposure at Default (EAD)", icon: ChartPieIcon, subTabs: [] },
   { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
   { tabName: "Configuration", icon: AdjustmentsHorizontalIcon, subTabs: [] },
   { tabName: "General Settings", icon: Cog6ToothIcon, subTabs: [] },
@@ -45,22 +34,13 @@ const sidebarOptions: any[] = [
 
 // ----- Route maps (tab -> route, subtab -> route) -----
 const TAB_TO_ROUTE: Record<string, string> = {
-  // "Probability of Default (PD)": "/pd_landing",
   "Overlay": "/overlay",
   "Flowrate Approach": "/flowrate",
-
-  // "Loss Given Default (LGD)": "/lgd",
-  // "Exposure at Default (EAD)": "/ead",
   "Expected Credit Loss (ECL)": "/ecl",
-  "Configuration": "/ecl_configuration", // <- keep consistent with your router
+  "Configuration": "/ecl_configuration",
   "General Settings": "/settings",
 };
 
-const SUBTAB_TO_ROUTE: Record<string, string> = {
-  "Transition Matrix Approach": "/transition_matrix",
-  "Approach 2": "/pd/approach-2",
-  "Approach 3": "/pd/approach-3",
-};
 
 // build reverse map to sync Redux from URL
 const ROUTE_TO_TAB: Record<string, string> = Object.fromEntries(
@@ -90,6 +70,13 @@ const Sidebar = () => {
     dispatch(resetStateAuth());
     dispatch(resetPdTransitionMatrixWfHelperData());
     dispatch(resetStateNavUIState());
+    navigate("/")
+    // Clear persisted auth and in-memory uploader caches to avoid stale sessions
+    localStorage.removeItem("persist:root");
+    const g: any = window as any;
+    if (g.__MCU_CACHE__ && typeof g.__MCU_CACHE__.clear === "function") {
+      g.__MCU_CACHE__.clear();
+    }
   };
 
   const handleTabClick = (tabName: string) => {
@@ -123,7 +110,7 @@ const Sidebar = () => {
   const handleSubTabClick = (tabName: string, subTabName: string) => {
     dispatch(setActiveTab(tabName));
     dispatch(setActiveSubTab(subTabName));
-    const path = SUBTAB_TO_ROUTE[subTabName] ?? TAB_TO_ROUTE[tabName] ?? "/";
+    const path =TAB_TO_ROUTE[tabName] ?? "/";
     navigate(path);
   };
 
@@ -131,6 +118,7 @@ const Sidebar = () => {
   useEffect(() => {
     const currentPath = location.pathname;
     // 1) try exact tab match
+    console.log('currentPath: sidebar: ', currentPath)
     const tabFromRoute = ROUTE_TO_TAB[currentPath];
     if (tabFromRoute) {
       if (tabFromRoute !== activeTab) {
@@ -140,24 +128,6 @@ const Sidebar = () => {
       return;
     }
 
-    // 2) try subtab match
-    const subtabEntry = Object.entries(SUBTAB_TO_ROUTE).find(
-      ([, path]) => path === currentPath
-    );
-    if (subtabEntry) {
-      const [subTabName] = subtabEntry;
-      // find parent tab to highlight
-      const parentTab =
-        "Probability of Default (PD)"; // current sub-tabs belong to PD
-      if (activeTab !== parentTab || activeSubTab !== subTabName) {
-        dispatch(setActiveTab(parentTab));
-        dispatch(setActiveSubTab(subTabName));
-        setExpandedTabs((prev) => new Set(prev).add(parentTab));
-      }
-      return;
-    }
-
-    // 3) if none matched but path starts with a known root, try to infer
     const inferred = Object.entries(TAB_TO_ROUTE).find(([, path]) =>
       currentPath.startsWith(path)
     );

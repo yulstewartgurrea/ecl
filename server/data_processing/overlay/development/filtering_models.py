@@ -141,7 +141,8 @@ def filter_one_result_file(
     fn: Path,
     combos_df: pd.DataFrame,
     num_vars_taken: int,
-    parsed_filter_list: List[Dict[str, str]]
+    parsed_filter_list: List[Dict[str, str]],
+    filter_logic: str = "AND"
 ) -> pd.DataFrame:
     """
     Filter a single MFA result file based on specified criteria.
@@ -257,8 +258,21 @@ def filter_one_result_file(
             raise KeyError(f"Required column '{req}' not found after merge in {fn}")
         required_cols_map[req.lower()] = found_col
 
-    # Start with a mask of all True (no filtering initially)
-    mask = pd.Series([True] * len(merged), index=merged.index)
+    logic = str(filter_logic or "AND").upper()
+    use_or = logic == "OR"
+    # Start with a mask based on logic
+    mask = pd.Series([False] * len(merged), index=merged.index) if use_or else pd.Series([True] * len(merged), index=merged.index)
+
+    # No filters provided: return all rows unchanged
+    if not parsed_filter_list:
+        filtered = merged.copy()
+        adj_r_squared_col = required_cols_map.get("adj_r_squared", find_column(filtered, "adj_r_squared"))
+        if adj_r_squared_col:
+            filtered = filtered.sort_values(adj_r_squared_col, ascending=False, kind="mergesort")
+        if 'index' in filtered.columns:
+            cols = ['index'] + [col for col in filtered.columns if col != 'index']
+            filtered = filtered[cols]
+        return filtered
 
     # Validate filter list structure - operator is required
     valid_operators = [">", "<", ">=", "<=", "==", "!="]
@@ -287,6 +301,8 @@ def filter_one_result_file(
             pd.Series | pd.DataFrame: Boolean Series/DataFrame where True means condition passed
         """
         numeric_data = pd.to_numeric(data, errors="coerce") if isinstance(data, pd.Series) else to_float_df(data)
+        numeric_data = numeric_data.round(6)
+        threshold = round(float(threshold), 6)
         
         if operator == ">":
             return numeric_data > threshold
@@ -333,7 +349,7 @@ def filter_one_result_file(
                 threshold = float(value_str)
                 operator = max_abs_cor_rule.get("operator", "").strip()
                 max_abs_cor_col = required_cols_map["max_abs_cor"]
-                mask &= apply_operator(merged[max_abs_cor_col], threshold, operator)
+                mask = mask | apply_operator(merged[max_abs_cor_col], threshold, operator) if use_or else mask & apply_operator(merged[max_abs_cor_col], threshold, operator)
             except (ValueError, TypeError) as e:
                 print(f"Warning: Invalid filter value '{value_str}' for column 'max_abs_cor', skipping")
 
@@ -346,7 +362,7 @@ def filter_one_result_file(
                 threshold = float(value_str)
                 operator = r_squared_rule.get("operator", "").strip()
                 r_squared_col = required_cols_map["r_squared"]
-                mask &= apply_operator(merged[r_squared_col], threshold, operator)
+                mask = mask | apply_operator(merged[r_squared_col], threshold, operator) if use_or else mask & apply_operator(merged[r_squared_col], threshold, operator)
             except (ValueError, TypeError) as e:
                 print(f"Warning: Invalid filter value '{value_str}' for column 'R_Squared', skipping")
 
@@ -359,7 +375,7 @@ def filter_one_result_file(
                 threshold = float(value_str)
                 operator = mape_rule.get("operator", "").strip()
                 mape_col = required_cols_map["mape"]
-                mask &= apply_operator(merged[mape_col], threshold, operator)
+                mask = mask | apply_operator(merged[mape_col], threshold, operator) if use_or else mask & apply_operator(merged[mape_col], threshold, operator)
             except (ValueError, TypeError) as e:
                 print(f"Warning: Invalid filter value '{value_str}' for column 'MAPE', skipping")
 
@@ -387,7 +403,8 @@ def filter_one_result_file(
         
         # Only apply filter if a valid threshold was found (skip if all values are "0")
         if pval_threshold is not None and pval_operator:
-            mask &= rowwise_all(to_float_df(merged[pval_cols]), lambda d: apply_operator(d, pval_threshold, pval_operator))
+            pval_mask = rowwise_all(to_float_df(merged[pval_cols]), lambda d: apply_operator(d, pval_threshold, pval_operator))
+            mask = mask | pval_mask if use_or else mask & pval_mask
 
     # Apply "if_all" logic for vif columns
     # Check if any vif filter exists in parsed_filter_list
@@ -412,7 +429,8 @@ def filter_one_result_file(
         
         # Only apply filter if a valid threshold was found (skip if all values are "0")
         if vif_threshold is not None and vif_operator:
-            mask &= rowwise_all(to_float_df(merged[vif_cols]), lambda d: apply_operator(d, vif_threshold, vif_operator))
+            vif_mask = rowwise_all(to_float_df(merged[vif_cols]), lambda d: apply_operator(d, vif_threshold, vif_operator))
+            mask = mask | vif_mask if use_or else mask & vif_mask
 
     # Apply other filters from parsed_filter_list (excluding the ones we already handled)
     if parsed_filter_list:
@@ -460,7 +478,8 @@ def filter_one_result_file(
                 continue
             
             # Apply filter with operator from payload
-            mask &= apply_operator(merged[matching_col], threshold, operator)
+            rule_mask = apply_operator(merged[matching_col], threshold, operator)
+            mask = mask | rule_mask if use_or else mask & rule_mask
 
     # Apply X column filter (ONLY filter that affects X columns - checks variable name patterns, not numeric values)
     # This is the ONLY filter that can exclude models based on X columns.
@@ -473,7 +492,8 @@ def filter_one_result_file(
         if should_apply_lag_filter:
             # Exclude rows where ALL X columns contain ".lag_" in their variable names
             # This filters based on variable name patterns, NOT numeric values
-            mask &= ~rowwise_all_str_contains(merged[x_cols], ".lag_")
+            lag_mask = ~rowwise_all_str_contains(merged[x_cols], ".lag_")
+            mask = mask | lag_mask if use_or else mask & lag_mask
 
     filtered = merged.loc[mask].copy()
 
@@ -518,7 +538,8 @@ def run_filter_models(
     data_transformation_path: str,
     data_multifactor_analysis_path: str,
     data_filtering_of_models_path: str,
-    parsed_filter_list: List[Dict[str, str]]
+    parsed_filter_list: List[Dict[str, str]],
+    filter_logic: str = "AND"
 ) -> None:
     """
     Main orchestration function to filter MFA results across all result files.
@@ -586,7 +607,7 @@ def run_filter_models(
         print(f"Processing file: {csv_file.name}")
         try:
             # Filter the current file
-            filtered_df = filter_one_result_file(csv_file, combos_df, num_vars_taken, parsed_filter_list)
+            filtered_df = filter_one_result_file(csv_file, combos_df, num_vars_taken, parsed_filter_list, filter_logic)
             
             # Append filtered results to the final CSV
             if not filtered_df.empty:

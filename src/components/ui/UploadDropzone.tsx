@@ -68,7 +68,8 @@ export default function UploadDropzone({
 
   const addFiles = (files: FileList | File[]) => {
     const list = Array.from(files);
-    const next = [...value];
+    const effectiveMaxFiles = multiple ? maxFiles : 1;
+    const next = multiple ? [...value] : [];
     const errs: string[] = [];
 
     list.forEach((f) => {
@@ -88,22 +89,33 @@ export default function UploadDropzone({
         errs.push(`${f.name} is not an accepted type (${accept})`);
         return;
       }
-      if (maxFiles && next.length >= maxFiles) {
-        errs.push(`Max ${maxFiles} file${maxFiles > 1 ? "s" : ""} allowed`);
+      if (effectiveMaxFiles && next.length >= effectiveMaxFiles) {
+        errs.push(
+          `Max ${effectiveMaxFiles} file${effectiveMaxFiles > 1 ? "s" : ""} allowed`
+        );
         return;
       }
       const k = fileKey(f);
-      if (!next.some((x) => fileKey(x) === k)) next.push(f);
+      if (!next.some((x) => fileKey(x) === k)) {
+        if (!multiple) {
+          next.length = 0;
+          next.push(f);
+        } else {
+          next.push(f);
+        }
+      }
     });
 
     setErrors(errs);
     onChange(next);
+    if (inputRef.current) inputRef.current.value = "";
   };
 
   const removeAt = (idx: number) => {
     const next = value.slice();
     next.splice(idx, 1);
     onChange(next);
+    if (inputRef.current) inputRef.current.value = "";
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -123,6 +135,7 @@ export default function UploadDropzone({
   const openPicker = () => !disabled && inputRef.current?.click();
 
   const hasFiles = value.length > 0;
+  const effectiveMaxFiles = multiple ? maxFiles : 1;
 
   const wrapper =
     variant === "compact"
@@ -204,7 +217,12 @@ export default function UploadDropzone({
             </p>
             <p className="text-xs text-gray-500">
               Accepted: <span className="font-medium">{accept}</span>
-              {maxFiles ? ` · Up to ${maxFiles} file${maxFiles > 1 ? "s" : ""}` : ""} · Max {maxSizeMB} MB/file
+              {effectiveMaxFiles
+                ? ` · Up to ${effectiveMaxFiles} file${
+                    effectiveMaxFiles > 1 ? "s" : ""
+                  }`
+                : ""}{" "}
+              · Max {maxSizeMB} MB/file
             </p>
           </div>
         </div>
@@ -229,30 +247,36 @@ export default function UploadDropzone({
         <div className={listPad}>
           {hasFiles ? (
             <ul className="space-y-2">
-              {value.map((file, i) => (
-                <li
-                  key={fileKey(file)}
-                  className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <DocumentIcon className="h-5 w-5 text-gray-400" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-gray-900">{file.name}</p>
-                      <p className="text-xs text-gray-500">{formatBytes(file.size)}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeAt(i);
-                    }}
-                    className="inline-flex items-center rounded-lg p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50"
-                    aria-label={`Remove ${file.name}`}
+              {value.map((file, i) => {
+                const displaySize =
+                  typeof (file as any).sizeBytes === "number"
+                    ? (file as any).sizeBytes
+                    : file.size;
+                return (
+                  <li
+                    key={fileKey(file)}
+                    className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2"
                   >
-                    <XMarkIcon className="h-5 w-5" />
-                  </button>
-                </li>
-              ))}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <DocumentIcon className="h-5 w-5 text-gray-400" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-gray-900">{file.name}</p>
+                        <p className="text-xs text-gray-500">{formatBytes(displaySize)}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeAt(i);
+                      }}
+                      className="inline-flex items-center rounded-lg p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <XMarkIcon className="h-5 w-5" />
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <div className="text-xs text-gray-500">

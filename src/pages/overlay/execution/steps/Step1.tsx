@@ -22,6 +22,7 @@ import { setHistoricalWeightedCreditLossRateFile } from "../../../../redux_toolk
 import OverlayUploadResultModal, {
   type IssueRow,
 } from "../../../../components/modals/OverlayUploadResultModal";
+import { normalizeUploadError } from "../../../../utils/uploadErrorNormalizer";
 import WorkflowPickerModal from "../../../../components/modals/WorkflowPickerModal";
 
 import {
@@ -35,6 +36,15 @@ import {
 import type { Workflow } from "../../../../services/workflow";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+
+const toNumberSafe = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
 
 /* -----------------------------------------------------------
    Execution document types (must match backend / Postman)
@@ -215,13 +225,22 @@ export default function Step1() {
             : doc.filename.endsWith(".xlsx")
             ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             : "application/vnd.ms-excel";
+          const displayName = doc.original_filename || doc.filename;
 
-          const f = new File([], doc.filename, { type: mime }) as File & {
+          const f = new File([], displayName, { type: mime }) as File & {
             isExisting?: boolean;
             documentId?: number | string;
+            sizeBytes?: number;
+            serverFilename?: string;
+            documentType?: string;
           };
           (f as any).isExisting = true;
           (f as any).documentId = doc.id;
+          (f as any).sizeBytes = toNumberSafe(
+            doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size
+          );
+          (f as any).serverFilename = doc.filename;
+          (f as any).documentType = doc.document_type;
           return f;
         });
 
@@ -234,27 +253,26 @@ export default function Step1() {
         const nextUploaded = new Set<string>();
 
         for (const f of existing) {
-          const doc = result.data.find((d: any) => d.filename === f.name);
-          if (!doc) continue;
-          if (doc.document_type === DOC_MONTHLY) {
+          const docType = (f as any).documentType as ExecDocType | undefined;
+          if (docType === DOC_MONTHLY) {
             nextMonthly.push(f);
             nextUploaded.add(f.name);
-          } else if (doc.document_type === DOC_QUARTERLY) {
+          } else if (docType === DOC_QUARTERLY) {
             nextQuarterly.push(f);
             nextUploaded.add(f.name);
-          } else if (doc.document_type === DOC_FINAL_MODEL) {
+          } else if (docType === DOC_FINAL_MODEL) {
             nextFinalModel.push(f);
             nextUploaded.add(f.name);
-          } else if (doc.document_type === DOC_HISTORICAL_WEIGHTED) {
+          } else if (docType === DOC_HISTORICAL_WEIGHTED) {
             nextHistoricalWeighted.push(f);
             nextUploaded.add(f.name);
           }
         }
 
-        setMonthlyFiles(nextMonthly);
-        setQuarterlyFiles(nextQuarterly);
-        setFinalModelFiles(nextFinalModel);
-        setHistoricalWeightedFiles(nextHistoricalWeighted);
+        setMonthlyFiles(nextMonthly.slice(0, 1));
+        setQuarterlyFiles(nextQuarterly.slice(0, 1));
+        setFinalModelFiles(nextFinalModel.slice(0, 1));
+        setHistoricalWeightedFiles(nextHistoricalWeighted.slice(0, 1));
         setUploadedFiles(nextUploaded);
       }
     } catch (err) {
@@ -490,17 +508,17 @@ export default function Step1() {
      Single-file upload helper
   ----------------------------------------------------------- */
   const uploadIndividualFile = useCallback(
-    async (file: File) => {
+    async (file: File, docTypeOverride?: ExecDocType) => {
       const fileName = file.name;
+      const docType = docTypeOverride ?? inferExecDocTypeFromName(fileName);
 
       if (uploadedFiles.has(fileName) || uploadingFiles.has(fileName)) return;
 
       setUploadingFiles((prev) => new Set(prev).add(fileName));
       try {
-        const docType = inferExecDocTypeFromName(fileName);
         if (!docType) {
           throw new Error(
-            "Filename not recognized. Expected names like `monthly_*_arima.*`, `quarterly_*_arima.*`, `final_*_model.*`, or `historical_*_weighted.*`"
+            "File type not recognized for this input."
           );
         }
 
@@ -553,30 +571,26 @@ export default function Step1() {
 
           setSuccessBanner(`${fileName} uploaded successfully!`);
           setUploadModalOpen(false);
-        } else {
-          setFailedFiles((prev) => new Set(prev).add(fileName));
-          setUploadedFiles((prev) => {
-            const ns = new Set(prev);
-            ns.delete(fileName);
-            return ns;
-          });
+          setUploadIssues([]);
+      } else {
+        setFailedFiles((prev) => new Set(prev).add(fileName));
+        setUploadedFiles((prev) => {
+          const ns = new Set(prev);
+          ns.delete(fileName);
+          return ns;
+        });
 
-        const docType2 = inferExecDocTypeFromName(fileName);
-        if (docType2 === DOC_MONTHLY) {
+        if (docType === DOC_MONTHLY) {
           setMonthlyFiles((prev) => prev.filter((f) => f.name !== fileName));
-        } else if (docType2 === DOC_QUARTERLY) {
+        } else if (docType === DOC_QUARTERLY) {
           setQuarterlyFiles((prev) =>
             prev.filter((f) => f.name !== fileName)
           );
-        } else if (docType2 === DOC_FINAL_MODEL) {
+        } else if (docType === DOC_FINAL_MODEL) {
           setFinalModelFiles((prev) => prev.filter((f) => f.name !== fileName));
-        } else if (docType2 === DOC_HISTORICAL_WEIGHTED) {
+        } else if (docType === DOC_HISTORICAL_WEIGHTED) {
           setHistoricalWeightedFiles((prev) => prev.filter((f) => f.name !== fileName));
-        } else if (docType2 === DOC_FINAL_MODEL) {
-            setFinalModelFiles((prev) => prev.filter((f) => f.name !== fileName));
-          } else if (docType2 === DOC_HISTORICAL_WEIGHTED) {
-            setHistoricalWeightedFiles((prev) => prev.filter((f) => f.name !== fileName));
-          }
+        }
 
           setFailedFilesForRetry((prev) => [...prev, file]);
 
@@ -595,6 +609,7 @@ export default function Step1() {
               fullResponse: result,
               validationStatus,
             },
+            normalized: normalizeUploadError(result.data ?? result.error ?? result),
           };
 
           setUploadIssues([issue]);
@@ -604,12 +619,14 @@ export default function Step1() {
       } catch (error: any) {
         console.error(`Upload failed for ${fileName}:`, error);
         setFailedFiles((prev) => new Set(prev).add(fileName));
-
-        const docType2 = inferExecDocTypeFromName(fileName);
-        if (docType2 === DOC_MONTHLY) {
+        if (docType === DOC_MONTHLY) {
           setMonthlyFiles((prev) => prev.filter((f) => f.name !== fileName));
-        } else if (docType2 === DOC_QUARTERLY) {
+        } else if (docType === DOC_QUARTERLY) {
           setQuarterlyFiles((prev) => prev.filter((f) => f.name !== fileName));
+        } else if (docType === DOC_FINAL_MODEL) {
+          setFinalModelFiles((prev) => prev.filter((f) => f.name !== fileName));
+        } else if (docType === DOC_HISTORICAL_WEIGHTED) {
+          setHistoricalWeightedFiles((prev) => prev.filter((f) => f.name !== fileName));
         }
 
         setFailedFilesForRetry((prev) => [...prev, file]);
@@ -625,6 +642,7 @@ export default function Step1() {
             stack: error?.stack,
             validationStatus: "error",
           },
+          normalized: normalizeUploadError(error),
         };
 
         setUploadIssues([issue]);
@@ -650,14 +668,15 @@ export default function Step1() {
 // Dropzone handlers - upload new files, ignore placeholders from existing docs
   const handleMonthlyFilesChange = useCallback(
     async (files: File[]) => {
-      setMonthlyFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      setMonthlyFiles(single);
+      for (const f of single) {
         if (
           !uploadedFiles.has(f.name) &&
           !uploadingFiles.has(f.name) &&
           !(f as any).isExisting
         ) {
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_MONTHLY);
         }
       }
     },
@@ -666,14 +685,15 @@ export default function Step1() {
 
   const handleQuarterlyFilesChange = useCallback(
     async (files: File[]) => {
-      setQuarterlyFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      setQuarterlyFiles(single);
+      for (const f of single) {
         if (
           !uploadedFiles.has(f.name) &&
           !uploadingFiles.has(f.name) &&
           !(f as any).isExisting
         ) {
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_QUARTERLY);
         }
       }
     },
@@ -682,14 +702,15 @@ export default function Step1() {
 
   const handleFinalModelFilesChange = useCallback(
     async (files: File[]) => {
-      setFinalModelFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      setFinalModelFiles(single);
+      for (const f of single) {
         if (
           !uploadedFiles.has(f.name) &&
           !uploadingFiles.has(f.name) &&
           !(f as any).isExisting
         ) {
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_FINAL_MODEL);
         }
       }
     },
@@ -698,14 +719,15 @@ export default function Step1() {
 
   const handleHistoricalWeightedFilesChange = useCallback(
     async (files: File[]) => {
-      setHistoricalWeightedFiles(files);
-      for (const f of files) {
+      const single = files.slice(-1);
+      setHistoricalWeightedFiles(single);
+      for (const f of single) {
         if (
           !uploadedFiles.has(f.name) &&
           !uploadingFiles.has(f.name) &&
           !(f as any).isExisting
         ) {
-          await uploadIndividualFile(f);
+          await uploadIndividualFile(f, DOC_HISTORICAL_WEIGHTED);
         }
       }
     },
@@ -923,6 +945,9 @@ export default function Step1() {
             <h3 className="text-lg font-bold tracking-tight text-gray-900">
               Inputs
             </h3>
+            <p className="mt-1 text-xs text-gray-600">
+              Workflow: {workflowName || "—"}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1124,14 +1149,15 @@ export default function Step1() {
                 <div className="relative">
                   <UploadDropzone
                     label="Monthly MEV Input"
-                    description="CSV or Excel. Upload the monthly MEV input."
+                    description="CSV or Excel."
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
-                    maxFiles={3}
+                    maxFiles={1}
+                    multiple={false}
                     value={monthlyFiles}
                     onChange={handleMonthlyFilesChange}
-                    emptyHint="Waiting for monthly MEV file(s)..."
+                    emptyHint="Waiting for monthly MEV file..."
                     variant="card"
                   />
 
@@ -1152,14 +1178,15 @@ export default function Step1() {
                 <div className="relative">
                   <UploadDropzone
                     label="Quarterly MEV Input"
-                    description="CSV or Excel. Upload the quarterly MEV input."
+                    description="CSV or Excel"
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
-                    maxFiles={3}
+                    maxFiles={1}
+                    multiple={false}
                     value={quarterlyFiles}
                     onChange={handleQuarterlyFilesChange}
-                    emptyHint="Waiting for quarterly MEV file(s)..."
+                    emptyHint="Waiting for quarterly MEV file..."
                     variant="card"
                   />
 
@@ -1182,14 +1209,15 @@ export default function Step1() {
                 <div className="relative">
                   <UploadDropzone
                     label="Monthly MEV ARIMA Input"
-                    description="CSV or Excel. Name like: monthly_*_arima.*"
+                    description="CSV or Excel."
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
-                    maxFiles={3}
+                    maxFiles={1}
+                    multiple={false}
                     value={monthlyFiles}
                     onChange={handleMonthlyFilesChange}
-                    emptyHint="Waiting for monthly ARIMA file(s)..."
+                    emptyHint="Waiting for monthly ARIMA file..."
                     variant="card"
                   />
 
@@ -1210,14 +1238,15 @@ export default function Step1() {
                 <div className="relative">
                   <UploadDropzone
                     label="Quarterly MEV ARIMA Input"
-                    description="CSV or Excel. Name like: quarterly_*_arima.*"
+                    description="CSV or Excel."
                     required
                     accept={accept}
                     maxSizeMB={maxSizeMB}
-                    maxFiles={3}
+                    maxFiles={1}
+                    multiple={false}
                     value={quarterlyFiles}
                     onChange={handleQuarterlyFilesChange}
-                    emptyHint="Waiting for quarterly ARIMA file(s)..."
+                    emptyHint="Waiting for quarterly ARIMA file..."
                     variant="card"
                   />
 
@@ -1269,14 +1298,15 @@ export default function Step1() {
             <div className="relative">
               <UploadDropzone
                 label="Final Model"
-                description="CSV or Excel. Name like: final_*_model.* or *model*final*"
+                description="CSV or Excel."
                 required={false}
                 accept={accept}
                 maxSizeMB={maxSizeMB}
-                maxFiles={3}
+                maxFiles={1}
+                multiple={false}
                 value={finalModelFiles}
                 onChange={handleFinalModelFilesChange}
-                emptyHint="Waiting for final model file(s)..."
+                emptyHint="Waiting for final model file..."
                 variant="card"
               />
 
@@ -1326,14 +1356,15 @@ export default function Step1() {
             <div className="relative">
               <UploadDropzone
                 label="Historical Weighted Credit Loss Rates"
-                description="CSV or Excel. Name like: historical_*_weighted.* or *weighted*credit*loss*"
+                description="CSV or Excel."
                 required={false}
                 accept={accept}
                 maxSizeMB={maxSizeMB}
-                maxFiles={3}
+                maxFiles={1}
+                multiple={false}
                 value={historicalWeightedFiles}
                 onChange={handleHistoricalWeightedFilesChange}
-                emptyHint="Waiting for historical weighted credit loss rates file(s)..."
+                emptyHint="Waiting for historical weighted credit loss rates file..."
                 variant="card"
               />
 

@@ -136,6 +136,20 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
       }
     },
 
+    clearPdTransitionMatrixWorkflowStep(
+      state,
+      action: PayloadAction<{ workflowPath?: string }>
+    ) {
+      const { workflowPath } = action.payload;
+      if (!workflowPath) {
+        state.stepsByWorkflowPath = {};
+        return;
+      }
+      if (state.stepsByWorkflowPath) {
+        delete state.stepsByWorkflowPath[workflowPath];
+      }
+    },
+
     setPdTransitionMatrixWorkflowId(
       state,
       action: PayloadAction<{ workflow_id: number | null }>
@@ -164,6 +178,7 @@ export const {
   setPdTransitionMatrixWfData,
   resetPdTransitionMatrixWfHelperData,
   setPdTransitionMatrixCurrentStep,
+  clearPdTransitionMatrixWorkflowStep,
   setPdTransitionMatrixWorkflowId,
   setPdTransitionMatrixWorkflowData,
   // NEW exports

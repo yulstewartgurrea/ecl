@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from "react-router-dom";
 import Stepper from '../../../components/stepper/Stepper';
 import Step1 from './steps/Step1';
 import Step2 from './steps/Step2';
@@ -17,6 +18,7 @@ import {
 
 const OverlayDevelopmentStep1 = () => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const selectedWorkflowId = useAppSelector(
     (state: RootState) =>
       (state as any).pdTransitionMatrixWfHelper?.currentPdTransitionMatrixWorkflowId
@@ -28,6 +30,10 @@ const OverlayDevelopmentStep1 = () => {
   const persistedStep = useAppSelector((state: RootState) =>
     selectModuleProgress(state, "overlayDevelopment", contextKey)?.step
   );
+  const step1Valid = useAppSelector((state: RootState) => {
+    const entry = selectModuleProgress(state, "overlayDevelopment", contextKey);
+    return Boolean((entry?.data as any)?.step1Valid);
+  });
 
   const [activeSubStep, setActiveSubStep] = useState(
     persistedStep ?? 0
@@ -44,6 +50,9 @@ const OverlayDevelopmentStep1 = () => {
   ];
 
   const handleSubStepChange = (targetIndex: number) => {
+    if (activeSubStep === 0 && targetIndex > 0 && !step1Valid) {
+      return;
+    }
     setActiveSubStep(targetIndex);
     dispatch(
       setModuleProgress({
@@ -72,6 +81,7 @@ const OverlayDevelopmentStep1 = () => {
       })
     );
     setActiveSubStep(0);
+    navigate("/overlay?tab=development");
   };
 
   const renderSubStepContent = () => {
@@ -103,7 +113,7 @@ const OverlayDevelopmentStep1 = () => {
           steps={developmentSteps}
           activeStep={activeSubStep}
           onApprovedStepChange={handleSubStepChange}
-          canContinue={true}
+          canContinue={activeSubStep === 0 ? step1Valid : true}
         />
         {activeSubStep === developmentSteps.length - 1 && (
           <button

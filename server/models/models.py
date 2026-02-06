@@ -52,6 +52,8 @@ class Workflow(Base):
     documents = relationship("Document", back_populates="workflow", cascade="all, delete-orphan")
     # portfolio
     loan_product = Column(String, nullable=True)
+    # for the variables runs in the data transformation, mfa and filtering of models
+    number_of_combinations = Column(Integer, nullable=True)
 
     def __repr__(self):
         return f"<Workflow id={self.id} name={self.workflow_name!r}>"

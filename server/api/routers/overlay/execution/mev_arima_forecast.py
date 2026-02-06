@@ -209,6 +209,23 @@ async def calculate_mev_monthly_arima_forecast(
         # Save to database
         db = SessionLocal()
         try:
+            # Also persist historical-only inputs for execution
+            hist_filename = f"historical_monthly_mev_{get_time_date()}.xlsx"
+            hist_folder_path = (
+                f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/"
+                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_MONTHLY_HISTORICAL_MEV"
+            )
+            os.makedirs(f"{get_root_folder()}/files/{hist_folder_path}", exist_ok=True)
+            historical_only = (
+                forecast_result.iloc[:-months_to_forecast].copy()
+                if months_to_forecast and len(forecast_result) > months_to_forecast
+                else forecast_result.copy()
+            )
+            historical_only.to_excel(
+                f"{get_root_folder()}/files/{hist_folder_path}/{hist_filename}",
+                index=False
+            )
+
             # Convert Date column to string for JSON serialization if it exists
             forecast_result_copy = forecast_result.copy()
             if 'Date' in forecast_result_copy.columns:
@@ -225,6 +242,21 @@ async def calculate_mev_monthly_arima_forecast(
             db.add(new_document)
             db.commit()
             db.refresh(new_document)
+
+            hist_copy = historical_only.copy()
+            if 'Date' in hist_copy.columns:
+                hist_copy['Date'] = hist_copy['Date'].astype(str)
+            hist_document = Document(
+                filename=hist_filename,
+                json_data=json.dumps(hist_copy.to_dict(orient='records')),
+                document_type="OVERLAY_EXECUTION_MONTHLY_HISTORICAL_MEV",
+                user_id=user_id.id,
+                workflow_id=workflow_id,
+                workflow_path=hist_folder_path
+            )
+            db.add(hist_document)
+            db.commit()
+            db.refresh(hist_document)
             
         finally:
             db.close()
@@ -394,6 +426,23 @@ async def calculate_mev_quarterly_arima_forecast(
         # Save to database
         db = SessionLocal()
         try:
+            # Also persist historical-only inputs for execution
+            hist_filename = f"historical_quarterly_mev_{get_time_date()}.xlsx"
+            hist_folder_path = (
+                f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/"
+                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_QUARTERLY_HISTORICAL_MEV"
+            )
+            os.makedirs(f"{get_root_folder()}/files/{hist_folder_path}", exist_ok=True)
+            historical_only = (
+                forecast_result.iloc[:-quarters_to_forecast].copy()
+                if quarters_to_forecast and len(forecast_result) > quarters_to_forecast
+                else forecast_result.copy()
+            )
+            historical_only.to_excel(
+                f"{get_root_folder()}/files/{hist_folder_path}/{hist_filename}",
+                index=False
+            )
+
             # Convert Date column to string for JSON serialization if it exists
             forecast_result_copy = forecast_result.copy()
             if 'Date' in forecast_result_copy.columns:
@@ -410,6 +459,21 @@ async def calculate_mev_quarterly_arima_forecast(
             db.add(new_document)
             db.commit()
             db.refresh(new_document)
+
+            hist_copy = historical_only.copy()
+            if 'Date' in hist_copy.columns:
+                hist_copy['Date'] = hist_copy['Date'].astype(str)
+            hist_document = Document(
+                filename=hist_filename,
+                json_data=json.dumps(hist_copy.to_dict(orient='records')),
+                document_type="OVERLAY_EXECUTION_QUARTERLY_HISTORICAL_MEV",
+                user_id=user_id.id,
+                workflow_id=workflow_id,
+                workflow_path=hist_folder_path
+            )
+            db.add(hist_document)
+            db.commit()
+            db.refresh(hist_document)
             
         finally:
             db.close()

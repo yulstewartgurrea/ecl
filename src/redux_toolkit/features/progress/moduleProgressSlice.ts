@@ -34,6 +34,11 @@ type ClearModuleProgressPayload = {
   contextKey?: string;
 };
 
+type ClearModuleProgressByWorkflowIdPayload = {
+  moduleKey: ModuleKey;
+  workflowId: number;
+};
+
 const moduleProgressSlice = createSlice({
   name: "moduleProgress",
   initialState,
@@ -68,10 +73,30 @@ const moduleProgressSlice = createSlice({
 
       state.modules[moduleKey] = {};
     },
+    clearModuleProgressByWorkflowId: (
+      state,
+      action: PayloadAction<ClearModuleProgressByWorkflowIdPayload>
+    ) => {
+      const { moduleKey, workflowId } = action.payload;
+      const moduleMap = state.modules[moduleKey];
+      if (!moduleMap) return;
+
+      Object.keys(moduleMap).forEach((key) => {
+        const entry = moduleMap[key];
+        const entryWorkflowId = (entry?.data as any)?.workflowId;
+        if (entryWorkflowId === workflowId) {
+          delete moduleMap[key];
+        }
+      });
+    },
   },
 });
 
-export const { setModuleProgress, clearModuleProgress } =
+export const {
+  setModuleProgress,
+  clearModuleProgress,
+  clearModuleProgressByWorkflowId,
+} =
   moduleProgressSlice.actions;
 
 export const selectModuleProgress = (

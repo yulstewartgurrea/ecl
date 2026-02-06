@@ -35,6 +35,28 @@ type Props = {
 
 const clean = (s: string) => (s ?? "").toLowerCase().replace(/\s+/g, "").trim();
 
+const SERIES_COLORS = [
+  "#1f77b4",
+  "#ff7f0e",
+  "#2ca02c",
+  "#d62728",
+  "#9467bd",
+  "#8c564b",
+  "#e377c2",
+  "#7f7f7f",
+  "#bcbd22",
+  "#17becf",
+];
+
+function colorForKey(key: string) {
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  }
+  const idx = Math.abs(hash) % SERIES_COLORS.length;
+  return SERIES_COLORS[idx];
+}
+
 function pickKey(keys: string[], candidates: string[]) {
   for (const cand of candidates) {
     const c = clean(cand);
@@ -327,6 +349,7 @@ export default function CreditLossRateCharts({
                             name={schema.weightedKey ?? "Weighted"}
                             dot={false}
                             strokeWidth={2}
+                            stroke={colorForKey(schema.weightedKey ?? "weighted")}
                           />
                         </LineChart>
                       </ResponsiveContainer>
@@ -403,6 +426,7 @@ export default function CreditLossRateCharts({
                               name={`Bucket ${labelFromKey(bucketKey)}`}
                               dot={false}
                               strokeWidth={3}
+                              stroke={colorForKey(bucketKey)}
                             />
                             {visibleBuckets
                               .filter((k) => k !== bucketKey)
@@ -415,6 +439,7 @@ export default function CreditLossRateCharts({
                                   dot={false}
                                   strokeWidth={1.75}
                                   strokeOpacity={0.9}
+                                  stroke={colorForKey(k)}
                                 />
                               ))}
                           </LineChart>

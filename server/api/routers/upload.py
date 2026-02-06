@@ -4,7 +4,7 @@ import pandas as pd
 import os
 from typing import Dict, Any, Union
 import json
-from helpers.validate.validate import validate_document
+from helpers.file_validations.validate import validate_document
 from helpers.save_document_data_in_database import save_document_data_in_database
 from helpers.save_log_data_in_database import save_log_data_in_database
 from models.models import Document, User
@@ -133,6 +133,104 @@ def save_cleaned_data_to_files_folder(
     except Exception as e:
         raise Exception(f"Error saving cleaned data to files folder: {str(e)}")
 
+
+@router.post("/validate")
+async def validate_file(
+    file: UploadFile = File(...),
+    document_type: str = Form(...),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Validate a file against the server schema without saving it.
+    """
+    temp_path = None
+    try:
+        if not file.filename.lower().endswith(('.csv', '.xlsx', '.xls')):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "code": -1,
+                    "success": False,
+                    "msg": "File must be CSV or Excel format",
+                    "data": None
+                }
+            )
+
+        temp_path = os.path.abspath(f"temp_validate_{file.filename}")
+        with open(temp_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+
+        df = None
+        excel_file = None
+        validation_results: Dict[str, Any] = {"is_valid": True, "errors": [], "warnings": []}
+
+        if file.filename.lower().endswith(".csv"):
+            if document_type == "ECL_CLIENT_LOAN_BALANCES":
+                df = pd.read_csv(temp_path, header=None, encoding="utf-8-sig")
+            else:
+                df = pd.read_csv(temp_path, encoding="utf-8-sig")
+                df.columns = df.columns.str.strip().str.lower()
+        else:
+            excel_file = pd.ExcelFile(temp_path)
+            sheet_names = excel_file.sheet_names
+            if document_type == "ECL_CLIENT_LOAN_BALANCES":
+                df = pd.read_excel(excel_file, sheet_name=sheet_names[0], header=None)
+            else:
+                df = pd.read_excel(excel_file, sheet_name=sheet_names[0])
+                df.columns = df.columns.str.strip().str.lower()
+
+        try:
+            cleaned_data = clean_document(df, document_type, file.filename, temp_path)
+            if cleaned_data is None:
+                cleaned_df = df
+            elif isinstance(cleaned_data, dict):
+                cleaned_df = df
+            elif isinstance(cleaned_data, pd.DataFrame):
+                cleaned_df = cleaned_data
+            else:
+                cleaned_df = df
+
+            if file.filename.lower().endswith(".csv"):
+                validation_results = validate_document(cleaned_df, document_type, file.filename)
+            else:
+                if excel_file is not None and len(excel_file.sheet_names) > 1:
+                    validation_results = validate_document(None, document_type, file.filename, excel_file)
+                else:
+                    validation_results = validate_document(cleaned_df, document_type, file.filename)
+        finally:
+            if excel_file is not None:
+                excel_file.close()
+
+        status = str(validation_results.get("validation_status", "passed")).lower()
+        ok = status == "passed" or bool(validation_results.get("is_valid", False))
+
+        return JSONResponse(
+            status_code=200 if ok else 400,
+            content=make_json_serializable({
+                "code": 1 if ok else -1,
+                "success": bool(ok),
+                "msg": "Validation passed" if ok else "Validation failed",
+                "data": {"validation_results": validation_results},
+            })
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Error validating file: {str(e)}",
+                "data": None
+            }
+        )
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+
 @router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
@@ -243,16 +341,20 @@ async def upload_file(
 
                 # Step 3: Validate the cleaned data
                 if file.filename.lower().endswith(".csv"):
+                    print('CSV VALIDATION')
                     # Validate cleaned CSV DataFrame
                     validation_results = validate_document(cleaned_df, document_type, file.filename)
                 else:
+                    print('EXCEL VALIDATION')
                     # Excel validation
                     if len(sheet_names) > 1:
+                        print('MULTI-SHEET VALIDATION')
                         # Multi-sheet: pass excel_file to validator
                         validation_results = validate_document(None, document_type, file.filename, excel_file)
                     else:
+                        print('SINGLE-SHEET VALIDATION')
                         # Single sheet: validate cleaned DataFrame
-                        validation_results = validate_document(cleaned_df, document_type, file.filename)
+                        validation_results = validate_document(cleaned_df, document_type, file.filename, excel_file)
             finally:
                 # Ensure ExcelFile is closed
                 if excel_file is not None:

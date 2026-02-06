@@ -5,14 +5,16 @@ import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Settings from "./pages/Settings";
 import Configuration from "./pages/Configuration";
-import WorkflowLists from "./pages/flowrate_approach";
+import WorkflowLists from "./pages/flowrate_approach/index";
 import OverlayLandingPage from "./pages/overlay/Overlay";
 import FlowrateApproachPage from "./pages/flowrate_approach/FlowrateApproach";
+import WorkflowFolderList from "./pages/flowrate_approach/WorkflowFolderList";
 import EclUpload from "./pages/ecl/EclUpload";
 import BackendLoader from "./components/BackendLoader";
 
 // redux toolkit
 import { useAppSelector } from "./redux_toolkit/hooks";
+import { resetInterpolationClient } from "./services/interpolation";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useEffect, useState } from "react";
@@ -35,6 +37,15 @@ function App() {
       unlistenPromise.then((unlisten) => unlisten());
     };
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    resetInterpolationClient();
+    const g: any = window as any;
+    if (g.__MCU_CACHE__ && typeof g.__MCU_CACHE__.clear === "function") {
+      g.__MCU_CACHE__.clear();
+    }
+  }, [isLoggedIn]);
 
   // Poll backend_is_ready as a fallback — stops automatically once true
   useEffect(() => {
@@ -85,6 +96,7 @@ function App() {
       >
         <Route index element={<WorkflowLists />} />
         <Route path="flowrate" element={<WorkflowLists />} />
+        <Route path="WorkflowFolderList" element={<WorkflowFolderList/>} />
         <Route path="pd_landing" element={<FlowrateApproachPage />} />
         <Route path="overlay" element={<OverlayLandingPage />} />
         <Route path="settings" element={<Settings />} />
