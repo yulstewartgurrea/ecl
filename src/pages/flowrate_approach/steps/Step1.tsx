@@ -4,7 +4,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import UploadDropzone from "../../../components/ui/UploadDropzone";
 import OverlayUploadResultModal, {
-  type IssueRow,
 } from "../../../components/modals/OverlayUploadResultModal";
 import {
   CheckCircleIcon,
