@@ -134,7 +134,7 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         print("\nStep 3: Identifying columns to interpolate...")
         
         # Get all columns except metadata columns
-        metadata_cols = ['Date', 'year', 'month (int)', 'month', 'id', 'x']
+        metadata_cols = ['Date', 'year', 'month (int)', 'month', 'id', 'x', 'quarter']
         numeric_cols = [col for col in df_q.columns if col not in metadata_cols]
         
         # Filter to columns that have numeric data
@@ -176,34 +176,17 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         monthly_df['month (int)'] = monthly_df['Date'].dt.month
         monthly_df['month'] = monthly_df['Date'].dt.strftime('%b')
         monthly_df['id'] = monthly_df['year'].astype(str) + '-' + monthly_df['month']
+        # Calculate quarter from month (standard quarters: Q1=Jan-Mar, Q2=Apr-Jun, Q3=Jul-Sep, Q4=Oct-Dec)
+        monthly_df['quarter'] = monthly_df['Date'].dt.quarter
         
         # Step 6: Calculate x values for monthly data
         print("\nStep 6: Calculating x values for monthly data...")
         
-        # Find the first December row in monthly data
-        first_dec_idx = None
-        for idx, month in enumerate(monthly_df['month']):
-            if month == 'Dec':
-                first_dec_idx = idx
-                break
-        
-        if first_dec_idx is None:
-            raise ValueError("Could not find December in monthly data")
-        
-        print(f"Found first December at index {first_dec_idx} ({monthly_df.iloc[first_dec_idx]['Date']})")
-        
-        # Calculate x values: start from 0.0 at first December and increment by 0.1
-        monthly_x_values = []
-        for idx in range(len(monthly_dates)):
-            if idx < first_dec_idx:
-                # Before first December, set x to 0.0
-                monthly_x_values.append(0.0)
-            else:
-                # Starting from first December (x = 0.0), increment by 0.1 for each month
-                monthly_x = 0.0 + (idx - first_dec_idx) * 0.1
-                monthly_x_values.append(monthly_x)
-        
-        monthly_df['x'] = monthly_x_values
+        # Set x column to start from 0 and increment by 0.1
+        # Since monthly_dates now starts from first data point, x starts at 0
+        monthly_df['x'] = 0.0
+        for i in range(len(monthly_df)):
+            monthly_df['x'].iloc[i] = i * 0.1
         
         print(f"Calculated x values: {monthly_df['x'].min():.1f} to {monthly_df['x'].max():.1f}")
         
