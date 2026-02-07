@@ -116,7 +116,7 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
         # df_combined.to_csv('df_combined.csv', index=False)
 
         # Drop definition rows at indices 1 and 2 (0-based)
-        df_combined = df_combined.drop([1, 2], errors='ignore').reset_index(drop=True)
+        # df_combined = df_combined.drop([1, 2], errors='ignore').reset_index(drop=True)
 
         # Clean merge artifacts safely
         df_combined = df_combined.drop(columns=[c for c in ['Date_y', 'month_x', 'year_y', 'month (int)_y'] if c in df_combined.columns], errors='ignore')
