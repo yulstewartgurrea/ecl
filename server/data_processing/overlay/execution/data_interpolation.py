@@ -246,11 +246,8 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
                 # Set values before this column's first data date to None
                 if monthly_date < col_first_date:
                     interpolated_values.append(None)
-                # For months before first December, set value to None
-                elif idx < first_dec_idx:
-                    interpolated_values.append(None)
                 else:
-                    # Starting from first December, perform interpolation
+                    # Starting from column's first data date, perform interpolation
                     # Check if exact match exists (VLOOKUP equivalent)
                     if monthly_x in quarterly_lookup:
                         interpolated_values.append(quarterly_lookup[monthly_x])
