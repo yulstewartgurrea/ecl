@@ -397,6 +397,17 @@ async def get_override_data_transformation_mevs_input(
                 f"{workflow.workflow_name}/"
                 f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
             )
+            period_file = get_latest_file(period_path)
+            if period_file is None:
+                period_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE"
+                )
+                period_file = get_latest_file(period_path)
+                
 
             combined_monthly_mev_data_interpolation_path = (
                 f"{get_root_folder()}/server/files/"
@@ -477,20 +488,15 @@ async def get_override_data_transformation_mevs_input(
             # removed T in Date
             filtered_df['Date'] = filtered_df['Date'].dt.strftime("%m/%d/%Y")
 
-            response_data = {
+            return {
                 'code': 1,
                 'success': True,
                 'data': {
                     'period': data_transformation_periods,
-                    'variables': list(x_cols),  # Convert set to list for JSON serialization
+                    'variables': x_cols,
                     'default_values': filtered_df.to_dict(orient='records')
                 }
             }
-            
-            # Convert NaN values to None for JSON serialization
-            response_data = make_json_serializable(response_data)
-            
-            return response_data
         finally:
             db.close()
 
