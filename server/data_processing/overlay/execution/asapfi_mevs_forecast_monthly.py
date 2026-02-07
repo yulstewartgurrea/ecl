@@ -118,8 +118,52 @@ def forecast_mevs_monthly(
         
         print(f"\nStep 2: Found {len(variables)} variables to forecast (excluding {len(independent.columns) - len(variables)} metadata columns)")
         
-        # Step 3: Forecast each variable
-        print(f"\nStep 3: Forecasting {months_to_forecast} months ahead for each variable...")
+        # Step 3: First pass - find maximum end date across all variables
+        print(f"\nStep 3a: Finding maximum end date across all variables...")
+        variable_last_dates = {}
+        
+        for var_name in variables:
+            try:
+                # Get data for this variable with its corresponding dates
+                if file_dates is not None:
+                    var_series = pd.Series(independent[var_name].values, index=file_dates.values)
+                    var_series = var_series.dropna()
+                    
+                    if len(var_series) >= 12:
+                        variable_last_dates[var_name] = var_series.index[-1]
+                else:
+                    # Fallback: use old method
+                    data = independent[var_name].dropna().values
+                    if len(data) >= 12:
+                        start_date = pd.Timestamp(year=start_year, month=start_month, day=1)
+                        end_date = pd.Timestamp(year=end_year, month=end_month, day=1)
+                        date_range = pd.date_range(start=start_date, end=end_date, freq='MS')
+                        if len(data) <= len(date_range):
+                            variable_last_dates[var_name] = date_range[min(len(data) - 1, len(date_range) - 1)]
+            except Exception:
+                continue
+        
+        # Calculate target end date (max last date + forecast months)
+        # Convert to month-end for consistency
+        if variable_last_dates:
+            max_last_date = max(variable_last_dates.values())
+            # Move to month-end if not already
+            max_last_date = max_last_date + pd.offsets.MonthEnd(0)
+            # Calculate target end date (max last date + forecast months, then move to month-end)
+            target_end_date = max_last_date + pd.DateOffset(months=months_to_forecast)
+            target_end_date = target_end_date + pd.offsets.MonthEnd(0)
+            print(f"   Maximum last date: {max_last_date}")
+            print(f"   Target end date: {target_end_date}")
+        else:
+            # Fallback: use parameters
+            end_date = pd.Timestamp(year=end_year, month=end_month, day=1)
+            end_date = end_date + pd.offsets.MonthEnd(0)
+            target_end_date = end_date + pd.DateOffset(months=months_to_forecast)
+            target_end_date = target_end_date + pd.offsets.MonthEnd(0)
+            print(f"   Using parameter-based target end date: {target_end_date}")
+        
+        # Step 3b: Forecast each variable to reach target end date
+        print(f"\nStep 3b: Forecasting each variable to reach target end date {target_end_date}...")
         
         forecast_results = []
         
@@ -214,6 +258,17 @@ def forecast_mevs_monthly(
                     print(f"      Skipping {var_name}...")
                     continue
                 
+                # Calculate months needed to reach target end date
+                variable_last_date = data_ts.index[-1]
+                forecast_start = variable_last_date + pd.DateOffset(months=1)
+                
+                # Calculate months needed to reach target end date
+                # Create date range from forecast_start to target_end_date and count months
+                temp_range = pd.date_range(start=forecast_start, end=target_end_date, freq='MS')
+                months_needed = len(temp_range)
+                # Ensure we forecast at least the requested number of months
+                months_to_forecast_var = max(months_to_forecast, months_needed)
+                
                 # Forecast
                 # R: forecast(fit, h=month_to_forecast)
                 # Try to get confidence intervals from the model
@@ -221,13 +276,13 @@ def forecast_mevs_monthly(
                     if PMDARIMA_AVAILABLE and hasattr(model, 'predict'):
                         # pmdarima's predict can return confidence intervals
                         forecast_result, conf_int = model.predict(
-                            n_periods=months_to_forecast,
+                            n_periods=months_to_forecast_var,
                             return_conf_int=True,
                             alpha=0.2  # 80% confidence interval
                         )
                         # Get 95% confidence interval as well
                         _, conf_int_95 = model.predict(
-                            n_periods=months_to_forecast,
+                            n_periods=months_to_forecast_var,
                             return_conf_int=True,
                             alpha=0.05  # 95% confidence interval
                         )
@@ -240,9 +295,9 @@ def forecast_mevs_monthly(
                         upper_95 = pd.Series(conf_int_95[:, 1], index=forecast_result.index if hasattr(forecast_result, 'index') else range(len(conf_int_95)))
                     else:
                         # Fallback: use model's get_forecast if available (statsmodels)
-                        forecast_result = model.predict(n_periods=months_to_forecast)
+                        forecast_result = model.predict(n_periods=months_to_forecast_var)
                         if hasattr(model, 'get_forecast'):
-                            forecast_obj = model.get_forecast(steps=months_to_forecast)
+                            forecast_obj = model.get_forecast(steps=months_to_forecast_var)
                             forecast_result = forecast_obj.predicted_mean
                             conf_int = forecast_obj.conf_int(alpha=0.2)  # 80% CI
                             conf_int_95 = forecast_obj.conf_int(alpha=0.05)  # 95% CI
@@ -260,7 +315,7 @@ def forecast_mevs_monthly(
                             upper_95 = forecast_result + 1.96 * forecast_std
                 except Exception as e:
                     # Fallback: simple prediction with approximate intervals
-                    forecast_result = model.predict(n_periods=months_to_forecast)
+                    forecast_result = model.predict(n_periods=months_to_forecast_var)
                     forecast_result = pd.Series(forecast_result) if not isinstance(forecast_result, pd.Series) else forecast_result
                     forecast_std = np.std(data_ts.values) if len(data_ts) > 0 else 1.0
                     lower_80 = forecast_result - 1.28 * forecast_std
@@ -269,18 +324,17 @@ def forecast_mevs_monthly(
                     upper_95 = forecast_result + 1.96 * forecast_std
                 
                 # Create forecast dates
-                # Use the last date from this variable's actual data
-                # This ensures we start forecasting from the month after the actual last date for this variable
-                variable_last_date = data_ts.index[-1]
+                # Use the calculated forecast_start and months_to_forecast_var from above
                 print(f'      Variable last date: {variable_last_date}')
-                forecast_start = variable_last_date + pd.DateOffset(months=1)
                 print(f'      forecast_start (last_date + 1 month): {forecast_start}')
+                print(f'      Months to forecast: {months_to_forecast_var} (to reach {target_end_date})')
+                
                 forecast_dates = pd.date_range(
                     start=forecast_start,
-                    periods=months_to_forecast,
+                    periods=months_to_forecast_var,
                     freq='MS'
                 )
-                print(f'      forecast_dates: {forecast_dates}')
+                print(f'      forecast_dates: {forecast_dates[0]} to {forecast_dates[-1]} ({len(forecast_dates)} months)')
                 # Create forecast DataFrame (similar to R's forecast output)
                 # Ensure all are Series/arrays with same length
                 forecast_values = forecast_result.values if hasattr(forecast_result, 'values') else np.array(forecast_result)
