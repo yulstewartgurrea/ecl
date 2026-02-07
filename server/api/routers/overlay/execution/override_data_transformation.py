@@ -455,7 +455,7 @@ async def get_override_data_transformation_mevs_input(
                 raise ValueError(f"No time found in {period_file}")
             # add 12 months to the last time
             data_transformation_periods = [
-                (last_time + relativedelta(months=i)).strftime("%m/%d/%Y")
+                (last_time + relativedelta(months=i+1)).strftime("%m/%d/%Y")
                 for i in range(12)
             ]
 
