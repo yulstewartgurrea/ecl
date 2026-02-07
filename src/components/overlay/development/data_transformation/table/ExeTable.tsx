@@ -61,13 +61,13 @@ export default function ExeTable({
     return (
       <div className="grid gap-6 lg:grid-cols-[minmax(600px,1fr)_minmax(380px,440px)]">
         <MacroTable
-          caption="MEVS – Lag / Log / YoY Differencing"
+          caption="MEVS - LAG / LN / ASINH / YOY DIFFERENCING"
           columns={mevCols}
           rows={mevData ?? []}
           getRowId={getMEVRowId}
         />
         <MacroTable
-          caption="Observed Default Rate – Log Transformation"
+          caption="CREDIT LOSS RATE - LOGIT TRANSFORMATION"
           columns={defCols}
           rows={defaultData ?? []}
           getRowId={getDefRowId}

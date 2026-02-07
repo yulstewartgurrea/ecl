@@ -29,6 +29,7 @@ import {
   type DataTransformationStatus,
 } from "../../../../services/dataTransformation";
 import { saveStep3Config } from "../../../../utils/overlay/headersStorage";
+import ConfirmCancelModal from "../../../../components/modals/ConfirmCancelModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -64,7 +65,7 @@ export default function OverlayDevelpmentPage3() {
   const [status, setStatus] = useState<DataTransformationStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   // Configuration states
   const [showConfig, setShowConfig] = useState(false);
   const contextKey =
@@ -541,7 +542,7 @@ export default function OverlayDevelpmentPage3() {
             {/* Cancel (only show when job is pending or processing) */}
             {status && (status.status === "pending" || status.status === "processing") && (
               <button
-                onClick={onCancel}
+                  onClick={() => setConfirmCancelOpen(true)}
                 disabled={
                   cancelling ||
                   (!selectedWorkflowId && selectedWorkflowId !== 0)
@@ -726,7 +727,19 @@ export default function OverlayDevelpmentPage3() {
               )}
             </div>
           )}
-
+      <ConfirmCancelModal
+        open={confirmCancelOpen}
+        loading={cancelling}
+        title="Cancel Process"
+        message="⚠️ This action will cancel the ongoing multifactor analysis process. Any running computation will stop at the next checkpoint. Do you want to continue?"
+        confirmText="Yes, cancel process"
+        cancelText="No, keep running"
+        onClose={() => setConfirmCancelOpen(false)}
+        onConfirm={async () => {
+          setConfirmCancelOpen(false);
+          await onCancel();
+        }}
+      />
           <ExeTable
             frequency={frequency}
             view="transformations"
