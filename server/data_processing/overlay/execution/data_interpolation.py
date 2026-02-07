@@ -154,22 +154,18 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         
         print(f"Found {len(valid_numeric_cols)} numeric columns to interpolate")
         
-        # Step 4: Create monthly date range
-        print("\nStep 4: Creating monthly date range...")
+        # Step 4: Create monthly date range starting from the first actual data point
+        print("\nStep 4: Creating monthly date range starting from first data point...")
         
         # Get date range from quarterly data
         start_date = df_q['Date'].min()
         end_date = df_q['Date'].max()
         
-        # Start from January of the year that the data starts in
-        # This ensures we include all months from January onwards
-        year_start = pd.Timestamp(year=start_date.year, month=1, day=1)
-        
-        # Create monthly date range from January of the start year to end date
+        # Start from the first actual data point instead of January
         # Use 'ME' (Month End) to get the last day of each month instead of first day
-        monthly_dates = pd.date_range(start=year_start, end=end_date, freq='ME')  # Month End
+        monthly_dates = pd.date_range(start=start_date, end=end_date, freq='ME')  # Month End
         
-        print(f"Created {len(monthly_dates)} monthly dates (from {year_start.strftime('%Y-%m')} to {end_date.strftime('%Y-%m')})")
+        print(f"Created {len(monthly_dates)} monthly dates (from {start_date.strftime('%Y-%m')} to {end_date.strftime('%Y-%m')})")
         
         # Step 5: Create monthly DataFrame structure
         print("\nStep 5: Creating monthly DataFrame structure...")
@@ -211,29 +207,32 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         
         print(f"Calculated x values: {monthly_df['x'].min():.1f} to {monthly_df['x'].max():.1f}")
         
-        # Step 7: Find where quarterly data actually starts in monthly dataframe
-        print("\nStep 7a: Finding quarterly data start point...")
-        
-        # Find the first monthly date that matches or is after the first quarterly data date
-        quarterly_start_date = df_q['Date'].min()
-        monthly_data_start_idx = None
-        
-        for idx, row in monthly_df.iterrows():
-            if row['Date'] >= quarterly_start_date:
-                monthly_data_start_idx = idx
-                break
-        
-        if monthly_data_start_idx is None:
-            monthly_data_start_idx = len(monthly_df)
-        
-        print(f"Quarterly data starts at monthly index {monthly_data_start_idx} (date: {quarterly_start_date.strftime('%Y-%m-%d')})")
-        print(f"Months before quarterly data: {monthly_data_start_idx} (will be set to NaN)")
-        
         # Step 7: Interpolate values for each numeric column
         print("\nStep 7: Interpolating values...")
         
         for col in valid_numeric_cols:
             print(f"   Interpolating: {col}")
+            
+            # Find the first date where this column has a valid (non-NaN) value
+            # This could be zero or non-zero - we just need the first actual data point
+            first_valid_row = None
+            for idx, row in df_q.iterrows():
+                val = row[col]
+                # Check if value is valid (not NaN) - zero is still a valid starting point
+                if pd.notna(val):
+                    first_valid_row = row
+                    break
+            
+            if first_valid_row is None:
+                print(f"      Warning: Column {col} has no valid data, setting all values to None")
+                monthly_df[col] = None
+                continue
+            
+            # Get the first data date for this column
+            col_first_date = first_valid_row['Date']
+            col_first_value = first_valid_row[col]
+            
+            print(f"      First data point for {col}: {col_first_date.strftime('%Y-%m-%d')} with value={col_first_value}")
             
             # Create lookup dictionary for quarterly data (x -> value)
             quarterly_lookup = dict(zip(df_q['x'], df_q[col]))
@@ -244,12 +243,12 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
                 monthly_x = row['x']
                 monthly_date = row['Date']
                 
-                # For months before quarterly data starts, set value to NaN
-                if idx < monthly_data_start_idx:
-                    interpolated_values.append(np.nan)
-                # For months before first December, set value to NaN
+                # Set values before this column's first data date to None
+                if monthly_date < col_first_date:
+                    interpolated_values.append(None)
+                # For months before first December, set value to None
                 elif idx < first_dec_idx:
-                    interpolated_values.append(np.nan)
+                    interpolated_values.append(None)
                 else:
                     # Starting from first December, perform interpolation
                     # Check if exact match exists (VLOOKUP equivalent)
@@ -284,8 +283,8 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
                             # Only right point available, use it
                             interpolated_values.append(y2)
                         else:
-                            # No points available, use NaN
-                            interpolated_values.append(np.nan)
+                            # No points available, use None
+                            interpolated_values.append(None)
             
             monthly_df[col] = interpolated_values
         
