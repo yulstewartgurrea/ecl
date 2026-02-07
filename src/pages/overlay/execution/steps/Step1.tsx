@@ -91,9 +91,6 @@ const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 const uniqueFiles = (files: File[]) =>
   Array.from(new Map(files.map((f) => [fileKey(f), f])).values());
 
-const formatBytes = (n?: number) =>
-  typeof n === "number" ? `${n.toLocaleString()} bytes` : "unknown size";
-
 /* -----------------------------------------------------------
    Existing doc type (keeps sizeBytes etc.)
 ----------------------------------------------------------- */
