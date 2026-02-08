@@ -31,7 +31,7 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp
 
         "OVERLAY_EXECUTION_MONTHLY_HISTORICAL_MEV": "overlay_execution",
         "OVERLAY_EXECUTION_QUARTERLY_HISTORICAL_MEV": "overlay_execution", 
-        "OVERLAY_EXECUTION_HISTORICAL_DEFAULT_RATE": "overlay_execution",
+        "OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE": "overlay_execution",
         "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA": "overlay_execution",
         "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA": "overlay_execution",
         "OVERLAY_EXECUTION_FINAL_OVERLAY_MODEL": "overlay_execution",
