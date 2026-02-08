@@ -18,6 +18,7 @@ import {
   setPdTransitionMatrixSelectedReportingPeriod,
   setPdTransitionMatrixWfName,
   setPdTransitionMatrixWorkflowId,
+  setPdTransitionMatrixWorkflowData,
 } from "../../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 import type { Workflow } from "../../../services/workflow";
@@ -65,6 +66,7 @@ export default function Step1() {
   const [isFailed, setFailed] = useState(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [skipFetchExisting, setSkipFetchExisting] = useState(false);
 
   const workflowIdFromRedux =
     currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
@@ -149,6 +151,10 @@ export default function Step1() {
 
         setUploaded(true);
         setFailed(false);
+        // Prevent fetchExistingDocument from overwriting the newly uploaded file
+        setSkipFetchExisting(true);
+        // Reset the skip flag after a delay to allow future fetches
+        setTimeout(() => setSkipFetchExisting(false), 2000);
       } finally {
         setUploading(false);
       }
@@ -157,6 +163,11 @@ export default function Step1() {
 const fetchExistingDocument = useCallback(async () => {
   if (!workflowId || !token) {
     setFile(null);
+    return;
+  }
+
+  // Skip fetching if we just uploaded a new file (to prevent overwriting the new upload)
+  if (skipFetchExisting) {
     return;
   }
 
@@ -224,6 +235,8 @@ const fetchExistingDocument = useCallback(async () => {
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
       if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
       dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
+      // Update workflow data to ensure currentPdTransitionMatrixWorkflowData is in sync
+      dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: w as any }));
 
       setPickerOpen(false);
     },
@@ -349,6 +362,8 @@ const fetchExistingDocument = useCallback(async () => {
                   if (firstFile) {
                     setUploaded(false);
                     setFailed(false);
+                    // Reset skip flag when user selects a new file
+                    setSkipFetchExisting(false);
                     uploadManager.onFilesSelected([firstFile]);
                   }
                 }}
