@@ -68,7 +68,7 @@ async def calculate_overlay_multiplier(workflow_id: int = Form(...),
                     f"{workflow.entity}/"
                     f"{workflow.reporting_period}/"
                     f"{workflow.workflow_name}/"
-                    f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
+                    f"output/overlay/development/{workflow.loan_product}/credit_loss_rate"
                 )
 
             forecasted_pd_calc_path = (
