@@ -34,11 +34,6 @@ const toYMD = (p: string) => {
   return p;
 };
 
-const normPct = (v: any) => {
-  const s = String(v ?? "").trim();
-  if (!s) return "";
-  return s.endsWith("%") ? s : `${s}%`;
-};
 
 // ---------- existing endpoints ----------
 export async function overrideGetForcasted(
@@ -245,9 +240,15 @@ export async function getTransformedForecastedMevs(
       const baseVal = r[`Base ${v}`] ?? r[`BASE ${v}`] ?? r[`base ${v}`] ?? "";
       const downsideVal = r[`Downside ${v}`] ?? r[`DOWNSIDE ${v}`] ?? r[`downside ${v}`] ?? "";
       
-      upside[v] = normPct(upsideVal);
-      base[v] = normPct(baseVal);
-      downside[v] = normPct(downsideVal);
+      // Remove % sign if present, return value as string without %
+      const stripPercent = (val: any) => {
+        const s = String(val ?? "").trim();
+        return s.endsWith("%") ? s.slice(0, -1) : s;
+      };
+      
+      upside[v] = stripPercent(upsideVal);
+      base[v] = stripPercent(baseVal);
+      downside[v] = stripPercent(downsideVal);
     });
 
     return { period, upside, base, downside };
