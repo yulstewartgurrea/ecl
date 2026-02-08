@@ -255,3 +255,36 @@ export async function getTransformedForecastedMevs(
 
   return out;
 }
+
+/** Export: /api/overlay/execution/transform_forecasted_mevs/export/?workflow_id=... */
+export async function exportTransformForecastedMevs(
+  workflowId: number | string,
+  token?: string | null
+): Promise<void> {
+  const url = `${API_BASE}/api/overlay/execution/transform_forecasted_mevs/export/?workflow_id=${workflowId}`;
+  const res = await fetch(url, { headers: authHeader(token) });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Export failed: HTTP ${res.status}${text ? ` – ${text}` : ""}`);
+  }
+  
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get("Content-Disposition");
+  let filename = `transform_forecasted_mevs_${workflowId}.csv`;
+  
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1].replace(/['"]/g, "");
+    }
+  }
+  
+  const downloadUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = downloadUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(downloadUrl);
+}
