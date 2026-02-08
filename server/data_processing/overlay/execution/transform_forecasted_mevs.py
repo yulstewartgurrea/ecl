@@ -51,7 +51,7 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
         previous_override_forecasted_mevs_df = populate_previous_dates(data_transformation_df, format_override_forecasted_mevs_df_res)
 
         print('format_override_forecasted_mevs_df_res \n', format_override_forecasted_mevs_df_res)
-        data_transformation_df.to_csv('data_transformation_df.csv', index=False)
+        # data_transformation_df.to_csv('data_transformation_df.csv', index=False)
 
         # get the first period date of  format_override_forecasted_mevs_df_res
         first_period_date = format_override_forecasted_mevs_df_res['Period'].min()
@@ -162,7 +162,7 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
                     print(f"Warning: Base column '{base_col}' not found in raw_mev_forecasts_df for lag column '{col}'")
                     transformed_mev_forecasts_df[col] = 0
 
-        transformed_mev_forecasts_df.to_csv('transformed_mev_forecasts_df.csv', index=False)
+        # transformed_mev_forecasts_df.to_csv('transformed_mev_forecasts_df.csv', index=False)
         return transformed_mev_forecasts_df
     except Exception as e:
         print(f"Error during process_transform_forecasted_mevs: {str(e)}")
