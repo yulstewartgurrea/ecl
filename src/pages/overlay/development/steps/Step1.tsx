@@ -202,7 +202,10 @@ export default function Step1() {
           ns.delete(fileName);
           return ns;
         });
-        setFailedFilesForRetry((prev) => [...prev, file]);
+        // Preserve documentType when adding to failedFilesForRetry
+        const fileWithDocType = file as ExistingDocFile;
+        fileWithDocType.documentType = docType;
+        setFailedFilesForRetry((prev) => [...prev, fileWithDocType]);
 
         const issue: IssueRow = {
           fileName,
@@ -223,7 +226,10 @@ export default function Step1() {
           ns.delete(fileName);
           return ns;
         });
-        setFailedFilesForRetry((prev) => [...prev, file]);
+        // Preserve documentType when adding to failedFilesForRetry
+        const fileWithDocType = file as ExistingDocFile;
+        fileWithDocType.documentType = docType;
+        setFailedFilesForRetry((prev) => [...prev, fileWithDocType]);
         const issue: IssueRow = {
           fileName,
           status: 0,
