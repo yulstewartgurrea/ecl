@@ -76,9 +76,9 @@ function inferExecDocTypeFromName(name: string): ExecDocType | null {
   return null;
 }
 
-function composeWorkflowPathWithDocType(basePath: string, docType: ExecDocType) {
-  return `${basePath.replace(/\/+$/g, "")}/${docType}`;
-}
+// function composeWorkflowPathWithDocType(basePath: string, docType: ExecDocType) {
+//   return `${basePath.replace(/\/+$/g, "")}/${docType}`;
+// }
 
 const mimeFromName = (name: string) => {
   const lower = name.toLowerCase();
