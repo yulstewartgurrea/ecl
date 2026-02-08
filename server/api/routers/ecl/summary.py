@@ -8,7 +8,7 @@ import os
 import json
 from typing import List, Dict, Any, Optional
 from math import ceil
-from helpers.file_utils import find_and_read_data_file, get_root_folder
+from helpers.file_utils import find_and_read_data_file, get_root_folder, read_data_file
 from data_processing.ecl.summary import process_summary_data
 
 from models.models import User, Workflow
@@ -31,6 +31,8 @@ from helpers.format_dataframe_constructor import format_dataframe_constructor
 
 import traceback
 from pathlib import Path
+
+from helpers.get_latest_file import get_latest_file
 
 router = APIRouter(prefix="/api/ecl", tags=["ecl-summary"])
 
@@ -59,6 +61,56 @@ async def get_summary_data(
                     "data": None
                 }
             )
+
+        client_loan_balances_path = (
+            f"{get_root_folder()}/server/files/"
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"input/ecl/{workflow.loan_product}/ECL_CLIENT_LOAN_BALANCES"
+        )
+
+        client_loan_balances_file = get_latest_file(client_loan_balances_path)
+        if not client_loan_balances_file:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "code": 1,
+                    "success": True,
+                    "msg": "Client loan balances file not found",
+                    "data": None
+                }
+            )
+        buckets_raw = read_data_file(client_loan_balances_file)
+        print('buckets_raw \n', buckets_raw.head())
+        
+        # Find the row index where "date" appears (case-insensitive)
+        date_row_idx = None
+        for idx, row in buckets_raw.iterrows():
+            # Check if any cell in the row contains "date" (case-insensitive)
+            row_values = row.astype(str).str.lower()
+            if 'date' in row_values.values:
+                date_row_idx = idx
+                break
+        
+        if date_row_idx is None:
+            raise ValueError("Could not find 'date' row in client loan balances file")
+        
+        # Use the date row as header and create new dataframe starting from the next row
+        header = buckets_raw.loc[date_row_idx].tolist()
+        buckets = buckets_raw.loc[date_row_idx + 1:].copy()
+        buckets.columns = header
+        buckets.reset_index(drop=True, inplace=True)
+        
+        print('buckets (after processing) \n', buckets.head())
+
+        # Normalize column names to lowercase for case-insensitive lookup
+        buckets.columns = buckets.columns.str.strip().str.lower()
+        
+        buckets = buckets['aging category'].unique().tolist()
+        buckets = sorted(buckets, key=lambda x: int(x.split()[1]))
+        buckets = ['0 DAY'] + buckets
+        buckets = [b.lower().strip() for b in buckets]
 
         aging_report_path = (
             f"{get_root_folder()}/server/files/"
@@ -187,7 +239,7 @@ async def get_summary_data(
 
         total_loan_balance = int(xdf.iat[1, 1])
 
-        ecl_res = process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, total_loan_balance, probability_weights)
+        ecl_res = process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, total_loan_balance, probability_weights, buckets)
 
         filename = f"{workflow.loan_product}_ecl_summary_{get_time_date()}.xlsx"
         output_folder = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/ecl/{workflow.loan_product}/ecl_summary"
