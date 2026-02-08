@@ -88,6 +88,12 @@ def process_credit_loss_rates(aging_report_file,
     df['downside'] = (
         df['historical credit loss rate'] * overlay_multipliers['downside']
     ).clip(upper=1.0)
+
+    # make last row of df upside baseline and downside to 1
+    df.iloc[-1, df.columns.get_loc('upside')] = 1
+    df.iloc[-1, df.columns.get_loc('baseline')] = 1
+    df.iloc[-1, df.columns.get_loc('downside')] = 1
+
     return df
   
   except Exception as e:
