@@ -62,6 +62,19 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
                 f"output/overlay/development/{workflow.loan_product}/final_models"
             )
             final_models_path = Path(final_models_path)
+            final_models_file = get_latest_file(final_models_path)
+            if final_models_file is None:
+                final_models_path = (
+                f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
+                )
+                final_models_path = Path(final_models_path)
+                final_models_file = get_latest_file(final_models_path)
+
+            print('final_models_path', final_models_path)
 
             # Get data from transformation
             data_transformation_path = (
@@ -89,7 +102,7 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
             )
 
             override_data_transformation_mevs_file = get_latest_file(override_data_transformation_mevs_path)
-            final_models_file = get_latest_file(final_models_path)
+            
 
             print('data_transformation_file', data_transformation_file)
             print('override_data_transformation_mevs_file', override_data_transformation_mevs_file)
