@@ -469,9 +469,18 @@ async def forecasted_pd_calc_input(
                 f"{workflow.workflow_name}/"
                 f"output/overlay/development/{workflow.loan_product}/final_models"
             )
+            finals_overlay_model_file = get_latest_file(finals_overlay_model_path)
+            if finals_overlay_model_file is None:
+                finals_overlay_model_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
+                )
+                finals_overlay_model_file = get_latest_file(finals_overlay_model_path)
 
             print(finals_overlay_model_path)
-            finals_overlay_model_file = get_latest_file(finals_overlay_model_path)
             finals_overlay_model_df = read_data_file(finals_overlay_model_file)
 
             if finals_overlay_model_df.empty:
@@ -522,21 +531,27 @@ def format_variable_model(finals_overlay_model_df):
     print(f"Intercept value: {intercept}")
     
     # Find all X columns (X1, X2, X3, etc.) and get their variable names and coefficients
-    x_pattern = re.compile(r'^X(\d+)$')
+    x_pattern = re.compile(r'^[Xx](\d+)$', re.IGNORECASE)
     x_variables = {}  # Dictionary to store X column number -> variable name -> coefficient value
     
     for col in finals_overlay_model_df.columns:
         x_match = x_pattern.match(col)
         if x_match:
             x_num = x_match.group(1)  # Get the number (1, 2, 3, etc.)
-            x_col = f"X{x_num}"
-            coeff_col = f"coeff_X{x_num}"
+            x_col = col  # Use the actual column name (could be "X1" or "x1")
+            
+            # Find coeff column case-insensitively (could be "coeff_X1" or "coeff_x1")
+            coeff_col = None
+            for df_col in finals_overlay_model_df.columns:
+                if df_col.lower() == f"coeff_x{x_num}".lower():
+                    coeff_col = df_col
+                    break
             
             # Get the variable name from X column (e.g., 'rrp_rate' from X1)
             variable_name = finals_overlay_model_df.iloc[0][x_col]
             
-            # Get the coefficient value from coeff column
-            if coeff_col in finals_overlay_model_df.columns:
+            # Get the coefficient value from coeff column (case-insensitive lookup)
+            if coeff_col and coeff_col in finals_overlay_model_df.columns:
                 coefficient_value = finals_overlay_model_df.iloc[0][coeff_col]
                 # Convert NaN to None for JSON serialization
                 coefficient_value = None if pd.isna(coefficient_value) else float(coefficient_value)
@@ -546,7 +561,7 @@ def format_variable_model(finals_overlay_model_df):
                 }
                 print(f"{x_col} = {variable_name}, coefficient = {coefficient_value}")
             else:
-                print(f"Warning: {coeff_col} not found in columns")
+                print(f"Warning: coeff column for {x_col} not found in columns")
                 x_variables[x_col] = {
                     'variable_name': variable_name,
                     'coefficient': None
