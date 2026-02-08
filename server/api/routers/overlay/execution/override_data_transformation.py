@@ -476,13 +476,15 @@ async def get_override_data_transformation_mevs_input(
             df_clean.columns = df_clean.columns.str.strip()
             x_cols = df_clean.columns.tolist()
             x_cols = set([col.split('.')[0] for col in x_cols])
-            print(x_cols)
+            # Convert set to sorted list for JSON serialization
+            x_cols_list = sorted(list(x_cols))
+            print(x_cols_list)
             # remove _growth_12m from x_cols
             # x_cols = [col.replace('_growth_12m', '') for col in x_cols]
             x_values = df_clean.values
 
 
-            filtered_cols = ['Date'] + [f'{i}.Point Forecast' for i in x_cols]
+            filtered_cols = ['Date'] + [f'{i}.Point Forecast' for i in x_cols_list]
             filtered_df = filtered_df[filtered_cols]
 
             # removed T in Date
@@ -493,7 +495,7 @@ async def get_override_data_transformation_mevs_input(
                 'success': True,
                 'data': {
                     'period': data_transformation_periods,
-                    'variables': x_cols,
+                    'variables': x_cols_list,  # Return as list, not set
                     'default_values': filtered_df.to_dict(orient='records')
                 }
             }
