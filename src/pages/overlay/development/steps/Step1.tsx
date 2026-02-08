@@ -11,6 +11,7 @@ import {
   setPdTransitionMatrixSelectedReportingPeriod,
   setPdTransitionMatrixWfName,
   setPdTransitionMatrixWorkflowId,
+  setPdTransitionMatrixWorkflowData,
 } from "../../../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 import { overlayUploadFile } from "../../../../services/upload";
 import { normalizeUploadError } from "../../../../utils/uploadErrorNormalizer";
@@ -85,6 +86,7 @@ export default function Step1() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [skipFetchExisting, setSkipFetchExisting] = useState(false);
 
   const accept = ".csv,.xlsx,.xls";
   const maxSizeMB = 20;
@@ -97,6 +99,11 @@ export default function Step1() {
   ----------------------------------------------------------- */
   const fetchExistingDocuments = useCallback(async () => {
     if (!selectedWorkflowId || !token) return;
+    
+    // Skip fetching if we just uploaded a new file (to prevent overwriting the new upload)
+    if (skipFetchExisting) {
+      return;
+    }
 
     const url = `${API_BASE}/documents/workflow-documents/?workflow_id=${selectedWorkflowId}&document_types=${[DOC_MONTHLY, DOC_QUARTERLY, DOC_HISTORICAL].join(",")}`;
 
@@ -148,11 +155,14 @@ export default function Step1() {
      Upload function
   ----------------------------------------------------------- */
   const uploadFile = useCallback(
-    async (file: File, docType: ExecDocType) => {
+    async (file: File, docType: ExecDocType, override: boolean = false) => {
       const fileName = file.name;
       if (!token) return;
 
-      if (uploadedFiles.has(fileName) || uploadingFiles.has(fileName)) return;
+      // Check if already uploading - if so, don't start another upload
+      // But allow re-upload if it was previously uploaded (override allows replacement)
+      if (uploadingFiles.has(fileName)) return;
+      
       setUploadingFiles((prev) => new Set(prev).add(fileName));
 
       try {
@@ -164,7 +174,7 @@ export default function Step1() {
           workflowPath: finalWorkflowPath,
           documentType: docType,
           workflowId: effectiveWorkflowId,
-          override: false,
+          override,
           moduleVal: "OVERLAY",
           submoduleVal: "DEVELOPMENT",
         });
@@ -179,6 +189,10 @@ export default function Step1() {
           setSuccessBanner(`${fileName} uploaded successfully!`);
           setUploadModalOpen(false);
           setUploadIssues([]);
+          // Prevent fetchExistingDocuments from overwriting the newly uploaded file
+          setSkipFetchExisting(true);
+          // Reset the skip flag after a delay to allow future fetches
+          setTimeout(() => setSkipFetchExisting(false), 2000);
           return;
         }
 
@@ -237,10 +251,36 @@ export default function Step1() {
       const single = uniqueFiles(files).slice(-1);
       setFiles(single);
 
+      // Reset skip flag when user selects a new file
+      setSkipFetchExisting(false);
+
       const f = single[0];
+      if (!f) return;
+      
+      // Remove from uploadedFiles, failedFiles, and uploadingFiles to allow re-uploading
+      // Use functional updates to ensure we're working with the latest state
+      setUploadedFiles((prev) => {
+        const ns = new Set(prev);
+        ns.delete(f.name);
+        return ns;
+      });
+      setFailedFiles((prev) => {
+        const ns = new Set(prev);
+        ns.delete(f.name);
+        return ns;
+      });
+      setUploadingFiles((prev) => {
+        const ns = new Set(prev);
+        ns.delete(f.name);
+        return ns;
+      });
+      
+      // Small delay to ensure state updates are processed
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
       await uploadFile(f, docType);
     },
-    [uploadFile, uploadedFiles, uploadingFiles]
+    [uploadFile]
   );
 
   /* -----------------------------------------------------------
@@ -282,6 +322,8 @@ export default function Step1() {
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
       if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
       dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
+      // Update workflow data to ensure currentPdTransitionMatrixWorkflowData is in sync
+      dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: w as any }));
 
       setPickerOpen(false);
     },
@@ -322,7 +364,7 @@ export default function Step1() {
         onProceed={async () => {
           for (const f of failedFilesForRetry) {
             const docType = (f as ExistingDocFile).documentType ?? DOC_MONTHLY;
-            await uploadFile(f, docType);
+            await uploadFile(f, docType, true); // Pass override: true when retrying
           }
           setUploadModalOpen(false);
         }}

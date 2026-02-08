@@ -110,8 +110,8 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
             })
             
             # Fail validation if missing data percentage is too high (>10%)
-            if data["missing_percentage"] > 10:
-                validation_results["validation_status"] = "failed"
+            # if data["missing_percentage"] > 10:
+            validation_results["validation_status"] = "failed"
 
         # Check for empty columns
         empty_columns = []
@@ -398,8 +398,8 @@ def validate_overlay_development_monthly_mev(df: pd.DataFrame, document_type: st
             })
             
             # Fail validation if missing data percentage is too high (>10%)
-            if data["missing_percentage"] > 10:
-                validation_results["validation_status"] = "failed"
+            # if data["missing_percentage"] > 10:
+            validation_results["validation_status"] = "failed"
 
         # Check for empty columns
         empty_columns = []
@@ -715,8 +715,8 @@ def validate_overlay_development_quarterly_mev(df: pd.DataFrame, document_type: 
             })
             
             # Fail validation if missing data percentage is too high (>10%)
-            if data["missing_percentage"] > 10:
-                validation_results["validation_status"] = "failed"
+            # if data["missing_percentage"] > 10:
+            validation_results["validation_status"] = "failed"
 
         # Check for empty columns
         empty_columns = []

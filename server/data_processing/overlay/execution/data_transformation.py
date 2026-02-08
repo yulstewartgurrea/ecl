@@ -201,7 +201,7 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
         print(f"final_cols: {final_cols}")
         final_col = df_combined[final_cols]
 
-        final_col.to_csv('final_col.csv', index=False)
+        # final_col.to_csv('final_col.csv', index=False)
         return final_col
 
     except Exception as e:

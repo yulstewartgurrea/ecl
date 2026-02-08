@@ -22,6 +22,7 @@ import {
   setPdTransitionMatrixWfName,
   setPdTransitionMatrixWorkflowId,
   setPdTransitionMatrixSelectedLoanProduct,
+  setPdTransitionMatrixWorkflowData,
 } from "../../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 
 import type { Workflow } from "../../../services/workflow";
@@ -121,6 +122,7 @@ export default function Step1() {
   const [failedFilesForRetry, setFailedFilesForRetry] = useState<File[]>([]);
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [skipFetchExisting, setSkipFetchExisting] = useState(false);
 
   //  NEW: modal retry loading state (for Proceed anyway / Force upload)
   const [retrySubmitting, setRetrySubmitting] = useState(false);
@@ -147,6 +149,11 @@ export default function Step1() {
 
   const fetchExistingDocuments = useCallback(async () => {
     if (!selectedWorkflowId || !token) return;
+    
+    // Skip fetching if we just uploaded a new file (to prevent overwriting the new upload)
+    if (skipFetchExisting) {
+      return;
+    }
 
     const documentTypes = [ECL_CLIENT_LOAN_BALANCES].join(",");
 
@@ -165,7 +172,12 @@ export default function Step1() {
       const result = await response.json();
 
       if (result?.success && Array.isArray(result.data)) {
-        const existing: File[] = result.data.map((doc: any) => {
+        const nextEcl: File[] = [];
+        
+        for (const doc of result.data) {
+          // Only process documents with the correct document type
+          if (doc.document_type !== ECL_CLIENT_LOAN_BALANCES) continue;
+
           const mime = doc.filename.endsWith(".csv")
             ? "text/csv"
             : doc.filename.endsWith(".xlsx")
@@ -185,18 +197,9 @@ export default function Step1() {
             doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size
           );
           (f as any).serverFilename = doc.filename;
-          return f;
-        });
-
-        const nextEcl: File[] = [];
-        for (const f of existing) {
-          const doc = result.data.find((d: any) => d.filename === f.name);
-          if (!doc) continue;
-
-          if (doc.document_type === ECL_CLIENT_LOAN_BALANCES) {
-            nextEcl.push(f);
-            setUploadedFiles((prev) => new Set(prev).add(f.name));
-          }
+          
+          nextEcl.push(f);
+          setUploadedFiles((prev) => new Set(prev).add(displayName));
         }
 
         setECLFiles(nextEcl.slice(0, 1));
@@ -204,7 +207,7 @@ export default function Step1() {
     } catch (err) {
       console.error("Failed to fetch execution docs:", err);
     }
-  }, [selectedWorkflowId, token]);
+  }, [selectedWorkflowId, token, skipFetchExisting]);
 
   const clearAll = useCallback(() => {
     setECLFiles([]);
@@ -230,9 +233,12 @@ export default function Step1() {
      Single-file upload helper
   ----------------------------------------------------------- */
   const uploadIndividualFile = useCallback(
-    async (file: File) => {
+    async (file: File, override: boolean = false) => {
       const fileName = file.name;
-      if (uploadedFiles.has(fileName) || uploadingFiles.has(fileName)) return;
+      
+      // Check if already uploading - if so, don't start another upload
+      // But allow re-upload if it was previously uploaded (override allows replacement)
+      if (uploadingFiles.has(fileName)) return;
 
       setUploadingFiles((prev) => new Set(prev).add(fileName));
 
@@ -251,7 +257,7 @@ export default function Step1() {
           workflowPath: finalWorkflowPath,
           documentType: docType,
           workflowId: effectiveWorkflowId,
-          override: false,
+          override,
           moduleVal: "ECL",
           submoduleVal: "DEVELOPMENT",
         });
@@ -271,6 +277,10 @@ export default function Step1() {
 
           setSuccessBanner(`${fileName} uploaded successfully!`);
           setUploadModalOpen(false);
+          // Prevent fetchExistingDocuments from overwriting the newly uploaded file
+          setSkipFetchExisting(true);
+          // Reset the skip flag after a delay to allow future fetches
+          setTimeout(() => setSkipFetchExisting(false), 2000);
         } else {
           setFailedFiles((prev) => new Set(prev).add(fileName));
           setUploadedFiles((prev) => {
@@ -333,7 +343,7 @@ export default function Step1() {
         });
       }
     },
-    [API_BASE, token, workflowPathBase, effectiveWorkflowId, uploadedFiles, uploadingFiles]
+    [API_BASE, token, workflowPathBase, effectiveWorkflowId, uploadingFiles]
   );
 
   // Dropzone handler
@@ -342,17 +352,36 @@ export default function Step1() {
       const single = files.slice(-1);
       setECLFiles(single);
 
+      // Reset skip flag when user selects a new file
+      setSkipFetchExisting(false);
+
       for (const f of single) {
-        if (
-          !uploadedFiles.has(f.name) &&
-          !uploadingFiles.has(f.name) &&
-          !(f as any).isExisting
-        ) {
+        // Remove from uploadedFiles, failedFiles, and uploadingFiles to allow re-uploading
+        setUploadedFiles((prev) => {
+          const ns = new Set(prev);
+          ns.delete(f.name);
+          return ns;
+        });
+        setFailedFiles((prev) => {
+          const ns = new Set(prev);
+          ns.delete(f.name);
+          return ns;
+        });
+        setUploadingFiles((prev) => {
+          const ns = new Set(prev);
+          ns.delete(f.name);
+          return ns;
+        });
+
+        // Small delay to ensure state updates are processed
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        if (!(f as any).isExisting) {
           await uploadIndividualFile(f);
         }
       }
     },
-    [uploadIndividualFile, uploadedFiles, uploadingFiles]
+    [uploadIndividualFile]
   );
 
   const summary = useMemo(() => {
@@ -388,6 +417,8 @@ export default function Step1() {
       if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
       dispatch(setPdTransitionMatrixSelectedLoanProduct({ loan_product: nextLoanProduct }));
       dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
+      // Update workflow data to ensure currentPdTransitionMatrixWorkflowData is in sync
+      dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: w as any }));
 
       setPickerOpen(false);
     },
@@ -434,49 +465,8 @@ export default function Step1() {
 
           try {
             for (const file of retryFiles) {
-              const docType = inferExecDocTypeFromName(file.name);
-
-              const finalWorkflowPath = composeWorkflowPathWithDocType(
-                workflowPathBase,
-                docType
-              );
-
-              const result = await overlayUploadFile({
-                baseUrl: API_BASE,
-                token,
-                file,
-                workflowPath: finalWorkflowPath,
-                documentType: docType,
-                workflowId: effectiveWorkflowId,
-                override: true, //  force upload / proceed anyway
-                moduleVal: "ECL",
-                submoduleVal: "DEVELOPMENT",
-              });
-
-              if (result.ok) {
-                const fileName = file.name;
-
-                setUploadedFiles((prev) => new Set(prev).add(fileName));
-                setFailedFiles((prev) => {
-                  const ns = new Set(prev);
-                  ns.delete(fileName);
-                  return ns;
-                });
-
-                setECLFiles((prev) => {
-                  if (prev.some((x) => x.name === fileName)) return prev;
-                  return [...prev, file];
-                });
-
-                setFailedFilesForRetry((prev) =>
-                  prev.filter((f) => f.name !== fileName)
-                );
-
-                setSuccessBanner(`${fileName} uploaded successfully with override!`);
-              } else {
-                // keep it as failed (don™t remove from failed set)
-                setFailedFiles((prev) => new Set(prev).add(file.name));
-              }
+              // Use uploadIndividualFile with override: true when retrying
+              await uploadIndividualFile(file, true);
             }
 
             // close modal after the batch finishes
