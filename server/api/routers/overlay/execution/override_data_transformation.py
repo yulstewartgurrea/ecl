@@ -397,6 +397,17 @@ async def get_override_data_transformation_mevs_input(
                 f"{workflow.workflow_name}/"
                 f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
             )
+            period_file = get_latest_file(period_path)
+            if period_file is None:
+                period_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE"
+                )
+                period_file = get_latest_file(period_path)
+                
 
             combined_monthly_mev_data_interpolation_path = (
                 f"{get_root_folder()}/server/files/"
@@ -444,7 +455,7 @@ async def get_override_data_transformation_mevs_input(
                 raise ValueError(f"No time found in {period_file}")
             # add 12 months to the last time
             data_transformation_periods = [
-                (last_time + relativedelta(months=i)).strftime("%m/%d/%Y")
+                (last_time + relativedelta(months=i+1)).strftime("%m/%d/%Y")
                 for i in range(12)
             ]
 
@@ -465,32 +476,29 @@ async def get_override_data_transformation_mevs_input(
             df_clean.columns = df_clean.columns.str.strip()
             x_cols = df_clean.columns.tolist()
             x_cols = set([col.split('.')[0] for col in x_cols])
-            print(x_cols)
+            # Convert set to sorted list for JSON serialization
+            x_cols_list = sorted(list(x_cols))
+            print(x_cols_list)
             # remove _growth_12m from x_cols
             # x_cols = [col.replace('_growth_12m', '') for col in x_cols]
             x_values = df_clean.values
 
 
-            filtered_cols = ['Date'] + [f'{i}.Point Forecast' for i in x_cols]
+            filtered_cols = ['Date'] + [f'{i}.Point Forecast' for i in x_cols_list]
             filtered_df = filtered_df[filtered_cols]
 
             # removed T in Date
             filtered_df['Date'] = filtered_df['Date'].dt.strftime("%m/%d/%Y")
 
-            response_data = {
+            return {
                 'code': 1,
                 'success': True,
                 'data': {
                     'period': data_transformation_periods,
-                    'variables': list(x_cols),  # Convert set to list for JSON serialization
+                    'variables': x_cols_list,  # Return as list, not set
                     'default_values': filtered_df.to_dict(orient='records')
                 }
             }
-            
-            # Convert NaN values to None for JSON serialization
-            response_data = make_json_serializable(response_data)
-            
-            return response_data
         finally:
             db.close()
 

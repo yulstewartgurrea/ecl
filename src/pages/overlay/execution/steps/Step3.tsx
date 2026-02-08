@@ -14,6 +14,7 @@ import {
   transformForecastedMevs,
   getTransformedForecastedMevs,
   checkTransformForecastedMevs,
+  exportTransformForecastedMevs,
 } from "../../../../services/overlayExecution";
 
 import { PlayCircleIcon, ArrowPathIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
@@ -281,51 +282,20 @@ export default function OverlayExecutionPage3() {
     );
   }, [selectedWorkflowId, transformedRows]);
 
-  // Export CSV of transformed rows (client-side)
-  const exportCsv = useCallback(() => {
-    if (!transformedRows || transformedRows.length === 0) return;
+  // Export CSV using API endpoint
+  const exportCsv = useCallback(async () => {
+    if (!selectedWorkflowId) return;
 
     setExporting(true);
     try {
-      const rows = transformedRows;
-      const headers = Object.keys(rows[0] as Record<string, unknown>);
-
-      const escape = (val: unknown) => {
-        if (val === null || val === undefined) return "";
-        const s = String(val);
-        if (s.includes('"') || s.includes(",") || s.includes("\n")) {
-          return `"${s.replace(/"/g, '""')}"`;
-        }
-        return s;
-      };
-
-      const csv = [
-        headers.join(","),
-        ...rows.map((row) =>
-          headers
-            .map((h) => escape((row as any)[h]))
-            .join(",")
-        ),
-      ].join("\n");
-
-      const blob = new Blob([csv], {
-        type: "text/csv;charset=utf-8;",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `mev_transformed_${selectedWorkflowId ?? "export"}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      await exportTransformForecastedMevs(selectedWorkflowId, token);
     } catch (err) {
       console.error(err);
       alert("Export failed.");
     } finally {
       setExporting(false);
     }
-  }, [transformedRows, selectedWorkflowId]);
+  }, [selectedWorkflowId, token]);
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">

@@ -116,7 +116,7 @@ def combine_monthly_mev_data_interpolation(monthly_historical_mev_df: pd.DataFra
         # df_combined.to_csv('df_combined.csv', index=False)
 
         # Drop definition rows at indices 1 and 2 (0-based)
-        df_combined = df_combined.drop([1, 2], errors='ignore').reset_index(drop=True)
+        # df_combined = df_combined.drop([1, 2], errors='ignore').reset_index(drop=True)
 
         # Clean merge artifacts safely
         df_combined = df_combined.drop(columns=[c for c in ['Date_y', 'month_x', 'year_y', 'month (int)_y'] if c in df_combined.columns], errors='ignore')
@@ -648,7 +648,8 @@ def compute_correlation_matrix(x_transformed: pd.DataFrame,
 def generate_variable_combinations(base_var_to_actual_cols: dict,
                                    x_transformed: pd.DataFrame,
                                    excluded_columns: list,
-                                   cancellation_check=None) -> list[list[str]]:
+                                   cancellation_check=None,
+                                   num_combinations: int = 2) -> list[list[str]]:
     """
     Generate all valid variable combinations with transformations using actual column names.
     
@@ -691,7 +692,7 @@ def generate_variable_combinations(base_var_to_actual_cols: dict,
     # OLD: base names (raw should not have '.')
     # x_base_vars = list(set([v.split('.')[0] for v in x_raw_vars]))
 
-    num_vars_taken = 2
+    num_vars_taken = num_combinations
     comb_no_lags = list(combinations(x_base_vars, num_vars_taken))
     comb_extended = [list(c) for c in comb_no_lags]
     print(f"Base combinations: {len(comb_extended)}")
@@ -985,7 +986,7 @@ def compute_correlations_for_combinations(all_combinations: list[list[str]],
 
 # ----------------------------- Orchestration ----------------------------- #
 
-def process_data_transformation_output(combine_monthly_mev_data_interpolation_df: pd.DataFrame,
+def process_data_transformation_output(override_data_transformation_df: pd.DataFrame,
                                        historical_default_rate_df: pd.DataFrame,
                                        workflow,
                                        progress_callback=None,
@@ -1007,7 +1008,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     Supports progress tracking and cancellation checks throughout.
     
     Args:
-        combine_monthly_mev_data_interpolation_df (pd.DataFrame): Combined MEV/interpolation data
+        override_data_transformation_df (pd.DataFrame): Combined MEV/interpolation data
         historical_default_rate_df (pd.DataFrame): Historical default rate data
         workflow: Workflow object (for entity, reporting_period, workflow_name, loan_product)
         progress_callback (callable, optional): Function(progress%, message) for updates
@@ -1020,8 +1021,8 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     Raises:
         Exception: If cancellation_check returns True
     """
-    # print('combine_monthly_mev_data_interpolation_df', combine_monthly_mev_data_interpolation_df)
-    # combine_monthly_mev_data_interpolation_df.to_csv('combine_monthly_mev_data_interpolation_df.csv', index=False)
+    # print('override_data_transformation_df', override_data_transformation_df)
+    # override_data_transformation_df.to_csv('override_data_transformation_df.csv', index=False)
     print('historical_default_rate_df', historical_default_rate_df)
     _date_time = get_time_date()
 
@@ -1042,7 +1043,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     if cancellation_check and cancellation_check():
         raise Exception("Job cancelled")
     
-    x_raw = prepare_independent_variables(combine_monthly_mev_data_interpolation_df, excluded_columns)
+    x_raw = prepare_independent_variables(override_data_transformation_df, excluded_columns)
     # x_raw = add_level_gr_columns(x_raw, excluded_columns)  # NEW: provide .Level and .GR
     y_raw = prepare_dependent_variables(historical_default_rate_df, excluded_columns)
 
@@ -1088,67 +1089,67 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     x_transformed.to_csv(x_out, index=False); docs.append(os.path.basename(x_out))
     y_transformed.to_csv(y_out, index=False); docs.append(os.path.basename(y_out))
 
-    # 4) ADF + Corr
-    if progress_callback:
-        progress_callback(50, "Performing ADF tests and computing correlation matrix...")
-    if cancellation_check and cancellation_check():
-        raise Exception("Job cancelled")
-    
-    perform_adf_tests(x_transformed, y_transformed, excluded_columns, output_dir, workflow, _date_time, docs)
-    x_cor_mat = compute_correlation_matrix(x_transformed, excluded_columns, output_dir, workflow, _date_time, docs)
+    # # 4) ADF + Corr
+    # if progress_callback:
+    #     progress_callback(50, "Performing ADF tests and computing correlation matrix...")
+    # if cancellation_check and cancellation_check():
+    #     raise Exception("Job cancelled")
+    # 
+    # perform_adf_tests(x_transformed, y_transformed, excluded_columns, output_dir, workflow, _date_time, docs)
+    # x_cor_mat = compute_correlation_matrix(x_transformed, excluded_columns, output_dir, workflow, _date_time, docs)
 
-    # 5) Extract actual column names grouped by base variable (NEW: use actual column names)
-    # Extract actual columns from x_transformed grouped by base variable
-    base_var_to_actual_cols = {}
-    for col in x_transformed.columns:
-        if col not in excluded_columns and col.lower() != 'time':
-            base_var = col.split('.')[0]  # "gdp.Point Forecast.Level" -> "gdp"
-            if base_var not in base_var_to_actual_cols:
-                base_var_to_actual_cols[base_var] = []
-            base_var_to_actual_cols[base_var].append(col)
-    
-    print(f"Extracted actual columns for {len(base_var_to_actual_cols)} base variables")
-    for base_var, cols in list(base_var_to_actual_cols.items())[:3]:  # Show first 3 for debugging
-        print(f"  {base_var}: {len(cols)} columns (sample: {cols[:3]})")
+    # # 5) Extract actual column names grouped by base variable (NEW: use actual column names)
+    # # Extract actual columns from x_transformed grouped by base variable
+    # base_var_to_actual_cols = {}
+    # for col in x_transformed.columns:
+    #     if col not in excluded_columns and col.lower() != 'time':
+    #         base_var = col.split('.')[0]  # "gdp.Point Forecast.Level" -> "gdp"
+    #         if base_var not in base_var_to_actual_cols:
+    #             base_var_to_actual_cols[base_var] = []
+    #         base_var_to_actual_cols[base_var].append(col)
+    # 
+    # print(f"Extracted actual columns for {len(base_var_to_actual_cols)} base variables")
+    # for base_var, cols in list(base_var_to_actual_cols.items())[:3]:  # Show first 3 for debugging
+    #     print(f"  {base_var}: {len(cols)} columns (sample: {cols[:3]})")
 
-    # 5) Combos + combo max corr
-    if progress_callback:
-        progress_callback(60, "Generating variable combinations...")
-    if cancellation_check and cancellation_check():
-        raise Exception("Job cancelled")
-    
-    # NEW: Pass base_var_to_actual_cols instead of x_raw_vars
-    all_combinations = generate_variable_combinations(base_var_to_actual_cols, x_transformed, excluded_columns, cancellation_check)
-    # OLD: all_combinations = generate_variable_combinations(x_raw_vars, x_transformed, excluded_columns, cancellation_check)
-    
-    if cancellation_check and cancellation_check():
-        raise Exception("Job cancelled")
-    
-    if progress_callback:
-        progress_callback(70, f"Computing correlations for {len(all_combinations)} combinations...")
-    num_vars_taken = num_combinations
-    all_comb_df = compute_correlations_for_combinations(all_combinations, x_cor_mat, num_vars_taken, cancellation_check)
+    # # 5) Combos + combo max corr
+    # if progress_callback:
+    #     progress_callback(60, "Generating variable combinations...")
+    # if cancellation_check and cancellation_check():
+    #     raise Exception("Job cancelled")
+    # 
+    # # NEW: Pass base_var_to_actual_cols instead of x_raw_vars
+    # all_combinations = generate_variable_combinations(base_var_to_actual_cols, x_transformed, excluded_columns, cancellation_check, num_combinations)
+    # # OLD: all_combinations = generate_variable_combinations(x_raw_vars, x_transformed, excluded_columns, cancellation_check)
+    # 
+    # if cancellation_check and cancellation_check():
+    #     raise Exception("Job cancelled")
+    # 
+    # if progress_callback:
+    #     progress_callback(70, f"Computing correlations for {len(all_combinations)} combinations...")
+    # num_vars_taken = num_combinations
+    # all_comb_df = compute_correlations_for_combinations(all_combinations, x_cor_mat, num_vars_taken, cancellation_check)
 
-    if cancellation_check and cancellation_check():
-        raise Exception("Job cancelled")
-    
-    if progress_callback:
-        progress_callback(85, "Saving combination results...")
-    comb_out = f"{output_dir}/{workflow.loan_product}_{num_vars_taken}-var_combinations_{_date_time}.csv"
-    all_comb_df.to_csv(comb_out, index=False); docs.append(os.path.basename(comb_out))
+    # if cancellation_check and cancellation_check():
+    #     raise Exception("Job cancelled")
+    # 
+    # if progress_callback:
+    #     progress_callback(85, "Saving combination results...")
+    # comb_out = f"{output_dir}/{workflow.loan_product}_{num_vars_taken}-var_combinations_{_date_time}.csv"
+    # all_comb_df.to_csv(comb_out, index=False); docs.append(os.path.basename(comb_out))
 
     # 6) Summary
     print("Data transformation complete!")
     print(f"Results saved to {output_dir}/")
-    print(f"Total combinations processed: {len(all_combinations)}")
+    # print(f"Total combinations processed: {len(all_combinations)}")
 
-    if not all_comb_df.empty and 'max_abs_cor' in all_comb_df.columns:
-        valid_cor = all_comb_df['max_abs_cor'].dropna()
-        if not valid_cor.empty:
-            print(f"- Average max correlation: {valid_cor.mean():.4f}")
-            print(f"- Min max correlation: {valid_cor.min():.4f}")
-            print(f"- Max max correlation: {valid_cor.max():.4f}")
-            print(f"- Valid correlations: {len(valid_cor)}/{len(all_comb_df)}")
+    # if not all_comb_df.empty and 'max_abs_cor' in all_comb_df.columns:
+    #     valid_cor = all_comb_df['max_abs_cor'].dropna()
+    #     if not valid_cor.empty:
+    #         print(f"- Average max correlation: {valid_cor.mean():.4f}")
+    #         print(f"- Min max correlation: {valid_cor.min():.4f}")
+    #         print(f"- Max max correlation: {valid_cor.max():.4f}")
+    #         print(f"- Valid correlations: {len(valid_cor)}/{len(all_comb_df)}")
 
     return {"docs": docs, "file_path": output_dir}
 

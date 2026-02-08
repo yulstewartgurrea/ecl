@@ -25,6 +25,8 @@ from helpers.format_dataframe_constructor import format_dataframe_constructor
 import traceback
 from pathlib import Path
 
+from helpers.get_latest_file import get_latest_file
+
 router = APIRouter(prefix="/api/ecl", tags=["ecl-credit-loss-rates"])
 
 @router.get("/credit_loss_rates")
@@ -204,31 +206,17 @@ async def calculate_credit_loss_rates(
             f"{workflow.workflow_name}/"
             f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
         )
-        
-        development_historical_default_rate_file = max(
-            (p for p in Path(development_historical_default_rate_path).iterdir() if p.is_file()),
-            key=lambda p: p.stat().st_mtime,
-            default=None
-        )
 
-        execution_historical_weighted_credit_loss_rate_path = (
-            f"{get_root_folder()}/server/files/"
-            f"{workflow.entity}/"
-            f"{workflow.reporting_period}/"
-            f"{workflow.workflow_name}/"
-            f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE"
-        )
-
-        execution_historical_weighted_credit_loss_rate_file = max(
-            (p for p in Path(execution_historical_weighted_credit_loss_rate_path).iterdir() if p.is_file()),
-            key=lambda p: p.stat().st_mtime,
-            default=None
-        )
-
-        if not execution_historical_weighted_credit_loss_rate_file:
-            historical_default_rates_file = development_historical_default_rate_file
-        else:
-            historical_default_rates_file = execution_historical_weighted_credit_loss_rate_file
+        historical_default_rates_file = get_latest_file(development_historical_default_rate_path)
+        if not historical_default_rates_file:
+            execution_historical_weighted_credit_loss_rate_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE"
+            )
+            historical_default_rates_file = get_latest_file(execution_historical_weighted_credit_loss_rate_path)
 
         print(aging_report_file)
         print(parsed_probability_weights)

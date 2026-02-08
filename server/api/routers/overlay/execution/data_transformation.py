@@ -591,10 +591,11 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
     Calculate data transformation - returns immediately with job_id for status polling
     """
     try:
-        print(num_combinations)
+        # print('num_combinations', num_combinations)
         db = SessionLocal()
         try:
             workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+            num_combinations = workflow.number_of_combinations
 
             log_record = db.query(OverlayLogs).filter(
                 OverlayLogs.workflow_id == workflow_id,
@@ -1356,7 +1357,6 @@ async def process_combine_monthly_mev_data_interpolation(
         data_interpolation_file = get_latest_file(data_interpolation_path)
         monthly_mev_arima_file = get_latest_file(monthly_mev_arima_path)
         final_models_file = get_latest_file(final_models_path)
-
         data_interpolation_df = read_data_file(data_interpolation_file)
         monthly_mev_arima_df = read_data_file(monthly_mev_arima_file)
         final_models_df = read_data_file(final_models_file)

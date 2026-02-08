@@ -37,46 +37,95 @@ def save_override_data_transformation_mevs_output(
 
     df = json_to_custom_table(csv_data)
 
-    df.to_csv(full_file_path, index=False)
+    # Write CSV with 2-row header structure
+    # Since df already has header rows as first two data rows, write without column names
+    df.to_csv(full_file_path, index=False, header=False)
     print(f"Saved CSV to {workflow_path}")
 
     return workflow_path
 
 def json_to_custom_table(json_data):
-    # Determine all scenario names (e.g. best, base, worst)
+    # Determine all scenario names (e.g. upside, base, downside)
     scenarios = [key for key in json_data[0].keys() if key != "period"]
 
-    # Determine variable names from the FIRST scenario (e.g. unemp_rate, gdp)
-    first_scenario = scenarios[0]
-    variables = list(json_data[0][first_scenario].keys())
+    # Collect all unique variable names from all scenarios
+    all_variables = set()
+    for item in json_data:
+        for scenario in scenarios:
+            if scenario in item and isinstance(item[scenario], dict):
+                all_variables.update(item[scenario].keys())
+    variables = sorted(list(all_variables))  # Sort for consistent column order
 
-    # Build row1 header
-    header_row1 = ["Period"]
+    # Build MultiIndex columns
+    header_level0 = ["Period"]
+    header_level1 = [""]
     for scenario in scenarios:
-        header_row1 += [scenario.capitalize(), "",]
-    header_row1 = header_row1[:-1]  # remove last extra comma
+        header_level0 += [scenario.capitalize()] * len(variables)
+        header_level1 += variables
 
-    # Build row2 header
-    header_row2 = [""]
-    for _ in scenarios:
-        header_row2 += variables
+    # Create MultiIndex
+    multi_index = pd.MultiIndex.from_arrays([header_level0, header_level1])
 
     # Build data rows
     data_rows = []
     for item in json_data:
-        row = [item["period"]]
+        row_data = [item["period"]]
         for scenario in scenarios:
-            row += [item[scenario][var] for var in variables]
-        data_rows.append(row)
+            for var in variables:
+                # Use .get(var, None) to handle cases where a variable might be missing in a specific scenario
+                row_data.append(item[scenario].get(var, None))
+        data_rows.append(row_data)
 
-    # Build final DataFrame (with 2 header rows)
-    df = pd.DataFrame([header_row1, header_row2] + data_rows)
+    # Create DataFrame with MultiIndex
+    df = pd.DataFrame(data_rows, columns=multi_index)
 
-    # make row 0 as the column headers
-    df.columns = df.iloc[0].tolist()
-    df = df.drop(0)
-    df = df.reset_index(drop=True)
+    # Flatten MultiIndex to single-level columns like "Scenario Variable"
+    # Handle "Period" column separately as it doesn't have a scenario
+    new_columns = []
+    for col_level0, col_level1 in df.columns:
+        if col_level0 == "Period":
+            new_columns.append("Period")
+        else:
+            new_columns.append(f"{col_level0} {col_level1}")
+    df.columns = new_columns
 
-    print(df)
+    # Now create the 2-row header format for CSV output
+    # Row 1: Period, then for each scenario: [scenario_name, "", ... (number of empty cells = number of variables - 1)]
+    # Dynamic: number of empty cells after scenario name = len(variables) - 1
+    header_row1 = ["Period"]
+    for scenario in scenarios:
+        header_row1.append(scenario.capitalize())
+        # Add (number of variables - 1) empty cells after each scenario name
+        for _ in range(len(variables) - 1):
+            header_row1.append("")
+    
+    # Row 2: "", variable names for each scenario (starts with empty cell)
+    # Structure: "", then for each scenario: variables directly (no empty cells between variables)
+    header_row2 = [""]
+    for _ in scenarios:
+        header_row2.extend(variables)  # Variables for this scenario
+    
+    # Create new DataFrame with 2-row header
+    # First, prepare data with proper column names from MultiIndex DataFrame
+    # Data rows should match header structure: Period, then for each scenario: variables directly
+    # The first variable goes under the scenario name, subsequent variables go under empty cells
+    data_with_headers = []
+    for _, row in df.iterrows():
+        data_row = [row["Period"]]
+        for scenario in scenarios:
+            for var in variables:
+                col_name = f"{scenario.capitalize()} {var}"
+                # Get value from the MultiIndex-based DataFrame
+                value = row[col_name]
+                data_row.append(value)
+        data_with_headers.append(data_row)
+    
+    # Create DataFrame with headers as first two rows
+    # Don't set columns from row 0 - keep both header rows as data rows
+    df_final = pd.DataFrame([header_row1, header_row2] + data_with_headers)
+    
+    # Use default integer column names to preserve the 2-row header structure
+    # When saved to CSV, both header rows will be written
 
-    return df
+    print(df_final)
+    return df_final

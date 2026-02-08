@@ -31,7 +31,7 @@ const formatPctNumber = (n: number): string => {
   return `${pct.toFixed(2)}%`;
 };
 
-const fmtMult = (v: number) => formatPctNumber(v);
+const fmtMult = (v: number) => v.toFixed(2);
 
 const OverlayMultiplierSummary: React.FC<OverlayMultiplierSummaryProps> = ({
   rows,
