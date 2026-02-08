@@ -1,5 +1,18 @@
 // src/services/upload.ts
-import { fetch } from "@tauri-apps/plugin-http";
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+
+function isTauriRuntime(): boolean {
+  const w = window as any;
+  return !!(w?.__TAURI__ || w?.__TAURI_IPC__ || (navigator.userAgent || "").includes("Tauri"));
+}
+
+// makes fetch work in browser + tauri
+async function xfetch(input: string, init?: RequestInit): Promise<Response> {
+  if (isTauriRuntime()) {
+    return (await tauriFetch(input, init as any)) as unknown as Response;
+  }
+  return fetch(input, init);
+}
 
 export type UploadResult = {
   ok: boolean;
@@ -95,7 +108,7 @@ export async function overlayUploadFile(opts: {
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(url, { method: "POST", headers, body: form });
+  const res = await xfetch(url, { method: "POST", headers, body: form });
   try {
     const data = await res.json();
     return { ok: res.ok, status: res.status, fileName: file.name, data };

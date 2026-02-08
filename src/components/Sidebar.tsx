@@ -10,6 +10,7 @@ import {
   ChartBarIcon,
   Cog6ToothIcon,
   AdjustmentsHorizontalIcon,
+  FolderIcon,
 } from "@heroicons/react/24/outline";
 
 // redux toolkit
@@ -25,6 +26,7 @@ import { resetPdTransitionMatrixWfHelperData } from "../redux_toolkit/features/p
 
 // ----- Sidebar items (unchanged except for added tabs) -----
 const sidebarOptions: any[] = [
+  { tabName: "Workflows", icon: FolderIcon, subTabs: [] },
   { tabName: "Flowrate Approach", icon: ChartBarIcon, subTabs: [] },
   { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
   { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
@@ -34,6 +36,7 @@ const sidebarOptions: any[] = [
 
 // ----- Route maps (tab -> route, subtab -> route) -----
 const TAB_TO_ROUTE: Record<string, string> = {
+  "Workflows": "/workflows",
   "Overlay": "/overlay",
   "Flowrate Approach": "/flowrate",
   "Expected Credit Loss (ECL)": "/ecl",

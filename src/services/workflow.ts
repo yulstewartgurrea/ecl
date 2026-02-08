@@ -275,6 +275,53 @@ export async function listWorkflows(apiBase: string, token?: string | null) {
   return getJson<ApiEnvelope<Workflow[]>>(res);
 }
 
+export type SearchWorkflowsParams = {
+  apiBase: string;
+  token?: string | null;
+  skip?: number;
+  limit?: number;
+  search_query?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+};
+
+export type SearchWorkflowsResponse = {
+  code: number;
+  success: boolean;
+  data: Workflow[];
+  pagination: {
+    skip: number;
+    limit: number;
+    total: number;
+    count: number;
+    has_more: boolean;
+  };
+  msg?: string | null;
+};
+
+export async function searchWorkflows({
+  apiBase,
+  token,
+  skip = 0,
+  limit = 100,
+  search_query,
+  start_date,
+  end_date,
+}: SearchWorkflowsParams): Promise<SearchWorkflowsResponse> {
+  const params = new URLSearchParams();
+  params.append("skip", String(skip));
+  params.append("limit", String(limit));
+  if (search_query) params.append("search_query", search_query);
+  if (start_date) params.append("start_date", start_date);
+  if (end_date) params.append("end_date", end_date);
+
+  const res = await tFetch(`${base(apiBase)}/workflows/search?${params.toString()}`, {
+    method: "GET",
+    headers: withAuth(token),
+  });
+  return getJson<SearchWorkflowsResponse>(res);
+}
+
 export async function getWorkflowById(apiBase: string, id: number, token?: string | null) {
   const res = await tFetch(`${base(apiBase)}/workflows/${id}`, {
     method: "GET",
