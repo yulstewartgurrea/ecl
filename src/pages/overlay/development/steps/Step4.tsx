@@ -38,31 +38,31 @@ type Step4Props = {
   description?: string;
 };
 
-const EXCLUDE_KEYS = new Set(["id", "index", "__rowid__", "_rowIndex"]);
+// const EXCLUDE_KEYS = new Set(["id", "index", "__rowid__", "_rowIndex"]);
 
-function deriveHeaders(rows: Row[]): string[] {
-  const set = new Set<string>();
-  for (const r of rows || []) {
-    Object.keys(r || {}).forEach((k) => {
-      if (!EXCLUDE_KEYS.has(k)) set.add(k);
-    });
-  }
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
-}
+// function deriveHeaders(rows: Row[]): string[] {
+//   const set = new Set<string>();
+//   for (const r of rows || []) {
+//     Object.keys(r || {}).forEach((k) => {
+//       if (!EXCLUDE_KEYS.has(k)) set.add(k);
+//     });
+//   }
+//   return Array.from(set).sort((a, b) => a.localeCompare(b));
+// }
 
 // CSV helpers (used if server returns JSON)
-function escapeCsv(value: any): string {
-  if (value === null || value === undefined) return "";
-  const s = typeof value === "object" ? JSON.stringify(value) : String(value);
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-function toCsv(headers: string[], rows: Row[]): string {
-  const head = headers.join(",");
-  const body = rows.map((r) => headers.map((h) => escapeCsv(r[h])).join(",")).join("\n");
-  // Add BOM so Excel opens UTF-8 cleanly
-  return "\uFEFF" + head + "\n" + body;
-}
+// function escapeCsv(value: any): string {
+//   if (value === null || value === undefined) return "";
+//   const s = typeof value === "object" ? JSON.stringify(value) : String(value);
+//   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+//   return s;
+// }
+// function toCsv(headers: string[], rows: Row[]): string {
+//   const head = headers.join(",");
+//   const body = rows.map((r) => headers.map((h) => escapeCsv(r[h])).join(",")).join("\n");
+//   // Add BOM so Excel opens UTF-8 cleanly
+//   return "\uFEFF" + head + "\n" + body;
+// }
 
 const Step4: React.FC<Step4Props> = ({
   title = "Multi Factor Analysis",
