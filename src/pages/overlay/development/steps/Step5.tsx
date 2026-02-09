@@ -176,7 +176,6 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
     setLoading(true);
     setErrMsg(null);
-
     try {
       const res = await getFilteringModels({
         apiBase: API_BASE,
