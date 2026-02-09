@@ -20,9 +20,49 @@ from data.excluded_columns import excluded_columns
 def process_overlay_multiplier(default_rates_df: pd.DataFrame, 
                                forecasted_pd_df: pd.DataFrame):
     try:
-        # get latest Period row of default_rates_df max Period
-        last_period_default_rate = default_rates_df[default_rates_df['time'] == default_rates_df['time'].max()]
-        odr_value = last_period_default_rate['odr'].values[0]
+
+        print('default_rates_df \n', default_rates_df)
+        # Determine the date column name (could be 'date' or 'time', case-insensitive)
+        date_col = None
+        column_names_lower = {col.lower(): col for col in default_rates_df.columns}
+        
+        if 'date' in column_names_lower:
+            date_col = column_names_lower['date']
+        elif 'time' in column_names_lower:
+            date_col = column_names_lower['time']
+        else:
+            raise ValueError("No 'date' or 'time' column found in default_rates_df")
+        
+        # Convert date column to datetime, handling errors
+        default_rates_df = default_rates_df.copy()
+        default_rates_df[date_col] = pd.to_datetime(default_rates_df[date_col], errors='coerce')
+        
+        # Filter out rows where date is NaT (like "Average" row) and get the latest date
+        valid_dates_df = default_rates_df[default_rates_df[date_col].notna()]
+        if valid_dates_df.empty:
+            raise ValueError("No valid dates found in default_rates_df")
+        
+        max_date = valid_dates_df[date_col].max()
+        last_period_default_rate = valid_dates_df[valid_dates_df[date_col] == max_date]
+        
+        print('last_period_default_rate', last_period_default_rate)
+        
+        # Find the ODR column name case-insensitively (accepts 'odr' or 'weighted credit loss rate per month')
+        odr_col = None
+        odr_column_names_lower = {col.lower(): col for col in last_period_default_rate.columns}
+        
+        # Try 'odr' first, then 'weighted credit loss rate per month'
+        if 'odr' in odr_column_names_lower:
+            odr_col = odr_column_names_lower['odr']
+        elif 'weighted credit loss rate per month' in odr_column_names_lower:
+            odr_col = odr_column_names_lower['weighted credit loss rate per month']
+        else:
+            raise ValueError("Could not find 'odr' or 'Weighted Credit Loss Rate per Month' column (case-insensitive)")
+        
+        if last_period_default_rate.empty:
+            raise ValueError("No data found for latest date")
+        
+        odr_value = last_period_default_rate[odr_col].values[0]
         
         # Convert odr to numeric: if it has % sign, remove it and convert to decimal (divide by 100)
         if isinstance(odr_value, str):
@@ -37,25 +77,23 @@ def process_overlay_multiplier(default_rates_df: pd.DataFrame,
                 odr_numeric = odr_numeric / 100.0
         
         latest_default_rate = {
-            'time': last_period_default_rate['time'].values[0],
+            'time': last_period_default_rate[date_col].values[0],
             'odr': odr_numeric
         }
+        print('latest_default_rate \n', latest_default_rate)
 
-        print('latest_default_rate', latest_default_rate)
-        print('forecasted_pd_df', forecasted_pd_df)
-
-        # Ensure forecasted_pd_df columns are numeric
-        forecasted_pd_df = forecasted_pd_df.copy()
-        for col in ['Upside', 'Base', 'Downside']:
-            if col in forecasted_pd_df.columns:
-                forecasted_pd_df[col] = pd.to_numeric(forecasted_pd_df[col], errors='coerce')
+        # Get the last row of forecasted_pd_df
+        last_row_forecasted_pd = forecasted_pd_df.iloc[-1]
+        print('last_row_forecasted_pd \n', last_row_forecasted_pd)
 
         # calculate overlay multiplier
-        output_df = forecasted_pd_df.copy()
-        output_df['Upside'] = latest_default_rate['odr'] / forecasted_pd_df['Upside']
-        output_df['Base'] = latest_default_rate['odr'] / forecasted_pd_df['Base']
-        output_df['Downside'] = latest_default_rate['odr'] / forecasted_pd_df['Downside']
+        output_df = pd.DataFrame()
+        output_df['Period'] = [latest_default_rate['time']]
+        output_df['Upside'] = [last_row_forecasted_pd['Upside'] / latest_default_rate['odr']]
+        output_df['Base'] = [last_row_forecasted_pd['Base'] / latest_default_rate['odr']]
+        output_df['Downside'] = [last_row_forecasted_pd['Downside'] / latest_default_rate['odr']]
 
+        print('output_df \n', output_df)
         return output_df
 
     except Exception as e:

@@ -522,27 +522,27 @@ def generate_variable_combinations(x_raw_vars: list,
     comb_extended = [list(c) for c in comb_no_lags]
     print(f"Base combinations: {len(comb_extended)}")
 
-    # Level/GR
-    print("Applying Level/GR permutations...")
-    if cancellation_check and cancellation_check():
-        raise Exception("Job cancelled")
+    # # Level/GR
+    # print("Applying Level/GR permutations...")
+    # if cancellation_check and cancellation_check():
+    #     raise Exception("Job cancelled")
     
-    level_gr_options = ["", ".Level", ".GR"]
-    level_gr_perms = list(product(level_gr_options, repeat=num_vars_taken))
+    # level_gr_options = ["", ".Level", ".GR"]
+    # level_gr_perms = list(product(level_gr_options, repeat=num_vars_taken))
 
-    new_ext = []
-    for idx, base_comb in enumerate(comb_extended):
-        if cancellation_check and idx % 100 == 0 and cancellation_check():
-            raise Exception("Job cancelled")
-        for p in level_gr_perms:
-            names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
-            # Early filtering: only append if all columns exist and don't have both .diff_12 and .lag_12
-            if all(v in x_transformed.columns and not should_exclude_column(v) for v in names):
-                new_ext.append(names)
-    comb_extended = new_ext
-    print(f"Valid Level/GR combinations: {len(comb_extended)}")
-    if not comb_extended:
-        print("No valid Level/GR combinations; check .Level/.GR creation.")
+    # new_ext = []
+    # for idx, base_comb in enumerate(comb_extended):
+    #     if cancellation_check and idx % 100 == 0 and cancellation_check():
+    #         raise Exception("Job cancelled")
+    #     for p in level_gr_perms:
+    #         names = [base_comb[i] + p[i] for i in range(num_vars_taken)]
+    #         # Early filtering: only append if all columns exist and don't have both .diff_12 and .lag_12
+    #         if all(v in x_transformed.columns and not should_exclude_column(v) for v in names):
+    #             new_ext.append(names)
+    # comb_extended = new_ext
+    # print(f"Valid Level/GR combinations: {len(comb_extended)}")
+    # if not comb_extended:
+    #     print("No valid Level/GR combinations; check .Level/.GR creation.")
 
     # Transformations
     print("Applying transformation permutations...")

@@ -20,18 +20,18 @@ export type OverlayMultiplierSummaryProps = {
  * Interprets the value as 0“1 probability or ratio and multiplies by 100.
  * Uses exponential notation for very large values to keep them readable.
  */
-const formatPctNumber = (n: number): string => {
-  const pct = n * 100;
-  if (!Number.isFinite(pct)) return "";
+// const formatPctNumber = (n: number): string => {
+//   const pct = n * 100;
+//   if (!Number.isFinite(pct)) return "";
 
-  if (Math.abs(pct) >= 1e6) {
-    // avoid ultra-long strings when values are huge
-    return `${pct.toExponential(2)}%`;
-  }
-  return `${pct.toFixed(2)}%`;
-};
+//   if (Math.abs(pct) >= 1e6) {
+//     // avoid ultra-long strings when values are huge
+//     return `${pct.toExponential(2)}%`;
+//   }
+//   return `${pct.toFixed(2)}%`;
+// };
 
-const fmtMult = (v: number) => formatPctNumber(v);
+const fmtMult = (v: number) => v.toFixed(2);
 
 const OverlayMultiplierSummary: React.FC<OverlayMultiplierSummaryProps> = ({
   rows,

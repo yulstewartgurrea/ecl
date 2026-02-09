@@ -11,6 +11,7 @@ import FlowrateApproachPage from "./pages/flowrate_approach/FlowrateApproach";
 import WorkflowFolderList from "./pages/flowrate_approach/WorkflowFolderList";
 import EclUpload from "./pages/ecl/EclUpload";
 import BackendLoader from "./components/BackendLoader";
+import Workflows from "./pages/workflows/Workflows";
 
 // redux toolkit
 import { useAppSelector } from "./redux_toolkit/hooks";
@@ -95,6 +96,7 @@ function App() {
         element={isLoggedIn ? <Sidebar /> : <Navigate to="/login" />}
       >
         <Route index element={<WorkflowLists />} />
+        <Route path="workflows" element={<Workflows />} />
         <Route path="flowrate" element={<WorkflowLists />} />
         <Route path="WorkflowFolderList" element={<WorkflowFolderList/>} />
         <Route path="pd_landing" element={<FlowrateApproachPage />} />

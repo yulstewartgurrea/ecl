@@ -49,10 +49,10 @@ def process_ecl_data(client_loan_balances_file, credit_loss_rates_file, parsed_p
         # Build lookup table (index=aging category, cols=scenarios)
         lookup = credit_loss_rates_df.set_index("aging category")[["upside", "baseline", "downside"]]
 
-        # Map each scenario into df
-        df["credit loss rate upside"] = df["aging category"].map(lookup["upside"])
-        df["credit loss rate baseline"] = df["aging category"].map(lookup["baseline"])
-        df["credit loss rate downside"] = df["aging category"].map(lookup["downside"])
+        # Map each scenario into df (set to 100 if not found in mapping)
+        df["credit loss rate upside"] = df["aging category"].map(lookup["upside"]).fillna(1)
+        df["credit loss rate baseline"] = df["aging category"].map(lookup["baseline"]).fillna(1)
+        df["credit loss rate downside"] = df["aging category"].map(lookup["downside"]).fillna(1)
 
         # Optional: fail fast if any didn't match
         missing_mask = (
@@ -67,11 +67,19 @@ def process_ecl_data(client_loan_balances_file, credit_loss_rates_file, parsed_p
         df['expected credit loss upside'] = df['loan_balance'] * df['credit loss rate upside']
         df['expected credit loss baseline'] = df['loan_balance'] * df['credit loss rate baseline']
         df['expected credit loss downside'] = df['loan_balance'] * df['credit loss rate downside']
+        
+        # Divide probability weights by 100
+        probability_weights = {
+            "upside": parsed_probability_weights["upside"] / 100.0,
+            "baseline": parsed_probability_weights["baseline"] / 100.0,
+            "downside": parsed_probability_weights["downside"] / 100.0
+        }
+        
         # wighted ecl is =SUMPRODUCT($P7:$R7,'01.01| Credit Loss Rates'!$D$29:$F$29)
         df["weighted ecl"] = (
-            df["expected credit loss upside"] * parsed_probability_weights["upside"] +
-            df["expected credit loss baseline"] * parsed_probability_weights["baseline"] +
-            df["expected credit loss downside"] * parsed_probability_weights["downside"]
+            (df["expected credit loss upside"] * probability_weights["upside"]) +
+            (df["expected credit loss baseline"] * probability_weights["baseline"]) +
+            (df["expected credit loss downside"] * probability_weights["downside"])
         )
 
         return df

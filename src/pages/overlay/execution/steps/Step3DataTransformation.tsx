@@ -24,7 +24,6 @@ import {
   getDataTransformationStatusExecution,
   getDataTransformationResultsExecution,
   cancelDataTransformationExecution,
-  exportDataTransformationExecution,
   shapeTransformationResults,
   type DataTransformationStatus,
 } from "../../../../services/dataTransformation";
@@ -628,22 +627,37 @@ export default function OverlayDevelpmentPage3() {
     setExporting(true);
 
     try {
-      const blob = await exportDataTransformationExecution({
-        apiBase: API_BASE,
-        token,
-        workflowId: Number(selectedWorkflowId),
-        fileType: "both",
+      const url = `${API_BASE}/api/overlay/execution/data_transformation_results/export/?workflow_id=${encodeURIComponent(selectedWorkflowId)}`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
-      const href = URL.createObjectURL(blob);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Export failed: HTTP ${res.status}${text ? ` – ${text}` : ""}`);
+      }
+
+      // Extract filename from Content-Disposition header
+      const contentDisposition = res.headers.get("Content-Disposition");
+      let filename = `data_transformation_results_${selectedWorkflowId}.zip`; // Default filename
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // Get the blob and create a download link
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const filename = `data_transformation_results_${selectedWorkflowId}.zip`;
-      a.href = href;
+      a.href = downloadUrl;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(href);
+      window.URL.revokeObjectURL(downloadUrl);
     } catch (e: any) {
       console.error(e);
       setExportErr(e?.message || "Export failed");

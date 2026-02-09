@@ -68,10 +68,11 @@ def forecast_mevs_quarterly(
         
         # Remove first 3 rows (headers/metadata rows)
         # Row 1: Column names, Row 2: Descriptions, Row 3: Units
-        independent = independent.iloc[3:].reset_index(drop=True)
+        independent = independent.iloc[2:].reset_index(drop=True)
         
-        # Extract the actual last date from the file using year and quarter columns BEFORE converting to numeric
-        # This will be used to determine where forecasts should start
+        # Extract dates from the file using year and quarter columns
+        # This will be used to determine where forecasts should start and to align data properly
+        file_dates = None
         actual_last_date = None
         if 'year' in independent.columns and 'quarter' in independent.columns:
             try:
@@ -87,12 +88,12 @@ def forecast_mevs_quarterly(
                     errors='coerce'
                 )
                 # Convert to quarter end dates
-                dates = dates + pd.offsets.QuarterEnd(0)
-                actual_last_date = dates.max()
+                file_dates = dates + pd.offsets.QuarterEnd(0)
+                actual_last_date = file_dates.max()
                 if pd.notna(actual_last_date):
                     print(f"Found actual last date in file: {actual_last_date}")
             except Exception as e:
-                print(f"Could not extract last date from file: {e}")
+                print(f"Could not extract dates from file: {e}")
         
         # Clean percentage signs and convert to numeric (but preserve year and quarter columns for now)
         year_col_backup = None
@@ -127,8 +128,54 @@ def forecast_mevs_quarterly(
         
         print(f"\nStep 2: Found {len(variables)} variables to forecast (excluding {len(independent.columns) - len(variables)} metadata columns)")
         
-        # Step 3: Forecast each variable
-        print(f"\nStep 3: Forecasting {quarters_to_forecast} quarters ahead for each variable...")
+        # Step 3a: First pass - find maximum end date across all variables
+        print(f"\nStep 3a: Finding maximum end date across all variables...")
+        variable_last_dates = {}
+        
+        for var_name in variables:
+            try:
+                # Get data for this variable with its corresponding dates
+                if file_dates is not None:
+                    var_series = pd.Series(independent[var_name].values, index=file_dates.values)
+                    var_series = var_series.dropna()
+                    
+                    if len(var_series) >= 4:
+                        variable_last_dates[var_name] = var_series.index[-1]
+                else:
+                    # Fallback: use old method
+                    data = independent[var_name].dropna().values
+                    if len(data) >= 4:
+                        quarter_to_month = {1: 3, 2: 6, 3: 9, 4: 12}
+                        start_date = pd.Timestamp(year=start_year, month=quarter_to_month[start_quarter], day=1)
+                        end_date = pd.Timestamp(year=end_year, month=quarter_to_month[end_quarter], day=1)
+                        date_range = pd.date_range(start=start_date, end=end_date, freq='Q')
+                        if len(data) <= len(date_range):
+                            variable_last_dates[var_name] = date_range[min(len(data) - 1, len(date_range) - 1)]
+            except Exception:
+                continue
+        
+        # Calculate target end date (max last date + forecast quarters)
+        # Convert to quarter-end for consistency
+        if variable_last_dates:
+            max_last_date = max(variable_last_dates.values())
+            # Move to quarter-end if not already
+            max_last_date = max_last_date + pd.offsets.QuarterEnd(0)
+            # Calculate target end date (max last date + forecast quarters, then move to quarter-end)
+            target_end_date = max_last_date + pd.DateOffset(months=quarters_to_forecast * 3)
+            target_end_date = target_end_date + pd.offsets.QuarterEnd(0)
+            print(f"   Maximum last date: {max_last_date}")
+            print(f"   Target end date: {target_end_date}")
+        else:
+            # Fallback: use parameters
+            quarter_to_month = {1: 3, 2: 6, 3: 9, 4: 12}
+            end_date = pd.Timestamp(year=end_year, month=quarter_to_month[end_quarter], day=1)
+            end_date = end_date + pd.offsets.QuarterEnd(0)
+            target_end_date = end_date + pd.DateOffset(months=quarters_to_forecast * 3)
+            target_end_date = target_end_date + pd.offsets.QuarterEnd(0)
+            print(f"   Using parameter-based target end date: {target_end_date}")
+        
+        # Step 3b: Forecast each variable to reach target end date
+        print(f"\nStep 3b: Forecasting each variable to reach target end date {target_end_date}...")
         
         forecast_results = []
         
@@ -136,36 +183,61 @@ def forecast_mevs_quarterly(
             print(f"   [{var_idx}/{len(variables)}] Forecasting: {var_name}")
             
             try:
-                # Get data for this variable
-                data = independent[var_name].dropna().values
-                
-                # Check if column has sufficient valid data (at least 4 non-null values for quarterly)
-                if len(data) < 4:
-                    print(f"      Warning: Insufficient valid data for {var_name} ({len(data)} values, need at least 4), skipping...")
-                    continue
-                
-                # Create time series object
-                # R: ts(start = c(start_year, start_quarter), end = c(end_year, end_quarter), freq = 4)
-                # Convert quarter to month (Q1=Mar, Q2=Jun, Q3=Sep, Q4=Dec)
-                quarter_to_month = {1: 3, 2: 6, 3: 9, 4: 12}
-                start_date = pd.Timestamp(year=start_year, month=quarter_to_month[start_quarter], day=1)
-                end_date = pd.Timestamp(year=end_year, month=quarter_to_month[end_quarter], day=1)
-                
-                # Create date range for historical data (quarterly)
-                date_range = pd.date_range(start=start_date, end=end_date, freq='Q')  # Quarter End
-                
-                # Align data with date range (handle length mismatch)
-                if len(data) > len(date_range):
-                    data = data[:len(date_range)]
-                elif len(data) < len(date_range):
-                    # Pad with NaN if needed
-                    padded_data = np.full(len(date_range), np.nan)
-                    padded_data[:len(data)] = data
-                    data = padded_data
-                
-                # Create time series
-                data_ts = pd.Series(data, index=date_range)
-                data_ts = data_ts.dropna()
+                # Get data for this variable with its corresponding dates
+                if file_dates is not None:
+                    # Create a series with dates as index and variable values
+                    var_series = pd.Series(independent[var_name].values, index=file_dates.values)
+                    # Remove NaN values - this will also remove rows with invalid dates
+                    var_series = var_series.dropna()
+                    
+                    if len(var_series) < 4:
+                        print(f"      Warning: Insufficient valid data for {var_name} ({len(var_series)} values, need at least 4), skipping...")
+                        continue
+                    
+                    # Get the first and last dates where data exists
+                    first_date = var_series.index[0]
+                    last_date = var_series.index[-1]
+                    
+                    print(f'      Data starts at: {first_date}, ends at: {last_date} (length: {len(var_series)})')
+                    
+                    # Create time series - data already has proper dates as index
+                    data_ts = var_series
+                else:
+                    # Fallback: use old method if dates not available
+                    data = independent[var_name].dropna().values
+                    
+                    if len(data) < 4:
+                        print(f"      Warning: Insufficient valid data for {var_name} ({len(data)} values, need at least 4), skipping...")
+                        continue
+                    
+                    # Create time series object
+                    # R: ts(start = c(start_year, start_quarter), end = c(end_year, end_quarter), freq = 4)
+                    # Convert quarter to month (Q1=Mar, Q2=Jun, Q3=Sep, Q4=Dec)
+                    quarter_to_month = {1: 3, 2: 6, 3: 9, 4: 12}
+                    start_date = pd.Timestamp(year=start_year, month=quarter_to_month[start_quarter], day=1)
+                    end_date = pd.Timestamp(year=end_year, month=quarter_to_month[end_quarter], day=1)
+                    
+                    # Create date range for historical data (quarterly)
+                    date_range = pd.date_range(start=start_date, end=end_date, freq='Q')  # Quarter End
+                    
+                    # Align data with date range
+                    if len(data) > len(date_range):
+                        data = data[:len(date_range)]
+                    elif len(data) < len(date_range):
+                        padded_data = np.full(len(date_range), np.nan)
+                        padded_data[:len(data)] = data
+                        data = padded_data
+                    
+                    # Create time series
+                    data_ts = pd.Series(data, index=date_range)
+                    data_ts = data_ts.dropna()
+                    if len(data_ts) > 0:
+                        first_date = data_ts.index[0]
+                        last_date = data_ts.index[-1]
+                        print(f'      Data starts at: {first_date}, ends at: {last_date} (length: {len(data_ts)})')
+                    else:
+                        print(f"      Warning: No valid data after processing for {var_name}, skipping...")
+                        continue
                 
                 if len(data_ts) < 4:  # Need at least 4 quarters for seasonal ARIMA
                     print(f"      Warning: Insufficient data for {var_name} (need at least 4 quarters), skipping...")
@@ -201,6 +273,17 @@ def forecast_mevs_quarterly(
                     print(f"      Skipping {var_name}...")
                     continue
                 
+                # Calculate quarters needed to reach target end date
+                variable_last_date = data_ts.index[-1]
+                forecast_start = variable_last_date + pd.DateOffset(months=3)
+                
+                # Calculate quarters needed to reach target end date
+                # Create date range from forecast_start to target_end_date and count quarters
+                temp_range = pd.date_range(start=forecast_start, end=target_end_date, freq='Q')
+                quarters_needed = len(temp_range)
+                # Ensure we forecast at least the requested number of quarters
+                quarters_to_forecast_var = max(quarters_to_forecast, quarters_needed)
+                
                 # Forecast
                 # R: forecast(fit, h=quarter_to_forecast)
                 # Try to get confidence intervals from the model
@@ -208,13 +291,13 @@ def forecast_mevs_quarterly(
                     if PMDARIMA_AVAILABLE and hasattr(model, 'predict'):
                         # pmdarima's predict can return confidence intervals
                         forecast_result, conf_int = model.predict(
-                            n_periods=quarters_to_forecast,
+                            n_periods=quarters_to_forecast_var,
                             return_conf_int=True,
                             alpha=0.2  # 80% confidence interval
                         )
                         # Get 95% confidence interval as well
                         _, conf_int_95 = model.predict(
-                            n_periods=quarters_to_forecast,
+                            n_periods=quarters_to_forecast_var,
                             return_conf_int=True,
                             alpha=0.05  # 95% confidence interval
                         )
@@ -227,9 +310,9 @@ def forecast_mevs_quarterly(
                         upper_95 = pd.Series(conf_int_95[:, 1], index=forecast_result.index if hasattr(forecast_result, 'index') else range(len(conf_int_95)))
                     else:
                         # Fallback: use model's get_forecast if available (statsmodels)
-                        forecast_result = model.predict(n_periods=quarters_to_forecast)
+                        forecast_result = model.predict(n_periods=quarters_to_forecast_var)
                         if hasattr(model, 'get_forecast'):
-                            forecast_obj = model.get_forecast(steps=quarters_to_forecast)
+                            forecast_obj = model.get_forecast(steps=quarters_to_forecast_var)
                             forecast_result = forecast_obj.predicted_mean
                             conf_int = forecast_obj.conf_int(alpha=0.2)  # 80% CI
                             conf_int_95 = forecast_obj.conf_int(alpha=0.05)  # 95% CI
@@ -247,7 +330,7 @@ def forecast_mevs_quarterly(
                             upper_95 = forecast_result + 1.96 * forecast_std
                 except Exception as e:
                     # Fallback: simple prediction with approximate intervals
-                    forecast_result = model.predict(n_periods=quarters_to_forecast)
+                    forecast_result = model.predict(n_periods=quarters_to_forecast_var)
                     forecast_result = pd.Series(forecast_result) if not isinstance(forecast_result, pd.Series) else forecast_result
                     forecast_std = np.std(data_ts.values) if len(data_ts) > 0 else 1.0
                     lower_80 = forecast_result - 1.28 * forecast_std
@@ -256,40 +339,22 @@ def forecast_mevs_quarterly(
                     upper_95 = forecast_result + 1.96 * forecast_std
                 
                 # Create forecast dates
-                # Use actual_last_date from the file if available, otherwise use end_date from parameters
-                # This ensures we start forecasting from the quarter after the actual last quarter in the file
-                if actual_last_date is not None and pd.notna(actual_last_date):
-                    last_date = actual_last_date
-                    print(f'      Using actual_last_date from file: {last_date}')
-                else:
-                    # Fallback: find the last date with actual data from the original date_range
-                    original_series = pd.Series(data, index=date_range)
-                    last_valid_idx = original_series.last_valid_index()
-                    if last_valid_idx is not None:
-                        last_date = last_valid_idx
-                        print(f'      Using last_valid_date from data: {last_date}')
-                    else:
-                        last_date = end_date
-                        print(f'      Using end_date from parameters: {last_date}')
-                
-                print(f'      end_date (from parameters): {end_date}')
-                print(f'      data_ts.index[-1] (after dropna): {data_ts.index[-1]}')
-                
-                # Start forecast from the next quarter after last_date
-                forecast_start = last_date + pd.DateOffset(months=3)
+                # Use the calculated forecast_start and quarters_to_forecast_var from above
+                print(f'      Variable last date: {variable_last_date}')
                 print(f'      forecast_start (last_date + 3 months): {forecast_start}')
+                print(f'      Quarters to forecast: {quarters_to_forecast_var} (to reach {target_end_date})')
                 
                 forecast_dates = pd.date_range(
                     start=forecast_start,
-                    periods=quarters_to_forecast,
+                    periods=quarters_to_forecast_var,
                     freq='Q'
                 )
                 
                 # Print forecast information
-                months_forecasted = quarters_to_forecast * 3
+                months_forecasted = quarters_to_forecast_var * 3
                 start_month = forecast_dates[0].strftime('%Y-%m')
                 end_month = forecast_dates[-1].strftime('%Y-%m')
-                print(f"      Forecasting {quarters_to_forecast} quarters ({months_forecasted} months)")
+                print(f"      Forecasting {quarters_to_forecast_var} quarters ({months_forecasted} months)")
                 print(f"      Forecast start month: {start_month}")
                 print(f"      Forecast end month: {end_month}")
                 

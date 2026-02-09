@@ -1,5 +1,6 @@
 import pandas as pd
 import traceback
+import os
 
 def process_credit_loss_rates(aging_report_file, 
                               ecl_multiplier_file, 
@@ -22,16 +23,38 @@ def process_credit_loss_rates(aging_report_file,
     avg_values = average_df.iloc[0].values
 
     historical_credit_loss_rates = avg_values
-    historical_credit_loss_rates = [
-        r / 100.0 for r in historical_credit_loss_rates
-    ]
+    # historical_credit_loss_rates = [
+    #     r / 100.0 for r in historical_credit_loss_rates
+    # ]
 
     # get default rates and determines latest period
-    historical_default_rates_df = pd.read_csv(historical_default_rates_file)
-    # Convert to datetime
-    historical_default_rates_df["time"] = pd.to_datetime(historical_default_rates_df["time"])
+    # Check file extension and use appropriate reader
+    file_ext = os.path.splitext(historical_default_rates_file)[1].lower()
+    if file_ext in ['.xlsx', '.xls']:
+        historical_default_rates_df = pd.read_excel(historical_default_rates_file)
+    else:
+        historical_default_rates_df = pd.read_csv(historical_default_rates_file)
+
+    print(historical_default_rates_df.columns)
+    
+    # Find time/period column (case-insensitive)
+    time_col = None
+    column_names_lower = {col.lower(): col for col in historical_default_rates_df.columns}
+    if 'period' in column_names_lower:
+        time_col = column_names_lower['period']
+    elif 'time' in column_names_lower:
+        time_col = column_names_lower['time']
+    elif 'date' in column_names_lower:
+        time_col = column_names_lower['date']
+    else:
+        raise ValueError("No 'period', 'time' or 'date' column found in historical_default_rates_df")
+    
+    # Convert to datetime with errors='coerce' to handle invalid dates (like "Average")
+    historical_default_rates_df[time_col] = pd.to_datetime(historical_default_rates_df[time_col], errors='coerce')
+    # Filter out rows where datetime is NaT (invalid dates like "Average")
+    historical_default_rates_df = historical_default_rates_df[historical_default_rates_df[time_col].notna()]
     # Get max time
-    max_time = historical_default_rates_df["time"].max()
+    max_time = historical_default_rates_df[time_col].max()
 
     overlay_multiplier_df = pd.read_csv(overlay_multiplier_file)
     # convert period to datetime
@@ -65,6 +88,12 @@ def process_credit_loss_rates(aging_report_file,
     df['downside'] = (
         df['historical credit loss rate'] * overlay_multipliers['downside']
     ).clip(upper=1.0)
+
+    # make last row of df upside baseline and downside to 1
+    df.iloc[-1, df.columns.get_loc('upside')] = 1
+    df.iloc[-1, df.columns.get_loc('baseline')] = 1
+    df.iloc[-1, df.columns.get_loc('downside')] = 1
+
     return df
   
   except Exception as e:

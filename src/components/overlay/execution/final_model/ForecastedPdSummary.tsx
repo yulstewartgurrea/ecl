@@ -45,7 +45,7 @@ const formatPctNumber = (v: number): string => {
 };
 
 // Used for MLR table cells (Best / Base / Worst)
-const fmtNumber = (v: number) => formatPctNumber(v);
+const fmtNumber = (v: number) => v.toFixed(2);
 
 // Used for Forecasted PD table cells (Best / Base / Worst)
 const fmtPct = (v: number) => formatPctNumber(v);
@@ -148,13 +148,13 @@ const ForecastedPdSummary: React.FC<ForecastedPdSummaryProps> = ({
                         Date
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Upside (%)
+                        Upside
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Base (%)
+                        Base
                       </th>
                       <th className="bg-gray-700 text-white px-2.5 py-1.5 text-center font-medium">
-                        Downside (%)
+                        Downside
                       </th>
                     </tr>
                   </thead>

@@ -31,6 +31,7 @@ import {
   setPdTransitionMatrixWfName,
   setPdTransitionMatrixWorkflowId,
   setPdTransitionMatrixSelectedLoanProduct,
+  setPdTransitionMatrixWorkflowData,
 } from "../../../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 
 import type { Workflow } from "../../../../services/workflow";
@@ -75,9 +76,9 @@ function inferExecDocTypeFromName(name: string): ExecDocType | null {
   return null;
 }
 
-function composeWorkflowPathWithDocType(basePath: string, docType: ExecDocType) {
-  return `${basePath.replace(/\/+$/g, "")}/${docType}`;
-}
+// function composeWorkflowPathWithDocType(basePath: string, docType: ExecDocType) {
+//   return `${basePath.replace(/\/+$/g, "")}/${docType}`;
+// }
 
 const mimeFromName = (name: string) => {
   const lower = name.toLowerCase();
@@ -90,9 +91,6 @@ const mimeFromName = (name: string) => {
 const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 const uniqueFiles = (files: File[]) =>
   Array.from(new Map(files.map((f) => [fileKey(f), f])).values());
-
-const formatBytes = (n?: number) =>
-  typeof n === "number" ? `${n.toLocaleString()} bytes` : "unknown size";
 
 /* -----------------------------------------------------------
    Existing doc type (keeps sizeBytes etc.)
@@ -167,6 +165,7 @@ export default function Step1() {
   const [uploadIssues, setUploadIssues] = useState<IssueRow[]>([]);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [skipFetchExisting, setSkipFetchExisting] = useState(false);
 
   // auto-generation state (kept)
   const [autoRunning, setAutoRunning] = useState(false);
@@ -230,6 +229,11 @@ export default function Step1() {
   ----------------------------------------------------------- */
   const fetchExistingDocuments = useCallback(async () => {
     if (!selectedWorkflowId || !token) return;
+    
+    // Skip fetching if we just uploaded a new file (to prevent overwriting the new upload)
+    if (skipFetchExisting) {
+      return;
+    }
 
     const documentTypes = [
       DOC_MONTHLY,
@@ -288,7 +292,7 @@ export default function Step1() {
     } catch (err) {
       console.error("Failed to fetch execution docs:", err);
     }
-  }, [selectedWorkflowId, token]);
+  }, [selectedWorkflowId, token, skipFetchExisting]);
 
   useEffect(() => {
     if (selectedWorkflowId) fetchExistingDocuments();
@@ -517,7 +521,7 @@ export default function Step1() {
      - resets previous issues before attempting upload (so modal will re-open)
   ----------------------------------------------------------- */
   const uploadFile = useCallback(
-    async (file: File, docType: ExecDocType) => {
+    async (file: File, docType: ExecDocType, override: boolean = false) => {
       if (!file) return;
       const fileName = file.name;
       if (!token) return;
@@ -526,7 +530,8 @@ export default function Step1() {
       setUploadIssues([]);
       setUploadModalOpen(false);
 
-      // don't block only on name clash with previous uploaded; let user re-attempt failed ones
+      // Check if already uploading - if so, don't start another upload
+      // But allow re-upload if it was previously uploaded (override allows replacement)
       if (uploadingFiles.has(fileName)) return;
 
       setUploadingFiles((prev) => new Set(prev).add(fileName));
@@ -540,7 +545,7 @@ export default function Step1() {
           workflowPath: finalWorkflowPath,
           documentType: docType,
           workflowId: effectiveWorkflowId,
-          override: false,
+          override,
           moduleVal: "OVERLAY",
           submoduleVal: "EXECUTION",
         });
@@ -577,6 +582,10 @@ export default function Step1() {
           setSuccessBanner(`${fileName} uploaded successfully!`);
           setUploadModalOpen(false);
           setUploadIssues([]);
+          // Prevent fetchExistingDocuments from overwriting the newly uploaded file
+          setSkipFetchExisting(true);
+          // Reset the skip flag after a delay to allow future fetches
+          setTimeout(() => setSkipFetchExisting(false), 2000);
           return;
         }
 
@@ -659,6 +668,29 @@ export default function Step1() {
       const f = single[0];
       if (!f) return;
 
+      // Reset skip flag when user selects a new file
+      setSkipFetchExisting(false);
+
+      // Remove from uploadedFiles and failedFiles to allow re-uploading the same file
+      setUploadedFiles((prev) => {
+        const ns = new Set(prev);
+        ns.delete(f.name);
+        return ns;
+      });
+      setFailedFiles((prev) => {
+        const ns = new Set(prev);
+        ns.delete(f.name);
+        return ns;
+      });
+      setUploadingFiles((prev) => {
+        const ns = new Set(prev);
+        ns.delete(f.name);
+        return ns;
+      });
+
+      // Small delay to ensure state updates are processed
+      await new Promise(resolve => setTimeout(resolve, 0));
+
       // if placeholder from server, don't attempt upload
       if ((f as any).isExisting) return;
 
@@ -668,7 +700,7 @@ export default function Step1() {
       // always attempt upload (even if previously failed) — uploadFile will handle marking
       await uploadFile(f, docType);
     },
-    [uploadingFiles, uploadFile]
+    [uploadFile]
   );
 
   /* -----------------------------------------------------------
@@ -724,6 +756,8 @@ export default function Step1() {
       if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
       if (nextLoanProduct) dispatch(setPdTransitionMatrixSelectedLoanProduct({ loan_product: nextLoanProduct }));
       dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
+      // Update workflow data to ensure currentPdTransitionMatrixWorkflowData is in sync
+      dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: w as any }));
 
       setPickerOpen(false);
     },
@@ -753,43 +787,11 @@ export default function Step1() {
     for (const file of retryFiles) {
       const docType = inferExecDocTypeFromName(file.name);
       if (!docType) continue;
-      try {
-        const finalWorkflowPath = composeWorkflowPathWithDocType(workflowPathBase, docType);
-        const result = await overlayUploadFile({
-          baseUrl: API_BASE,
-          token,
-          file,
-          workflowPath: finalWorkflowPath,
-          documentType: docType,
-          workflowId: effectiveWorkflowId,
-          override: true,
-          moduleVal: "OVERLAY",
-          submoduleVal: "EXECUTION",
-        });
-        if (result.ok) {
-          const fileName = file.name;
-          setUploadedFiles((prev) => new Set(prev).add(fileName));
-          setFailedFiles((prev) => {
-            const ns = new Set(prev);
-            ns.delete(fileName);
-            return ns;
-          });
-          // place into appropriate slot (retry assumes manual mode override)
-          const asExisting: ExistingDocFile = Object.assign(file, { sizeBytes: file.size, isExisting: false, documentType: docType });
-          if (docType === DOC_MONTHLY) setMonthlyFiles([asExisting]);
-          else if (docType === DOC_QUARTERLY) setQuarterlyFiles([asExisting]);
-          else if (docType === DOC_FINAL_MODEL) setFinalModelFiles([asExisting]);
-          else if (docType === DOC_HISTORICAL_WEIGHTED) setHistoricalWeightedFiles([asExisting]);
-
-          setFailedFilesForRetry((prev) => prev.filter((f) => f.name !== fileName));
-          setSuccessBanner(`${fileName} uploaded successfully with override!`);
-        }
-      } catch (err) {
-        console.error(`Retry failed for ${file.name}:`, err);
-      }
+      // Use uploadFile with override: true when retrying
+      await uploadFile(file, docType, true);
     }
     setUploadModalOpen(false);
-  }, [failedFiles, failedFilesForRetry, workflowPathBase, token, effectiveWorkflowId]);
+  }, [failedFiles, failedFilesForRetry, uploadFile]);
 
   /* -----------------------------------------------------------
      UI

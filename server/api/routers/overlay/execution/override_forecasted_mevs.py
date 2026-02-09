@@ -396,20 +396,40 @@ async def get_override_forecasted_mevs_input(
                 f"{workflow.workflow_name}/"
                 f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
             )
+            period_file = get_latest_file(period_path)
+            if period_file is None:
+                period_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE"
+                )
+                period_file = get_latest_file(period_path)
 
-            final_models = (
+            final_models_path = (
                 f"{get_root_folder()}/server/files/"
                 f"{workflow.entity}/"
                 f"{workflow.reporting_period}/"
                 f"{workflow.workflow_name}/"
                 f"output/overlay/development/{workflow.loan_product}/final_models"
             )
-
-            period_file = get_latest_file(period_path)
-            final_models_file = get_latest_file(final_models)
+            final_models_file = get_latest_file(final_models_path)
+            if final_models_file is None:
+                final_models_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_FINAL_MODEL"
+                )
+                final_models_file = get_latest_file(final_models_path)
 
             if period_file is None:
-                raise ValueError(f"No file found in {period_path}")
+                raise ValueError(f"Pls upload overlay execution historical default rate.")
+
+            if final_models_file is None:
+                raise ValueError(f"Overlay execution final model is not uploaded.")
 
             # file is csv read_csv if excel read_excel
             file_ext = period_file.suffix.lower()

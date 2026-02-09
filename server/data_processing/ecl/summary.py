@@ -3,14 +3,11 @@ import traceback
 
 import json
 
-def process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, total_loan_balance, probability_weights):
+def process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, total_loan_balance, probability_weights, buckets):
     try:
         # Read aging report to get buckets
         aging_report_df = pd.read_excel(aging_report_file)
         aging_report_df.columns = aging_report_df.columns.str.strip().str.lower()
-        buckets = aging_report_df.columns.tolist()
-        buckets = [col for col in buckets if col not in ['date', 'total loan balance with c/p']]
-
         print('buckets \n', buckets)
 
         # Read credit loss rates file to extract probability weights
@@ -22,7 +19,7 @@ def process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, to
         try:
             weights = json.loads(probability_weights) if isinstance(probability_weights, str) else probability_weights
             weights = {
-                k: float(v)
+                k: float(v) / 100
                 for k, v in weights.items()
             }
         except (json.JSONDecodeError, TypeError):
@@ -184,10 +181,10 @@ def process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, to
                 df.loc[zero_day_idx[0], "loan balance"] = zero_day_loan_balance
                 df.loc[zero_day_idx[0], "count"] = zero_day_count
                 # "0 day" loans are current/non-delinquent, so ECL values should be 0
-                df.loc[zero_day_idx[0], "expected credit loss upside"] = 0.0
-                df.loc[zero_day_idx[0], "expected credit loss baseline"] = 0.0
-                df.loc[zero_day_idx[0], "expected credit loss downside"] = 0.0
-                df.loc[zero_day_idx[0], "weighted ecl"] = 0.0
+                df.loc[zero_day_idx[0], "expected credit loss upside"] = zero_day_loan_balance * credit_loss_rates_df["upside"].iloc[0]
+                df.loc[zero_day_idx[0], "expected credit loss baseline"] = zero_day_loan_balance * credit_loss_rates_df["baseline"].iloc[0]
+                df.loc[zero_day_idx[0], "expected credit loss downside"] = zero_day_loan_balance * credit_loss_rates_df["downside"].iloc[0]
+                df.loc[zero_day_idx[0], "weighted ecl"] = df.loc[zero_day_idx[0], "expected credit loss upside"] * weights["upside"] + df.loc[zero_day_idx[0], "expected credit loss baseline"] * weights["baseline"] + df.loc[zero_day_idx[0], "expected credit loss downside"] * weights["downside"]
 
         # ADD TOTAL ROW (before calculating distribution)
         total_row = df.select_dtypes(include='number').sum()

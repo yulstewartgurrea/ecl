@@ -50,6 +50,9 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
         format_override_forecasted_mevs_df_res = format_override_forecasted_mevs_df(override_forecasted_mevs_df)
         previous_override_forecasted_mevs_df = populate_previous_dates(data_transformation_df, format_override_forecasted_mevs_df_res)
 
+        print('format_override_forecasted_mevs_df_res \n', format_override_forecasted_mevs_df_res)
+        # data_transformation_df.to_csv('data_transformation_df.csv', index=False)
+
         # get the first period date of  format_override_forecasted_mevs_df_res
         first_period_date = format_override_forecasted_mevs_df_res['Period'].min()
 
@@ -72,8 +75,10 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
         final_models_data = {
             col: final_models_df.at[0, col]
             for col in final_models_df.columns
-            if col.startswith("X") and col[1:].isdigit()
+            if (col.startswith("X") or col.startswith("x")) and col[1:].isdigit()
         }
+
+        print('final_models_data', final_models_data)
 
         # Handle lag columns (e.g., "Best unemp_rate lag.6" or "Best unemp_rate lag_6")
         lag_pattern = re.compile(r'lag[._](\d+)')
@@ -87,19 +92,14 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
                 continue
             
             # comapare column from finals model column if it has lag values
-            col_lag = None
             for x_key, x_val in final_models_data.items():
-                temp_col = col.split(' ')[1] if len(col.split(' ')) > 1 else None
+                temp_col = col.split(' ')[1]
 
                 if temp_col and temp_col in x_val:
                     col_lag = x_val
-                    break
                     
             # Check if column name contains lag pattern (e.g., "lag.6" or "lag_6")
             # This identifies columns that need lag transformation
-            if col_lag is None:
-                continue
-                
             lag_match = lag_pattern.search(col_lag)
             print(lag_match)
             if lag_match:
@@ -138,27 +138,22 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
                     
                     # Get values from base column and apply natural logarithm for lag columns
                     # Lag transformations typically use log-transformed values for modeling
-                    # Ensure we get a Series, not a DataFrame (handle potential duplicate columns)
-                    lag_values = merged[base_col]
-                    if isinstance(lag_values, pd.DataFrame):
-                        # If it's a DataFrame, take the first column or squeeze it
-                        lag_values = lag_values.iloc[:, 0] if lag_values.shape[1] > 0 else pd.Series()
-                    lag_values = lag_values.copy()
+                    lag_values = merged[base_col].copy()
                     
                     # Convert to numeric if needed (handle percentage strings)
                     # Remove "%" character if present before converting to numeric
                     # This handles cases where values are stored as "5%" instead of 0.05
-                    if isinstance(lag_values, pd.Series) and lag_values.dtype == 'object':
+                    if lag_values.dtype == 'object':
                         lag_values = lag_values.astype(str).str.replace('%', '', regex=False)
                     lag_values = pd.to_numeric(lag_values, errors='coerce')
                     
                     # Apply natural logarithm, handling NaN and non-positive values
                     # Log transformation requires positive values, so set non-positive/NaN to 0
-                    lag_values = np.where(
-                        (lag_values.notna()) & (lag_values > 0),
-                        np.log(lag_values),
-                        0
-                    )
+                    # lag_values = np.where(
+                    #     (lag_values.notna()) & (lag_values > 0),
+                    #     np.log(lag_values),
+                    #     0
+                    # )
                     
                     # Update the lag column with log-transformed values
                     transformed_mev_forecasts_df[col] = lag_values
@@ -167,10 +162,10 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
                     print(f"Warning: Base column '{base_col}' not found in raw_mev_forecasts_df for lag column '{col}'")
                     transformed_mev_forecasts_df[col] = 0
 
-        transformed_mev_forecasts_df.to_csv('transformed_mev_forecasts_df.csv', index=False)
+        # transformed_mev_forecasts_df.to_csv('transformed_mev_forecasts_df.csv', index=False)
         return transformed_mev_forecasts_df
     except Exception as e:
-        print(f"Error during interpolation: {str(e)}")
+        print(f"Error during process_transform_forecasted_mevs: {str(e)}")
         import traceback
         traceback.print_exc()
         return None

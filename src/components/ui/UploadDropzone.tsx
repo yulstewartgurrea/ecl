@@ -196,7 +196,13 @@ export default function UploadDropzone({
           type="file"
           accept={accept}
           hidden
-          onChange={(e) => e.target.files && addFiles(e.target.files)}
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length > 0) {
+              addFiles(e.target.files);
+              // Clear input value to allow selecting the same file again
+              e.target.value = "";
+            }
+          }}
         />
 
         {/* Drag overlay */}

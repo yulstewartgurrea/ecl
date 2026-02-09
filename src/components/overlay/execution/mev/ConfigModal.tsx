@@ -59,7 +59,8 @@ const stripPct = (s: string) =>
 const normPct = (s: string) => {
   const v = String(s ?? "").trim();
   if (!v) return "";
-  return v.endsWith("%") ? v : `${v}%`;
+  // Remove % sign if present, return value without %
+  return v.endsWith("%") ? v.slice(0, -1) : v;
 };
 const hasValue = (s: string) => normalizeFloatString(stripPct(s)) !== "";
 
@@ -214,7 +215,7 @@ export default function ScenarioConfigModalTable({
     });
   };
 
-  /** On blur: normalize float & append % if non-empty */
+  /** On blur: normalize float (no % sign) */
   const ensurePercentOnBlur = (
     rIdx: number,
     block: "upside" | "base" | "downside",
@@ -224,12 +225,12 @@ export default function ScenarioConfigModalTable({
       const next = structuredClone(prev);
       const cur = String((next[rIdx] as any)[block][variable] ?? "");
       const norm = normalizeFloatString(cur);
-      (next[rIdx] as any)[block][variable] = norm ? `${norm}%` : "";
+      (next[rIdx] as any)[block][variable] = norm ? norm : "";
       return next;
     });
   };
 
-  /** Before saving: ensure every cell is normalized to "<float>%" */
+  /** Before saving: ensure every cell is normalized to "<float>" (no % sign) */
   const normalizeAllBeforeSave = (
     grid: ScenarioRow[],
     vars: string[]
@@ -240,7 +241,7 @@ export default function ScenarioConfigModalTable({
         vars.forEach((v) => {
           const cur = String((row as any)[b][v] ?? "");
           const norm = normalizeFloatString(stripPct(cur));
-          (row as any)[b][v] = norm ? `${norm}%` : "";
+          (row as any)[b][v] = norm ? norm : "";
         });
       });
     });
