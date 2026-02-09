@@ -142,7 +142,8 @@ async def get_filtered_results(
     - Searches across ALL X columns (X1, x1, X2, x2, X3, x3, etc.) case-insensitively
     - Returns rows where ANY X column contains ANY of the searched variable names
     - Multiple variable names use OR logic (row matches if X1=gni OR X2=gdp OR X3=inf_food, etc.)
-    - Combined with 'filter' parameter using AND logic (both filters must pass)
+    - NOTE: Cannot be used together with 'filter' parameter. Only one filter type can be used at a time.
+    - When using 'variable_names', the filtered results are automatically saved to a file.
     """
     try:
         db = SessionLocal()
@@ -200,8 +201,23 @@ async def get_filtered_results(
 
             print(df)
             
+            # Validate: Only one filter type can be used at a time
+            if variable_names and filter:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "Cannot use both 'variable_names' and 'filter' parameters at the same time. Please use only one filter type.",
+                        "data": None
+                    }
+                )
+            
             # Start with all rows (True mask)
             mask = pd.Series([True] * len(df), index=df.index)
+            
+            # Initialize search_variables for later use in file saving
+            search_variables = None
             
             # Apply variable name filter if provided
             if variable_names:
@@ -236,6 +252,32 @@ async def get_filtered_results(
                             # Return empty result or continue without variable filter
                             # For now, we'll return empty result if variable filter is requested but no X columns exist
                             mask = pd.Series([False] * len(df), index=df.index)
+                    
+                    # Save filtered file when variable_names filter is applied (same way as POST endpoint)
+                    if search_variables and len(search_variables) > 0:
+                        try:
+                            # Apply the mask to filter the dataframe first
+                            df_filtered = df[mask].reset_index(drop=True)
+                            
+                            # Ensure directory exists
+                            os.makedirs(filtering_of_models_path, exist_ok=True)
+                            
+                            # Create filename with variable names suffix
+                            variable_names_suffix = "_".join(search_variables[:3])  # Use first 3 variable names for filename
+                            if len(search_variables) > 3:
+                                variable_names_suffix += f"_and_{len(search_variables) - 3}_more"
+                            
+                            # Use same naming pattern as POST endpoint: {portfolio}_mfa_filtered_{ODR}_{num_vars_taken}_var_{timestamp}.csv
+                            # Add variable_names suffix to distinguish filtered files
+                            filtered_filename = f"{portfolio}_mfa_filtered_{ODR}_{workflow.number_of_combinations}_var_{get_time_date()}.csv"
+                            filtered_file_path = Path(filtering_of_models_path) / filtered_filename
+                            
+                            # Save the filtered dataframe
+                            df_filtered.to_csv(filtered_file_path, index=False)
+                            print(f"Saved filtered file to: {filtered_file_path}")
+                        except Exception as e:
+                            print(f"Warning: Failed to save filtered file: {str(e)}")
+                            # Continue even if save fails
                     
                 except Exception as e:
                     return JSONResponse(
@@ -289,9 +331,6 @@ async def get_filtered_results(
                         column_mask = df[column_name].isin(values)
                         mask = mask & column_mask
                     
-                    # Filter the dataframe
-                    df = df[mask].reset_index(drop=True)
-                    
                 except json.JSONDecodeError:
                     return JSONResponse(
                         status_code=400,
@@ -312,6 +351,9 @@ async def get_filtered_results(
                             "data": None
                         }
                     )
+            
+            # Apply the mask to filter the dataframe
+            df = df[mask].reset_index(drop=True)
             
             # Calculate pagination on filtered data
             total_rows = len(df)
