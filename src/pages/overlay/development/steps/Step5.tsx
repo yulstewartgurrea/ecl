@@ -173,7 +173,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
   const fetchFilteringResults = useCallback(async () => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
-
+    console.log(selectedRows)
     setLoading(true);
     setErrMsg(null);
     try {
@@ -869,7 +869,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
           data={rows}
           selectable
           initialSelectedIds={persistedChecked?.ids ?? []}
-          getRowId={(r, idx) => getRowId(r)}
+          getRowId={(r) => getRowId(r)}
           onSelectionChange={(selRows) => handleSelectionChange(selRows)}
           emptyMessage="Run analysis (after configuring filters) to see results, then select rows to proceed to Step 6."
         />
