@@ -1,6 +1,7 @@
 import os
 import traceback
 import pandas as pd
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Form, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
@@ -120,6 +121,7 @@ async def get_filtered_results(
     page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     page_size: int = Query(100, ge=1, le=1000, description="Number of rows per page (max 1000)"),
     filter: Optional[str] = Query(None, description="JSON array of filter objects. Format: [{\"column\": \"X1\", \"values\": [\"value1\", \"value2\"]}]"),
+    variable_names: Optional[str] = Query(None, description="Comma-separated list of variable names to search for in X columns (e.g., 'gni,gdp,inf_food'). Searches across all X1, X2, X3, etc. columns."),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -134,6 +136,13 @@ async def get_filtered_results(
     - Filters are applied to ALL rows before pagination
     - Multiple values for the same column use OR logic (X1 can be value1 OR value2 OR value3)
     - Different columns use AND logic (X1 must match AND X2 must match)
+    
+    Variable Name Filtering:
+    - Use 'variable_names' query parameter with comma-separated variable names (e.g., 'gni,gdp,inf_food')
+    - Searches across ALL X columns (X1, x1, X2, x2, X3, x3, etc.) case-insensitively
+    - Returns rows where ANY X column contains ANY of the searched variable names
+    - Multiple variable names use OR logic (row matches if X1=gni OR X2=gdp OR X3=inf_food, etc.)
+    - Combined with 'filter' parameter using AND logic (both filters must pass)
     """
     try:
         db = SessionLocal()
@@ -191,7 +200,55 @@ async def get_filtered_results(
 
             print(df)
             
-            # Apply filters if provided
+            # Start with all rows (True mask)
+            mask = pd.Series([True] * len(df), index=df.index)
+            
+            # Apply variable name filter if provided
+            if variable_names:
+                try:
+                    # Parse comma-separated variable names
+                    if isinstance(variable_names, str):
+                        search_variables = [v.strip() for v in variable_names.split(",") if v.strip()]
+                    elif isinstance(variable_names, list):
+                        search_variables = [str(v).strip() for v in variable_names if str(v).strip()]
+                    else:
+                        search_variables = []
+                    
+                    if search_variables:
+                        # Find all X columns (X1, x1, X2, x2, etc.) - case-insensitive pattern
+                        x_column_pattern = re.compile(r'^[Xx]\d+$', re.IGNORECASE)
+                        x_columns = [col for col in df.columns if x_column_pattern.match(str(col))]
+                        
+                        if x_columns:
+                            # Create a mask for variable name matching
+                            # A row matches if ANY X column contains ANY of the searched variable names
+                            variable_mask = pd.Series([False] * len(df), index=df.index)
+                            
+                            for x_col in x_columns:
+                                # Check if this X column contains any of the searched variable names
+                                column_matches = df[x_col].isin(search_variables)
+                                variable_mask = variable_mask | column_matches
+                            
+                            # Combine with existing mask using AND logic
+                            mask = mask & variable_mask
+                        else:
+                            # No X columns found, variable filter cannot be applied
+                            # Return empty result or continue without variable filter
+                            # For now, we'll return empty result if variable filter is requested but no X columns exist
+                            mask = pd.Series([False] * len(df), index=df.index)
+                    
+                except Exception as e:
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "code": -1,
+                            "success": False,
+                            "msg": f"Error processing variable_names filter: {str(e)}",
+                            "data": None
+                        }
+                    )
+            
+            # Apply column-based filters if provided
             if filter:
                 try:
                     # Parse JSON filter parameter
@@ -209,10 +266,7 @@ async def get_filtered_results(
                             }
                         )
                     
-                    # Start with all rows (True mask)
-                    mask = pd.Series([True] * len(df), index=df.index)
-                    
-                    # Apply each filter
+                    # Apply each filter (mask already initialized above)
                     for filter_obj in filter_list:
                         if not isinstance(filter_obj, dict):
                             continue
