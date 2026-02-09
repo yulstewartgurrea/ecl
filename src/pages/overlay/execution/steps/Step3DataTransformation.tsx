@@ -682,33 +682,7 @@ export default function OverlayDevelpmentPage3() {
             <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-gray-900">
               Data Transformation
             </h1>
-            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                Config
-              </span>
-              <label htmlFor="numCombinations" className="text-xs text-gray-600">
-                Combinations:
-              </label>
-              <input
-                id="numCombinations"
-                type="number"
-                min="1"
-                step="1"
-                value={numCombinations}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === "" || (Number.isInteger(Number(value)) && Number(value) > 0)) {
-                    setNumCombinations(value === "" ? 1 : Number(value));
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "." || e.key === "-" || e.key === "e" || e.key === "E") {
-                    e.preventDefault();
-                  }
-                }}
-                className="w-16 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-700 focus:border-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-200"
-              />
-            </div>
+      
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

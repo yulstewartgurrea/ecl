@@ -43,6 +43,25 @@ const uniqCaseInsensitive = (arr: string[]) => {
   return out;
 };
 
+/**
+ * Clean search string but preserve comma-separated format.
+ * - Trim overall string
+ * - If commas present: split on comma, trim each term, drop empty terms, re-join with commas.
+ * - If no commas: just return the trimmed single term.
+ */
+const cleanSearchString = (s: string) => {
+  const raw = String(s ?? "").trim();
+  if (!raw) return "";
+  if (raw.includes(",")) {
+    return raw
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0)
+      .join(",");
+  }
+  return raw;
+};
+
 /* ---------- Types ---------- */
 type Step5Props = {
   title?: string;
@@ -329,7 +348,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
   /* -------------------------- Search handlers ----------------------------- */
   const applySearch = useCallback(() => {
-    const next = searchInput.trim();
+    const next = cleanSearchString(searchInput);
     setCurrentPage(1);
     setSearch(next);
   }, [searchInput]);
@@ -406,7 +425,8 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
             value: f.value,
             operator: f.operator || ">",
           })),
-        variable_names: searchInput,
+        // Use cleaned search input (preserve comma-separated string)
+        variable_names: cleanSearchString(searchInput),
       } as any);
 
       // after POST, fetch page 1
