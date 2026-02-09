@@ -406,7 +406,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
             value: f.value,
             operator: f.operator || ">",
           })),
-        num_vars_taken: num_vars_taken,
+        variable_names: searchInput,
       } as any);
 
       // after POST, fetch page 1
