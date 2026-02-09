@@ -8,6 +8,7 @@ import {
   cancelMultiFactorAnalysis,
   getMultiFactorFiles,
   getMultiFactorFile,
+  exportMultiFactorFiles,
   type MultiFactorStatus,
   type MultiFactorFilesData,
 } from "../../../../services/multi_factor";
@@ -104,6 +105,7 @@ const Step4: React.FC<Step4Props> = ({
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
+  const [exportingAllFiles, setExportingAllFiles] = useState(false);
 
   // Files dropdown state
   const [showFilesDropdown, setShowFilesDropdown] = useState(false);
@@ -552,6 +554,26 @@ const onCancel = async () => {
     }
   }
 
+  // Export all MFA files as ZIP
+  async function exportAllFiles() {
+    if (!Number.isFinite(selectedWorkflowId)) return;
+    setExportErr(null);
+    setExportMsg(null);
+    setExportingAllFiles(true);
+    try {
+      await exportMultiFactorFiles({
+        apiBase: API_BASE,
+        token,
+        workflowId: Number(selectedWorkflowId),
+      });
+      setExportMsg("All files exported successfully.");
+    } catch (e: any) {
+      setExportErr(e?.message || "Export failed");
+    } finally {
+      setExportingAllFiles(false);
+    }
+  }
+
   useEffect(() => {
     if (!hasTriggered) return;
     // fetchPage(page, pageSize);
@@ -745,21 +767,22 @@ const onCancel = async () => {
               </option>
             ))}
           </select>
-                    {/* Export */}
+                    {/* Export Current Page */}
+          
+
+          {/* Export All Files */}
           <button
-            onClick={exportCurrentPage}
-            disabled={!exportReady || exporting || !Number.isFinite(selectedWorkflowId)}
+            onClick={exportAllFiles}
+            disabled={exportingAllFiles || !Number.isFinite(selectedWorkflowId)}
             className="cursor-pointer inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 disabled:opacity-50"
             title={
               !Number.isFinite(selectedWorkflowId)
                 ? "Pick a workflow on Step 1"
-                : !exportReady
-                ? "Load results first"
-                : "Download CSV"
+                : "Download all MFA files as ZIP"
             }
           >
             <ArrowDownTrayIcon className="h-4 w-4" />
-            {exporting ? "Exporting" : "Export"}
+            {exportingAllFiles ? "Exporting..." : "Export All Files"}
           </button>
         </div>
       </div>
