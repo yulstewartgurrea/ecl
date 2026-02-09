@@ -132,7 +132,7 @@ export async function getFilteringModels(opts: {
   filters?: FilterItem[];
 
   // NEW: server-side search/sort (optional)
-  search?: string;
+  variable_names?: string;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
 }): Promise<{
@@ -149,7 +149,7 @@ export async function getFilteringModels(opts: {
     page_size = 100,
     num_vars_taken,
     filters,
-    search,
+    variable_names,
     sort_by,
     sort_dir,
   } = opts;
@@ -164,7 +164,7 @@ export async function getFilteringModels(opts: {
   if (filters && filters.length > 0) {
     qs.append("filter", JSON.stringify(filters));
   }
-  if (search && search.trim()) qs.append("search", search.trim());
+  if (variable_names && variable_names.trim()) qs.append("variable_names", variable_names.trim());
   if (sort_by && sort_by.trim()) qs.append("sort_by", sort_by.trim());
   if (sort_dir) qs.append("sort_dir", sort_dir);
 
