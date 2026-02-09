@@ -77,17 +77,17 @@ export async function postFilteringModels(opts: {
   workflowId: number;
   filter_logic?: "AND" | "OR";
   filter_list?: FilterRule[];
-  num_vars_taken?: number;
+  variable_names?: string | null;
 }): Promise<ApiEnvelope<unknown>> {
-  const { apiBase, token, workflowId, filter_list, num_vars_taken, filter_logic } = opts;
+  const { apiBase, token, workflowId, filter_list, variable_names, filter_logic } = opts;
   if (!Number.isFinite(workflowId)) throw new Error("workflowId must be a finite number");
 
   const url = `${base(apiBase)}/api/overlay/development/filtering_models`;
   const form = new FormData();
   form.append("workload_id", String(workflowId));
 
-  if (num_vars_taken !== undefined) {
-    form.append("num_of_vars", String(num_vars_taken));
+  if (variable_names !== undefined) {
+    form.append("variable_names", String(variable_names));
   }
 
   if (filter_logic) {
@@ -197,17 +197,17 @@ export async function runFilteringModels(opts: {
   workflowId: number;
   page?: number;
   page_size?: number;
-  num_vars_taken?: number;
+  variable_names?: string;
 }): Promise<{ rows: FilteringRow[]; total?: number; pagination?: FilteringPagination }> {
-  const { apiBase, token, workflowId, page = 1, page_size = 100, num_vars_taken } = opts;
-  await postFilteringModels({ apiBase, token, workflowId, num_vars_taken });
+  const { apiBase, token, workflowId, page = 1, page_size = 100, variable_names } = opts;
+  await postFilteringModels({ apiBase, token, workflowId, variable_names });
   const { rows, total, pagination } = await getFilteringModels({
     apiBase,
     token,
     workflowId,
     page,
     page_size,
-    num_vars_taken,
+    variable_names,
   });
   return { rows, total, pagination };
 }
