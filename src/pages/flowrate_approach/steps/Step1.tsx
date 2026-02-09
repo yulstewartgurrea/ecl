@@ -76,16 +76,14 @@ export default function Step1() {
 
   const entity =
     currentPdTransitionMatrixWorkflowData?.entity ||
-    selectedPdTransitionMatrixEntity ||
-    "Entity 1";
+    selectedPdTransitionMatrixEntity
   const period =
     currentPdTransitionMatrixWorkflowData?.reporting_period ||
     selectedPdTransitionMatrixReportingPeriod ||
     "Monthly";
   const wfName =
     currentPdTransitionMatrixWorkflowData?.workflow_name ||
-    pdTransitionMatrixWfName ||
-    "wf3";
+    pdTransitionMatrixWfName 
   const loanProduct =
     currentPdTransitionMatrixWorkflowData?.loan_product ||
     selectedPdTransitionMatrixLoanProduct ||
