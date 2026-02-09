@@ -347,12 +347,12 @@ export async function postDataTransformationExecution(opts: {
   apiBase: string;
   token?: string | null;
   workflowId: number;
-  numCombinations?: number;
+  // numCombinations?: number;
   executionInputFile?: string | null;
   finalModelExecutionFile?: boolean;
   historicalWeightedCreditLossRateFile?: boolean;
 }): Promise<ApiEnvelope<unknown>> {
-  const { apiBase, token, workflowId, numCombinations, executionInputFile, finalModelExecutionFile, historicalWeightedCreditLossRateFile } = opts;
+  const { apiBase, token, workflowId, executionInputFile, finalModelExecutionFile, historicalWeightedCreditLossRateFile } = opts;
 
   if (!Number.isFinite(workflowId)) {
     throw new Error("workflowId must be a finite number");
@@ -362,9 +362,9 @@ export async function postDataTransformationExecution(opts: {
 
   const form = new FormData();
   form.append("workflow_id", String(workflowId));
-  if (numCombinations !== undefined && Number.isInteger(numCombinations) && numCombinations > 0) {
-    form.append("num_combinations", String(numCombinations));
-  }
+  // if (numCombinations !== undefined && Number.isInteger(numCombinations) && numCombinations > 0) {
+  //   form.append("num_combinations", String(numCombinations));
+  // }
   if (executionInputFile) {
     form.append("execution_input_file", executionInputFile);
   }

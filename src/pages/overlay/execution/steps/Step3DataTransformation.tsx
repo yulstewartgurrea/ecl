@@ -81,7 +81,7 @@ export default function OverlayDevelpmentPage3() {
   const [cancelling, setCancelling] = useState(false);
 
   // Configuration states
-  const [numCombinations, setNumCombinations] = useState<number>(2);
+  // const [numCombinations, setNumCombinations] = useState<number>(2);
   const [mevConfigOpen, setMevConfigOpen] = useState(false);
   const [mevPeriods, setMevPeriods] = useState<string[]>([]);
   const [mevVariables, setMevVariables] = useState<string[]>([]);
@@ -304,7 +304,7 @@ export default function OverlayDevelpmentPage3() {
             apiBase: API_BASE,
             token,
             workflowId: Number(selectedWorkflowId),
-            numCombinations: numCombinations,
+            // numCombinations: numCombinations,
             executionInputFile: executionInputFile,
             finalModelExecutionFile: finalModelExecutionFile,
             historicalWeightedCreditLossRateFile: historicalWeightedCreditLossRateFile,
@@ -358,7 +358,7 @@ export default function OverlayDevelpmentPage3() {
         setBusy(false);
       }
     },
-    [API_BASE, token, selectedWorkflowId, numCombinations, executionInputFile]
+    [API_BASE, token, selectedWorkflowId, executionInputFile]
   );
 
   const onRun = () => loadTransformation({ skipPost: false }); // POST
