@@ -187,7 +187,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
         num_vars_taken: num_vars_taken,
         // NOTE: only works if backend supports `search` query param
         // If your backend doesn't support it yet, remove this and keep UI (no functional change).
-        search: search,
+        variable_names: search,
       } as any);
 
       const pageRows = (res.rows ?? []) as Row[];
