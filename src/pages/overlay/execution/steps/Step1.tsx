@@ -76,10 +76,6 @@ function inferExecDocTypeFromName(name: string): ExecDocType | null {
   return null;
 }
 
-// function composeWorkflowPathWithDocType(basePath: string, docType: ExecDocType) {
-//   return `${basePath.replace(/\/+$/g, "")}/${docType}`;
-// }
-
 const mimeFromName = (name: string) => {
   const lower = name.toLowerCase();
   if (lower.endsWith(".csv")) return "text/csv";
@@ -94,6 +90,9 @@ const uniqueFiles = (files: File[]) =>
 
 /* -----------------------------------------------------------
    Existing doc type (keeps sizeBytes etc.)
+   NOTE: we no longer track sessionOrigin here. isExisting === false
+   means this file is only in-session (just uploaded) and not yet
+   persisted server-side. We will clear those in the opposite mode.
 ----------------------------------------------------------- */
 type ExistingDocFile = File & {
   isExisting?: boolean;
@@ -104,9 +103,6 @@ type ExistingDocFile = File & {
   createdAt?: string;
 };
 
-/* -----------------------------------------------------------
-   Component
------------------------------------------------------------ */
 export default function Step1() {
   const dispatch = useAppDispatch();
 
@@ -115,7 +111,7 @@ export default function Step1() {
     selectedPdTransitionMatrixReportingPeriod: period,
     pdTransitionMatrixWfName: workflowName,
     currentPdTransitionMatrixWorkflowId: selectedWorkflowId,
-    selectedPdTransitionMatrixLoanProduct: loanproduct,
+    selectedPdTransitionMatrixLoanProduct: loanProduct,
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper as any);
 
   const token = useAppSelector((state) => state.auth.token);
@@ -137,29 +133,23 @@ export default function Step1() {
   );
 
   // Single-file-per-slot arrays (length 0 or 1)
-  // NOTE: separate auto vs manual for monthly & quarterly to prevent leakage.
-  const [monthlyFiles, setMonthlyFiles] = useState<ExistingDocFile[]>([]); // manual monthly
-  const [quarterlyFiles, setQuarterlyFiles] = useState<ExistingDocFile[]>([]); // manual quarterly
-  const [autoMonthlyFiles, setAutoMonthlyFiles] = useState<ExistingDocFile[]>([]); // auto-generated/manual-uploaded while in AUTO
+  // separate arrays so session uploads don't leak across modes
+  const [monthlyFiles, setMonthlyFiles] = useState<ExistingDocFile[]>([]); // manual session + persisted
+  const [quarterlyFiles, setQuarterlyFiles] = useState<ExistingDocFile[]>([]); // manual
+  const [autoMonthlyFiles, setAutoMonthlyFiles] = useState<ExistingDocFile[]>([]); // auto session + persisted
   const [autoQuarterlyFiles, setAutoQuarterlyFiles] = useState<ExistingDocFile[]>([]);
 
-  // final model & historical weighted are shared (only manual upload typically)
+  // final model & historical weighted are shared (persisted or session)
   const [finalModelFiles, setFinalModelFiles] = useState<ExistingDocFile[]>([]);
   const [historicalWeightedFiles, setHistoricalWeightedFiles] = useState<
     ExistingDocFile[]
   >([]);
 
-  // upload state (tracked by filename)
-  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(
-    new Set()
-  );
-  const [uploadedFiles, setUploadedFiles] = useState<Set<string>>(
-    new Set()
-  );
+  // upload state
+  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
+  const [uploadedFiles, setUploadedFiles] = useState<Set<string>>(new Set());
   const [failedFiles, setFailedFiles] = useState<Set<string>>(new Set());
-  const [failedFilesForRetry, setFailedFilesForRetry] = useState<File[]>(
-    []
-  );
+  const [failedFilesForRetry, setFailedFilesForRetry] = useState<File[]>([]);
 
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [uploadIssues, setUploadIssues] = useState<IssueRow[]>([]);
@@ -167,28 +157,40 @@ export default function Step1() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [skipFetchExisting, setSkipFetchExisting] = useState(false);
 
-  // auto-generation state (kept)
+  // auto-generation state
   const [autoRunning, setAutoRunning] = useState(false);
-  const [autoMonthlyOk, setAutoMonthlyOk] = useState<boolean | null>(
-    null
-  );
-  const [autoQuarterlyOk, setAutoQuarterlyOk] = useState<boolean | null>(
-    null
-  );
+  const [autoMonthlyOk, setAutoMonthlyOk] = useState<boolean | null>(null);
+  const [autoQuarterlyOk, setAutoQuarterlyOk] = useState<boolean | null>(null);
   const [autoError, setAutoError] = useState<string | null>(null);
-  const [existingMonthlyFilename, setExistingMonthlyFilename] = useState<
-    string | null
-  >(null);
-  const [existingQuarterlyFilename, setExistingQuarterlyFilename] =
-    useState<string | null>(null);
+  const [existingMonthlyFilename, setExistingMonthlyFilename] = useState<string | null>(null);
+  const [existingQuarterlyFilename, setExistingQuarterlyFilename] = useState<string | null>(null);
 
   const accept = ".csv,.xlsx,.xls";
   const maxSizeMB = 20;
 
   const baseDir = `/${entity}/${period}/${workflowName}`.replace(/^\/+/, "");
-  const workflowPathBase = `${baseDir}/input/overlay/execution/${loanproduct}`;
+  const workflowPathBase = `${baseDir}/input/overlay/execution/${loanProduct}`;
   const effectiveWorkflowId = selectedWorkflowId ?? 1;
   const overlayExecApiBase = `${API_BASE.replace(/\/+$/g, "")}/api/overlay/execution`;
+
+  type WorkflowKey = "upload_manual" | "forecast_mev";
+
+  const currentWorkflowKey: WorkflowKey =
+    mode === "AUTO_GENERATE" ? "forecast_mev" : "upload_manual";
+
+  // NEW: track session uploads per workflow key. This prevents session files
+  // uploaded under one mode from leaking into the other mode's UI slot.
+  const [uploadsByWorkflow, setUploadsByWorkflow] = useState<
+    Record<WorkflowKey, File[]>
+  >({
+    upload_manual: [],
+    forecast_mev: [],
+  });
+
+  const ensureRealFile = (file: File): File => {
+    if (file instanceof File) return file;
+    throw new Error("Invalid file object");
+  };
 
   /* -----------------------------------------------------------
      Clear local state on workflow change
@@ -215,6 +217,13 @@ export default function Step1() {
     setAutoError(null);
     setExistingMonthlyFilename(null);
     setExistingQuarterlyFilename(null);
+    setSkipFetchExisting(false);
+
+    // clear session mapping for this workflow context
+    setUploadsByWorkflow({
+      upload_manual: [],
+      forecast_mev: [],
+    });
   }, []);
 
   useEffect(() => {
@@ -223,17 +232,14 @@ export default function Step1() {
 
   /* -----------------------------------------------------------
      Fetch existing execution documents (single per slot)
-     -> We populate both auto and manual slots for server-persisted files.
-     This means backend-stored documents are shown regardless of input mode.
-     Only session uploads are kept separate (auto vs manual).
+     persisted documents are assigned to MANUAL slots only to avoid
+     cross-pollination. Auto-generated forecasts are surfaced via
+     checkExistingForecasts() / runAutoGenerate() and download buttons.
   ----------------------------------------------------------- */
   const fetchExistingDocuments = useCallback(async () => {
     if (!selectedWorkflowId || !token) return;
-    
-    // Skip fetching if we just uploaded a new file (to prevent overwriting the new upload)
-    if (skipFetchExisting) {
-      return;
-    }
+
+    if (skipFetchExisting) return;
 
     const documentTypes = [
       DOC_MONTHLY,
@@ -263,6 +269,11 @@ export default function Step1() {
 
       for (const doc of result.data as any[]) {
         const displayName = doc.original_filename || doc.filename;
+        // create a placeholder File so existing persisted docs can be shown in UI.
+        // This File has empty contents but is a real File instance (Blob) so it
+        // won't break FormData.append when used correctly. We will not use these
+        // placeholder Files for uploads; upload uses real File instances provided
+        // by the user.
         const f = new File([], displayName, { type: mimeFromName(displayName) }) as ExistingDocFile;
         f.isExisting = true;
         f.documentId = doc.id;
@@ -281,11 +292,16 @@ export default function Step1() {
         else if (doc.document_type === DOC_HISTORICAL_WEIGHTED) nextHistWeighted.push(f);
       }
 
-      // update both manual and auto slots with persisted documents
+      // IMPORTANT: Persisted server docs are assigned to the MANUAL upload slots.
+      // This prevents a manual persisted file from automatically being shown under
+      // Forecast MEV UI. Forecast MEV has its own generated-download flow (checkExistingForecasts).
       setMonthlyFiles(nextMonthly.slice(0, 1));
-      setAutoMonthlyFiles(nextMonthly.slice(0, 1));
       setQuarterlyFiles(nextQuarterly.slice(0, 1));
-      setAutoQuarterlyFiles(nextQuarterly.slice(0, 1));
+
+      // Keep auto arrays untouched here (they are populated only by auto-generation
+      // session uploads or by the generation endpoints + checkExistingForecasts).
+      // setAutoMonthlyFiles(...) and setAutoQuarterlyFiles(...) are intentionally omitted.
+
       setFinalModelFiles(nextFinal.slice(0, 1));
       setHistoricalWeightedFiles(nextHistWeighted.slice(0, 1));
       setUploadedFiles(nextUploaded);
@@ -390,10 +406,10 @@ export default function Step1() {
     }
   }, [token, effectiveWorkflowId, overlayExecApiBase, existingQuarterlyFilename]);
 
-  // ---------- NEW: small helper sleep ----------
+  // ---------- helper sleep ----------
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  // ---------- NEW: attemptPostWithRetries ----------
+  // ---------- attemptPostWithRetries ----------
   const attemptPostWithRetries = useCallback(
     async (endpoint: string, maxAttempts = 3) => {
       if (!token || !effectiveWorkflowId) throw new Error("Missing token or workflowId");
@@ -408,7 +424,6 @@ export default function Step1() {
           return { success: true, payload };
         } catch (err: any) {
           lastError = err;
-          // exponential backoff (slight)
           const backoff = 500 * Math.pow(2, attempt - 1);
           await sleep(backoff);
         }
@@ -430,23 +445,14 @@ export default function Step1() {
     const quarterlyEndpoint = `${overlayExecApiBase}/mev_quarterly_arima_forecast`;
 
     try {
-      // Attempt monthly with retries
       const monthlyRes = await attemptPostWithRetries(monthlyEndpoint, 3);
-      if (monthlyRes.success) {
-        setAutoMonthlyOk(true);
-      } else {
-        setAutoMonthlyOk(false);
-      }
+      if (monthlyRes.success) setAutoMonthlyOk(true);
+      else setAutoMonthlyOk(false);
 
-      // Attempt quarterly with retries
       const quarterlyRes = await attemptPostWithRetries(quarterlyEndpoint, 3);
-      if (quarterlyRes.success) {
-        setAutoQuarterlyOk(true);
-      } else {
-        setAutoQuarterlyOk(false);
-      }
+      if (quarterlyRes.success) setAutoQuarterlyOk(true);
+      else setAutoQuarterlyOk(false);
 
-      // If both succeeded -> success path
       if (monthlyRes.success && quarterlyRes.success) {
         setSuccessBanner("Auto-generated Monthly & Quarterly ARIMA inputs successfully.");
         await fetchExistingDocuments();
@@ -454,12 +460,10 @@ export default function Step1() {
         return;
       }
 
-      // If one or both failed, give the backend a short moment, re-check if files landed
       await sleep(1000);
       await fetchExistingDocuments();
       await checkExistingForecasts();
 
-      // If files now exist, mark them ok
       let fallbackMonthlyOk = autoMonthlyOk;
       let fallbackQuarterlyOk = autoQuarterlyOk;
 
@@ -472,7 +476,7 @@ export default function Step1() {
         fallbackQuarterlyOk = true;
       }
       console.log(fallbackMonthlyOk, fallbackQuarterlyOk)
-      // If either still failed, compose an error
+
       const monthlyErr = monthlyRes.success ? null : monthlyRes.error;
       const quarterlyErr = quarterlyRes.success ? null : quarterlyRes.error;
 
@@ -482,24 +486,19 @@ export default function Step1() {
         if (quarterlyErr && !existingQuarterlyFilename) msgs.push(`Quarterly: ${quarterlyErr}`);
         const combined = msgs.join(" | ") || "Auto-generation failed for unknown reasons.";
         setAutoError(combined);
-        // still show partial success banner if one succeeded
         if (monthlyRes.success || quarterlyRes.success || existingMonthlyFilename || existingQuarterlyFilename) {
           setSuccessBanner("Auto-generation partially succeeded. Check the available generated files above.");
         }
       } else {
-        // both either succeeded or file fallback found
         setSuccessBanner("Auto-generated Monthly & Quarterly ARIMA inputs (detected after retry/refresh).");
       }
     } catch (e: any) {
       setAutoError(e?.message || "Auto-generation failed.");
     } finally {
-      // refresh persisted documents & forecast filenames
       try {
         await fetchExistingDocuments();
         await checkExistingForecasts();
-      } catch (err) {
-        // ignore
-      }
+      } catch (err) {}
       setAutoRunning(false);
     }
   }, [
@@ -516,9 +515,37 @@ export default function Step1() {
   ]);
 
   /* -----------------------------------------------------------
-     Single-file upload helper
-     - reads `mode` to place successful files into correct slot (auto vs manual)
-     - resets previous issues before attempting upload (so modal will re-open)
+     Helper: clone File and attach metadata (ExistingDocFile)
+     We won't attach sessionOrigin; isExisting indicates server-persisted.
+  ----------------------------------------------------------- */
+  const cloneFileWithMeta = (
+    file: File,
+    meta: Partial<ExistingDocFile> = {}
+  ): ExistingDocFile => {
+    // Always return a REAL File (Blob-safe)
+    const cloned = new File([file], file.name, {
+      type: file.type,
+      lastModified: file.lastModified,
+    }) as ExistingDocFile;
+
+    cloned.isExisting = meta.isExisting ?? false;
+    cloned.documentId = meta.documentId;
+    cloned.documentType = meta.documentType;
+    cloned.serverFilename = meta.serverFilename;
+    cloned.createdAt = meta.createdAt;
+    cloned.sizeBytes =
+      meta.sizeBytes ??
+      (file as any).size ??
+      (file as any).sizeBytes;
+
+    return cloned;
+  };
+
+  /* -----------------------------------------------------------
+     uploadFile: upload and place into the *current mode* slot only.
+     persisted files (result.data) will still be visible in both modes
+     after fetchExistingDocuments runs.
+     Ensure FormData always receives a real File (Blob).
   ----------------------------------------------------------- */
   const uploadFile = useCallback(
     async (file: File, docType: ExecDocType, override: boolean = false) => {
@@ -526,22 +553,21 @@ export default function Step1() {
       const fileName = file.name;
       if (!token) return;
 
-      // Reset previous issues for this attempt so modal will reliably reopen.
       setUploadIssues([]);
       setUploadModalOpen(false);
 
-      // Check if already uploading - if so, don't start another upload
-      // But allow re-upload if it was previously uploaded (override allows replacement)
       if (uploadingFiles.has(fileName)) return;
-
       setUploadingFiles((prev) => new Set(prev).add(fileName));
 
       try {
+        // ensure we pass a real File/Blob to the upload service
+        const realFile = ensureRealFile(file);
+
         const finalWorkflowPath = `${workflowPathBase}/${docType}`;
         const result = await overlayUploadFile({
           baseUrl: API_BASE,
           token,
-          file,
+          file: realFile,
           workflowPath: finalWorkflowPath,
           documentType: docType,
           workflowId: effectiveWorkflowId,
@@ -549,9 +575,9 @@ export default function Step1() {
           moduleVal: "OVERLAY",
           submoduleVal: "EXECUTION",
         });
+        console.log('result: ', result)
 
         if (result.ok) {
-          // mark uploaded
           setUploadedFiles((prev) => new Set(prev).add(fileName));
           setFailedFiles((prev) => {
             const ns = new Set(prev);
@@ -559,37 +585,64 @@ export default function Step1() {
             return ns;
           });
 
-          // successful -> put file into appropriate slot based on docType & current mode
-          const asExisting: ExistingDocFile = Object.assign(file, {
-            sizeBytes: (file as any).size ?? (file as any).sizeBytes,
+          // create clone; isExisting=false means session-only until persisted
+          const asExistingOrig = cloneFileWithMeta(realFile, {
+            sizeBytes: (realFile as any).size ?? (realFile as any).sizeBytes,
             isExisting: false,
             documentType: docType,
           });
 
-          // monthly/quarterly should live in separate auto/manual slots
+          if (result.data?.id) asExistingOrig.documentId = result.data.id;
+          if (result.data?.filename) asExistingOrig.serverFilename = result.data.filename;
+          if (result.data?.document_type) asExistingOrig.documentType = result.data.document_type;
+          if (result.data?.created_at) asExistingOrig.createdAt = result.data.created_at;
+
+          // Put into the correct slot based on current mode ONLY
           if (docType === DOC_MONTHLY) {
-            if (mode === "AUTO_GENERATE") setAutoMonthlyFiles([asExisting]);
-            else setMonthlyFiles([asExisting]);
+            if (mode === "AUTO_GENERATE") {
+              setAutoMonthlyFiles([asExistingOrig]);
+            } else {
+              setMonthlyFiles([asExistingOrig]);
+            }
           } else if (docType === DOC_QUARTERLY) {
-            if (mode === "AUTO_GENERATE") setAutoQuarterlyFiles([asExisting]);
-            else setQuarterlyFiles([asExisting]);
+            if (mode === "AUTO_GENERATE") {
+              setAutoQuarterlyFiles([asExistingOrig]);
+            } else {
+              setQuarterlyFiles([asExistingOrig]);
+            }
           } else if (docType === DOC_FINAL_MODEL) {
-            setFinalModelFiles([asExisting]);
+            // final model is shared: the user expects manual uploads here, keep in main slot
+            asExistingOrig.isExisting = asExistingOrig.isExisting ?? false;
+            setFinalModelFiles([asExistingOrig]);
           } else if (docType === DOC_HISTORICAL_WEIGHTED) {
-            setHistoricalWeightedFiles([asExisting]);
+            asExistingOrig.isExisting = asExistingOrig.isExisting ?? false;
+            setHistoricalWeightedFiles([asExistingOrig]);
           }
+
+          // update session map so this uploaded session file belongs only to the
+          // current workflow key — prevents leakage to the other mode.
+          setUploadsByWorkflow((prev) => {
+            const copy = { ...prev };
+            const arr = copy[currentWorkflowKey] ? [...copy[currentWorkflowKey]] : [];
+            // keep only the latest for session (single slot)
+            // add the realFile (not the placeholder)
+            // remove duplicates
+            const filtered = arr.filter((x) => x.name !== realFile.name);
+            filtered.push(realFile);
+            copy[currentWorkflowKey] = filtered;
+            return copy;
+          });
 
           setSuccessBanner(`${fileName} uploaded successfully!`);
           setUploadModalOpen(false);
           setUploadIssues([]);
-          // Prevent fetchExistingDocuments from overwriting the newly uploaded file
+          // prevent an immediate fetch from overwriting this transient state
           setSkipFetchExisting(true);
-          // Reset the skip flag after a delay to allow future fetches
           setTimeout(() => setSkipFetchExisting(false), 2000);
           return;
         }
 
-        // server ok === false
+        // server returned ok === false
         setFailedFiles((prev) => new Set(prev).add(fileName));
         setUploadedFiles((prev) => {
           const ns = new Set(prev);
@@ -607,7 +660,6 @@ export default function Step1() {
           normalized: normalizeUploadError(result.data ?? result),
         };
 
-        // IMPORTANT: always create a new array/object to force React state update
         setUploadIssues([issue]);
         setUploadModalOpen(true);
         setSuccessBanner(null);
@@ -641,14 +693,14 @@ export default function Step1() {
         });
       }
     },
-    // include mode so uploadFile places file in correct slot
-    [token, workflowPathBase, effectiveWorkflowId, uploadingFiles, mode]
+    [token, workflowPathBase, effectiveWorkflowId, uploadingFiles, mode, currentWorkflowKey]
   );
 
   /* -----------------------------------------------------------
-     Generic single-file dropzone handler (uses active slot based on mode)
-     - uniqueFiles + pick last ensures single-file behavior
-     - only uploads if file is not existing placeholder AND not currently uploading
+     handleFilesChange: place the selected file into the correct slot only.
+     We clone and set isExisting=false for session uploads. Do NOT add the
+     same session file into the other mode's array.
+     Also update uploadsByWorkflow to persist which session files belong to which mode.
   ----------------------------------------------------------- */
   const handleFilesChange = useCallback(
     async (
@@ -659,19 +711,32 @@ export default function Step1() {
       setFilesManual: (f: File[]) => void
     ) => {
       const single = uniqueFiles(files).slice(-1);
-      if (isAutoSlot) {
-        setFilesAuto(single as ExistingDocFile[]);
-      } else {
-        setFilesManual(single as ExistingDocFile[]);
+      if (single.length === 0) {
+        if (isAutoSlot) setFilesAuto([]);
+        else setFilesManual([]);
+        // remove from session map for current workflow key (if user removed)
+        setUploadsByWorkflow((prev) => {
+          const copy = { ...prev };
+          copy[currentWorkflowKey] = [];
+          return copy;
+        });
+        return;
       }
 
-      const f = single[0];
+      const cloned = single.map((f) =>
+        cloneFileWithMeta(f, { isExisting: false, sizeBytes: (f as any).size ?? (f as any).sizeBytes, documentType: docType })
+      ) as ExistingDocFile[];
+
+      if (isAutoSlot) setFilesAuto(cloned);
+      else setFilesManual(cloned);
+
+      const f = cloned[0];
       if (!f) return;
 
-      // Reset skip flag when user selects a new file
+      // Reset skipFetchExisting so fetchExistingDocuments can run again later
       setSkipFetchExisting(false);
 
-      // Remove from uploadedFiles and failedFiles to allow re-uploading the same file
+      // allow re-uploading same file
       setUploadedFiles((prev) => {
         const ns = new Set(prev);
         ns.delete(f.name);
@@ -688,23 +753,44 @@ export default function Step1() {
         return ns;
       });
 
-      // Small delay to ensure state updates are processed
-      await new Promise(resolve => setTimeout(resolve, 0));
+      // record session upload under the correct workflow/mode key
+      setUploadsByWorkflow((prev) => {
+        const copy = { ...prev };
+        const arr = copy[currentWorkflowKey] ? [...copy[currentWorkflowKey]] : [];
+        // update array: keep only latest for that doc (remove same-name)
+        const filtered = arr.filter((x) => x.name !== f.name);
+        filtered.push(f);
+        copy[currentWorkflowKey] = filtered;
+        return copy;
+      });
 
-      // if placeholder from server, don't attempt upload
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
       if ((f as any).isExisting) return;
-
-      // if same name is currently uploading - skip
       if (uploadingFiles.has(f.name)) return;
 
-      // always attempt upload (even if previously failed) — uploadFile will handle marking
       await uploadFile(f, docType);
     },
-    [uploadFile]
+    [uploadFile, uploadingFiles, currentWorkflowKey]
   );
 
+  useEffect(() => {
+    if (mode === "AUTO_GENERATE") {
+      // clear manual session-only files
+      setMonthlyFiles((prev) => prev.filter((f) => Boolean(f.isExisting)));
+      setQuarterlyFiles((prev) => prev.filter((f) => Boolean(f.isExisting)));
+      // keep auto arrays as-is (they contain persisted + possible auto session uploads)
+    } else {
+      // entering manual: clear auto session-only files
+      setAutoMonthlyFiles((prev) => prev.filter((f) => Boolean(f.isExisting)));
+      setAutoQuarterlyFiles((prev) => prev.filter((f) => Boolean(f.isExisting)));
+      // keep manual arrays as-is
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   /* -----------------------------------------------------------
-     Status & summary
+     active arrays shown in the UI (no sessionOrigin filtering)
   ----------------------------------------------------------- */
   const activeMonthlyFiles = mode === "AUTO_GENERATE" ? autoMonthlyFiles : monthlyFiles;
   const activeQuarterlyFiles = mode === "AUTO_GENERATE" ? autoQuarterlyFiles : quarterlyFiles;
@@ -756,7 +842,6 @@ export default function Step1() {
       if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
       if (nextLoanProduct) dispatch(setPdTransitionMatrixSelectedLoanProduct({ loan_product: nextLoanProduct }));
       dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
-      // Update workflow data to ensure currentPdTransitionMatrixWorkflowData is in sync
       dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: w as any }));
 
       setPickerOpen(false);
@@ -787,11 +872,36 @@ export default function Step1() {
     for (const file of retryFiles) {
       const docType = inferExecDocTypeFromName(file.name);
       if (!docType) continue;
-      // Use uploadFile with override: true when retrying
       await uploadFile(file, docType, true);
     }
     setUploadModalOpen(false);
   }, [failedFiles, failedFilesForRetry, uploadFile]);
+
+  /* -----------------------------------------------------------
+     Reset handler (fixed)
+  ----------------------------------------------------------- */
+  const handleReset = () => {
+    // Clear only the in-memory session state and UI flags
+    setMonthlyFiles([]);
+    setQuarterlyFiles([]);
+    setAutoMonthlyFiles([]);
+    setAutoQuarterlyFiles([]);
+    setFinalModelFiles([]);
+    setHistoricalWeightedFiles([]);
+    setUploadingFiles(new Set());
+    setUploadedFiles(new Set());
+    setFailedFiles(new Set());
+    setFailedFilesForRetry([]);
+    setSuccessBanner(null);
+    setPickerOpen(false);
+    setUploadModalOpen(false);
+    setUploadIssues([]);
+    // reset session map
+    setUploadsByWorkflow({
+      upload_manual: [],
+      forecast_mev: [],
+    });
+  };
 
   /* -----------------------------------------------------------
      UI
@@ -803,7 +913,7 @@ export default function Step1() {
         <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <div className="flex items-center justify-between">
             <span>{successBanner}</span>
-            <button onClick={() => setSuccessBanner(null)} className="ml-2 text-emerald-600 hover:text-emerald-800" title="Dismiss" type="button">×</button>
+            <button onClick={() => handleReset()} className="ml-2 text-emerald-600 hover:text-emerald-800" title="Dismiss" type="button">×</button>
           </div>
         </div>
       )}
@@ -917,7 +1027,6 @@ export default function Step1() {
                 maxSizeMB={maxSizeMB}
                 maxFiles={1}
                 multiple={false}
-                // value shows the slot appropriate for current mode
                 value={isAuto ? autoMonthlyFiles : monthlyFiles}
                 onChange={(f) => handleFilesChange(f, DOC_MONTHLY, isAuto, setAutoMonthlyFiles, setMonthlyFiles)}
                 emptyHint="Waiting for monthly file..."
@@ -933,8 +1042,6 @@ export default function Step1() {
                     </span>
                   </div>
                 )}
-
-         
             </div>
           </div>
 
@@ -964,7 +1071,6 @@ export default function Step1() {
                     </span>
                   </div>
                 )}
-
             </div>
           </div>
 
@@ -1008,8 +1114,6 @@ export default function Step1() {
                   </span>
                 </div>
               )}
-
-        
             </div>
           </div>
 
