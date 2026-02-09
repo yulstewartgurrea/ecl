@@ -721,7 +721,6 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
       fetchFilteringResults,
     ]
   );
-
   /* -------------------------------- Render -------------------------------- */
   return (
     <div className="min-h-dvh bg-neutral-50 p-6">
@@ -777,7 +776,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
           <button
             onClick={applySearch}
-            disabled={loading}
+            disabled={rows.length < 0||loading}
             className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
             title="Search"
           >
