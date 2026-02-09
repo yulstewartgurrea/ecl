@@ -101,7 +101,6 @@ const Step4: React.FC<Step4Props> = ({
 
 
   // EXPORT state
-  const [exporting, setExporting] = useState(false);
   const [exportErr, setExportErr] = useState<string | null>(null);
   const [exportMsg, setExportMsg] = useState<string | null>(null);
   const [exportReady, setExportReady] = useState(false);
@@ -132,6 +131,7 @@ const Step4: React.FC<Step4Props> = ({
   const totalPages = useMemo(() => {
     // If files are selected, calculate pages from file-based rows
     if (selectedFiles.size > 0 && fileBasedRows.length > 0) {
+      console.log(exportReady)
       return Math.max(1, Math.ceil(fileBasedRows.length / pageSize));
     }
     
@@ -486,73 +486,73 @@ const onCancel = async () => {
   }, [selectedWorkflowId, loading, posting, serverRows, total, fileBasedRows.length]);
 
   // Export the current page via your exact endpoint
-  async function exportCurrentPage() {
-    if (!Number.isFinite(selectedWorkflowId)) return;
-    setExportErr(null);
-    setExportMsg(null);
-    setExporting(true);
-    try {
-      if (selectedFiles.size > 0 && fileBasedRows.length > 0) {
-        const headers = deriveHeaders(displayRows);
-        const csv = toCsv(headers, displayRows);
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const filename = `multifactor_results_selected_${selectedWorkflowId}_p${page}_ps${pageSize}.csv`;
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(href);
-        setExportMsg("Export completed.");
-        return;
-      }
-      const url = new URL(`${API_BASE}/api/overlay/development/multifactor_analysis`);
-      url.searchParams.set("workflow_id", String(selectedWorkflowId));
-      url.searchParams.set("page", String(page));
-      url.searchParams.set("page_size", String(pageSize));
+  // async function exportCurrentPage() {
+  //   if (!Number.isFinite(selectedWorkflowId)) return;
+  //   setExportErr(null);
+  //   setExportMsg(null);
+  //   setExporting(true);
+  //   try {
+  //     if (selectedFiles.size > 0 && fileBasedRows.length > 0) {
+  //       const headers = deriveHeaders(displayRows);
+  //       const csv = toCsv(headers, displayRows);
+  //       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  //       const filename = `multifactor_results_selected_${selectedWorkflowId}_p${page}_ps${pageSize}.csv`;
+  //       const href = URL.createObjectURL(blob);
+  //       const a = document.createElement("a");
+  //       a.href = href;
+  //       a.download = filename;
+  //       document.body.appendChild(a);
+  //       a.click();
+  //       a.remove();
+  //       URL.revokeObjectURL(href);
+  //       setExportMsg("Export completed.");
+  //       return;
+  //     }
+  //     const url = new URL(`${API_BASE}/api/overlay/development/multifactor_analysis`);
+  //     url.searchParams.set("workflow_id", String(selectedWorkflowId));
+  //     url.searchParams.set("page", String(page));
+  //     url.searchParams.set("page_size", String(pageSize));
 
-      const res = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          Accept: "text/csv,application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+  //     const res = await fetch(url.toString(), {
+  //       method: "GET",
+  //       headers: {
+  //         Accept: "text/csv,application/json",
+  //         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  //       },
+  //     });
 
-      if (!res.ok) {
-        let msg = `Export failed: HTTP ${res.status}`;
-        try {
-          const t = await res.text();
-          if (t) msg = `${msg}  ${t}`;
-        } catch {}
-        throw new Error(msg);
-      }
+  //     if (!res.ok) {
+  //       let msg = `Export failed: HTTP ${res.status}`;
+  //       try {
+  //         const t = await res.text();
+  //         if (t) msg = `${msg}  ${t}`;
+  //       } catch {}
+  //       throw new Error(msg);
+  //     }
 
-      const cd = res.headers.get("content-disposition") || "";
-      const nameMatch =
-        cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i) ||
-        cd.match(/filename=["']?([^"']+)["']?/i);
-      const fallbackName = `multifactor_results_${selectedWorkflowId}_p${page}_ps${pageSize}`;
+  //     const cd = res.headers.get("content-disposition") || "";
+  //     const nameMatch =
+  //       cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i) ||
+  //       cd.match(/filename=["']?([^"']+)["']?/i);
+  //     const fallbackName = `multifactor_results_${selectedWorkflowId}_p${page}_ps${pageSize}`;
 
-       const blob = await res.blob();
-        const filename = (nameMatch && decodeURIComponent(nameMatch[1])) || `${fallbackName}.csv`;
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(href);
-        setExportMsg("Export completed.");
-    } catch (e: any) {
-      setExportErr(e?.message || "Export failed");
-    } finally {
-      setExporting(false);
-    }
-  }
+  //      const blob = await res.blob();
+  //       const filename = (nameMatch && decodeURIComponent(nameMatch[1])) || `${fallbackName}.csv`;
+  //       const href = URL.createObjectURL(blob);
+  //       const a = document.createElement("a");
+  //       a.href = href;
+  //       a.download = filename;
+  //       document.body.appendChild(a);
+  //       a.click();
+  //       a.remove();
+  //       URL.revokeObjectURL(href);
+  //       setExportMsg("Export completed.");
+  //   } catch (e: any) {
+  //     setExportErr(e?.message || "Export failed");
+  //   } finally {
+  //     setExporting(false);
+  //   }
+  // }
 
   // Export all MFA files as ZIP
   async function exportAllFiles() {
