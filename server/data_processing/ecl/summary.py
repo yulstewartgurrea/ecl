@@ -203,18 +203,18 @@ def process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, to
         # Excel stores it in "count" column
         # Formula: (total_weighted_ecl / total_loan_balance) * 100 (as percentage)
         total_weighted_ecl = df.loc[df["aging category"] == "TOTAL", "weighted ecl"].values[0]
-        ecl_rate_value = (total_weighted_ecl / total_loan_balance_from_data * 100) if total_loan_balance_from_data != 0 else 0
+        ecl_rate_value = (total_weighted_ecl / total_loan_balance_from_data) if total_loan_balance_from_data != 0 else 0
 
         # Create ECL RATE row
         ecl_rate_row = {
             "aging category": "ECL RATE",
-            "count": ecl_rate_value,
+            "count": 0.0,
             "loan balance": 0.0,
             "distribution": 0.0,
             "expected credit loss upside": 0.0,
             "expected credit loss baseline": 0.0,
             "expected credit loss downside": 0.0,
-            "weighted ecl": 0.0
+            "weighted ecl": ecl_rate_value
         }
 
         # Append row
