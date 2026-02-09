@@ -80,16 +80,18 @@ def process_overlay_multiplier(default_rates_df: pd.DataFrame,
             'time': last_period_default_rate[date_col].values[0],
             'odr': odr_numeric
         }
+        print('latest_default_rate \n', latest_default_rate)
 
         # Get the last row of forecasted_pd_df
         last_row_forecasted_pd = forecasted_pd_df.iloc[-1]
+        print('last_row_forecasted_pd \n', last_row_forecasted_pd)
 
         # calculate overlay multiplier
         output_df = pd.DataFrame()
         output_df['Period'] = [latest_default_rate['time']]
-        output_df['Upside'] = [latest_default_rate['odr'] / last_row_forecasted_pd['Upside']]
-        output_df['Base'] = [latest_default_rate['odr'] / last_row_forecasted_pd['Base']]
-        output_df['Downside'] = [latest_default_rate['odr'] / last_row_forecasted_pd['Downside']]
+        output_df['Upside'] = [last_row_forecasted_pd['Upside'] / latest_default_rate['odr']]
+        output_df['Base'] = [last_row_forecasted_pd['Base'] / latest_default_rate['odr']]
+        output_df['Downside'] = [last_row_forecasted_pd['Downside'] / latest_default_rate['odr']]
 
         print('output_df \n', output_df)
         return output_df

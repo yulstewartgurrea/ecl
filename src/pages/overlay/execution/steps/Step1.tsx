@@ -390,6 +390,34 @@ export default function Step1() {
     }
   }, [token, effectiveWorkflowId, overlayExecApiBase, existingQuarterlyFilename]);
 
+  // ---------- NEW: small helper sleep ----------
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  // ---------- NEW: attemptPostWithRetries ----------
+  const attemptPostWithRetries = useCallback(
+    async (endpoint: string, maxAttempts = 3) => {
+      if (!token || !effectiveWorkflowId) throw new Error("Missing token or workflowId");
+      let lastError: Error | null = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const payload = await postWorkflowIdFormData({
+            token,
+            workflowId: effectiveWorkflowId,
+            endpoint,
+          });
+          return { success: true, payload };
+        } catch (err: any) {
+          lastError = err;
+          // exponential backoff (slight)
+          const backoff = 500 * Math.pow(2, attempt - 1);
+          await sleep(backoff);
+        }
+      }
+      return { success: false, error: lastError?.message ?? "Unknown error after retries" };
+    },
+    [token, effectiveWorkflowId]
+  );
+
   const runAutoGenerate = useCallback(async () => {
     if (!token || !effectiveWorkflowId) return;
     setAutoRunning(true);
@@ -398,22 +426,94 @@ export default function Step1() {
     setAutoError(null);
     setSuccessBanner(null);
 
+    const monthlyEndpoint = `${overlayExecApiBase}/mev_monthly_arima_forecast`;
+    const quarterlyEndpoint = `${overlayExecApiBase}/mev_quarterly_arima_forecast`;
+
     try {
-      await postWorkflowIdFormData({ token, workflowId: effectiveWorkflowId, endpoint: `${overlayExecApiBase}/mev_monthly_arima_forecast` });
-      setAutoMonthlyOk(true);
+      // Attempt monthly with retries
+      const monthlyRes = await attemptPostWithRetries(monthlyEndpoint, 3);
+      if (monthlyRes.success) {
+        setAutoMonthlyOk(true);
+      } else {
+        setAutoMonthlyOk(false);
+      }
 
-      await postWorkflowIdFormData({ token, workflowId: effectiveWorkflowId, endpoint: `${overlayExecApiBase}/mev_quarterly_arima_forecast` });
-      setAutoQuarterlyOk(true);
+      // Attempt quarterly with retries
+      const quarterlyRes = await attemptPostWithRetries(quarterlyEndpoint, 3);
+      if (quarterlyRes.success) {
+        setAutoQuarterlyOk(true);
+      } else {
+        setAutoQuarterlyOk(false);
+      }
 
-      setSuccessBanner("Auto-generated Monthly & Quarterly ARIMA inputs successfully.");
+      // If both succeeded -> success path
+      if (monthlyRes.success && quarterlyRes.success) {
+        setSuccessBanner("Auto-generated Monthly & Quarterly ARIMA inputs successfully.");
+        await fetchExistingDocuments();
+        await checkExistingForecasts();
+        return;
+      }
+
+      // If one or both failed, give the backend a short moment, re-check if files landed
+      await sleep(1000);
       await fetchExistingDocuments();
       await checkExistingForecasts();
+
+      // If files now exist, mark them ok
+      let fallbackMonthlyOk = autoMonthlyOk;
+      let fallbackQuarterlyOk = autoQuarterlyOk;
+
+      if (!monthlyRes.success && existingMonthlyFilename) {
+        setAutoMonthlyOk(true);
+        fallbackMonthlyOk = true;
+      }
+      if (!quarterlyRes.success && existingQuarterlyFilename) {
+        setAutoQuarterlyOk(true);
+        fallbackQuarterlyOk = true;
+      }
+
+      // If either still failed, compose an error
+      const monthlyErr = monthlyRes.success ? null : monthlyRes.error;
+      const quarterlyErr = quarterlyRes.success ? null : quarterlyRes.error;
+
+      if ((!monthlyRes.success && !existingMonthlyFilename) || (!quarterlyRes.success && !existingQuarterlyFilename)) {
+        const msgs: string[] = [];
+        if (monthlyErr && !existingMonthlyFilename) msgs.push(`Monthly: ${monthlyErr}`);
+        if (quarterlyErr && !existingQuarterlyFilename) msgs.push(`Quarterly: ${quarterlyErr}`);
+        const combined = msgs.join(" | ") || "Auto-generation failed for unknown reasons.";
+        setAutoError(combined);
+        // still show partial success banner if one succeeded
+        if (monthlyRes.success || quarterlyRes.success || existingMonthlyFilename || existingQuarterlyFilename) {
+          setSuccessBanner("Auto-generation partially succeeded. Check the available generated files above.");
+        }
+      } else {
+        // both either succeeded or file fallback found
+        setSuccessBanner("Auto-generated Monthly & Quarterly ARIMA inputs (detected after retry/refresh).");
+      }
     } catch (e: any) {
       setAutoError(e?.message || "Auto-generation failed.");
     } finally {
+      // refresh persisted documents & forecast filenames
+      try {
+        await fetchExistingDocuments();
+        await checkExistingForecasts();
+      } catch (err) {
+        // ignore
+      }
       setAutoRunning(false);
     }
-  }, [token, effectiveWorkflowId, overlayExecApiBase, fetchExistingDocuments, checkExistingForecasts]);
+  }, [
+    token,
+    effectiveWorkflowId,
+    overlayExecApiBase,
+    attemptPostWithRetries,
+    fetchExistingDocuments,
+    checkExistingForecasts,
+    existingMonthlyFilename,
+    existingQuarterlyFilename,
+    autoMonthlyOk,
+    autoQuarterlyOk,
+  ]);
 
   /* -----------------------------------------------------------
      Single-file upload helper
