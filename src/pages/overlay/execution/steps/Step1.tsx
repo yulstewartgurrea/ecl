@@ -471,7 +471,7 @@ export default function Step1() {
         setAutoQuarterlyOk(true);
         fallbackQuarterlyOk = true;
       }
-
+      console.log(fallbackMonthlyOk, fallbackQuarterlyOk)
       // If either still failed, compose an error
       const monthlyErr = monthlyRes.success ? null : monthlyRes.error;
       const quarterlyErr = quarterlyRes.success ? null : quarterlyRes.error;

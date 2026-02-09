@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { FunnelIcon } from "@heroicons/react/24/outline";
 
 export type Row = Record<string, unknown>;
@@ -44,7 +44,6 @@ export function Multi_Table({
   data,
   columns,
   emptyMessage = "No data",
-  serverMode = false,
   columnValuesMap = {},
   columnValuesLoading = false,
   appliedSelections,
