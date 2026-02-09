@@ -3,12 +3,8 @@
 // ==========================
 import { useState, useEffect, useCallback, useMemo } from "react";
 import UploadDropzone from "../../../components/ui/UploadDropzone";
-import OverlayUploadResultModal, {
-} from "../../../components/modals/OverlayUploadResultModal";
-import {
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-} from "@heroicons/react/24/outline";
+import OverlayUploadResultModal from "../../../components/modals/OverlayUploadResultModal";
+import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { useAppSelector, useAppDispatch } from "../../../redux_toolkit/hooks";
 import { setModuleProgress } from "../../../redux_toolkit/features/progress/moduleProgressSlice";
 import { normalizeUploadError } from "../../../utils/uploadErrorNormalizer";
@@ -20,10 +16,11 @@ import {
   setPdTransitionMatrixWorkflowId,
   setPdTransitionMatrixWorkflowData,
 } from "../../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 import type { Workflow } from "../../../services/workflow";
-const DOC_AGING_REPORT = "FLOWRATE_APPROACH_AGING_REPORT";
 import { useUploadManager } from "../../../hooks/useUploadManager";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const DOC_AGING_REPORT = "FLOWRATE_APPROACH_AGING_REPORT";
 
 const toNumberSafe = (value: unknown): number | undefined => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -38,6 +35,7 @@ const pathBuilder = (ctx: { entity: string; cadence: string; wf: string | number
   const { entity, cadence, wf, loanProduct, subdir } = ctx;
   return [entity, cadence, String(wf), loanProduct, subdir].filter(Boolean).join("/");
 };
+
 type ExistingDocFile = File & {
   isExisting?: boolean;
   documentId?: number | string;
@@ -45,6 +43,7 @@ type ExistingDocFile = File & {
   serverFilename?: string;
   createdAt?: string;
 };
+
 export default function Step1() {
   const dispatch = useAppDispatch();
 
@@ -75,24 +74,22 @@ export default function Step1() {
     : undefined;
 
   const entity =
-    currentPdTransitionMatrixWorkflowData?.entity ||
-    selectedPdTransitionMatrixEntity
+    currentPdTransitionMatrixWorkflowData?.entity || selectedPdTransitionMatrixEntity;
   const period =
     currentPdTransitionMatrixWorkflowData?.reporting_period ||
-    selectedPdTransitionMatrixReportingPeriod ||
-    "Monthly";
+    selectedPdTransitionMatrixReportingPeriod
   const wfName =
-    currentPdTransitionMatrixWorkflowData?.workflow_name ||
-    pdTransitionMatrixWfName 
+    currentPdTransitionMatrixWorkflowData?.workflow_name || pdTransitionMatrixWfName;
   const loanProduct =
     currentPdTransitionMatrixWorkflowData?.loan_product ||
-    selectedPdTransitionMatrixLoanProduct ||
-    "";
+    selectedPdTransitionMatrixLoanProduct
   const reportDateStart =
     currentPdTransitionMatrixWorkflowData?.report_date_start ||
-    selectedPdTransitionMatrixReportDateStart ||
-    "";
+    selectedPdTransitionMatrixReportDateStart
 
+  // Only allow upload if workflow is selected
+  const hasSelectedWorkflow = Boolean(workflowId || wfName);
+  console.log('hasSelectedWorkflow: ',wfName, ",", hasSelectedWorkflow, workflowId, pdTransitionMatrixWfName, wfName)
   const context = {
     entity,
     cadence: period,
@@ -110,11 +107,10 @@ export default function Step1() {
 
   const uploadManager = useUploadManager({
     uploadFn: async ({ file, override }) => {
+      if (!hasSelectedWorkflow) return;
+
       setUploading(true);
-      const workflowPath = pathBuilder({
-        ...context,
-        categoryKey: DOC_AGING_REPORT,
-      });
+      const workflowPath = pathBuilder({ ...context, categoryKey: DOC_AGING_REPORT });
 
       const form = new FormData();
       form.append("file", file);
@@ -149,74 +145,57 @@ export default function Step1() {
 
         setUploaded(true);
         setFailed(false);
-        // Prevent fetchExistingDocument from overwriting the newly uploaded file
         setSkipFetchExisting(true);
-        // Reset the skip flag after a delay to allow future fetches
         setTimeout(() => setSkipFetchExisting(false), 2000);
       } finally {
         setUploading(false);
       }
     },
   });
-const fetchExistingDocument = useCallback(async () => {
-  if (!workflowId || !token) {
-    setFile(null);
-    return;
-  }
 
-  // Skip fetching if we just uploaded a new file (to prevent overwriting the new upload)
-  if (skipFetchExisting) {
-    return;
-  }
+  const fetchExistingDocument = useCallback(async () => {
+    if (!workflowId || !token) {
+      setFile(null);
+      return;
+    }
+    if (skipFetchExisting) return;
 
-  try {
-    const response = await fetch(
-      `${API_BASE}/documents/workflow-documents/?workflow_id=${workflowId}&document_types=${DOC_AGING_REPORT}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    try {
+      const response = await fetch(
+        `${API_BASE}/documents/workflow-documents/?workflow_id=${workflowId}&document_types=${DOC_AGING_REPORT}`,
+        {
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        }
+      );
 
-    if (!response.ok) return setFile(null);
+      if (!response.ok) return setFile(null);
 
-    const result = await response.json();
-    if (!result?.success || !Array.isArray(result.data) || result.data.length === 0) return setFile(null);
+      const result = await response.json();
+      if (!result?.success || !Array.isArray(result.data) || result.data.length === 0) return setFile(null);
 
-    // Pick the first document
-    const doc = result.data[0];
-
-    const mime =
-      doc.filename.endsWith(".csv")
-        ? "text/csv"
-        : doc.filename.endsWith(".xlsx")
+      const doc = result.data[0];
+      const mime =
+        doc.filename.endsWith(".csv")
+          ? "text/csv"
+          : doc.filename.endsWith(".xlsx")
           ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           : "application/vnd.ms-excel";
 
-    // Create a File object to represent the existing file
-    const existingFile: ExistingDocFile = new File([], doc.original_filename || doc.filename, { type: mime }) as ExistingDocFile;
+      const existingFile: ExistingDocFile = new File([], doc.original_filename || doc.filename, { type: mime }) as ExistingDocFile;
+      existingFile.isExisting = true;
+      existingFile.documentId = doc.id;
+      existingFile.sizeBytes = toNumberSafe(doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size);
+      existingFile.serverFilename = doc.filename;
+      existingFile.createdAt = doc.created_at;
 
-    existingFile.isExisting = true;
-    existingFile.documentId = doc.id;
-    existingFile.sizeBytes = toNumberSafe(doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size);
-    existingFile.serverFilename = doc.filename;
-    existingFile.createdAt = doc.created_at;
-
-    setFile(existingFile);
-    setUploaded(true);
-    setFailed(false);
-
-    console.log("Fetched existing file:", existingFile);
-
-  } catch (err) {
-    console.error("Failed to fetch existing document:", err);
-    setFile(null);
-  }
-}, [workflowId, token]);
-
-
+      setFile(existingFile);
+      setUploaded(true);
+      setFailed(false);
+    } catch (err) {
+      console.error("Failed to fetch existing document:", err);
+      setFile(null);
+    }
+  }, [workflowId, token, skipFetchExisting]);
 
   useEffect(() => {
     fetchExistingDocument();
@@ -233,7 +212,6 @@ const fetchExistingDocument = useCallback(async () => {
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
       if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
       dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
-      // Update workflow data to ensure currentPdTransitionMatrixWorkflowData is in sync
       dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: w as any }));
 
       setPickerOpen(false);
@@ -273,8 +251,8 @@ const fetchExistingDocument = useCallback(async () => {
     setFailed(false);
     setUploading(false);
     setSuccessBanner(null);
-    setPickerOpen(false)
-    uploadManager.setModalOpen(false)
+    setPickerOpen(false);
+    uploadManager.setModalOpen(false);
   };
 
   return (
@@ -283,11 +261,7 @@ const fetchExistingDocument = useCallback(async () => {
         <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <div className="flex items-center justify-between">
             <span>{successBanner}</span>
-            <button
-              onClick={handleReset}
-              className="ml-2 text-emerald-600 hover:text-emerald-800"
-              title="Dismiss success message"
-            >
+            <button onClick={handleReset} className="ml-2 text-emerald-600 hover:text-emerald-800" title="Dismiss success message">
               x
             </button>
           </div>
@@ -298,7 +272,7 @@ const fetchExistingDocument = useCallback(async () => {
         open={uploadManager.modalOpen}
         issues={uploadManager.issues}
         isSubmitting={false}
-        onClose={() => handleReset()}
+        onClose={handleReset}
         onProceed={async () => {
           if (file) await uploadManager.startUpload(file, true);
           uploadManager.setModalOpen(false);
@@ -321,7 +295,7 @@ const fetchExistingDocument = useCallback(async () => {
               Switch Workflow
             </button>
 
-            {uploadStatus.status === "success" && (
+            {hasSelectedWorkflow && uploadStatus.status === "success" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                 <CheckCircleIcon className="h-4 w-4" />
                 Uploaded
@@ -339,6 +313,11 @@ const fetchExistingDocument = useCallback(async () => {
                 Upload Failed
               </span>
             )}
+            {!hasSelectedWorkflow && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-400">
+                Please select a workflow to upload
+              </span>
+            )}
           </div>
         </div>
 
@@ -354,21 +333,21 @@ const fetchExistingDocument = useCallback(async () => {
                 maxFiles={1}
                 multiple={false}
                 value={file ? [file] : []}
+                disabled={!hasSelectedWorkflow} // 🔹 Disable if no workflow
                 onChange={(selectedFiles) => {
                   const firstFile = selectedFiles.length > 0 ? selectedFiles[0] : null;
                   setFile(firstFile);
                   if (firstFile) {
                     setUploaded(false);
                     setFailed(false);
-                    // Reset skip flag when user selects a new file
                     setSkipFetchExisting(false);
                     uploadManager.onFilesSelected([firstFile]);
                   }
                 }}
-                emptyHint="Waiting for aging report file"
+                emptyHint={!hasSelectedWorkflow ? "Select a workflow first" : "Waiting for aging report file"}
               />
 
-              {isUploaded && file && (
+              {isUploaded && file && hasSelectedWorkflow && (
                 <div className="absolute top-3 right-3 z-10">
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
                     <CheckCircleIcon className="h-3 w-3" />
@@ -384,7 +363,7 @@ const fetchExistingDocument = useCallback(async () => {
       <WorkflowPickerModal
         open={pickerOpen}
         token={token}
-        onClose={() => handleReset()}
+        onClose={handleReset}
         onSelect={handlePickWorkflow}
       />
     </div>

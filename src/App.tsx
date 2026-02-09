@@ -97,7 +97,7 @@ function App() {
       >
         <Route index element={<WorkflowLists />} />
         <Route path="workflows" element={<Workflows />} />
-        <Route path="flowrate" element={<WorkflowLists />} />
+        <Route path="flowrate" element={<FlowrateApproachPage />} />
         <Route path="WorkflowFolderList" element={<WorkflowFolderList/>} />
         <Route path="pd_landing" element={<FlowrateApproachPage />} />
         <Route path="overlay" element={<OverlayLandingPage />} />
