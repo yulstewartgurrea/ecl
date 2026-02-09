@@ -298,3 +298,45 @@ export async function getMultiFactorFile(opts: {
   const json = (await res.json()) as ApiEnvelope<MultiFactorFileData>;
   return json;
 }
+
+/** GET /api/overlay/development/multifactor_analysis/files/export to export all files as ZIP */
+export async function exportMultiFactorFiles(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+}): Promise<void> {
+  const { apiBase, token, workflowId } = opts;
+
+  const url = `${base(apiBase)}/api/overlay/development/multifactor_analysis/files/export?workflow_id=${workflowId}`;
+
+  const res = await xfetch(url, {
+    method: "GET",
+    headers: withAuth(token),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Export failed: HTTP ${res.status}${text ? ` – ${text}` : ""}`);
+  }
+
+  // Extract filename from Content-Disposition header
+  const contentDisposition = res.headers.get("Content-Disposition");
+  let filename = `mfa_files_export_${workflowId}.zip`; // Default filename
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1];
+    }
+  }
+
+  // Get the blob and create a download link
+  const blob = await res.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = downloadUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}

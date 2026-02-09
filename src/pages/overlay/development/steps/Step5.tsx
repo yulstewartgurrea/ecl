@@ -173,10 +173,9 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
   const fetchFilteringResults = useCallback(async () => {
     const wf = Number(selectedWorkflowId);
     if (!Number.isFinite(wf)) return;
-
+    console.log(selectedRows)
     setLoading(true);
     setErrMsg(null);
-
     try {
       const res = await getFilteringModels({
         apiBase: API_BASE,
@@ -187,7 +186,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
         num_vars_taken: num_vars_taken,
         // NOTE: only works if backend supports `search` query param
         // If your backend doesn't support it yet, remove this and keep UI (no functional change).
-        search: search,
+        variable_names: search,
       } as any);
 
       const pageRows = (res.rows ?? []) as Row[];
@@ -870,7 +869,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
           data={rows}
           selectable
           initialSelectedIds={persistedChecked?.ids ?? []}
-          getRowId={(r, idx) => getRowId(r)}
+          getRowId={(r) => getRowId(r)}
           onSelectionChange={(selRows) => handleSelectionChange(selRows)}
           emptyMessage="Run analysis (after configuring filters) to see results, then select rows to proceed to Step 6."
         />

@@ -5,7 +5,10 @@ import pandas as pd
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Form, Query, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from starlette.responses import StreamingResponse
+from io import BytesIO
+import zipfile
 from typing import Dict, Any
 
 from models.models import User, Workflow, Document
@@ -608,6 +611,120 @@ async def get_mfa_files(
                 "code": -1,
                 "success": False,
                 "msg": f"Unexpected error retrieving MFA files: {str(e)}",
+                "data": None
+            }
+        )
+
+@router.get("/multifactor_analysis/files/export")
+async def export_mfa_files(
+    workflow_id: int = Query(..., description="Workflow ID"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Export all CSV files from the latest MFA results folder as a ZIP file.
+    
+    Returns a ZIP file containing all CSV files from the most recent MFA results folder.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id,
+                Workflow.user_id == current_user.id
+            ).first()
+
+            if not workflow:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Workflow with ID {workflow_id} not found",
+                        "data": None
+                    }
+                )
+
+            portfolio = workflow.loan_product
+
+            multifactor_analysis_output_path = (
+                f"{get_root_folder()}/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"output/overlay/development/{portfolio}/multifactor_analysis"
+            )
+
+            if not os.path.exists(multifactor_analysis_output_path):
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"Multifactor analysis directory not found: {multifactor_analysis_output_path}",
+                        "data": None
+                    }
+                )
+
+            folder_path = Path(multifactor_analysis_output_path)
+            
+            # Look for folders matching the pattern (folder-based approach)
+            mfa_folders = list(folder_path.glob(f"{portfolio}_mfa_*_*-var_*"))
+            
+            if not mfa_folders:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"No MFA results folder found for portfolio {portfolio}",
+                        "data": None
+                    }
+                )
+            
+            # Get the most recent folder (by modification time)
+            mfa_folder = max(mfa_folders, key=lambda p: p.stat().st_mtime)
+            
+            # Find all CSV files in the folder (001.csv, 002.csv, etc.)
+            csv_files = sorted(mfa_folder.glob("*.csv"), key=lambda p: p.name)
+            
+            if not csv_files:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": f"No CSV files found in MFA results folder: {mfa_folder.name}",
+                        "data": None
+                    }
+                )
+            
+            # Create in-memory ZIP file
+            mem_file = BytesIO()
+            with zipfile.ZipFile(mem_file, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+                for csv_file in csv_files:
+                    # Add file to ZIP with just the filename (not full path)
+                    zf.write(str(csv_file), arcname=csv_file.name)
+            
+            mem_file.seek(0)
+            
+            # Generate ZIP filename with timestamp
+            zip_name = f"{portfolio}_MFA_Files_{mfa_folder.name}_{get_time_date()}.zip"
+            
+            return StreamingResponse(
+                mem_file,
+                media_type="application/zip",
+                headers={"Content-Disposition": f"attachment; filename={zip_name}"}
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Unexpected error exporting MFA files: {str(e)}",
                 "data": None
             }
         )
