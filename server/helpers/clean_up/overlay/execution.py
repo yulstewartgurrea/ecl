@@ -73,6 +73,7 @@ def clean_monthly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
     # change Date. to Date
     df.columns = df.columns.str.replace('Point', 'Point Forecast')
     df.columns = df.columns.str.replace('Date.', 'Date')
+    df.columns = df.columns.str.replace('Date .', 'Date')
     
     # create new columns year, month (int), month, ID
     # First, ensure Date column exists and parse it (case-insensitive search)
@@ -173,6 +174,7 @@ def clean_quarterly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
 
     df.columns = df.columns.str.replace('Point', 'Point Forecast')
     df.columns = df.columns.str.replace('Date.', 'Date')
+    df.columns = df.columns.str.replace('Date .', 'Date')
 
     # First, ensure Date column exists and parse it (case-insensitive search)
     date_col_name = None

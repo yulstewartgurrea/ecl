@@ -74,8 +74,23 @@ def validate_monthly_forecasted_mev_arima(df: pd.DataFrame, document_type: str, 
         # Normalize column names for comparison (lowercase, strip spaces)
         df_columns_normalized = [col.strip().lower() for col in df.columns]
         
+        # Check for unnamed columns (e.g., "Unnamed: 0", "Unnamed: 1")
+        unnamed_columns = []
+        for col in df.columns:
+            # Check if column name matches pattern "Unnamed:" or "unnamed:" followed by optional number
+            if re.match(r'^[Uu]nnamed\s*:\s*\d*$', str(col).strip()):
+                unnamed_columns.append(col)
+        
+        if unnamed_columns:
+            validation_results["validation_status"] = "failed"
+            validation_results["issues"].append({
+                "type": "unnamed_columns",
+                "columns": unnamed_columns,
+                "message": f"Found unnamed columns: {', '.join(unnamed_columns)}."
+            })
+        
         # Required columns - validation fails if missing
-        required_columns = ["date", "year", "month (int)", "month", "id"]
+        required_columns = []
         
         missing_required = [col for col in required_columns if col not in df_columns_normalized]
         if missing_required:
@@ -175,9 +190,24 @@ def validate_quarterly_forecasted_mev_arima(df: pd.DataFrame, document_type: str
     try:
         # Normalize column names for comparison (lowercase, strip spaces)
         df_columns_normalized = [col.strip().lower() for col in df.columns]
+
+        # Check for unnamed columns (e.g., "Unnamed: 0", "Unnamed: 1")
+        unnamed_columns = []
+        for col in df.columns:
+            # Check if column name matches pattern "Unnamed:" or "unnamed:" followed by optional number
+            if re.match(r'^[Uu]nnamed\s*:\s*\d*$', str(col).strip()):
+                unnamed_columns.append(col)
+        
+        if unnamed_columns:
+            validation_results["validation_status"] = "failed"
+            validation_results["issues"].append({
+                "type": "unnamed_columns",
+                "columns": unnamed_columns,
+                "message": f"Found unnamed columns: {', '.join(unnamed_columns)}."
+            })
         
         # Required columns - validation fails if missing
-        required_columns = ["aging bucket", "ttc pd"]
+        required_columns = []
         
         missing_required = [col for col in required_columns if col not in df_columns_normalized]
         if missing_required:
