@@ -92,7 +92,9 @@ export default function Step1() {
   const maxSizeMB = 20;
 
   const workflowPathBase = `/${entity}/${period}/${workflowName}/input/overlay/development/${loanProduct}`.replace(/^\/+/, "");
-  const effectiveWorkflowId = selectedWorkflowId ?? 1;
+  const hasWorkflow = Number.isFinite(selectedWorkflowId);
+
+  const effectiveWorkflowId = selectedWorkflowId;
 
   /* -----------------------------------------------------------
      Fetch existing documents
@@ -156,6 +158,11 @@ export default function Step1() {
   ----------------------------------------------------------- */
   const uploadFile = useCallback(
     async (file: File, docType: ExecDocType, override: boolean = false) => {
+      if (!hasWorkflow) {
+        console.warn("Upload blocked: no workflow selected");
+        return;
+      }
+
       const fileName = file.name;
       if (!token) return;
 
@@ -254,6 +261,11 @@ export default function Step1() {
 
   const handleFilesChange = useCallback(
     async (files: File[], docType: ExecDocType, setFiles: (f: File[]) => void) => {
+      if (!hasWorkflow) {
+        setPickerOpen(true);
+        return;
+      }
+
       const single = uniqueFiles(files).slice(-1);
       setFiles(single);
 

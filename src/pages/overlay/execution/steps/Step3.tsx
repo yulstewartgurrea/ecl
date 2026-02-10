@@ -1,7 +1,5 @@
 ﻿// src/pages/overlay/execution/OverlayExecutionPage3.tsx
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSelector } from "react-redux";
-import type { RootState } from "../../../../redux_toolkit/store";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 
 import type { ScenarioRow } from "../../../../components/overlay/execution/mev/ConfigModal";
@@ -20,8 +18,9 @@ import {
 import { PlayCircleIcon, ArrowPathIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 
 export default function OverlayExecutionPage3() {
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
-    useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
+  const {
+    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
+  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
 
   // values you edit/save in the modal

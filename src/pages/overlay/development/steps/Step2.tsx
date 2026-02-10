@@ -2,8 +2,6 @@
 import ExeTable from "../../../../components/overlay/development/interpolation/table/ExeTable";
 import type { Frequency } from "../../../../components/overlay/development/interpolation/table/Columns";
 import { ProcessModal } from "../../../../components/ProcessModal";
-import { useSelector } from "react-redux";
-import type { RootState } from "../../../../redux_toolkit/store";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 
 import {
