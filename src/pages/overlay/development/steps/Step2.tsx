@@ -29,8 +29,9 @@ export default function OverlayDevelopmentPage2() {
   const MODE: Mode = "development";
 
   // read workflow_id from Redux
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
-    useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
+  const {
+    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
+  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
 
   const token = useAppSelector(
     (s) => (s as any)?.auth?.token
