@@ -31,7 +31,7 @@ const sidebarOptions: any[] = [
   { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
   { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
   { tabName: "Configuration", icon: AdjustmentsHorizontalIcon, subTabs: [] },
-  { tabName: "General Settings", icon: Cog6ToothIcon, subTabs: [] },
+  // { tabName: "General Settings", icon: Cog6ToothIcon, subTabs: [] },
 ];
 
 // ----- Route maps (tab -> route, subtab -> route) -----
@@ -41,7 +41,7 @@ const TAB_TO_ROUTE: Record<string, string> = {
   "Flowrate Approach": "/flowrate",
   "Expected Credit Loss (ECL)": "/ecl",
   "Configuration": "/ecl_configuration",
-  "General Settings": "/settings",
+  // "General Settings": "/settings",
 };
 
 
