@@ -8,7 +8,7 @@ import {
   ChevronDownIcon,
   Square3Stack3DIcon,
   ChartBarIcon,
-  Cog6ToothIcon,
+  // Cog6ToothIcon,
   AdjustmentsHorizontalIcon,
   FolderIcon,
 } from "@heroicons/react/24/outline";
