@@ -1,33 +1,26 @@
-﻿// src/pages/execution/Step1.tsx
-import { useMemo, useState, useCallback, useEffect } from "react";
+﻿// ==========================
+// pages/flowrate/steps/Step1.tsx
+// ==========================
+import { useState, useEffect, useCallback, useMemo } from "react";
 import UploadDropzone from "../../../components/ui/UploadDropzone";
-import {
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-} from "@heroicons/react/24/outline";
-import { useSelector } from "react-redux";
-import type { RootState } from "../../../redux_toolkit/store";
-
-import { overlayUploadFile } from "../../../services/upload";
-
-import { useAppDispatch, useAppSelector } from "../../../redux_toolkit/hooks";
-import OverlayUploadResultModal, {
-  type IssueRow,
-} from "../../../components/modals/OverlayUploadResultModal";
+import OverlayUploadResultModal from "../../../components/modals/OverlayUploadResultModal";
+import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { useAppSelector, useAppDispatch } from "../../../redux_toolkit/hooks";
+import { setModuleProgress } from "../../../redux_toolkit/features/progress/moduleProgressSlice";
+import { normalizeUploadError } from "../../../utils/uploadErrorNormalizer";
 import WorkflowPickerModal from "../../../components/modals/WorkflowPickerModal";
-
 import {
   setPdTransitionMatrixSelectedEntity,
   setPdTransitionMatrixSelectedReportingPeriod,
   setPdTransitionMatrixWfName,
   setPdTransitionMatrixWorkflowId,
-  setPdTransitionMatrixSelectedLoanProduct,
   setPdTransitionMatrixWorkflowData,
 } from "../../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
-
 import type { Workflow } from "../../../services/workflow";
+import { useUploadManager } from "../../../hooks/useUploadManager";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const ECL_DOC_TYE = "ECL_CLIENT_LOAN_BALANCES";
 
 const toNumberSafe = (value: unknown): number | undefined => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -38,386 +31,187 @@ const toNumberSafe = (value: unknown): number | undefined => {
   return undefined;
 };
 
-/* -----------------------------------------------------------
-   Execution document types (must match backend / Postman)
------------------------------------------------------------ */
-const ECL_CLIENT_LOAN_BALANCES = "ECL_CLIENT_LOAN_BALANCES" as const;
+const pathBuilder = (ctx: { entity: string; cadence: string; wf: string | number; loanProduct: string; subdir?: string; categoryKey: string }) => {
+  const { entity, cadence, wf, loanProduct, subdir } = ctx;
+  return [entity, cadence, String(wf), loanProduct, subdir].filter(Boolean).join("/");
+};
 
-type ExecDocType = typeof ECL_CLIENT_LOAN_BALANCES;
+type ExistingDocFile = File & {
+  isExisting?: boolean;
+  documentId?: number | string;
+  sizeBytes?: number;
+  serverFilename?: string;
+  createdAt?: string;
+};
 
-/** normalize filename (remove ext, normalize separators/spaces) */
-function normalizeFileBase(name: string) {
-  const noExt = name.replace(/\.[a-z0-9]+$/i, "");
-  return noExt
-    .toLowerCase()
-    .replace(/[_\-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/**
- * Lenient inference:
- *  Accept if filename contains:
- *  - "ecl"
- *  - "client loan balance(s)"
- *  - has BOTH "loan" and "balance"
- *
- * If nothing matched  still return ECL_CLIENT_LOAN_BALANCES (NO BLOCKING ERROR)
- */
-function inferExecDocTypeFromName(name: string): ExecDocType {
-  const base = normalizeFileBase(name);
-
-  const hasEcl = base.includes("ecl");
-  const hasClientLoanBalance =
-    base.includes("client loan balance") || base.includes("client loan balances");
-  const hasLoanAndBalance = base.includes("loan") && base.includes("balance");
-
-  if (hasEcl || hasClientLoanBalance || hasLoanAndBalance) {
-    return ECL_CLIENT_LOAN_BALANCES;
-  }
-
-  //  default to ECL (no filename blocking)
-  return ECL_CLIENT_LOAN_BALANCES;
-}
-
-/** Compose the final storage path for this file:
- *  <entity>/<period>/<workflow>/input/ecl/<loanproduct>/<DOCTYPE>
- */
-function composeWorkflowPathWithDocType(
-  basePath: string,
-  docType: ExecDocType
-): string {
-  const base = basePath.replace(/\/+$/g, "");
-  return `${base}/${docType}`;
-}
-
-/* -----------------------------------------------------------
-   Component
------------------------------------------------------------ */
 export default function Step1() {
   const dispatch = useAppDispatch();
 
-  
-
   const {
-    selectedPdTransitionMatrixEntity: entity,
-    selectedPdTransitionMatrixReportingPeriod: period,
-    pdTransitionMatrixWfName: workflowName,
-    currentPdTransitionMatrixWorkflowId: selectedWorkflowId,
-    selectedPdTransitionMatrixLoanProduct: loanproduct,
-  } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper as any);
-  const token = useAppSelector((state) => state.auth.token);
+    pdTransitionMatrixWfName,
+    currentPdTransitionMatrixWorkflowId,
+    currentPdTransitionMatrixWorkflowData,
+    selectedPdTransitionMatrixEntity,
+    selectedPdTransitionMatrixReportingPeriod,
+    selectedPdTransitionMatrixLoanProduct,
+    selectedPdTransitionMatrixReportDateStart,
+  } = useAppSelector((state: any) => state.pdTransitionMatrixWfHelper);
 
-  // Execution input
-  const [eclFiles, setECLFiles] = useState<File[]>([]);
+  const token = useAppSelector((state: any) => state.auth?.token) as string | null;
 
-  // Upload state
-  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
-  const [uploadedFiles, setUploadedFiles] = useState<Set<string>>(new Set());
-  const [failedFiles, setFailedFiles] = useState<Set<string>>(new Set());
-
+  const [file, setFile] = useState<File | null>(null);
+  const [isUploading, setUploading] = useState(false);
+  const [isUploaded, setUploaded] = useState(false);
+  const [isFailed, setFailed] = useState(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
-  const [uploadIssues, setUploadIssues] = useState<IssueRow[]>([]);
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [failedFilesForRetry, setFailedFilesForRetry] = useState<File[]>([]);
-
   const [pickerOpen, setPickerOpen] = useState(false);
   const [skipFetchExisting, setSkipFetchExisting] = useState(false);
 
-  //  NEW: modal retry loading state (for Proceed anyway / Force upload)
-  const [retrySubmitting, setRetrySubmitting] = useState(false);
+  const workflowIdFromRedux =
+    currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
+  const workflowId = Number.isFinite(Number(workflowIdFromRedux))
+    ? Number(workflowIdFromRedux)
+    : undefined;
+
+  const entity =
+    currentPdTransitionMatrixWorkflowData?.entity || selectedPdTransitionMatrixEntity;
+  const period =
+    currentPdTransitionMatrixWorkflowData?.reporting_period ||
+    selectedPdTransitionMatrixReportingPeriod
+  const wfName =
+    currentPdTransitionMatrixWorkflowData?.workflow_name || pdTransitionMatrixWfName;
+  const loanProduct =
+    currentPdTransitionMatrixWorkflowData?.loan_product ||
+    selectedPdTransitionMatrixLoanProduct
+  const reportDateStart =
+    currentPdTransitionMatrixWorkflowData?.report_date_start ||
+    selectedPdTransitionMatrixReportDateStart
+
+  // Only allow upload if workflow is selected
+  const hasSelectedWorkflow = Boolean(workflowId || wfName);
+  console.log('hasSelectedWorkflow: ',wfName, ",", hasSelectedWorkflow, workflowId, pdTransitionMatrixWfName, wfName)
+  const context = {
+    entity,
+    cadence: period,
+    wf: wfName,
+    loanProduct,
+    reportDateStart,
+    subdir: "input/flowrate_approach",
+  };
+
+  const workflowPath = [entity, period, wfName, loanProduct].filter(Boolean).join("/");
+  const progressKey = workflowPath || (workflowId ? `wf:${workflowId}` : undefined);
 
   const accept = ".csv,.xlsx,.xls";
   const maxSizeMB = 20;
 
-  const baseDir = `/${entity}/${period}/${workflowName}`.replace(/^\/+/, "");
-  const workflowPathBase = `${baseDir}/input/ecl/${loanproduct}`;
+  const uploadManager = useUploadManager({
+    uploadFn: async ({ file, override }) => {
+      if (!hasSelectedWorkflow) return;
 
-  const effectiveWorkflowId = selectedWorkflowId ?? 1;
+      setUploading(true);
+      const workflowPath = pathBuilder({ ...context, categoryKey: ECL_DOC_TYE });
 
-  //  helper: add/remove many filenames in uploading set (reuses same loader UI)
-  const markUploadingBatch = useCallback((names: string[], on: boolean) => {
-    setUploadingFiles((prev) => {
-      const ns = new Set(prev);
-      for (const n of names) {
-        if (on) ns.add(n);
-        else ns.delete(n);
+      const form = new FormData();
+      form.append("file", file);
+      form.append("workflow_path", workflowPath);
+      form.append("document_type", ECL_DOC_TYE);
+      form.append("workflow_id", String(workflowId));
+      form.append("override", String(override));
+      form.append("module", "FLOWRATE_APPROACH");
+      form.append("submodule", "");
+
+      try {
+        const response = await fetch(`${API_BASE}/api/document/upload`, {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: form,
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok || payload?.success === false) {
+          setFailed(true);
+          setUploaded(false);
+          throw {
+            fileName: file.name,
+            status: response.status || 0,
+            ok: false,
+            kind: "error",
+            payload,
+            normalized: normalizeUploadError(payload),
+          };
+        }
+
+        setUploaded(true);
+        setFailed(false);
+        setSkipFetchExisting(true);
+        setTimeout(() => setSkipFetchExisting(false), 2000);
+      } finally {
+        setUploading(false);
       }
-      return ns;
-    });
-  }, []);
+    },
+  });
 
-  const fetchExistingDocuments = useCallback(async () => {
-    if (!selectedWorkflowId || !token) return;
-    
-    // Skip fetching if we just uploaded a new file (to prevent overwriting the new upload)
-    if (skipFetchExisting) {
+  const fetchExistingDocument = useCallback(async () => {
+    if (!workflowId || !token) {
+      setFile(null);
       return;
     }
-
-    const documentTypes = [ECL_CLIENT_LOAN_BALANCES].join(",");
+    if (skipFetchExisting) return;
 
     try {
       const response = await fetch(
-        `${API_BASE}/documents/workflow-documents/?workflow_id=${selectedWorkflowId}&document_types=${documentTypes}`,
+        `${API_BASE}/documents/workflow-documents/?workflow_id=${workflowId}&document_types=${ECL_DOC_TYE}`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         }
       );
 
-      if (!response.ok) return;
+      if (!response.ok) return setFile(null);
+
       const result = await response.json();
+      if (!result?.success || !Array.isArray(result.data) || result.data.length === 0) return setFile(null);
 
-      if (result?.success && Array.isArray(result.data)) {
-        const nextEcl: File[] = [];
-        
-        for (const doc of result.data) {
-          // Only process documents with the correct document type
-          if (doc.document_type !== ECL_CLIENT_LOAN_BALANCES) continue;
+      const doc = result.data[0];
+      const mime =
+        doc.filename.endsWith(".csv")
+          ? "text/csv"
+          : doc.filename.endsWith(".xlsx")
+          ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          : "application/vnd.ms-excel";
 
-          const mime = doc.filename.endsWith(".csv")
-            ? "text/csv"
-            : doc.filename.endsWith(".xlsx")
-            ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            : "application/vnd.ms-excel";
+      const existingFile: ExistingDocFile = new File([], doc.original_filename || doc.filename, { type: mime }) as ExistingDocFile;
+      existingFile.isExisting = true;
+      existingFile.documentId = doc.id;
+      existingFile.sizeBytes = toNumberSafe(doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size);
+      existingFile.serverFilename = doc.filename;
+      existingFile.createdAt = doc.created_at;
 
-          const displayName = doc.original_filename || doc.filename;
-          const f = new File([], displayName, { type: mime }) as File & {
-            isExisting?: boolean;
-            documentId?: number | string;
-            sizeBytes?: number;
-            serverFilename?: string;
-          };
-          (f as any).isExisting = true;
-          (f as any).documentId = doc.id;
-          (f as any).sizeBytes = toNumberSafe(
-            doc.size_bytes ?? doc.size ?? doc.bytes ?? doc.file_size
-          );
-          (f as any).serverFilename = doc.filename;
-          
-          nextEcl.push(f);
-          setUploadedFiles((prev) => new Set(prev).add(displayName));
-        }
-
-        setECLFiles(nextEcl.slice(0, 1));
-      }
+      setFile(existingFile);
+      setUploaded(true);
+      setFailed(false);
     } catch (err) {
-      console.error("Failed to fetch execution docs:", err);
+      console.error("Failed to fetch existing document:", err);
+      setFile(null);
     }
-  }, [selectedWorkflowId, token, skipFetchExisting]);
-
-  const clearAll = useCallback(() => {
-    setECLFiles([]);
-    setUploadingFiles(new Set());
-    setUploadedFiles(new Set());
-    setFailedFiles(new Set());
-    setSuccessBanner(null);
-    setUploadIssues([]);
-    setUploadModalOpen(false);
-    setFailedFilesForRetry([]);
-    setRetrySubmitting(false);
-  }, []);
+  }, [workflowId, token, skipFetchExisting]);
 
   useEffect(() => {
-    clearAll();
-  }, [selectedWorkflowId, clearAll]);
-
-  useEffect(() => {
-    if (selectedWorkflowId) fetchExistingDocuments();
-  }, [selectedWorkflowId, fetchExistingDocuments]);
-
-  /* -----------------------------------------------------------
-     Single-file upload helper
-  ----------------------------------------------------------- */
-  const uploadIndividualFile = useCallback(
-    async (file: File, override: boolean = false) => {
-      const fileName = file.name;
-      
-      // Check if already uploading - if so, don't start another upload
-      // But allow re-upload if it was previously uploaded (override allows replacement)
-      if (uploadingFiles.has(fileName)) return;
-
-      setUploadingFiles((prev) => new Set(prev).add(fileName));
-
-      try {
-        const docType = inferExecDocTypeFromName(fileName);
-
-        const finalWorkflowPath = composeWorkflowPathWithDocType(
-          workflowPathBase,
-          docType
-        );
-
-        const result = await overlayUploadFile({
-          baseUrl: API_BASE,
-          token,
-          file,
-          workflowPath: finalWorkflowPath,
-          documentType: docType,
-          workflowId: effectiveWorkflowId,
-          override,
-          moduleVal: "ECL",
-          submoduleVal: "DEVELOPMENT",
-        });
-
-        if (result.ok) {
-          setUploadedFiles((prev) => new Set(prev).add(fileName));
-          setFailedFiles((prev) => {
-            const ns = new Set(prev);
-            ns.delete(fileName);
-            return ns;
-          });
-
-          setECLFiles((prev) => {
-            if (prev.some((x) => x.name === fileName)) return prev;
-            return [...prev, file];
-          });
-
-          setSuccessBanner(`${fileName} uploaded successfully!`);
-          setUploadModalOpen(false);
-          // Prevent fetchExistingDocuments from overwriting the newly uploaded file
-          setSkipFetchExisting(true);
-          // Reset the skip flag after a delay to allow future fetches
-          setTimeout(() => setSkipFetchExisting(false), 2000);
-        } else {
-          setFailedFiles((prev) => new Set(prev).add(fileName));
-          setUploadedFiles((prev) => {
-            const ns = new Set(prev);
-            ns.delete(fileName);
-            return ns;
-          });
-
-          setECLFiles((prev) => prev.filter((f) => f.name !== fileName));
-          setFailedFilesForRetry((prev) => [...prev, file]);
-
-          const validationStatus = result.data?.validation_status;
-          const issueKind = validationStatus === "failed" ? "conflict" : "error";
-
-          const issue: IssueRow = {
-            fileName,
-            status: result.status || 0,
-            ok: result.ok,
-            kind: issueKind,
-            payload: {
-              error: result.error,
-              data: result.data,
-              fullResponse: result,
-              validationStatus,
-            },
-          };
-
-          setUploadIssues([issue]);
-          setUploadModalOpen(true);
-          setSuccessBanner(null);
-        }
-      } catch (error: any) {
-        console.error(`Upload failed for ${fileName}:`, error);
-
-        setFailedFiles((prev) => new Set(prev).add(fileName));
-        setECLFiles((prev) => prev.filter((f) => f.name !== fileName));
-        setFailedFilesForRetry((prev) => [...prev, file]);
-
-        const issue: IssueRow = {
-          fileName,
-          status: 0,
-          ok: false,
-          kind: "error",
-          payload: {
-            error: error?.message || "Upload failed",
-            caughtError: error,
-            stack: error?.stack,
-            validationStatus: "error",
-          },
-        };
-
-        setUploadIssues([issue]);
-        setUploadModalOpen(true);
-        setSuccessBanner(null);
-      } finally {
-        setUploadingFiles((prev) => {
-          const ns = new Set(prev);
-          ns.delete(fileName);
-          return ns;
-        });
-      }
-    },
-    [API_BASE, token, workflowPathBase, effectiveWorkflowId, uploadingFiles]
-  );
-
-  // Dropzone handler
-  const handleEclFilesChange = useCallback(
-    async (files: File[]) => {
-      const single = files.slice(-1);
-      setECLFiles(single);
-
-      // Reset skip flag when user selects a new file
-      setSkipFetchExisting(false);
-
-      for (const f of single) {
-        // Remove from uploadedFiles, failedFiles, and uploadingFiles to allow re-uploading
-        setUploadedFiles((prev) => {
-          const ns = new Set(prev);
-          ns.delete(f.name);
-          return ns;
-        });
-        setFailedFiles((prev) => {
-          const ns = new Set(prev);
-          ns.delete(f.name);
-          return ns;
-        });
-        setUploadingFiles((prev) => {
-          const ns = new Set(prev);
-          ns.delete(f.name);
-          return ns;
-        });
-
-        // Small delay to ensure state updates are processed
-        await new Promise(resolve => setTimeout(resolve, 0));
-
-        if (!(f as any).isExisting) {
-          await uploadIndividualFile(f);
-        }
-      }
-    },
-    [uploadIndividualFile]
-  );
-
-  const summary = useMemo(() => {
-    const parts: string[] = [];
-    if (eclFiles.length) parts.push(`${eclFiles.length} ecl`);
-    return parts.join("  ");
-  }, [eclFiles.length]);
-
-  const uploadStatus = useMemo(() => {
-    const totalFiles = eclFiles.length;
-    const uploadedCount = uploadedFiles.size;
-    const uploadingCount = uploadingFiles.size;
-    const failedCount = failedFiles.size;
-
-    if (totalFiles === 0) return { status: "empty", message: "No files uploaded yet." };
-    if (uploadingCount > 0) return { status: "uploading", message: `Uploading ${uploadingCount} file(s)...` };
-    if (failedCount > 0) return { status: "error", message: `${failedCount} file(s) failed to upload.` };
-    if (uploadedCount === totalFiles) return { status: "success", message: `All ${uploadedCount} file(s) uploaded successfully!` };
-    return { status: "partial", message: `${uploadedCount}/${totalFiles} files uploaded.` };
-  }, [eclFiles.length, uploadedFiles.size, uploadingFiles.size, failedFiles.size]);
+    fetchExistingDocument();
+  }, [fetchExistingDocument]);
 
   const handlePickWorkflow = useCallback(
     (w: Workflow) => {
       const nextEntity = (w as any).entity ?? "";
-      const nextPeriod =
-        (w as any).reporting_period ?? (w as any).reportingPeriod ?? "";
+      const nextPeriod = (w as any).reporting_period ?? (w as any).reportingPeriod ?? "";
       const nextName = (w as any).workflow_name ?? (w as any).name ?? "";
       const nextId = typeof (w as any).id === "number" ? (w as any).id : null;
-      const nextLoanProduct = (w as any).loan_product ?? "";
 
       if (nextEntity) dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
       if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
-      dispatch(setPdTransitionMatrixSelectedLoanProduct({ loan_product: nextLoanProduct }));
       dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
-      // Update workflow data to ensure currentPdTransitionMatrixWorkflowData is in sync
       dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: w as any }));
 
       setPickerOpen(false);
@@ -425,101 +219,92 @@ export default function Step1() {
     [dispatch]
   );
 
+  const uploadStatus = useMemo(() => {
+    if (!file) return { status: "empty", message: "No file uploaded yet." };
+    if (isUploading) return { status: "uploading", message: "Uploading..." };
+    if (isFailed) return { status: "error", message: "Upload failed." };
+    if (isUploaded) return { status: "success", message: "File uploaded successfully." };
+    return { status: "idle", message: "Waiting for upload." };
+  }, [file, isUploading, isUploaded, isFailed]);
+
+  useEffect(() => {
+    if (!progressKey) return;
+    const step1Valid = uploadStatus.status === "success";
+    dispatch(
+      setModuleProgress({
+        moduleKey: "flowrate",
+        contextKey: progressKey,
+        data: {
+          workflowId,
+          workflowPath,
+          step1Valid,
+          step1Status: uploadStatus.status,
+          step1Message: uploadStatus.message,
+        },
+      })
+    );
+  }, [dispatch, progressKey, workflowId, workflowPath, uploadStatus]);
+
+  const handleReset = () => {
+    setFile(null);
+    setUploaded(false);
+    setFailed(false);
+    setUploading(false);
+    setSuccessBanner(null);
+    setPickerOpen(false);
+    uploadManager.setModalOpen(false);
+  };
+
   return (
     <div className="mx-auto max-w-8xl">
       {successBanner && (
         <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <div className="flex items-center justify-between">
             <span>{successBanner}</span>
-            <button
-              onClick={() => setSuccessBanner(null)}
-              className="ml-2 text-emerald-600 hover:text-emerald-800"
-              title="Dismiss success message"
-            >
-              •
+            <button onClick={handleReset} className="ml-2 text-emerald-600 hover:text-emerald-800" title="Dismiss success message">
+              x
             </button>
           </div>
         </div>
       )}
 
       <OverlayUploadResultModal
-        open={uploadModalOpen}
-        issues={uploadIssues}
-        //  show loader on modal button too
-        isSubmitting={retrySubmitting}
-        onClose={() => {
-          if (retrySubmitting) return; // prevent closing while retrying
-          setUploadModalOpen(false);
-        }}
+        open={uploadManager.modalOpen}
+        issues={uploadManager.issues}
+        isSubmitting={false}
+        onClose={handleReset}
         onProceed={async () => {
-          const failedNames = Array.from(failedFiles);
-          const retryFiles = failedFilesForRetry.filter((f) =>
-            failedNames.includes(f.name)
-          );
-          if (retryFiles.length === 0 || retrySubmitting) return;
-
-          const batchNames = retryFiles.map((f) => f.name);
-
-          setRetrySubmitting(true);
-          markUploadingBatch(batchNames, true); //  trigger same top loader
-
-          try {
-            for (const file of retryFiles) {
-              // Use uploadIndividualFile with override: true when retrying
-              await uploadIndividualFile(file, true);
-            }
-
-            // close modal after the batch finishes
-            setUploadModalOpen(false);
-          } catch (err) {
-            console.error("Retry batch failed:", err);
-          } finally {
-            markUploadingBatch(batchNames, false);
-            setRetrySubmitting(false);
-          }
+          if (file) await uploadManager.startUpload(file, true);
+          uploadManager.setModalOpen(false);
         }}
-        proceedDisabledReason={
-          uploadIssues.length === 0
-            ? "No issues to retry"
-            : retrySubmitting
-            ? "Retrying..."
-            : uploadIssues.some((i) => i.payload?.data?.validation_status === "error")
-            ? "Code error detected - cannot retry"
-            : undefined
-        }
       />
 
       <div className="rounded-3xl border border-gray-200 bg-white/80 backdrop-blur shadow-sm">
-        <div className="flex items-center justify-between px-5 py-4 ">
+        <div className="flex items-center justify-between px-5 py-4">
           <div>
-            <h3 className="text-lg font-bold tracking-tight text-gray-900">
-              Inputs
-            </h3>
-            <p className="mt-1 text-xs text-gray-600">
-              Workflow: {workflowName || "—"}
-            </p>
+            <h3 className="text-lg font-bold tracking-tight text-gray-900">Inputs</h3>
+            <p className="mt-1 text-xs text-gray-600">Workflow: {pdTransitionMatrixWfName || "—"}</p>
           </div>
-
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPickerOpen(true)}
               className="inline-flex items-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 cursor-pointer"
-              disabled={uploadingFiles.size > 0 || retrySubmitting}
+              disabled={isUploading}
               title="Pick from completed workflows"
             >
               Switch Workflow
             </button>
 
-            {uploadStatus.status === "success" && (
+            {hasSelectedWorkflow && uploadStatus.status === "success" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                 <CheckCircleIcon className="h-4 w-4" />
-                All Uploaded
+                Uploaded
               </span>
             )}
             {uploadStatus.status === "uploading" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-                Uploading...
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-top-transparent" />
+                Uploading
               </span>
             )}
             {uploadStatus.status === "error" && (
@@ -528,10 +313,9 @@ export default function Step1() {
                 Upload Failed
               </span>
             )}
-            {uploadStatus.status === "partial" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-medium text-yellow-700">
-                <ExclamationTriangleIcon className="h-4 w-4" />
-                Partial Upload
+            {!hasSelectedWorkflow && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-400">
+                Please select a workflow to upload
               </span>
             )}
           </div>
@@ -541,22 +325,30 @@ export default function Step1() {
           <div className="space-y-2">
             <div className="relative">
               <UploadDropzone
-                label="ECL"
+                  label="ECL"
                 description="CSV or Excel. Filename can be 'client loan balances' or anything with 'ecl'."
+
                 required
                 accept={accept}
                 maxSizeMB={maxSizeMB}
                 maxFiles={1}
                 multiple={false}
-                value={eclFiles}
-                onChange={handleEclFilesChange}
-                emptyHint="Waiting for ECL file"
-                variant="card"
-                // optional: block interaction while retrying
-                disabled={retrySubmitting}
+                value={file ? [file] : []}
+                disabled={!hasSelectedWorkflow || uploadStatus.status === "uploading"} // 🔹 Disable if no workflow
+                onChange={(selectedFiles) => {
+                  const firstFile = selectedFiles.length > 0 ? selectedFiles[0] : null;
+                  setFile(firstFile);
+                  if (firstFile) {
+                    setUploaded(false);
+                    setFailed(false);
+                    setSkipFetchExisting(false);
+                    uploadManager.onFilesSelected([firstFile]);
+                  }
+                }}
+                emptyHint={!hasSelectedWorkflow ? "Select a workflow first" : "Waiting for ecl file"}
               />
 
-              {eclFiles.length > 0 && eclFiles.every((f) => uploadedFiles.has(f.name)) && (
+              {isUploaded && file && hasSelectedWorkflow && (
                 <div className="absolute top-3 right-3 z-10">
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
                     <CheckCircleIcon className="h-3 w-3" />
@@ -567,24 +359,14 @@ export default function Step1() {
             </div>
           </div>
         </div>
-
-        <div className="flex flex-col gap-3 border-t px-5 py-4 md:flex-row md:items-center md:justify-between">
-          <div className="text-xs text-gray-600">
-            <div className="mb-1">{uploadStatus.message}</div>
-            {eclFiles.length > 0 && (
-              <div className="text-gray-500">Files: {summary}</div>
-            )}
-          </div>
-        </div>
       </div>
 
       <WorkflowPickerModal
         open={pickerOpen}
         token={token}
-        onClose={() => setPickerOpen(false)}
+        onClose={handleReset}
         onSelect={handlePickWorkflow}
       />
     </div>
   );
 }
-

@@ -82,7 +82,7 @@ function mapStep5RowToModelSpec(row: any): ModelSpec {
   const xColumns = findAllXColumns(row);
   const xNames = xColumns.length > 0 ? xColumns.map((x) => x.value).join(" | ") : "-";
   const title = `${row?.Y ?? findColumn(row, "Y") ?? "Model"}: ${xNames}`;
-
+  console.log('xColumns: ', xColumns,row)
   const variables = xColumns.map((xCol) => {
     const xName = xCol.name;
     const coeffKey = `coeff_${xName}`;
@@ -93,15 +93,18 @@ function mapStep5RowToModelSpec(row: any): ModelSpec {
     const vifKey = `vif_${xName}`;
     const vif = findColumn(row, vifKey);
 
+    // Intercept may be present as "intercept" or "intercepts" (or not at all).
+    const intercept = findColumn(row, "intercept") ?? findColumn(row, "intercepts");
+
     return {
       name: String(xCol.value),
       coeff_X1: Number(coeff),
       "p-value_X1": pval,
       vif_X1: vif,
       raw: coeff,
+      intercept: intercept,
     };
   });
-
   const xObject: Record<string, any> = {};
   xColumns.forEach((xCol) => {
     xObject[xCol.name] = xCol.value;
@@ -123,6 +126,8 @@ function mapStep5RowToModelSpec(row: any): ModelSpec {
     R_Squared: findColumn(row, "R_Squared"),
     Adj_R_Squared: findColumn(row, "Adj_R_Squared"),
     MAPE: findColumn(row, "MAPE"),
+    // include intercept(s) at top level for convenience
+    intercepts: findColumn(row, "intercept") ?? findColumn(row, "intercepts"),
   };
 }
 
@@ -556,7 +561,7 @@ const Step6: React.FC = () => {
       hydrateFromStep5,
     ]
   );
-
+  console.log('pagedModels: ', pagedModels)
 
 
   return (

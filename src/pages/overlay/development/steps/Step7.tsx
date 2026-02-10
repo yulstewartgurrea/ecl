@@ -361,7 +361,6 @@ const Step7: React.FC = () => {
       </div>
     );
   }
-
   return (
     <>
       <div className="space-y-6">
@@ -397,6 +396,7 @@ const Step7: React.FC = () => {
             <thead className="bg-gray-700 text-white">
               <tr>
                 <th className="px-4 py-3 text-sm font-medium">Variable</th>
+                <th className="px-4 py-3 text-sm font-medium">Intercept</th>
                 <th className="px-4 py-3 text-right text-sm font-medium">
                   Coefficient
                 </th>
@@ -413,6 +413,9 @@ const Step7: React.FC = () => {
                 model.variables.map((v, i) => (
                   <tr key={i} className={i % 2 ? "bg-neutral-50/40" : ""}>
                     <td className="px-4 py-3 text-neutral-800">{v.name}</td>
+                    <td className="px-4 py-3 text-left tabular-nums">
+                      {v.intercept}
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {fmtNumber(v.coeff_X1)}
                     </td>
