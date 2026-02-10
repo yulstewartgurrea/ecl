@@ -14,6 +14,7 @@ import {
   setPdTransitionMatrixSelectedReportingPeriod,
   setPdTransitionMatrixWfName,
   setPdTransitionMatrixWorkflowId,
+  setPdTransitionMatrixSelectedLoanProduct,
   setPdTransitionMatrixWorkflowData,
 } from "../../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 import type { Workflow } from "../../../services/workflow";
@@ -207,10 +208,12 @@ export default function Step1() {
       const nextPeriod = (w as any).reporting_period ?? (w as any).reportingPeriod ?? "";
       const nextName = (w as any).workflow_name ?? (w as any).name ?? "";
       const nextId = typeof (w as any).id === "number" ? (w as any).id : null;
+      const nextLoanProduct = (w as any).loan_product ?? (w as any).loanProduct ?? "";
 
       if (nextEntity) dispatch(setPdTransitionMatrixSelectedEntity({ entity: nextEntity }));
       if (nextPeriod) dispatch(setPdTransitionMatrixSelectedReportingPeriod({ period: nextPeriod }));
       if (nextName) dispatch(setPdTransitionMatrixWfName({ workflow_name: nextName }));
+      if (nextLoanProduct) dispatch(setPdTransitionMatrixSelectedLoanProduct({ loan_product: nextLoanProduct }));
       dispatch(setPdTransitionMatrixWorkflowId({ workflow_id: nextId }));
       dispatch(setPdTransitionMatrixWorkflowData({ workflow_data: w as any }));
 
