@@ -174,11 +174,19 @@ async def get_filtered_results(
                 f"output/overlay/development/{portfolio}/filtering_of_models"
             )
             
-            filtering_of_models_file = max(
-                Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{workflow.number_of_combinations}_var_*"),
-                key=lambda p: p.stat().st_mtime,   # last modified time
-                default=None
-            )
+            # If filter is provided, read from the variablenames filtered file
+            if filter:
+                filtering_of_models_file = max(
+                    Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{workflow.number_of_combinations}_var_variablenames_*"),
+                    key=lambda p: p.stat().st_mtime,   # last modified time
+                    default=None
+                )
+            else:
+                filtering_of_models_file = max(
+                    Path(filtering_of_models_path).glob(f"{portfolio}_mfa_filtered_{ODR}_{workflow.number_of_combinations}_var_*"),
+                    key=lambda p: p.stat().st_mtime,   # last modified time
+                    default=None
+                )
             
             if not filtering_of_models_file:
                 return JSONResponse(
@@ -237,12 +245,17 @@ async def get_filtered_results(
                         
                         if x_columns:
                             # Create a mask for variable name matching
-                            # A row matches if ANY X column contains ANY of the searched variable names
+                            # A row matches if ANY X column contains ANY of the searched variable names (as substring, case-insensitive)
                             variable_mask = pd.Series([False] * len(df), index=df.index)
                             
                             for x_col in x_columns:
-                                # Check if this X column contains any of the searched variable names
-                                column_matches = df[x_col].isin(search_variables)
+                                # Check if this X column contains any of the searched variable names as substring
+                                # Convert to string and do case-insensitive substring matching
+                                column_matches = pd.Series([False] * len(df), index=df.index)
+                                for search_var in search_variables:
+                                    # Use case-insensitive substring matching
+                                    matches = df[x_col].astype(str).str.contains(search_var, case=False, na=False, regex=False)
+                                    column_matches = column_matches | matches
                                 variable_mask = variable_mask | column_matches
                             
                             # Combine with existing mask using AND logic
@@ -269,7 +282,7 @@ async def get_filtered_results(
                             
                             # Use same naming pattern as POST endpoint: {portfolio}_mfa_filtered_{ODR}_{num_vars_taken}_var_{timestamp}.csv
                             # Add variable_names suffix to distinguish filtered files
-                            filtered_filename = f"{portfolio}_mfa_filtered_{ODR}_{workflow.number_of_combinations}_var_{get_time_date()}.csv"
+                            filtered_filename = f"{portfolio}_mfa_filtered_{ODR}_{workflow.number_of_combinations}_var_variablenames_{get_time_date()}.csv"
                             filtered_file_path = Path(filtering_of_models_path) / filtered_filename
                             
                             # Save the filtered dataframe
@@ -323,9 +336,12 @@ async def get_filtered_results(
                         if column_name not in df.columns:
                             continue
                         
-                        # Ensure values is a list
+                        # Ensure values is a list and make it unique
                         if not isinstance(values, list):
                             values = [values]
+                        
+                        # Remove duplicates to ensure unique values
+                        values = list(set(values))
                         
                         # Use OR logic within a column (value can be any of the filter_values)
                         column_mask = df[column_name].isin(values)
@@ -355,7 +371,10 @@ async def get_filtered_results(
             # Apply the mask to filter the dataframe
             df = df[mask].reset_index(drop=True)
             
-            # Calculate pagination on filtered data
+            # Remove duplicate rows to ensure unique values
+            df = df.drop_duplicates()
+            
+            # Calculate pagination on filtered data (after removing duplicates)
             total_rows = len(df)
             total_pages = (total_rows + page_size - 1) // page_size if total_rows > 0 else 0
             

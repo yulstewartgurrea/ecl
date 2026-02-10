@@ -580,7 +580,7 @@ def run_data_transformation_background(job_id: int,
 
 @router.post("/data_transformation")
 async def calculate_data_transformation(workflow_id: int = Form(...),
-                                        num_combinations: int = Form(2, description="Number of combinations to test"),
+                                        # num_combinations: int = Form(2, description="Number of combinations to test"),
                                         execution_input_file: str = Form(...),
                                         # use uploaded from tool or from development
                                         # true if uploaded, false if from development
