@@ -104,6 +104,7 @@ export default function OverlayDevelpmentPage3() {
 
   const deriveVariablesFromRows = (rows: ScenarioRow[]) => {
     const keys = new Set<string>();
+    console.log(setNumCombinations)
     rows.forEach((r) => {
       Object.keys(r.upside ?? {}).forEach((k) => keys.add(k));
       Object.keys(r.base ?? {}).forEach((k) => keys.add(k));

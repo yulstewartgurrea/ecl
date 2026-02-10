@@ -193,6 +193,7 @@ export default function Step1() {
 
   const ensureRealFile = (file: File): File => {
     if (file instanceof File) return file;
+    console.log(uploadsByWorkflow)
     throw new Error("Invalid file object");
   };
 
