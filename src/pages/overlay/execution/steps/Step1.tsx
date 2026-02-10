@@ -84,7 +84,7 @@ const mimeFromName = (name: string) => {
   return "application/vnd.ms-excel";
 };
 
-const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
+const fileKey = (f: File) => `${f.name}|${(f as any).size ?? 0}|${(f as any).lastModified ?? 0}`;
 const uniqueFiles = (files: File[]) =>
   Array.from(new Map(files.map((f) => [fileKey(f), f])).values());
 
@@ -101,6 +101,7 @@ type ExistingDocFile = File & {
   serverFilename?: string;
   documentType?: ExecDocType | string;
   createdAt?: string;
+  uploadId?: string; // unique per-session identifier (used to avoid dedup checks by name/size)
 };
 
 export default function Step1() {
@@ -146,6 +147,7 @@ export default function Step1() {
   >([]);
 
   // upload state
+  // switched to uploadId-based tracking (allows identical files by name/size)
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
   const [uploadedFiles, setUploadedFiles] = useState<Set<string>>(new Set());
   const [failedFiles, setFailedFiles] = useState<Set<string>>(new Set());
@@ -187,8 +189,11 @@ export default function Step1() {
     forecast_mev: [],
   });
 
+  const genUploadId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
   const ensureRealFile = (file: File): File => {
     if (file instanceof File) return file;
+    console.log(uploadsByWorkflow)
     throw new Error("Invalid file object");
   };
 
@@ -283,8 +288,10 @@ export default function Step1() {
         f.serverFilename = doc.filename;
         f.documentType = doc.document_type;
         f.createdAt = doc.created_at;
+        // assign a stable uploadId for the placeholder (existing doc)
+        f.uploadId = `existing-${doc.id}`;
 
-        nextUploaded.add(displayName);
+        nextUploaded.add(f.uploadId);
 
         if (doc.document_type === DOC_MONTHLY) nextMonthly.push(f);
         else if (doc.document_type === DOC_QUARTERLY) nextQuarterly.push(f);
@@ -517,6 +524,7 @@ export default function Step1() {
   /* -----------------------------------------------------------
      Helper: clone File and attach metadata (ExistingDocFile)
      We won't attach sessionOrigin; isExisting indicates server-persisted.
+     Ensure uploadId is set on every cloned file so tracking isn't filename-based.
   ----------------------------------------------------------- */
   const cloneFileWithMeta = (
     file: File,
@@ -538,6 +546,8 @@ export default function Step1() {
       (file as any).size ??
       (file as any).sizeBytes;
 
+    cloned.uploadId = meta.uploadId ?? genUploadId();
+
     return cloned;
   };
 
@@ -546,23 +556,29 @@ export default function Step1() {
      persisted files (result.data) will still be visible in both modes
      after fetchExistingDocuments runs.
      Ensure FormData always receives a real File (Blob).
+     No deduplication: allow identical files to be uploaded; each upload gets its own uploadId.
   ----------------------------------------------------------- */
   const uploadFile = useCallback(
     async (file: File, docType: ExecDocType, override: boolean = false) => {
       if (!file) return;
-      const fileName = file.name;
+      // make sure we have an uploadId to track this specific upload
+      const realFile = ensureRealFile(file) as ExistingDocFile;
+      realFile.uploadId = realFile.uploadId ?? genUploadId();
+      const uploadId = realFile.uploadId!;
+      const fileName = realFile.name;
       if (!token) return;
 
       setUploadIssues([]);
       setUploadModalOpen(false);
 
-      if (uploadingFiles.has(fileName)) return;
-      setUploadingFiles((prev) => new Set(prev).add(fileName));
+      // DO NOT block re-uploads of identical files by name/size; we simply track this upload by uploadId
+      setUploadingFiles((prev) => {
+        const ns = new Set(prev);
+        ns.add(uploadId);
+        return ns;
+      });
 
       try {
-        // ensure we pass a real File/Blob to the upload service
-        const realFile = ensureRealFile(file);
-
         const finalWorkflowPath = `${workflowPathBase}/${docType}`;
         const result = await overlayUploadFile({
           baseUrl: API_BASE,
@@ -575,13 +591,17 @@ export default function Step1() {
           moduleVal: "OVERLAY",
           submoduleVal: "EXECUTION",
         });
-        console.log('result: ', result)
+        console.log("result: ", result);
 
         if (result.ok) {
-          setUploadedFiles((prev) => new Set(prev).add(fileName));
+          setUploadedFiles((prev) => {
+            const ns = new Set(prev);
+            ns.add(uploadId);
+            return ns;
+          });
           setFailedFiles((prev) => {
             const ns = new Set(prev);
-            ns.delete(fileName);
+            ns.delete(uploadId);
             return ns;
           });
 
@@ -590,6 +610,7 @@ export default function Step1() {
             sizeBytes: (realFile as any).size ?? (realFile as any).sizeBytes,
             isExisting: false,
             documentType: docType,
+            uploadId,
           });
 
           if (result.data?.id) asExistingOrig.documentId = result.data.id;
@@ -625,9 +646,10 @@ export default function Step1() {
             const copy = { ...prev };
             const arr = copy[currentWorkflowKey] ? [...copy[currentWorkflowKey]] : [];
             // keep only the latest for session (single slot)
-            // add the realFile (not the placeholder)
-            // remove duplicates
-            const filtered = arr.filter((x) => x.name !== realFile.name);
+            // remove any with same uploadId (unlikely) and push
+            const filtered = arr.filter((x) => (x as any).__uploadMarker !== uploadId);
+            // mark original File with a small private marker for equality removal if needed
+            (realFile as any).__uploadMarker = uploadId;
             filtered.push(realFile);
             copy[currentWorkflowKey] = filtered;
             return copy;
@@ -643,13 +665,17 @@ export default function Step1() {
         }
 
         // server returned ok === false
-        setFailedFiles((prev) => new Set(prev).add(fileName));
-        setUploadedFiles((prev) => {
+        setFailedFiles((prev) => {
           const ns = new Set(prev);
-          ns.delete(fileName);
+          ns.add(uploadId);
           return ns;
         });
-        setFailedFilesForRetry((prev) => [...prev, file]);
+        setUploadedFiles((prev) => {
+          const ns = new Set(prev);
+          ns.delete(uploadId);
+          return ns;
+        });
+        setFailedFilesForRetry((prev) => [...prev, realFile]);
 
         const issue: IssueRow = {
           fileName,
@@ -665,13 +691,17 @@ export default function Step1() {
         setSuccessBanner(null);
       } catch (err: any) {
         console.error("Upload failed:", err);
-        setFailedFiles((prev) => new Set(prev).add(fileName));
-        setUploadedFiles((prev) => {
+        setFailedFiles((prev) => {
           const ns = new Set(prev);
-          ns.delete(fileName);
+          ns.add(uploadId);
           return ns;
         });
-        setFailedFilesForRetry((prev) => [...prev, file]);
+        setUploadedFiles((prev) => {
+          const ns = new Set(prev);
+          ns.delete(uploadId);
+          return ns;
+        });
+        setFailedFilesForRetry((prev) => [...prev, realFile]);
 
         const issue: IssueRow = {
           fileName,
@@ -688,12 +718,12 @@ export default function Step1() {
       } finally {
         setUploadingFiles((prev) => {
           const ns = new Set(prev);
-          ns.delete(fileName);
+          ns.delete(uploadId);
           return ns;
         });
       }
     },
-    [token, workflowPathBase, effectiveWorkflowId, uploadingFiles, mode, currentWorkflowKey]
+    [token, workflowPathBase, effectiveWorkflowId, mode, currentWorkflowKey]
   );
 
   /* -----------------------------------------------------------
@@ -701,6 +731,7 @@ export default function Step1() {
      We clone and set isExisting=false for session uploads. Do NOT add the
      same session file into the other mode's array.
      Also update uploadsByWorkflow to persist which session files belong to which mode.
+     NO deduplication: allow same filename/size to be uploaded multiple times (each with distinct uploadId).
   ----------------------------------------------------------- */
   const handleFilesChange = useCallback(
     async (
@@ -723,6 +754,7 @@ export default function Step1() {
         return;
       }
 
+      // clone and ensure uploadId assigned
       const cloned = single.map((f) =>
         cloneFileWithMeta(f, { isExisting: false, sizeBytes: (f as any).size ?? (f as any).sizeBytes, documentType: docType })
       ) as ExistingDocFile[];
@@ -736,20 +768,23 @@ export default function Step1() {
       // Reset skipFetchExisting so fetchExistingDocuments can run again later
       setSkipFetchExisting(false);
 
-      // allow re-uploading same file
+      // allow re-uploading same filename/size; we use uploadId for tracking
+      const uid = f.uploadId ?? genUploadId();
+      f.uploadId = uid;
+
       setUploadedFiles((prev) => {
         const ns = new Set(prev);
-        ns.delete(f.name);
+        ns.delete(uid);
         return ns;
       });
       setFailedFiles((prev) => {
         const ns = new Set(prev);
-        ns.delete(f.name);
+        ns.delete(uid);
         return ns;
       });
       setUploadingFiles((prev) => {
         const ns = new Set(prev);
-        ns.delete(f.name);
+        ns.delete(uid);
         return ns;
       });
 
@@ -757,8 +792,9 @@ export default function Step1() {
       setUploadsByWorkflow((prev) => {
         const copy = { ...prev };
         const arr = copy[currentWorkflowKey] ? [...copy[currentWorkflowKey]] : [];
-        // update array: keep only latest for that doc (remove same-name)
-        const filtered = arr.filter((x) => x.name !== f.name);
+        // update array: keep only latest for that doc (remove same uploadId)
+        const filtered = arr.filter((x) => (x as any).__uploadMarker !== uid);
+        (f as any).__uploadMarker = uid;
         filtered.push(f);
         copy[currentWorkflowKey] = filtered;
         return copy;
@@ -767,11 +803,10 @@ export default function Step1() {
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       if ((f as any).isExisting) return;
-      if (uploadingFiles.has(f.name)) return;
-
+      // DO NOT block if upload is already ongoing for same name/size; each upload is allowed
       await uploadFile(f, docType);
     },
-    [uploadFile, uploadingFiles, currentWorkflowKey]
+    [uploadFile, currentWorkflowKey]
   );
 
   useEffect(() => {
@@ -807,9 +842,9 @@ export default function Step1() {
   const uploadStatus = useMemo(() => {
     const selected = [...activeMonthlyFiles, ...activeQuarterlyFiles, ...finalModelFiles, ...historicalWeightedFiles];
     const totalFiles = selected.length;
-    const uploadedCount = selected.filter((f) => uploadedFiles.has(f.name)).length;
-    const uploadingCount = selected.filter((f) => uploadingFiles.has(f.name)).length;
-    const failedCount = selected.filter((f) => failedFiles.has(f.name)).length;
+    const uploadedCount = selected.filter((f) => uploadedFiles.has(f.uploadId ?? "")).length;
+    const uploadingCount = selected.filter((f) => uploadingFiles.has(f.uploadId ?? "")).length;
+    const failedCount = selected.filter((f) => failedFiles.has(f.uploadId ?? "")).length;
 
     if (totalFiles === 0) return { status: "empty" as const, message: "No files uploaded yet." };
     if (uploadingCount > 0) return { status: "uploading" as const, message: `Uploading ${uploadingCount} file(s)...` };
@@ -865,17 +900,19 @@ export default function Step1() {
 
   /* -----------------------------------------------------------
      Retry handler (modal proceed)
+     Here we simply retry all files in failedFilesForRetry (no filename dedupe).
   ----------------------------------------------------------- */
   const handleRetryProceed = useCallback(async () => {
-    const failedNames = Array.from(failedFiles);
-    const retryFiles = failedFilesForRetry.filter((f) => failedNames.includes(f.name));
+    const retryFiles = [...failedFilesForRetry];
     for (const file of retryFiles) {
       const docType = inferExecDocTypeFromName(file.name);
       if (!docType) continue;
       await uploadFile(file, docType, true);
     }
     setUploadModalOpen(false);
-  }, [failedFiles, failedFilesForRetry, uploadFile]);
+    // clear retry pool (they might be re-added on failure)
+    setFailedFilesForRetry([]);
+  }, [failedFilesForRetry, uploadFile]);
 
   /* -----------------------------------------------------------
      Reset handler (fixed)
@@ -1034,7 +1071,7 @@ export default function Step1() {
               />
 
               {(isAuto ? autoMonthlyFiles : monthlyFiles).length > 0 &&
-                (isAuto ? autoMonthlyFiles : monthlyFiles).every((f) => uploadedFiles.has(f.name)) && (
+                (isAuto ? autoMonthlyFiles : monthlyFiles).every((f) => uploadedFiles.has(f.uploadId ?? "")) && (
                   <div className="absolute top-3 right-3 z-10">
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
                       <CheckCircleIcon className="h-3 w-3" />
@@ -1063,7 +1100,7 @@ export default function Step1() {
               />
 
               {(isAuto ? autoQuarterlyFiles : quarterlyFiles).length > 0 &&
-                (isAuto ? autoQuarterlyFiles : quarterlyFiles).every((f) => uploadedFiles.has(f.name)) && (
+                (isAuto ? autoQuarterlyFiles : quarterlyFiles).every((f) => uploadedFiles.has(f.uploadId ?? "")) && (
                   <div className="absolute top-3 right-3 z-10">
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
                       <CheckCircleIcon className="h-3 w-3" />
@@ -1106,7 +1143,7 @@ export default function Step1() {
                 variant="card"
               />
 
-              {finalModelFiles.length > 0 && finalModelFiles.every((f) => uploadedFiles.has(f.name)) && (
+              {finalModelFiles.length > 0 && finalModelFiles.every((f) => uploadedFiles.has(f.uploadId ?? "")) && (
                 <div className="absolute top-3 right-3 z-10">
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
                     <CheckCircleIcon className="h-3 w-3" />
@@ -1149,7 +1186,7 @@ export default function Step1() {
                 variant="card"
               />
 
-              {historicalWeightedFiles.length > 0 && historicalWeightedFiles.every((f) => uploadedFiles.has(f.name)) && (
+              {historicalWeightedFiles.length > 0 && historicalWeightedFiles.every((f) => uploadedFiles.has(f.uploadId ?? "")) && (
                 <div className="absolute top-3 right-3 z-10">
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-200">
                     <CheckCircleIcon className="h-3 w-3" />
