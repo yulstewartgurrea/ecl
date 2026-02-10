@@ -68,8 +68,10 @@ async def calculate_overlay_multiplier(workflow_id: int = Form(...),
                     f"{workflow.entity}/"
                     f"{workflow.reporting_period}/"
                     f"{workflow.workflow_name}/"
-                    f"output/flowrate_approach/{workflow.loan_product}/credit_loss_rate"
+                    f"output/flowrate_approach/{workflow.loan_product}/creditloss_rate"
                 )
+
+            print('default_rates_path', default_rates_path)
 
             forecasted_pd_calc_path = (
                 f"{get_root_folder()}/server/files/"
