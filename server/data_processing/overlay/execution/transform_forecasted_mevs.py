@@ -91,12 +91,18 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
             if col == 'Period':
                 continue
             
+            col_lag = None
             # comapare column from finals model column if it has lag values
             for x_key, x_val in final_models_data.items():
                 temp_col = col.split(' ')[1]
 
+                print('temp_col', temp_col, 'x_val', x_val)
                 if temp_col and temp_col in x_val:
                     col_lag = x_val
+            
+            if col_lag is None:
+                # Retain original value - no transformation needed
+                continue
                     
             # Check if column name contains lag pattern (e.g., "lag.6" or "lag_6")
             # This identifies columns that need lag transformation
