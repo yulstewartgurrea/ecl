@@ -9,10 +9,8 @@ export type ModelVariable = {
   "p-value_X1": number | string;
   vif_X1?: number | string;
   raw?: number | string;   // ← change this line
+  intercept?: number | string; // NEW: intercept value (model-level, repeated per var)
 };
-
-
-
 
 export type ModelMetrics = {
   Adj_R_Squared?: number; // 0..1
@@ -36,6 +34,7 @@ export type ModelSpec = {
   R_Squared?: number | string;
   Adj_R_Squared?: number | string;
   MAPE?: number | string;
+  intercepts?: string
 };
 
 export type ModelCompareGridProps = {
@@ -75,7 +74,8 @@ export function ModelCompareGrid({
 
   return (
     <div className={className}>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {/* 2 cards per row on md+ (keeps mobile single column) */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-2">
         {models.map((m, i) => {
           const globalIndex = displayOffset + i;
           return (
@@ -114,7 +114,7 @@ function SelectableCard({
 
   const ring = selected ? "ring-2 ring-yellow-400 shadow-lg" : "hover:shadow-md";
   const border = selected ? "border-yellow-400" : "border-neutral-200";
-
+console.log('rows: ',rows)
   return (
     <div
       {...rest}
@@ -151,51 +151,70 @@ function SelectableCard({
       )}
 
       {/* Variables table */}
-      <div className="overflow-hidden rounded-xl border border-neutral-200">
-        <table className="table-fixed w-full text-sm">
-          <colgroup>
-            <col className="w-[46%]" />
-            <col className="w-[18%]" />
-            <col className="w-[18%]" />
-            <col className="w-[18%]" />
-          </colgroup>
+    <div className="overflow-hidden rounded-xl border border-neutral-200 w-full">
+      <table className="table-fixed w-full text-sm">
+        <thead className="bg-gray-700 text-white">
+          <tr>
+            <th className="w-[40%] px-3 py-2 text-left whitespace-nowrap">
+              Variable
+            </th>
+            <th className="w-[15%] px-3 py-2 text-right whitespace-nowrap">
+              Intercept
+            </th>
+            <th className="w-[15%] px-3 py-2 text-right whitespace-nowrap">
+              Coefficient
+            </th>
+            <th className="w-[15%] px-3 py-2 text-right whitespace-nowrap">
+              P-Value
+            </th>
+            <th className="w-[15%] px-3 py-2 text-right whitespace-nowrap">
+              VIF
+            </th>
+          </tr>
+        </thead>
+        
+        <tbody className="divide-y divide-neutral-100">
+          {rows.map((r, idx) => (
+            <tr key={idx} className="hover:bg-neutral-50">
+              <td
+                className="w-[40%] px-3 py-2 truncate text-neutral-800"
+                title={r.name}
+              >
+                {r.name}
+              </td>
 
-          <thead className="bg-gray-700 text-white">
-            <tr>
-              <th className="px-3 py-2 text-left whitespace-nowrap">Variable</th>
-              <th className="px-3 py-2 text-right whitespace-nowrap">Coefficient</th>
-              <th className="px-3 py-2 text-right whitespace-nowrap">P-Value</th>
-              <th className="px-3 py-2 text-right whitespace-nowrap">VIF</th>
+              <td className="w-[15%] px-3 py-2 text-right font-mono tabular-nums">
+                {fmtNumber(r.intercept as any)}
+              </td>
+
+              <td className="w-[15%] px-3 py-2 text-right font-mono tabular-nums">
+                {fmtNumber(r.coeff_X1)}
+              </td>
+
+              <td className="w-[15%] px-3 py-2 text-right font-mono tabular-nums">
+                {fmtPctOrVal(r["p-value_X1"])}
+              </td>
+
+              <td className="w-[15%] px-3 py-2 text-right font-mono tabular-nums">
+                {fmtPctOrVal(r.vif_X1)}
+              </td>
             </tr>
-          </thead>
+          ))}
 
-          <tbody className="divide-y divide-neutral-100">
-            {rows.map((r, idx) => (
-              <tr key={idx} className="hover:bg-neutral-50">
-                <td className="px-3 py-2 truncate text-neutral-800" title={r.name}>
-                  {r.name}
-                </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
-                  {fmtNumber(r.coeff_X1)}
-                </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
-                  {fmtPctOrVal(r["p-value_X1"])} {/* ← correct bracket access */}
-                </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
-                  {fmtPctOrVal(r.vif_X1)}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-3 py-4 text-center text-neutral-500">
-                  No variables
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          {rows.length === 0 && (
+            <tr>
+              <td
+                colSpan={5}
+                className="px-3 py-4 text-center text-neutral-500"
+              >
+                No variables
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+
 
       {/* Metrics */}
       <div className="mt-4 grid grid-cols-3 gap-3">
