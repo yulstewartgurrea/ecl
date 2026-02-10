@@ -34,7 +34,7 @@ def validate_document(df: pd.DataFrame, document_type: str, file_name: str, temp
         "OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE": "overlay_execution",
         "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA": "overlay_execution",
         "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA": "overlay_execution",
-        "OVERLAY_EXECUTION_FINAL_OVERLAY_MODEL": "overlay_execution",
+        "OVERLAY_EXECUTION_FINAL_MODEL": "overlay_execution",
         
         # Flowrate Approach types - use specialized validation
         "FLOWRATE_APPROACH_WRITE_OFF_ACCOUNTS": "flowrate",
