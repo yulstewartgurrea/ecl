@@ -175,6 +175,39 @@ def run_data_transformation_background(job_id: int,
     Background function that runs the data transformation process
     and updates progress in the database
     """
+    # Helper function to get job with fresh session
+    def get_job():
+        db = SessionLocal()
+        try:
+            return db.query(OverlayExecutionDataTransformationJob).filter(
+                OverlayExecutionDataTransformationJob.id == job_id
+            ).first()
+        finally:
+            db.close()
+    
+    # Helper function to update job status
+    def update_job_status(status=None, progress=None, message=None, error_message=None):
+        db = SessionLocal()
+        try:
+            job = db.query(OverlayExecutionDataTransformationJob).filter(
+                OverlayExecutionDataTransformationJob.id == job_id
+            ).first()
+            if job:
+                if status is not None:
+                    job.status = status
+                if progress is not None:
+                    job.progress = progress
+                if message is not None:
+                    job.message = message
+                if error_message is not None:
+                    job.error_message = error_message
+                job.updated_at = datetime.utcnow()
+                db.commit()
+                return job
+        finally:
+            db.close()
+    
+    # Initialize job and get workflow data
     db = SessionLocal()
     try:
         # Update job status to processing
@@ -201,12 +234,19 @@ def run_data_transformation_background(job_id: int,
         ).first()
         
         if not workflow or not log_record:
-            set_running_time()
             job.status = "failed"
             job.error_message = "Required workflow or log record not found"
+            if job.started_at:
+                completed_time = datetime.utcnow()
+                running_time = (completed_time - job.started_at).total_seconds()
+                job.completed_at = completed_time
+                job.running_time_seconds = int(running_time)
             db.commit()
             return
+    finally:
+        db.close()
 
+    try:
         # Get file paths (patterned after POST endpoint)
         data_interpolation_path = (
             f"{get_root_folder()}/server/files/"
@@ -298,25 +338,37 @@ def run_data_transformation_background(job_id: int,
         
         # Helper function to calculate and set running time
         def set_running_time():
-            if job.started_at:
-                completed_time = datetime.utcnow()
-                running_time = (completed_time - job.started_at).total_seconds()
-                job.completed_at = completed_time
-                job.running_time_seconds = int(running_time)
+            db = SessionLocal()
+            try:
+                job = db.query(OverlayExecutionDataTransformationJob).filter(
+                    OverlayExecutionDataTransformationJob.id == job_id
+                ).first()
+                if job and job.started_at:
+                    completed_time = datetime.utcnow()
+                    running_time = (completed_time - job.started_at).total_seconds()
+                    job.completed_at = completed_time
+                    job.running_time_seconds = int(running_time)
+                    db.commit()
+            finally:
+                db.close()
 
         if not monthly_mev_arima_file or not data_interpolation_file or not historical_default_rates_file or not override_data_transformation_mevs_file:
             set_running_time()
-            job.status = "failed"
-            job.error_message = "Required data files not found"
-            db.commit()
+            update_job_status(status="failed", error_message="Required data files not found")
             return
         
         # Helper function to check if job is cancelled
         def check_cancellation():
-            db.refresh(job)
-            if job.status == "cancelled":
-                return True
-            return False
+            db = SessionLocal()
+            try:
+                job = db.query(OverlayExecutionDataTransformationJob).filter(
+                    OverlayExecutionDataTransformationJob.id == job_id
+                ).first()
+                if job and job.status == "cancelled":
+                    return True
+                return False
+            finally:
+                db.close()
         
         # Progress callback function with cancellation check
         def update_progress(progress: int, message: str):
@@ -324,19 +376,10 @@ def run_data_transformation_background(job_id: int,
                 # Check for cancellation before updating progress
                 if check_cancellation():
                     raise Exception("Job cancelled by user")
-                job.progress = progress
-                job.message = message
-                job.updated_at = datetime.utcnow()  # Explicitly update timestamp
-                db.commit()
-                db.refresh(job)
+                update_job_status(progress=progress, message=message)
             except Exception as progress_error:
                 # If progress update fails, log but don't stop the job
                 print(f"Warning: Failed to update progress to {progress}%: {str(progress_error)}")
-                # Try to rollback and continue
-                try:
-                    db.rollback()
-                except:
-                    pass
         
         # Check for cancellation before starting
         if check_cancellation():
@@ -372,10 +415,7 @@ def run_data_transformation_background(job_id: int,
             error_msg = f"Error reading monthly MEV file: {str(e)}"
             print(error_msg)
             set_running_time()
-            job.status = "failed"
-            job.error_message = error_msg
-            job.message = error_msg
-            db.commit()
+            update_job_status(status="failed", error_message=error_msg, message=error_msg)
             return
         
         try:
@@ -386,10 +426,7 @@ def run_data_transformation_background(job_id: int,
             error_msg = f"Error reading interpolation file: {str(e)}"
             print(error_msg)
             set_running_time()
-            job.status = "failed"
-            job.error_message = error_msg
-            job.message = error_msg
-            db.commit()
+            update_job_status(status="failed", error_message=error_msg, message=error_msg)
             return
         
         try:
@@ -400,10 +437,7 @@ def run_data_transformation_background(job_id: int,
             error_msg = f"Error reading default rates file: {str(e)}"
             print(error_msg)
             set_running_time()
-            job.status = "failed"
-            job.error_message = error_msg
-            job.message = error_msg
-            db.commit()
+            update_job_status(status="failed", error_message=error_msg, message=error_msg)
             return
 
         try:
@@ -432,10 +466,7 @@ def run_data_transformation_background(job_id: int,
             error_msg = f"Error reading override data transformation mevs file: {str(e)}"
             print(error_msg)
             set_running_time()
-            job.status = "failed"
-            job.error_message = error_msg
-            job.message = error_msg
-            db.commit()
+            update_job_status(status="failed", error_message=error_msg, message=error_msg)
             return
         
         combined_monthly_mev_data_interpolation_df = read_data_file(combined_monthly_mev_data_interpolation_file)
@@ -458,13 +489,11 @@ def run_data_transformation_background(job_id: int,
                 num_combinations=num_combinations
             )
         except Exception as e:
-            if "cancelled" in str(e).lower() or job.status == "cancelled":
+            if "cancelled" in str(e).lower() or check_cancellation():
                 # Job was cancelled during processing
-                db.refresh(job)
-                if job.status == "cancelled":
+                if check_cancellation():
                     set_running_time()
-                    job.message = "Cancelled by user"
-                    db.commit()
+                    update_job_status(message="Cancelled by user")
                     print(f"Job {job_id} was cancelled during processing")
                     return
             raise  # Re-raise if it's a different error
@@ -476,9 +505,7 @@ def run_data_transformation_background(job_id: int,
         
         if not process_data_transformation_res or 'docs' not in process_data_transformation_res:
             set_running_time()
-            job.status = "failed"
-            job.error_message = "Data transformation failed - no results returned"
-            db.commit()
+            update_job_status(status="failed", error_message="Data transformation failed - no results returned")
             return
         
         # Save results
@@ -494,29 +521,33 @@ def run_data_transformation_background(job_id: int,
             if check_cancellation():
                 set_running_time()
                 return
-            new_document = Document(
-                filename=doc,
-                json_data=None,
-                document_type=document_type,
-                user_id=user_id,
-                workflow_id=workflow_id,
-                workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
-            )
-            db.add(new_document)
-            db.commit()
-            db.refresh(new_document)
+            db = SessionLocal()
+            try:
+                new_document = Document(
+                    filename=doc,
+                    json_data=None,
+                    document_type=document_type,
+                    user_id=user_id,
+                    workflow_id=workflow_id,
+                    workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
+                )
+                db.add(new_document)
+                db.commit()
+                db.refresh(new_document)
 
-            new_overlay_record = OverlayExecutionDataTransformationOutput(
-                workflow_id=workflow_id,
-                user_id=user_id,
-                json_data=None,
-                log_id=log_record.id,
-                folder=process_data_transformation_res['file_path'],
-                filename=filename
-            )
-            db.add(new_overlay_record)
-            db.commit()
-            db.refresh(new_overlay_record)
+                new_overlay_record = OverlayExecutionDataTransformationOutput(
+                    workflow_id=workflow_id,
+                    user_id=user_id,
+                    json_data=None,
+                    log_id=log_record.id,
+                    folder=process_data_transformation_res['file_path'],
+                    filename=filename
+                )
+                db.add(new_overlay_record)
+                db.commit()
+                db.refresh(new_overlay_record)
+            finally:
+                db.close()
         
         # Check cancellation before marking as completed
         if check_cancellation():
@@ -525,12 +556,11 @@ def run_data_transformation_background(job_id: int,
         
         # Calculate running time and mark as completed
         set_running_time()
-        job.status = "completed"
-        job.progress = 100
-        job.message = "Data transformation completed successfully"
-        db.commit()
+        update_job_status(status="completed", progress=100, message="Data transformation completed successfully")
         
-        print(f"Job {job_id} completed successfully in {job.running_time_seconds} seconds")
+        job = get_job()
+        if job and job.running_time_seconds:
+            print(f"Job {job_id} completed successfully in {job.running_time_seconds} seconds")
         
     except Exception as e:
         traceback.print_exc()
@@ -539,11 +569,9 @@ def run_data_transformation_background(job_id: int,
         
         # Try to update job status with error information
         try:
-            db.rollback()
-            # Create a new session to ensure we can update the job
-            update_db = SessionLocal()
+            db = SessionLocal()
             try:
-                job = update_db.query(OverlayExecutionDataTransformationJob).filter(
+                job = db.query(OverlayExecutionDataTransformationJob).filter(
                     OverlayExecutionDataTransformationJob.id == job_id
                 ).first()
                 if job:
@@ -563,18 +591,17 @@ def run_data_transformation_background(job_id: int,
                             error_msg = error_msg[:max_error_length] + "... (truncated)"
                         job.error_message = error_msg
                         job.message = f"Failed: {error_msg[:200]}"  # Truncate message too
-                    update_db.commit()
+                    db.commit()
                     print(f"Successfully updated job {job_id} status to failed")
             except Exception as update_error:
                 print(f"CRITICAL: Failed to update job status in database: {str(update_error)}")
                 traceback.print_exc()
             finally:
-                update_db.close()
+                db.close()
         except Exception as db_error:
             print(f"CRITICAL: Database error while trying to update job status: {str(db_error)}")
             traceback.print_exc()
     finally:
-        db.close()
         # Always deregister thread when done (success, failure, or cancellation)
         deregister_thread(workflow_id)
 
