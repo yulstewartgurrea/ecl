@@ -33,8 +33,8 @@ const toNumberSafe = (value: unknown): number | undefined => {
 };
 
 const pathBuilder = (ctx: { entity: string; cadence: string; wf: string | number; loanProduct: string; subdir?: string; categoryKey: string }) => {
-  const { entity, cadence, wf, loanProduct, subdir } = ctx;
-  return [entity, cadence, String(wf), loanProduct, subdir].filter(Boolean).join("/");
+  const { entity, cadence, wf, loanProduct, subdir, categoryKey } = ctx;
+  return [entity, cadence, String(wf), subdir, loanProduct, categoryKey].filter(Boolean).join("/");
 };
 
 type ExistingDocFile = File & {
@@ -95,9 +95,10 @@ export default function Step1() {
     entity,
     cadence: period,
     wf: wfName,
-    loanProduct,
     reportDateStart,
     subdir: "input/ecl",
+    loanProduct,
+    documentType: ECL_DOC_TYE,
   };
 
   const workflowPath = [entity, period, wfName, loanProduct].filter(Boolean).join("/");
@@ -112,6 +113,7 @@ export default function Step1() {
 
       setUploading(true);
       const workflowPath = pathBuilder({ ...context, categoryKey: ECL_DOC_TYE });
+      console.log('workflowPath', workflowPath)
 
       const form = new FormData();
       form.append("file", file);
@@ -119,7 +121,7 @@ export default function Step1() {
       form.append("document_type", ECL_DOC_TYE);
       form.append("workflow_id", String(workflowId));
       form.append("override", String(override));
-      form.append("module", "ECL_CLIENT_LOAN_BALANCES");
+      form.append("module", "ECL");
       form.append("submodule", "");
 
       try {
