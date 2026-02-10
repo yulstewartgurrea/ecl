@@ -97,7 +97,7 @@ export default function Step1() {
     wf: wfName,
     loanProduct,
     reportDateStart,
-    subdir: "input/flowrate_approach",
+    subdir: "input/ecl",
   };
 
   const workflowPath = [entity, period, wfName, loanProduct].filter(Boolean).join("/");
@@ -119,7 +119,7 @@ export default function Step1() {
       form.append("document_type", ECL_DOC_TYE);
       form.append("workflow_id", String(workflowId));
       form.append("override", String(override));
-      form.append("module", "FLOWRATE_APPROACH");
+      form.append("module", "ECL_CLIENT_LOAN_BALANCES");
       form.append("submodule", "");
 
       try {
