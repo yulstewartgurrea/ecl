@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Multi_Table, type Row } from "../../../../components/overlay/development/multi_factor/Multi_Table";
 import { getFilteringModels, postFilteringModels } from "../../../../services/filteringModels";
 import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
-import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import {
   ArrowPathIcon,
@@ -121,9 +120,9 @@ function toCsv(headers: string[], rows: Row[]): string {
 const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", description = "" }) => {
   const dispatch = useAppDispatch();
 
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } = useSelector(
-    (s: RootState) => (s as any).pdTransitionMatrixWfHelper
-  );
+    const {
+    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
+  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
 
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
 

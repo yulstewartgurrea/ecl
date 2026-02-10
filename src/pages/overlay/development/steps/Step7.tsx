@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ModelSpec } from "../../../../components/overlay/development/candidate_model/ModelCompareGrid";
-import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
 import {
@@ -22,8 +21,9 @@ const Step7: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
-    useSelector((s: RootState) => (s as any).pdTransitionMatrixWfHelper);
+    const {
+    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
+  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
   const overlayRoot = useAppSelector((state: RootState) =>
     selectModuleProgress(state, "overlayDevelopment")

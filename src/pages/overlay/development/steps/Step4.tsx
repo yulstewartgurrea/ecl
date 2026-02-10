@@ -13,7 +13,6 @@ import {
   type MultiFactorFilesData,
 } from "../../../../services/multi_factor";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
-import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { selectModuleProgress } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 import {
@@ -68,8 +67,9 @@ const Step4: React.FC<Step4Props> = ({
   title = "Multi Factor Analysis",
   description = "",
 }) => {
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
-    useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
+  const {
+    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
+  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
 
   const [loading, setLoading] = useState(false);

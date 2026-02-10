@@ -4,8 +4,6 @@ import React, {
   useCallback,
   useEffect,
 } from "react";
-import { useSelector } from "react-redux";
-import type { RootState } from "../../../../redux_toolkit/store";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 
 import FlPitPdSummary, {
@@ -24,8 +22,9 @@ import {
 
 const Step7: React.FC = () => {
   // read workflow_id + token
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
-    useSelector((s: RootState) => s.pdTransitionMatrixWfHelper as any);
+  const {
+    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
+  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
 
   const token = useAppSelector(
     (s) => (s as any)?.auth?.token

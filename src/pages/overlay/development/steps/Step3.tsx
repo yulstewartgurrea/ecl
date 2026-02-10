@@ -7,7 +7,6 @@ import type {
 } from "../../../../components/overlay/development/data_transformation/table/columns";
 import type { ColumnNode } from "../../../../components/overlay/development/data_transformation/table/MacroTable";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
-import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { selectModuleProgress } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 import {
@@ -39,10 +38,9 @@ export default function OverlayDevelpmentPage3() {
   const [frequency] = useState<Frequency>("monthly");
   const [view] = useState<ViewMode>("transformations");
 
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
-    useSelector(
-      (s: RootState) => (s.pdTransitionMatrixWfHelper as any)
-    );
+  const {
+    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
+  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
 
   const token = useAppSelector(
     (s) => (s as any)?.auth?.token

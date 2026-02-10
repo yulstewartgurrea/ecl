@@ -1,8 +1,6 @@
 // src/pages/overlay/execution/steps/Step3DataTransformationCombineForecastedMEVAndInterpolation.tsx
 import { useState, useEffect, useCallback } from "react";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
-import { useSelector } from "react-redux";
-import type { RootState } from "../../../../redux_toolkit/store";
 import {
   PlayCircleIcon,
   ArrowPathIcon,
@@ -14,10 +12,9 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 type Row = Record<string, any>;
 
 export default function Step3DataTransformationCombineForecastedMEVAndInterpolation() {
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
-    useSelector(
-      (s: RootState) => (s.pdTransitionMatrixWfHelper as any)
-    );
+  const {
+    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
+  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
 
   const token = useAppSelector(
     (s) => (s as any)?.auth?.token

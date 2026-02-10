@@ -5,7 +5,6 @@ import {
   type ModelSpec,
 } from "../../../../components/overlay/development/candidate_model/ModelCompareGrid";
 import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
-import { useSelector } from "react-redux";
 import type { RootState } from "../../../../redux_toolkit/store";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import PaginationControls from "../../../../components/overlay/development/shared/PaginationControls";
@@ -156,9 +155,9 @@ function toCsv(headers: string[], rows: any[]): string {
 /* ---------- Component ---------- */
 const Step6: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } = useSelector(
-    (s: RootState) => (s as any).pdTransitionMatrixWfHelper
-  );
+    const {
+    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
+  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
 
   const overlayRoot = useAppSelector((state: RootState) =>
