@@ -104,13 +104,14 @@ const Step7: React.FC = () => {
       // Find VIF (case-insensitive)
       const vifKey = `vif_${xName}`;
       const vif = findColumn(row, vifKey);
-      
+          const intercept = findColumn(row, "intercept") ?? findColumn(row, "intercepts");
       return {
         name: String(xCol.value),
         coeff_X1: Number(coeff), // Keep field name for compatibility
         "p-value_X1": pval, // Keep field name for compatibility
         vif_X1: vif, // Keep field name for compatibility
         raw: coeff,
+        intercept: intercept,
       };
     });
 
@@ -361,6 +362,7 @@ const Step7: React.FC = () => {
       </div>
     );
   }
+  console.log('model.variables: ', model.variables)
   return (
     <>
       <div className="space-y-6">

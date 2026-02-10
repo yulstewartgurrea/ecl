@@ -242,11 +242,10 @@ export default function Step1() {
 
   /* -----------------------------------------------------------
      Fetch existing execution documents (single per slot)
-     persisted documents are assigned to MANUAL slots only to avoid
-     cross-pollination. Auto-generated forecasts are surfaced via
-     checkExistingForecasts() / runAutoGenerate() and download buttons.
-     NOTE: We request both historical AND ARIMA doc types here so we can
-     surface whichever the server has stored.
+     Use the document_type to decide which UI slot to place the file in:
+       - DOC_MONTHLY / DOC_QUARTERLY -> AUTO slots (forecast_mev)
+       - DOC_MONTHLY_ARIMA / DOC_QUARTERLY_ARIMA -> MANUAL slots (upload_manual)
+     Final model and historical weighted go to their shared slots.
   ----------------------------------------------------------- */
   const fetchExistingDocuments = useCallback(async () => {
     if (!selectedWorkflowId || !token) return;
@@ -275,8 +274,11 @@ export default function Step1() {
       const result = await resp.json();
       if (!result?.success || !Array.isArray(result.data)) return;
 
-      const nextMonthly: ExistingDocFile[] = [];
-      const nextQuarterly: ExistingDocFile[] = [];
+      // Separate arrays for persisted docs: manual slots and auto slots
+      const nextManualMonthly: ExistingDocFile[] = [];
+      const nextManualQuarterly: ExistingDocFile[] = [];
+      const nextAutoMonthly: ExistingDocFile[] = [];
+      const nextAutoQuarterly: ExistingDocFile[] = [];
       const nextFinal: ExistingDocFile[] = [];
       const nextHistWeighted: ExistingDocFile[] = [];
       const nextUploaded = new Set<string>();
@@ -297,19 +299,35 @@ export default function Step1() {
 
         nextUploaded.add(f.uploadId);
 
-        // treat both historical and ARIMA monthly types as "monthly" persisted docs
-        if (doc.document_type === DOC_MONTHLY || doc.document_type === DOC_MONTHLY_ARIMA) nextMonthly.push(f);
-        else if (doc.document_type === DOC_QUARTERLY || doc.document_type === DOC_QUARTERLY_ARIMA) nextQuarterly.push(f);
-        else if (doc.document_type === DOC_FINAL_MODEL) nextFinal.push(f);
-        else if (doc.document_type === DOC_HISTORICAL_WEIGHTED) nextHistWeighted.push(f);
+        // Map document types to the correct UI slot strictly
+        if (doc.document_type === DOC_MONTHLY) {
+          // forecast/mev auto
+          nextAutoMonthly.push(f);
+        } else if (doc.document_type === DOC_MONTHLY_ARIMA) {
+          // manual ARIMA upload
+          nextManualMonthly.push(f);
+        } else if (doc.document_type === DOC_QUARTERLY) {
+          // forecast/mev auto
+          nextAutoQuarterly.push(f);
+        } else if (doc.document_type === DOC_QUARTERLY_ARIMA) {
+          // manual ARIMA upload
+          nextManualQuarterly.push(f);
+        } else if (doc.document_type === DOC_FINAL_MODEL) {
+          nextFinal.push(f);
+        } else if (doc.document_type === DOC_HISTORICAL_WEIGHTED) {
+          nextHistWeighted.push(f);
+        } else {
+          // unknown type — ignore to avoid cross-pollination
+          console.warn("Unknown persisted document_type:", doc.document_type, doc);
+        }
       }
 
-      // Persisted server docs are assigned to the MANUAL upload slots.
-      setMonthlyFiles(nextMonthly.slice(0, 1));
-      setQuarterlyFiles(nextQuarterly.slice(0, 1));
+      // Persisted server docs populate the respective slots:
+      setMonthlyFiles(nextManualMonthly.slice(0, 1));
+      setQuarterlyFiles(nextManualQuarterly.slice(0, 1));
+      setAutoMonthlyFiles(nextAutoMonthly.slice(0, 1));
+      setAutoQuarterlyFiles(nextAutoQuarterly.slice(0, 1));
 
-      // Keep auto arrays untouched here (they are populated only by auto-generation
-      // session uploads or by the generation endpoints + checkExistingForecasts).
       setFinalModelFiles(nextFinal.slice(0, 1));
       setHistoricalWeightedFiles(nextHistWeighted.slice(0, 1));
       setUploadedFiles(nextUploaded);
