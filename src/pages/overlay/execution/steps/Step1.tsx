@@ -50,16 +50,25 @@ const toNumberSafe = (value: unknown): number | undefined => {
 /* -----------------------------------------------------------
    Execution document types
 ----------------------------------------------------------- */
+// FORECAST_MEV (auto generated)
 const DOC_MONTHLY = "OVERLAY_EXECUTION_MONTHLY_HISTORICAL_MEV" as const;
 const DOC_QUARTERLY = "OVERLAY_EXECUTION_QUARTERLY_HISTORICAL_MEV" as const;
+
+// ARIMA (manual upload)
+const DOC_MONTHLY_ARIMA = "OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA" as const;
+const DOC_QUARTERLY_ARIMA = "OVERLAY_EXECUTION_MEV_QUARTERLY_ARIMA" as const;
+
 const DOC_FINAL_MODEL = "OVERLAY_EXECUTION_FINAL_MODEL" as const;
 const DOC_HISTORICAL_WEIGHTED =
   "OVERLAY_EXECUTION_HISTORICAL_WEIGHTED_CREDIT_LOSS_RATE" as const;
+
 type ExecDocType =
   | typeof DOC_MONTHLY
   | typeof DOC_QUARTERLY
   | typeof DOC_FINAL_MODEL
-  | typeof DOC_HISTORICAL_WEIGHTED;
+  | typeof DOC_HISTORICAL_WEIGHTED
+  | typeof DOC_MONTHLY_ARIMA
+  | typeof DOC_QUARTERLY_ARIMA;
 
 function inferExecDocTypeFromName(name: string): ExecDocType | null {
   const base = name.toLowerCase();
@@ -90,9 +99,6 @@ const uniqueFiles = (files: File[]) =>
 
 /* -----------------------------------------------------------
    Existing doc type (keeps sizeBytes etc.)
-   NOTE: we no longer track sessionOrigin here. isExisting === false
-   means this file is only in-session (just uploaded) and not yet
-   persisted server-side. We will clear those in the opposite mode.
 ----------------------------------------------------------- */
 type ExistingDocFile = File & {
   isExisting?: boolean;
@@ -101,7 +107,7 @@ type ExistingDocFile = File & {
   serverFilename?: string;
   documentType?: ExecDocType | string;
   createdAt?: string;
-  uploadId?: string; // unique per-session identifier (used to avoid dedup checks by name/size)
+  uploadId?: string; // unique per-session identifier
 };
 
 export default function Step1() {
@@ -172,7 +178,7 @@ export default function Step1() {
 
   const baseDir = `/${entity}/${period}/${workflowName}`.replace(/^\/+/, "");
   const workflowPathBase = `${baseDir}/input/overlay/execution/${loanProduct}`;
-  const effectiveWorkflowId = selectedWorkflowId ?? 1;
+  const effectiveWorkflowId = selectedWorkflowId;
   const overlayExecApiBase = `${API_BASE.replace(/\/+$/g, "")}/api/overlay/execution`;
 
   type WorkflowKey = "upload_manual" | "forecast_mev";
@@ -180,8 +186,7 @@ export default function Step1() {
   const currentWorkflowKey: WorkflowKey =
     mode === "AUTO_GENERATE" ? "forecast_mev" : "upload_manual";
 
-  // NEW: track session uploads per workflow key. This prevents session files
-  // uploaded under one mode from leaking into the other mode's UI slot.
+  // NEW: track session uploads per workflow key.
   const [uploadsByWorkflow, setUploadsByWorkflow] = useState<
     Record<WorkflowKey, File[]>
   >({
@@ -193,7 +198,7 @@ export default function Step1() {
 
   const ensureRealFile = (file: File): File => {
     if (file instanceof File) return file;
-    console.log(uploadsByWorkflow)
+    console.log(uploadsByWorkflow);
     throw new Error("Invalid file object");
   };
 
@@ -240,6 +245,8 @@ export default function Step1() {
      persisted documents are assigned to MANUAL slots only to avoid
      cross-pollination. Auto-generated forecasts are surfaced via
      checkExistingForecasts() / runAutoGenerate() and download buttons.
+     NOTE: We request both historical AND ARIMA doc types here so we can
+     surface whichever the server has stored.
   ----------------------------------------------------------- */
   const fetchExistingDocuments = useCallback(async () => {
     if (!selectedWorkflowId || !token) return;
@@ -248,7 +255,9 @@ export default function Step1() {
 
     const documentTypes = [
       DOC_MONTHLY,
+      DOC_MONTHLY_ARIMA,
       DOC_QUARTERLY,
+      DOC_QUARTERLY_ARIMA,
       DOC_FINAL_MODEL,
       DOC_HISTORICAL_WEIGHTED,
     ].join(",");
@@ -274,11 +283,6 @@ export default function Step1() {
 
       for (const doc of result.data as any[]) {
         const displayName = doc.original_filename || doc.filename;
-        // create a placeholder File so existing persisted docs can be shown in UI.
-        // This File has empty contents but is a real File instance (Blob) so it
-        // won't break FormData.append when used correctly. We will not use these
-        // placeholder Files for uploads; upload uses real File instances provided
-        // by the user.
         const f = new File([], displayName, { type: mimeFromName(displayName) }) as ExistingDocFile;
         f.isExisting = true;
         f.documentId = doc.id;
@@ -288,27 +292,24 @@ export default function Step1() {
         f.serverFilename = doc.filename;
         f.documentType = doc.document_type;
         f.createdAt = doc.created_at;
-        // assign a stable uploadId for the placeholder (existing doc)
+        // assign stable uploadId for existing doc
         f.uploadId = `existing-${doc.id}`;
 
         nextUploaded.add(f.uploadId);
 
-        if (doc.document_type === DOC_MONTHLY) nextMonthly.push(f);
-        else if (doc.document_type === DOC_QUARTERLY) nextQuarterly.push(f);
+        // treat both historical and ARIMA monthly types as "monthly" persisted docs
+        if (doc.document_type === DOC_MONTHLY || doc.document_type === DOC_MONTHLY_ARIMA) nextMonthly.push(f);
+        else if (doc.document_type === DOC_QUARTERLY || doc.document_type === DOC_QUARTERLY_ARIMA) nextQuarterly.push(f);
         else if (doc.document_type === DOC_FINAL_MODEL) nextFinal.push(f);
         else if (doc.document_type === DOC_HISTORICAL_WEIGHTED) nextHistWeighted.push(f);
       }
 
-      // IMPORTANT: Persisted server docs are assigned to the MANUAL upload slots.
-      // This prevents a manual persisted file from automatically being shown under
-      // Forecast MEV UI. Forecast MEV has its own generated-download flow (checkExistingForecasts).
+      // Persisted server docs are assigned to the MANUAL upload slots.
       setMonthlyFiles(nextMonthly.slice(0, 1));
       setQuarterlyFiles(nextQuarterly.slice(0, 1));
 
       // Keep auto arrays untouched here (they are populated only by auto-generation
       // session uploads or by the generation endpoints + checkExistingForecasts).
-      // setAutoMonthlyFiles(...) and setAutoQuarterlyFiles(...) are intentionally omitted.
-
       setFinalModelFiles(nextFinal.slice(0, 1));
       setHistoricalWeightedFiles(nextHistWeighted.slice(0, 1));
       setUploadedFiles(nextUploaded);
@@ -523,8 +524,6 @@ export default function Step1() {
 
   /* -----------------------------------------------------------
      Helper: clone File and attach metadata (ExistingDocFile)
-     We won't attach sessionOrigin; isExisting indicates server-persisted.
-     Ensure uploadId is set on every cloned file so tracking isn't filename-based.
   ----------------------------------------------------------- */
   const cloneFileWithMeta = (
     file: File,
@@ -553,10 +552,8 @@ export default function Step1() {
 
   /* -----------------------------------------------------------
      uploadFile: upload and place into the *current mode* slot only.
-     persisted files (result.data) will still be visible in both modes
-     after fetchExistingDocuments runs.
-     Ensure FormData always receives a real File (Blob).
-     No deduplication: allow identical files to be uploaded; each upload gets its own uploadId.
+     persisted files will still be visible in both modes after fetchExistingDocuments runs.
+     Choose document_type to send based on current mode (forecast vs manual ARIMA).
   ----------------------------------------------------------- */
   const uploadFile = useCallback(
     async (file: File, docType: ExecDocType, override: boolean = false) => {
@@ -579,13 +576,25 @@ export default function Step1() {
       });
 
       try {
-        const finalWorkflowPath = `${workflowPathBase}/${docType}`;
+        // compute the document_type to send to the server: ARIMA for manual uploads, HISTORICAL for auto
+        let uploadDocType: ExecDocType = docType;
+        // If docType is a historical constant but we're in manual mode, switch to ARIMA equivalent
+        if (mode === "UPLOAD_MANUAL") {
+          if (docType === DOC_MONTHLY) uploadDocType = DOC_MONTHLY_ARIMA;
+          else if (docType === DOC_QUARTERLY) uploadDocType = DOC_QUARTERLY_ARIMA;
+        } else {
+          // AUTO_GENERATE mode should use historical MEV types (DOC_MONTHLY / DOC_QUARTERLY)
+          if (docType === DOC_MONTHLY_ARIMA) uploadDocType = DOC_MONTHLY;
+          else if (docType === DOC_QUARTERLY_ARIMA) uploadDocType = DOC_QUARTERLY;
+        }
+
+        const finalWorkflowPath = `${workflowPathBase}/${uploadDocType}`;
         const result = await overlayUploadFile({
           baseUrl: API_BASE,
           token,
           file: realFile,
           workflowPath: finalWorkflowPath,
-          documentType: docType,
+          documentType: uploadDocType,
           workflowId: effectiveWorkflowId,
           override,
           moduleVal: "OVERLAY",
@@ -609,7 +618,7 @@ export default function Step1() {
           const asExistingOrig = cloneFileWithMeta(realFile, {
             sizeBytes: (realFile as any).size ?? (realFile as any).sizeBytes,
             isExisting: false,
-            documentType: docType,
+            documentType: (result.data?.document_type as ExecDocType) ?? uploadDocType,
             uploadId,
           });
 
@@ -619,36 +628,31 @@ export default function Step1() {
           if (result.data?.created_at) asExistingOrig.createdAt = result.data.created_at;
 
           // Put into the correct slot based on current mode ONLY
-          if (docType === DOC_MONTHLY) {
+          if (uploadDocType === DOC_MONTHLY || uploadDocType === DOC_MONTHLY_ARIMA) {
             if (mode === "AUTO_GENERATE") {
               setAutoMonthlyFiles([asExistingOrig]);
             } else {
               setMonthlyFiles([asExistingOrig]);
             }
-          } else if (docType === DOC_QUARTERLY) {
+          } else if (uploadDocType === DOC_QUARTERLY || uploadDocType === DOC_QUARTERLY_ARIMA) {
             if (mode === "AUTO_GENERATE") {
               setAutoQuarterlyFiles([asExistingOrig]);
             } else {
               setQuarterlyFiles([asExistingOrig]);
             }
-          } else if (docType === DOC_FINAL_MODEL) {
-            // final model is shared: the user expects manual uploads here, keep in main slot
+          } else if (uploadDocType === DOC_FINAL_MODEL) {
             asExistingOrig.isExisting = asExistingOrig.isExisting ?? false;
             setFinalModelFiles([asExistingOrig]);
-          } else if (docType === DOC_HISTORICAL_WEIGHTED) {
+          } else if (uploadDocType === DOC_HISTORICAL_WEIGHTED) {
             asExistingOrig.isExisting = asExistingOrig.isExisting ?? false;
             setHistoricalWeightedFiles([asExistingOrig]);
           }
 
-          // update session map so this uploaded session file belongs only to the
-          // current workflow key — prevents leakage to the other mode.
+          // update session map so this uploaded session file belongs only to the current workflow key
           setUploadsByWorkflow((prev) => {
             const copy = { ...prev };
             const arr = copy[currentWorkflowKey] ? [...copy[currentWorkflowKey]] : [];
-            // keep only the latest for session (single slot)
-            // remove any with same uploadId (unlikely) and push
             const filtered = arr.filter((x) => (x as any).__uploadMarker !== uploadId);
-            // mark original File with a small private marker for equality removal if needed
             (realFile as any).__uploadMarker = uploadId;
             filtered.push(realFile);
             copy[currentWorkflowKey] = filtered;
@@ -728,10 +732,6 @@ export default function Step1() {
 
   /* -----------------------------------------------------------
      handleFilesChange: place the selected file into the correct slot only.
-     We clone and set isExisting=false for session uploads. Do NOT add the
-     same session file into the other mode's array.
-     Also update uploadsByWorkflow to persist which session files belong to which mode.
-     NO deduplication: allow same filename/size to be uploaded multiple times (each with distinct uploadId).
   ----------------------------------------------------------- */
   const handleFilesChange = useCallback(
     async (
@@ -814,7 +814,7 @@ export default function Step1() {
       // clear manual session-only files
       setMonthlyFiles((prev) => prev.filter((f) => Boolean(f.isExisting)));
       setQuarterlyFiles((prev) => prev.filter((f) => Boolean(f.isExisting)));
-      // keep auto arrays as-is (they contain persisted + possible auto session uploads)
+      // keep auto arrays as-is
     } else {
       // entering manual: clear auto session-only files
       setAutoMonthlyFiles((prev) => prev.filter((f) => Boolean(f.isExisting)));
@@ -900,7 +900,6 @@ export default function Step1() {
 
   /* -----------------------------------------------------------
      Retry handler (modal proceed)
-     Here we simply retry all files in failedFilesForRetry (no filename dedupe).
   ----------------------------------------------------------- */
   const handleRetryProceed = useCallback(async () => {
     const retryFiles = [...failedFilesForRetry];
@@ -910,7 +909,6 @@ export default function Step1() {
       await uploadFile(file, docType, true);
     }
     setUploadModalOpen(false);
-    // clear retry pool (they might be re-added on failure)
     setFailedFilesForRetry([]);
   }, [failedFilesForRetry, uploadFile]);
 
