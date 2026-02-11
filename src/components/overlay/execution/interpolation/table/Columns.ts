@@ -72,7 +72,7 @@ export function buildMacroColumns(
     
     // Exclude date/metadata columns that will be in the Date group
     const excludeKeys = new Set([
-      "Date", "year", "month (int)", "month", "quarter", "id", "period_id", "x"
+      "Date", "year", "month (int)", "month", "quarter", "id", "period_id", "index"
     ]);
     
     const dataKeys = allKeys.filter(key => !excludeKeys.has(key));
@@ -85,7 +85,7 @@ export function buildMacroColumns(
       { key: "month", header: "Month", width: "72px" },
       { key: "id", header: "ID", width: "96px" },
       { key: "period_id", header: "Period ID", width: "96px" },
-      { key: "x", header: "x", width: "48px" },
+      { key: "index", header: "index", width: "48px" },
     ].filter(col => {
       // Only include if the key exists in the data
       return firstRow.hasOwnProperty(col.key!);

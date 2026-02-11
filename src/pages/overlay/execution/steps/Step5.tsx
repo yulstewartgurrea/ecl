@@ -374,7 +374,7 @@ const Step5: React.FC = () => {
           ) : (
             <p className="text-sm text-gray-500">
               Click{" "}
-              <span className="font-semibold">"Run Overlay Multiplier"</span>{" "}
+              <span className="font-semibold">Run Overlay Multiplier</span>{" "}
               to calculate and display the results.
             </p>
           )}
