@@ -33,7 +33,7 @@ export function buildColumnsFromRows(
     Object.keys(r || {}).forEach((k) => keys.add(k));
   }
 
-  const preferred = ["year", "quarter", "month", "period_id", "id", "x"];
+  const preferred = ["year", "quarter", "month", "period_id", "id", "index"];
   const preferredKeys = preferred.filter((k) => keys.has(k));
   const rest = Array.from(keys)
     .filter((k) => !preferred.includes(k))

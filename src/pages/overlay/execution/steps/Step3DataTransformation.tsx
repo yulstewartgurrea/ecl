@@ -787,6 +787,10 @@ export default function OverlayDevelpmentPage3() {
         variables={mevVariables}
         availableVariables={availableMevVariables}
         initialRows={mevPrefillRows ?? undefined}
+        onChangeNewModel={async () => {
+          setMevConfigOpen(false);
+          await loadTransformation({ skipPost: false });
+        }}
         onSave={async (rows, nextVariables) => {
           const payload = rows.map((r) => ({
             period: normalizePeriodOut(r.period),
@@ -811,6 +815,9 @@ export default function OverlayDevelpmentPage3() {
               token
             );
             setMevPrefillRows(latest.rows ?? null);
+
+            // Trigger data transformation after saving MEV configuration
+            await loadTransformation({ skipPost: false });
           } catch (err) {
             console.error(err);
           }

@@ -32,6 +32,43 @@ const isNumeric = (v: string) => {
   return Number.isFinite(Number(s));
 };
 
+// Reorder headers: coeff x1, coeff x2, coeff x3... then stderr x1, stderr x2, stderr x3...
+// Keep all other columns in their original order
+function reorderHeaders(hdrs: string[]): string[] {
+  if (!hdrs || hdrs.length === 0) return hdrs;
+
+  const coeffRe = /^coeff\s*x?(\d+)$/i;
+  const stderrRe = /^stderr\s*x?(\d+)$/i;
+
+  const coeffCols: Array<{ name: string; idx: number }> = [];
+  const stderrCols: Array<{ name: string; idx: number }> = [];
+  const others: string[] = [];
+
+  for (const k of hdrs) {
+    let match: RegExpMatchArray | null = null;
+
+    if ((match = k.match(coeffRe))) {
+      coeffCols.push({ name: k, idx: Number(match[1]) });
+    } else if ((match = k.match(stderrRe))) {
+      stderrCols.push({ name: k, idx: Number(match[1]) });
+    } else {
+      others.push(k);
+    }
+  }
+
+  // Sort coeff and stderr by their numeric index
+  coeffCols.sort((a, b) => a.idx - b.idx);
+  stderrCols.sort((a, b) => a.idx - b.idx);
+
+  // Rebuild result: coeff x1, coeff x2... then stderr x1, stderr x2... then others in original order
+  const result: string[] = [];
+  result.push(...coeffCols.map((c) => c.name));
+  result.push(...stderrCols.map((s) => s.name));
+  result.push(...others);
+
+  return result;
+}
+
 const FilteringConfigModal: React.FC<Props> = ({
   workflowId,
   headers,
@@ -153,8 +190,9 @@ console.log('url: ', url)
 
   const filteredHeaders = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return localHeaders;
-    return localHeaders.filter((h) => h.toLowerCase().includes(q));
+    const ordered = reorderHeaders(localHeaders);
+    if (!q) return ordered;
+    return ordered.filter((h) => h.toLowerCase().includes(q));
   }, [localHeaders, search]);
 
   const usageCount = useMemo(() => {

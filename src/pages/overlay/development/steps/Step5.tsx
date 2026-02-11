@@ -929,16 +929,6 @@ const applySearch = useCallback(() => {
         initialNumVarsTaken={num_vars_taken}
         token={token}
         apiBase={API_BASE}
-        onHeadersUpdate={(newHeaders) => {
-          const wf = Number(selectedWorkflowId);
-          if (Number.isFinite(wf)) {
-            const captured = loadHeaders(wf);
-            const merged = uniqCaseInsensitive([...captured, ...newHeaders]);
-            setHeaders(merged);
-          } else {
-            setHeaders(newHeaders);
-          }
-        }}
       />
     </div>
   );
