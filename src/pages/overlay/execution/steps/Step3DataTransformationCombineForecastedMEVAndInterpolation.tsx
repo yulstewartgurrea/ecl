@@ -332,7 +332,7 @@ export default function Step3DataTransformationCombineForecastedMEVAndInterpolat
   }
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-gray-50 to-white">
+    <div className=" bg-gradient-to-b from-gray-50 to-white">
       <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
@@ -389,14 +389,14 @@ export default function Step3DataTransformationCombineForecastedMEVAndInterpolat
           )}
 
           {dataRows.length > 0 && dataColumns.length > 0 ? (
-            <div className="overflow-x-auto">
+            <div className="overflow-y-auto h-[500px] rounded-lg border border-gray-200">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-yellow-400 text-gray-900 font-semibold sticky top-0 z-10">
                   <tr>
                     {dataColumns.map((col) => (
                       <th
                         key={col}
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        className="px-4 py-3 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider"
                       >
                         {col}
                       </th>

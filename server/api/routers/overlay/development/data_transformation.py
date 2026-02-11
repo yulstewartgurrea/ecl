@@ -366,13 +366,23 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
 
 @router.post("/data_transformation")
 async def calculate_data_transformation(workflow_id: int = Form(...),
-                                        num_combinations: int = Form(2, description="Number of combinations to test"),
+                                        num_combinations: int | None = Form(None),
                                         user_id: User = Depends(get_current_user)):
     """
     Calculate data transformation - returns immediately with job_id for status polling
     """
     try:
-        print(num_combinations)
+        if not num_combinations or num_combinations < 1 or num_combinations > 4:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "code": -1,
+                    "success": False,
+                    "msg": "Number of combinations is required and must be greater than 0 but less than 5.",
+                    "data": None
+                }
+            )
+
         db = SessionLocal()
         try:
             workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()

@@ -54,7 +54,7 @@ const OverlayMultiplierSummary: React.FC<OverlayMultiplierSummaryProps> = ({
         </div>
 
         <span className="hidden md:inline-flex items-center rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-[11px] font-medium text-amber-800">
-          Overlay multiplier â‰ˆ forecasted PD / latest actual PD (ODR)
+          Overlay multiplier forecasted PD / latest actual PD (ODR)
         </span>
       </div>
 
@@ -120,9 +120,9 @@ const OverlayMultiplierSummary: React.FC<OverlayMultiplierSummaryProps> = ({
 
       {/* Formula hint for small screens */}
       <p className="text-[11px] text-gray-500 md:hidden">
-        Overlay multiplier â‰ˆ{" "}
+        Overlay multiplier{" "}
         <span className="font-semibold text-gray-700">
-          forecasted PD / latest actual PD (ODR)
+          Forecasted CLRs / latest actual PD (ODR)
         </span>
         .
       </p>

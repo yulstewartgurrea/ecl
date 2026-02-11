@@ -70,24 +70,9 @@ def validate_monthly_forecasted_mev_arima(df: pd.DataFrame, document_type: str, 
     validation_results = _get_base_validation_results(file_name, document_type)
     
     try:
-        print('validate_monthly_forecasted_mev_arima', df)
+        print('validate_monthly_forecasted_mev_arima \n', df)
         # Normalize column names for comparison (lowercase, strip spaces)
         df_columns_normalized = [col.strip().lower() for col in df.columns]
-        
-        # Check for unnamed columns (e.g., "Unnamed: 0", "Unnamed: 1")
-        unnamed_columns = []
-        for col in df.columns:
-            # Check if column name matches pattern "Unnamed:" or "unnamed:" followed by optional number
-            if re.match(r'^[Uu]nnamed\s*:\s*\d*$', str(col).strip()):
-                unnamed_columns.append(col)
-        
-        if unnamed_columns:
-            validation_results["validation_status"] = "failed"
-            validation_results["issues"].append({
-                "type": "unnamed_columns",
-                "columns": unnamed_columns,
-                "message": f"Found unnamed columns: {', '.join(unnamed_columns)}."
-            })
         
         # Required columns - validation fails if missing
         required_columns = []
@@ -127,10 +112,54 @@ def validate_monthly_forecasted_mev_arima(df: pd.DataFrame, document_type: str, 
                 "message": f"Found unnamed columns: {', '.join(unnamed_columns)}."
             })
 
-        # Check for missing data in each column
+        # Check for date column and validate it contains actual dates
+        date_columns = [col for col in df.columns if 'date' in str(col).strip().lower()]
+        if date_columns:
+            for date_col in date_columns:
+                # Check if column is numeric (should not be)
+                if pd.api.types.is_numeric_dtype(df[date_col]):
+                    validation_results["validation_status"] = "failed"
+                    validation_results["issues"].append({
+                        "type": "invalid_date_column",
+                        "column": date_col,
+                        "message": f"Date column '{date_col}' contains numeric values instead of dates"
+                    })
+                else:
+                    # Try to parse dates - check if values can be converted to datetime
+                    invalid_dates = []
+                    for idx, value in enumerate(df[date_col]):
+                        if pd.isna(value) or (isinstance(value, str) and value.strip() == ''):
+                            continue  # Skip missing values (handled by missing data check)
+                        try:
+                            pd.to_datetime(value, errors='raise')
+                        except (ValueError, TypeError):
+                            invalid_dates.append({
+                                "row": idx,
+                                "value": str(value)[:50]  # Truncate long values
+                            })
+                    
+                    if invalid_dates:
+                        validation_results["validation_status"] = "failed"
+                        validation_results["issues"].append({
+                            "type": "invalid_date_values",
+                            "column": date_col,
+                            "invalid_count": len(invalid_dates),
+                            "sample_invalid": invalid_dates[:5],  # Show first 5 invalid dates
+                            "message": f"Date column '{date_col}' contains {len(invalid_dates)} invalid date value(s). Dates must be in a valid date format, not text or numeric values."
+                        })
+
+        # Check for missing data in each column (including NaN, None, and empty strings)
         missing_data = {}
         for column in df.columns:
-            missing_count = df[column].isnull().sum()
+            # Check for NaN/None values
+            null_count = df[column].isnull().sum()
+            # Check for empty strings (only for string/object columns)
+            if df[column].dtype == 'object':
+                empty_string_count = (df[column].astype(str).str.strip() == '').sum()
+            else:
+                empty_string_count = 0
+            # Total missing count (NaN/None + empty strings)
+            missing_count = null_count + empty_string_count
             missing_percentage = (missing_count / len(df)) * 100
             
             if missing_count > 0:
@@ -153,13 +182,20 @@ def validate_monthly_forecasted_mev_arima(df: pd.DataFrame, document_type: str, 
             })
             
             # Fail validation if missing data percentage is too high (>10%)
-            if data["missing_percentage"] > 10:
-                validation_results["validation_status"] = "failed"
+            # if data["missing_percentage"] > 10:
+            validation_results["validation_status"] = "failed"
 
-        # Check for empty columns
+        # Check for empty columns (all NaN/None or all empty strings)
         empty_columns = []
         for column in df.columns:
-            if df[column].isnull().all():
+            is_all_null = df[column].isnull().all()
+            # Check if all values are empty strings (for object columns)
+            if df[column].dtype == 'object':
+                is_all_empty_strings = (df[column].astype(str).str.strip() == '').all()
+            else:
+                is_all_empty_strings = False
+            
+            if is_all_null or is_all_empty_strings:
                 empty_columns.append(column)
                 validation_results["issues"].append({
                     "type": "empty_column",
@@ -191,21 +227,6 @@ def validate_quarterly_forecasted_mev_arima(df: pd.DataFrame, document_type: str
         # Normalize column names for comparison (lowercase, strip spaces)
         df_columns_normalized = [col.strip().lower() for col in df.columns]
 
-        # Check for unnamed columns (e.g., "Unnamed: 0", "Unnamed: 1")
-        unnamed_columns = []
-        for col in df.columns:
-            # Check if column name matches pattern "Unnamed:" or "unnamed:" followed by optional number
-            if re.match(r'^[Uu]nnamed\s*:\s*\d*$', str(col).strip()):
-                unnamed_columns.append(col)
-        
-        if unnamed_columns:
-            validation_results["validation_status"] = "failed"
-            validation_results["issues"].append({
-                "type": "unnamed_columns",
-                "columns": unnamed_columns,
-                "message": f"Found unnamed columns: {', '.join(unnamed_columns)}."
-            })
-        
         # Required columns - validation fails if missing
         required_columns = []
         
@@ -244,10 +265,54 @@ def validate_quarterly_forecasted_mev_arima(df: pd.DataFrame, document_type: str
                 "message": f"Found unnamed columns: {', '.join(unnamed_columns)}."
             })
 
-        # Check for missing data in each column
+        # Check for date column and validate it contains actual dates
+        date_columns = [col for col in df.columns if 'date' in str(col).strip().lower()]
+        if date_columns:
+            for date_col in date_columns:
+                # Check if column is numeric (should not be)
+                if pd.api.types.is_numeric_dtype(df[date_col]):
+                    validation_results["validation_status"] = "failed"
+                    validation_results["issues"].append({
+                        "type": "invalid_date_column",
+                        "column": date_col,
+                        "message": f"Date column '{date_col}' contains numeric values instead of dates"
+                    })
+                else:
+                    # Try to parse dates - check if values can be converted to datetime
+                    invalid_dates = []
+                    for idx, value in enumerate(df[date_col]):
+                        if pd.isna(value) or (isinstance(value, str) and value.strip() == ''):
+                            continue  # Skip missing values (handled by missing data check)
+                        try:
+                            pd.to_datetime(value, errors='raise')
+                        except (ValueError, TypeError):
+                            invalid_dates.append({
+                                "row": idx,
+                                "value": str(value)[:50]  # Truncate long values
+                            })
+                    
+                    if invalid_dates:
+                        validation_results["validation_status"] = "failed"
+                        validation_results["issues"].append({
+                            "type": "invalid_date_values",
+                            "column": date_col,
+                            "invalid_count": len(invalid_dates),
+                            "sample_invalid": invalid_dates[:5],  # Show first 5 invalid dates
+                            "message": f"Date column '{date_col}' contains {len(invalid_dates)} invalid date value(s). Dates must be in a valid date format, not text or numeric values."
+                        })
+
+        # Check for missing data in each column (including NaN, None, and empty strings)
         missing_data = {}
         for column in df.columns:
-            missing_count = df[column].isnull().sum()
+            # Check for NaN/None values
+            null_count = df[column].isnull().sum()
+            # Check for empty strings (only for string/object columns)
+            if df[column].dtype == 'object':
+                empty_string_count = (df[column].astype(str).str.strip() == '').sum()
+            else:
+                empty_string_count = 0
+            # Total missing count (NaN/None + empty strings)
+            missing_count = null_count + empty_string_count
             missing_percentage = (missing_count / len(df)) * 100
             
             if missing_count > 0:
@@ -270,13 +335,20 @@ def validate_quarterly_forecasted_mev_arima(df: pd.DataFrame, document_type: str
             })
             
             # Fail validation if missing data percentage is too high (>10%)
-            if data["missing_percentage"] > 10:
-                validation_results["validation_status"] = "failed"
+            # if data["missing_percentage"] > 10:
+            validation_results["validation_status"] = "failed"
 
-        # Check for empty columns
+        # Check for empty columns (all NaN/None or all empty strings)
         empty_columns = []
         for column in df.columns:
-            if df[column].isnull().all():
+            is_all_null = df[column].isnull().all()
+            # Check if all values are empty strings (for object columns)
+            if df[column].dtype == 'object':
+                is_all_empty_strings = (df[column].astype(str).str.strip() == '').all()
+            else:
+                is_all_empty_strings = False
+            
+            if is_all_null or is_all_empty_strings:
                 empty_columns.append(column)
                 validation_results["issues"].append({
                     "type": "empty_column",

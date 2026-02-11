@@ -79,8 +79,7 @@ export default function OverlayDevelopmentPage2() {
       setExportReady(Array.isArray(cleaned) && cleaned.length > 0);
     } catch (e: any) {
       // If GET fails (e.g., 404 / empty), we keep table empty and let the user POST via button
-      setErr(
-        e?.message || "No data yet. Click Run Interpolation to generate."
+      setErr( "No data yet. Click Run Interpolation to generate."
       );
       setRows([]);
       setExportReady(false);

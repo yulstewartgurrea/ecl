@@ -163,7 +163,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
   // Global server-side search (BUTTON TRIGGERED)
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-
+  const [searchCooldown, setSearchCooldown] = useState(false);
   // headers + filters
   const [headers, setHeaders] = useState<string[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<FilterRule[]>([]);
@@ -346,11 +346,19 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
   }, [selectedWorkflowId, fetchFilteringResults]);
 
   /* -------------------------- Search handlers ----------------------------- */
-  const applySearch = useCallback(() => {
+const applySearch = useCallback(() => {
+    if (searchCooldown || loading) return;
     const next = cleanSearchString(searchInput);
+    // avoid duplicate requests
+    if (next === search) return;
+
+    // simple cooldown to prevent spamming the backend
+    setSearchCooldown(true);
+    window.setTimeout(() => setSearchCooldown(false), 1000);
+
     setCurrentPage(1);
     setSearch(next);
-  }, [searchInput]);
+  }, [searchInput, search, searchCooldown, loading]);
 
   const clearSearch = useCallback(() => {
     setSearchInput("");
@@ -795,7 +803,7 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
 
           <button
             onClick={applySearch}
-            disabled={rows.length < 0||loading}
+            disabled={loading || searchCooldown || cleanSearchString(searchInput) === search}
             className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
             title="Search"
           >
@@ -921,16 +929,6 @@ const Step5: React.FC<Step5Props> = ({ title = "Filtering of Models", descriptio
         initialNumVarsTaken={num_vars_taken}
         token={token}
         apiBase={API_BASE}
-        onHeadersUpdate={(newHeaders) => {
-          const wf = Number(selectedWorkflowId);
-          if (Number.isFinite(wf)) {
-            const captured = loadHeaders(wf);
-            const merged = uniqCaseInsensitive([...captured, ...newHeaders]);
-            setHeaders(merged);
-          } else {
-            setHeaders(newHeaders);
-          }
-        }}
       />
     </div>
   );

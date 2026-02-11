@@ -86,8 +86,43 @@ def clean_monthly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
     if date_col_name is None:
         raise ValueError("Date column not found in the cleaned DataFrame")
     
+    # Validate date column before conversion
+    # Check if column is numeric (should not be for dates)
+    if pd.api.types.is_numeric_dtype(df[date_col_name]):
+        raise ValueError(f"Date column '{date_col_name}' contains numeric values instead of dates")
+    
+    # Check for invalid date values that cannot be parsed
+    invalid_dates = []
+    for idx, value in enumerate(df[date_col_name]):
+        if pd.isna(value) or (isinstance(value, str) and value.strip() == ''):
+            continue  # Skip missing/empty values for now
+        try:
+            pd.to_datetime(value, errors='raise')
+        except (ValueError, TypeError):
+            invalid_dates.append({
+                "row": idx + 1,  # +1 because row indices are 0-based but users see 1-based
+                "value": str(value)[:50]  # Truncate long values
+            })
+    
+    if invalid_dates:
+        sample_invalid = invalid_dates[:5]  # Show first 5 invalid dates
+        error_msg = f"Date column '{date_col_name}' contains {len(invalid_dates)} invalid date value(s). "
+        error_msg += f"Invalid dates found at rows: {', '.join([str(d['row']) for d in sample_invalid])} "
+        error_msg += f"with values: {', '.join([d['value'] for d in sample_invalid])}. "
+        error_msg += "Dates must be in a valid date format, not text or numeric values."
+        raise ValueError(error_msg)
+    
     # Convert Date column to datetime, handling multiple formats
     df[date_col_name] = pd.to_datetime(df[date_col_name], errors='coerce', infer_datetime_format=True)
+    
+    # Check for NaN values after conversion (should not happen if validation above passed, but double-check)
+    nan_count = df[date_col_name].isna().sum()
+    if nan_count > 0:
+        nan_rows = df[df[date_col_name].isna()].index.tolist()
+        error_msg = f"Date column '{date_col_name}' contains {nan_count} value(s) that could not be converted to dates "
+        error_msg += f"at rows: {', '.join([str(r + 1) for r in nan_rows[:10]])}. "
+        error_msg += "Please ensure all date values are in a valid date format."
+        raise ValueError(error_msg)
     
     # Extract year
     df['year'] = df[date_col_name].dt.year.astype(str)
@@ -186,8 +221,43 @@ def clean_quarterly_forecasted_mev_arima(file_path: str) -> Dict[str, Any]:
     if date_col_name is None:
         raise ValueError("Date column not found in the cleaned DataFrame")
     
+    # Validate date column before conversion
+    # Check if column is numeric (should not be for dates)
+    if pd.api.types.is_numeric_dtype(df[date_col_name]):
+        raise ValueError(f"Date column '{date_col_name}' contains numeric values instead of dates")
+    
+    # Check for invalid date values that cannot be parsed
+    invalid_dates = []
+    for idx, value in enumerate(df[date_col_name]):
+        if pd.isna(value) or (isinstance(value, str) and value.strip() == ''):
+            continue  # Skip missing/empty values for now
+        try:
+            pd.to_datetime(value, errors='raise')
+        except (ValueError, TypeError):
+            invalid_dates.append({
+                "row": idx + 1,  # +1 because row indices are 0-based but users see 1-based
+                "value": str(value)[:50]  # Truncate long values
+            })
+    
+    if invalid_dates:
+        sample_invalid = invalid_dates[:5]  # Show first 5 invalid dates
+        error_msg = f"Date column '{date_col_name}' contains {len(invalid_dates)} invalid date value(s). "
+        error_msg += f"Invalid dates found at rows: {', '.join([str(d['row']) for d in sample_invalid])} "
+        error_msg += f"with values: {', '.join([d['value'] for d in sample_invalid])}. "
+        error_msg += "Dates must be in a valid date format, not text or numeric values."
+        raise ValueError(error_msg)
+    
     # Convert Date column to datetime, handling multiple formats
     df[date_col_name] = pd.to_datetime(df[date_col_name], errors='coerce', infer_datetime_format=True)
+    
+    # Check for NaN values after conversion (should not happen if validation above passed, but double-check)
+    nan_count = df[date_col_name].isna().sum()
+    if nan_count > 0:
+        nan_rows = df[df[date_col_name].isna()].index.tolist()
+        error_msg = f"Date column '{date_col_name}' contains {nan_count} value(s) that could not be converted to dates "
+        error_msg += f"at rows: {', '.join([str(r + 1) for r in nan_rows[:10]])}. "
+        error_msg += "Please ensure all date values are in a valid date format."
+        raise ValueError(error_msg)
     
     # Extract year
     df['year'] = df[date_col_name].dt.year.astype(str)

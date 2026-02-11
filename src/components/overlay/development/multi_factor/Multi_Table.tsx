@@ -155,6 +155,53 @@ function shouldShowHeaderFilter(opts: {
   return isFilterableStringValue(sample);
 }
 
+function reorderColumns(cols: ColumnDef[]): ColumnDef[] {
+  if (!cols || cols.length === 0) return cols;
+
+  const coeffRe = /^coeff[\s_]*x?[\s_]*(\d+)$/i;
+  const stderrRe = /^stderr[\s_]*x?[\s_]*(\d+)$/i;
+
+  const coeffCols: Array<{ col: ColumnDef; idx: number }> = [];
+  const stderrCols: Array<{ col: ColumnDef; idx: number }> = [];
+  const beforeCoeffStderr: ColumnDef[] = [];
+  const afterCoeffStderr: ColumnDef[] = [];
+
+  let firstCoeffStderrIndex = -1;
+
+  for (let i = 0; i < cols.length; i++) {
+    const col = cols[i];
+    let match: RegExpMatchArray | null = null;
+
+    if ((match = col.key.match(coeffRe))) {
+      if (firstCoeffStderrIndex === -1) firstCoeffStderrIndex = i;
+      coeffCols.push({ col, idx: Number(match[1]) });
+    } else if ((match = col.key.match(stderrRe))) {
+      if (firstCoeffStderrIndex === -1) firstCoeffStderrIndex = i;
+      stderrCols.push({ col, idx: Number(match[1]) });
+    } else {
+      // Non-coeff/stderr column
+      if (firstCoeffStderrIndex === -1) {
+        // This column appears before any coeff/stderr
+        beforeCoeffStderr.push(col);
+      } else {
+        // This column appears after coeff/stderr started
+        afterCoeffStderr.push(col);
+      }
+    }
+  }
+
+  // Sort coeff and stderr by their numeric index
+  coeffCols.sort((a, b) => a.idx - b.idx);
+  stderrCols.sort((a, b) => a.idx - b.idx);
+  const result: ColumnDef[] = [];
+  result.push(...beforeCoeffStderr);
+  result.push(...coeffCols.map((c) => c.col));
+  result.push(...stderrCols.map((s) => s.col));
+  result.push(...afterCoeffStderr);
+
+  return result;
+}
+
 // ========= Filter State =========
 export type ColumnFilter = {
   checkedValues: Set<string>;
@@ -187,9 +234,12 @@ export function Multi_Table({
   onSelectionChange,
 }: ExcelLikeTableProps) {
   const derivedColumns: ColumnDef[] = useMemo(() => {
-    if (columns && columns.length) return columns;
+    if (columns && columns.length) {
+      return reorderColumns(columns);
+    }
     if (!data?.length) return [];
-    return Object.keys(data[0]).map((k) => ({ key: k, header: headerize(k) }));
+    const cols = Object.keys(data[0]).map((k) => ({ key: k, header: headerize(k) }));
+    return reorderColumns(cols);
   }, [columns, data]);
 
   // ---- selection id helper

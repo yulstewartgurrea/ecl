@@ -21,6 +21,7 @@ type Props = {
   availableVariables?: string[];
   initialRows?: ScenarioRow[]; // optional prefill from GET
   onSave: (rows: ScenarioRow[], variables: string[]) => void; // rows normalized with %
+  onChangeNewModel?: () => Promise<void>; // callback for "Change New Model"
 };
 
 /* ---------------- helpers: shape & normalization ---------------- */
@@ -127,6 +128,7 @@ export default function ScenarioConfigModalTable({
   open,
   onClose,
   onSave,
+  onChangeNewModel,
   periods,
   variables,
   availableVariables,
@@ -134,6 +136,8 @@ export default function ScenarioConfigModalTable({
 }: Props) {
   const [localVariables, setLocalVariables] = useState<string[]>(variables);
   const availableList = availableVariables ?? variables;
+  const [showChangeModelConfirm, setShowChangeModelConfirm] = useState(false);
+  const [changingModel, setChangingModel] = useState(false);
 
   // Build from initialRows if provided, otherwise blank template
   const [rows, setRows] = useState<ScenarioRow[]>(
@@ -512,23 +516,79 @@ export default function ScenarioConfigModalTable({
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t bg-white">
           <button
             onClick={onClose}
-            className="rounded-xl border px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-1.5"
+            className="cursor-pointer rounded-xl border px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-1.5"
           >
             <XCircleIcon className="h-4 w-4" />
             <span>Cancel</span>
           </button>
+          {onChangeNewModel && (
+            <button
+              onClick={() => setShowChangeModelConfirm(true)}
+              disabled={changingModel}
+              className="cursor-pointer rounded-xl border border-orange-200 bg-orange-50 text-orange-700 px-4 py-2 text-sm font-medium hover:bg-orange-100 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <span>Change New Model</span>
+            </button>
+          )}
           <button
             disabled={!canSave}
             onClick={() => {
               if (!canSave) return;
               onSave(normalizeAllBeforeSave(rows, localVariables), localVariables);
             }}
-            className="rounded-xl bg-gray-100 text-gray-900 px-4 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
+            className="cursor-pointer rounded-xl bg-gray-100 text-gray-900 px-4 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
           >
             <CheckCircleIcon className="h-4 w-4" />
             <span>Save configuration</span>
           </button>
         </div>
+
+        {/* Confirmation Modal for Change New Model */}
+        {showChangeModelConfirm && (
+          <div className="fixed inset-0 z-[51] flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/20"
+              onClick={() => setShowChangeModelConfirm(false)}
+            />
+            <div className="relative bg-white rounded-xl shadow-xl ring-1 ring-gray-200 p-6 max-w-sm mx-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-1">
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Change to New Model
+                  </h3>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Changing to new model will overwrite existing data. Are you sure you want to continue?
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowChangeModelConfirm(false)}
+                  className="cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setChangingModel(true);
+                    try {
+                      await onChangeNewModel?.();
+                      setShowChangeModelConfirm(false);
+                    } catch (err) {
+                      console.error(err);
+                    } finally {
+                      setChangingModel(false);
+                    }
+                  }}
+                  disabled={changingModel}
+                  className="cursor-pointer rounded-lg bg-yellow-300 text-white px-4 py-2 text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {changingModel ? "Processing..." : "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

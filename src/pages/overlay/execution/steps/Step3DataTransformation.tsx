@@ -146,6 +146,29 @@ export default function OverlayDevelpmentPage3() {
     });
   };
 
+  const handleChangeModel = async () => {
+const inputData = await overrideGetDataTransformationInput(
+          selectedWorkflowId,
+          token
+        );
+        const { periods, variables, default_values } = inputData;
+        const filtered = filterDefaults(variables);
+        
+        // If input endpoint has default_values, use them to populate the table
+        if (default_values && default_values.length > 0 && periods.length > 0 && filtered.length > 0) {
+          const transformedRows = transformDefaultValuesToRows(
+            default_values,
+            filtered
+          );
+          // Normalize periods to match the format used in transformedRows (YYYY-MM-DD)
+          const normalizedPeriods = periods.map((p) => normalizePeriodOut(p));
+          setMevPrefillRows(transformedRows);
+          setMevPeriods(normalizedPeriods);
+          setAvailableMevVariables(filtered);
+          setMevVariables(filtered);
+
+  }
+}
   // Load MEV config shape (periods/variables) with fallback
   useEffect(() => {
     const boot = async () => {
@@ -159,6 +182,7 @@ export default function OverlayDevelpmentPage3() {
         
         // If existing rows are present, use them
         if (existing?.rows && existing.rows.length > 0) {
+          console.log('Existing MEV rows found, using them to populate table.');
           setMevPrefillRows(existing.rows);
           const derivedPeriods = existing.periods?.length
             ? existing.periods
@@ -255,7 +279,7 @@ export default function OverlayDevelpmentPage3() {
           }
         }
       } catch (err) {
-        console.error(err);
+        console.error("Failed to load MEV configuration");
       } finally {
         setMevLoadingCfg(false);
       }
@@ -342,11 +366,11 @@ export default function OverlayDevelpmentPage3() {
             setMevCols(shaped.independentColumns);
             setDefCols(shaped.dependentColumns);
           } else {
-            setErrMsg(resultsResponse?.msg || "Failed to retrieve transformation results");
+            setErrMsg("Failed to retrieve transformation results");
           }
         }
       } catch (err: any) {
-        setErrMsg(err?.message || "Failed to run data transformation");
+        setErrMsg("Failed to run data transformation");
         setMevRows([]);
         setDefRows([]);
         setMevCols([]);
@@ -787,6 +811,10 @@ export default function OverlayDevelpmentPage3() {
         variables={mevVariables}
         availableVariables={availableMevVariables}
         initialRows={mevPrefillRows ?? undefined}
+        onChangeNewModel={async () => {
+          await handleChangeModel();
+          
+        }}
         onSave={async (rows, nextVariables) => {
           const payload = rows.map((r) => ({
             period: normalizePeriodOut(r.period),
@@ -811,6 +839,9 @@ export default function OverlayDevelpmentPage3() {
               token
             );
             setMevPrefillRows(latest.rows ?? null);
+
+            // Trigger data transformation after saving MEV configuration
+            await loadTransformation({ skipPost: false });
           } catch (err) {
             console.error(err);
           }
