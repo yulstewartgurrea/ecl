@@ -256,9 +256,24 @@ def prepare_dependent_variables(df: pd.DataFrame, excluded_columns: list) -> pd.
 
     y_raw[target] = y_raw[target].replace(0, 0.001).replace(1, 0.99999)
 
-    # Time column (expects a 'time' column with parseable dates)
+    # Time column - handle multiple formats: datetime, Excel serial numbers, or date strings
     if 'time' in y_raw.columns:
-        y_raw['Time'] = pd.to_datetime(y_raw['time'], errors='coerce').dt.strftime('%Y-%m')
+        if pd.api.types.is_datetime64_any_dtype(y_raw['time']):
+            # Case 1: Column is already datetime → use it directly
+            y_raw['Time'] = y_raw['time'].dt.strftime('%Y-%m')
+        elif pd.api.types.is_numeric_dtype(y_raw['time']):
+            # Case 2: Column is numeric (Excel serial numbers) → convert from serial to datetime
+            # Excel serial dates: days since 1899-12-30 (Excel epoch, accounting for 1900 leap year bug)
+            y_raw['Time'] = pd.to_datetime('1899-12-30') + pd.to_timedelta(y_raw['time'], unit='D')
+            y_raw['Time'] = y_raw['Time'].dt.strftime('%Y-%m')
+        else:
+            # Case 3: Column is string/object → parse as date strings
+            y_raw['Time'] = pd.to_datetime(y_raw['time'], errors='coerce').dt.strftime('%Y-%m')
+        
+        # Check for any NaT values after conversion
+        if y_raw['Time'].isna().any():
+            nat_count = y_raw['Time'].isna().sum()
+            raise ValueError(f"Failed to convert {nat_count} time value(s) to date format. Please ensure time column contains valid dates.")
     elif 'Time' not in y_raw.columns:
         raise ValueError("Dependent data missing 'time' column to derive 'Time'.")
 
