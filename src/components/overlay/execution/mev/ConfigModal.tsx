@@ -574,7 +574,6 @@ export default function ScenarioConfigModalTable({
                     try {
                       await onChangeNewModel?.();
                       setShowChangeModelConfirm(false);
-                      onClose();
                     } catch (err) {
                       console.error(err);
                     } finally {

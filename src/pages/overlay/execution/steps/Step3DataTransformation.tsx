@@ -146,6 +146,29 @@ export default function OverlayDevelpmentPage3() {
     });
   };
 
+  const handleChangeModel = async () => {
+const inputData = await overrideGetDataTransformationInput(
+          selectedWorkflowId,
+          token
+        );
+        const { periods, variables, default_values } = inputData;
+        const filtered = filterDefaults(variables);
+        
+        // If input endpoint has default_values, use them to populate the table
+        if (default_values && default_values.length > 0 && periods.length > 0 && filtered.length > 0) {
+          const transformedRows = transformDefaultValuesToRows(
+            default_values,
+            filtered
+          );
+          // Normalize periods to match the format used in transformedRows (YYYY-MM-DD)
+          const normalizedPeriods = periods.map((p) => normalizePeriodOut(p));
+          setMevPrefillRows(transformedRows);
+          setMevPeriods(normalizedPeriods);
+          setAvailableMevVariables(filtered);
+          setMevVariables(filtered);
+
+  }
+}
   // Load MEV config shape (periods/variables) with fallback
   useEffect(() => {
     const boot = async () => {
@@ -159,6 +182,7 @@ export default function OverlayDevelpmentPage3() {
         
         // If existing rows are present, use them
         if (existing?.rows && existing.rows.length > 0) {
+          console.log('Existing MEV rows found, using them to populate table.');
           setMevPrefillRows(existing.rows);
           const derivedPeriods = existing.periods?.length
             ? existing.periods
@@ -788,8 +812,8 @@ export default function OverlayDevelpmentPage3() {
         availableVariables={availableMevVariables}
         initialRows={mevPrefillRows ?? undefined}
         onChangeNewModel={async () => {
-          setMevConfigOpen(false);
-          await loadTransformation({ skipPost: false });
+          await handleChangeModel();
+          
         }}
         onSave={async (rows, nextVariables) => {
           const payload = rows.map((r) => ({
