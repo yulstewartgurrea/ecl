@@ -115,7 +115,7 @@ export function ProcessModal({
             <button
               ref={closeBtnRef}
               onClick={onClose}
-              className="ml-auto inline-flex items-center justify-center rounded-lg p-2 text-gray-800/80 hover:bg-gray-200/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+              className="cursor-pointer ml-auto inline-flex items-center justify-center rounded-lg p-2 text-gray-800/80 hover:bg-gray-200/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
               aria-label="Close"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -150,7 +150,7 @@ export function ProcessModal({
 
             <button
               onClick={onClose}
-              className="inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-semibold text-gray-900 shadow hover:bg-yellow-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300"
+              className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-semibold text-gray-900 shadow hover:bg-yellow-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300"
             >
               {continueLabel}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

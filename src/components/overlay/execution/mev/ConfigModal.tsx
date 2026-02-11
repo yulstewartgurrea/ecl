@@ -516,7 +516,7 @@ export default function ScenarioConfigModalTable({
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t bg-white">
           <button
             onClick={onClose}
-            className="rounded-xl border px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-1.5"
+            className="cursor-pointer rounded-xl border px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-1.5"
           >
             <XCircleIcon className="h-4 w-4" />
             <span>Cancel</span>
@@ -525,7 +525,7 @@ export default function ScenarioConfigModalTable({
             <button
               onClick={() => setShowChangeModelConfirm(true)}
               disabled={changingModel}
-              className="rounded-xl border border-orange-200 bg-orange-50 text-orange-700 px-4 py-2 text-sm font-medium hover:bg-orange-100 disabled:opacity-50 flex items-center gap-1.5"
+              className="cursor-pointer rounded-xl border border-orange-200 bg-orange-50 text-orange-700 px-4 py-2 text-sm font-medium hover:bg-orange-100 disabled:opacity-50 flex items-center gap-1.5"
             >
               <span>Change New Model</span>
             </button>
@@ -536,7 +536,7 @@ export default function ScenarioConfigModalTable({
               if (!canSave) return;
               onSave(normalizeAllBeforeSave(rows, localVariables), localVariables);
             }}
-            className="rounded-xl bg-gray-100 text-gray-900 px-4 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
+            className="cursor-pointer rounded-xl bg-gray-100 text-gray-900 px-4 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
           >
             <CheckCircleIcon className="h-4 w-4" />
             <span>Save configuration</span>
@@ -564,7 +564,7 @@ export default function ScenarioConfigModalTable({
               <div className="mt-6 flex items-center justify-end gap-3">
                 <button
                   onClick={() => setShowChangeModelConfirm(false)}
-                  className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
                 </button>
@@ -581,7 +581,7 @@ export default function ScenarioConfigModalTable({
                     }
                   }}
                   disabled={changingModel}
-                  className="rounded-lg bg-yellow-300 text-white px-4 py-2 text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
+                  className="cursor-pointer rounded-lg bg-yellow-300 text-white px-4 py-2 text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
                 >
                   {changingModel ? "Processing..." : "Confirm"}
                 </button>

@@ -372,7 +372,7 @@ export default function OverlayExecutionPage3() {
                 <span>{exporting ? "Exportingâ€¦" : "Export"}</span>
               </button>
               <span className="hidden text-xs text-gray-500 md:inline">
-                Sticky header â€¢ Scroll horizontally
+                Sticky header Scroll horizontally
               </span>
             </div>
           </div>

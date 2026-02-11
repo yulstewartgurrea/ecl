@@ -504,12 +504,16 @@ export default function OverlayDevelpmentPage3() {
               onClick={onRun}
               disabled={
                 busy ||
-                (!selectedWorkflowId && selectedWorkflowId !== 0)
+                (!selectedWorkflowId && selectedWorkflowId !== 0) ||
+                !numCombinations ||
+                numCombinations <= 0
               }
               className="cursor-pointer inline-flex items-center gap-2 rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50"
               title={
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
+                  : !numCombinations || numCombinations <= 0
+                  ? "Set the number of variables in config first"
                   : ""
               }
             >

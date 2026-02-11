@@ -279,7 +279,7 @@ const inputData = await overrideGetDataTransformationInput(
           }
         }
       } catch (err) {
-        console.error(err);
+        console.error("Failed to load MEV configuration");
       } finally {
         setMevLoadingCfg(false);
       }
@@ -366,11 +366,11 @@ const inputData = await overrideGetDataTransformationInput(
             setMevCols(shaped.independentColumns);
             setDefCols(shaped.dependentColumns);
           } else {
-            setErrMsg(resultsResponse?.msg || "Failed to retrieve transformation results");
+            setErrMsg("Failed to retrieve transformation results");
           }
         }
       } catch (err: any) {
-        setErrMsg(err?.message || "Failed to run data transformation");
+        setErrMsg("Failed to run data transformation");
         setMevRows([]);
         setDefRows([]);
         setMevCols([]);
