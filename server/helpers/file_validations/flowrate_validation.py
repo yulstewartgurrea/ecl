@@ -375,7 +375,7 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                                     "type": "date_format",
                                     "column": actual_col,
                                     "invalid_count": int(invalid_count),
-                                    "message": f"Column '{actual_col}' has {invalid_count} values not in MM/DD/YYYY format"
+                                    "message": f"Column '{actual_col}' has {invalid_count} values not in MM/DD/YYYY format. Invalid format will cause errors in running the application."
                                 })
                                 continue
                             date_strings = parsed_dates.dt.strftime('%m/%d/%Y')
@@ -397,16 +397,87 @@ def validate_aging_report(df: pd.DataFrame, document_type: str, file_name: str, 
                         validation_results["issues"].append({
                             "type": "date_format",
                             "column": actual_col,
-                            "invalid_count": invalid_format_count,
-                            "message": f"Column '{actual_col}' has {invalid_format_count} values not in MM/DD/YYYY format"
+                            "invalid_count": int(invalid_format_count),
+                            "message": f"Column '{actual_col}' has {invalid_format_count} values not in MM/DD/YYYY format. Invalid format will cause errors in running the application."
                         })
+                    
+                    # Check for missing dates (NaN or empty values)
+                    missing_dates = df[actual_col].isna().sum()
+                    if df[actual_col].dtype == 'object':
+                        empty_string_count = (df[actual_col].astype(str).str.strip() == '').sum()
+                        missing_dates += empty_string_count
+                    
+                    if missing_dates > 0:
+                        validation_results["validation_status"] = "failed"
+                        validation_results["issues"].append({
+                            "type": "missing_dates",
+                            "column": actual_col,
+                            "missing_count": int(missing_dates),
+                            "message": f"Column '{actual_col}' has {missing_dates} missing date value(s). Missing dates will cause errors in running the application."
+                        })
+                    
+                    # Check if dates are consecutive months (no gaps)
+                    # Parse dates to datetime for comparison
+                    if pd.api.types.is_datetime64_any_dtype(df[actual_col]):
+                        parsed_dates = df[actual_col]
+                    else:
+                        parsed_dates = pd.to_datetime(df[actual_col], errors='coerce')
+                    
+                    # Remove NaN values for consecutive check
+                    valid_dates = parsed_dates.dropna().sort_values()
+                    
+                    if len(valid_dates) > 1:
+                        # Check for gaps in months
+                        gaps = []
+                        for i in range(1, len(valid_dates)):
+                            prev_date = valid_dates.iloc[i-1]
+                            curr_date = valid_dates.iloc[i]
+                            
+                            # Calculate month difference
+                            # Get year and month for both dates
+                            prev_year = prev_date.year
+                            prev_month = prev_date.month
+                            curr_year = curr_date.year
+                            curr_month = curr_date.month
+                            
+                            # Calculate expected next month
+                            expected_month = prev_month + 1
+                            expected_year = prev_year
+                            if expected_month > 12:
+                                expected_month = 1
+                                expected_year += 1
+                            
+                            # Check if current date matches expected month/year
+                            if curr_year != expected_year or curr_month != expected_month:
+                                # Calculate the expected date (last day of expected month)
+                                from calendar import monthrange
+                                last_day = monthrange(expected_year, expected_month)[1]
+                                expected_date = pd.Timestamp(year=expected_year, month=expected_month, day=last_day)
+                                
+                                gaps.append({
+                                    "row": valid_dates.index[i],
+                                    "expected": expected_date.strftime('%m/%d/%Y'),
+                                    "actual": curr_date.strftime('%m/%d/%Y')
+                                })
+                        
+                        if gaps:
+                            validation_results["validation_status"] = "failed"
+                            sample_gaps = gaps[:5]  # Show first 5 gaps
+                            gap_messages = [f"row {g['row']+1} (expected {g['expected']}, found {g['actual']})" for g in sample_gaps]
+                            validation_results["issues"].append({
+                                "type": "non_consecutive_dates",
+                                "column": actual_col,
+                                "gap_count": len(gaps),
+                                "sample_gaps": sample_gaps,
+                                "message": f"Column '{actual_col}' has {len(gaps)} month gap(s). Dates must be consecutive months without skipping. Gaps found at: {', '.join(gap_messages)}. Invalid date format will cause errors in running the application."
+                            })
                         
                 except Exception as e:
                     validation_results["validation_status"] = "failed"
                     validation_results["issues"].append({
                         "type": "date_format",
                         "column": actual_col,
-                        "message": f"Column '{actual_col}' contains invalid date formats. Expected MM/DD/YYYY format. Error: {str(e)}"
+                        "message": f"Column '{actual_col}' contains invalid date formats. Expected MM/DD/YYYY format. Error: {str(e)}. Invalid date format will cause errors in running the application."
                     })
 
         # Check for duplicate columns
