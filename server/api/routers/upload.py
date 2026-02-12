@@ -361,9 +361,17 @@ async def upload_file(
                     excel_file.close()
 
             # Step 4: Gate on validation & override
+            # Check for missing required columns
+            has_missing_required = False
+            if "issues" in validation_results:
+                has_missing_required = any(
+                    issue.get("type") == "missing_required_columns" 
+                    for issue in validation_results["issues"]
+                )
+            
             if (not is_validation_ok(validation_results)) and (not override):
                 response_data = {
-                    "code": -1,
+                    "code": -2 if has_missing_required else -1,
                     "success": False,
                     "msg": "Found errors on file.",
                     "data": {"validation_results": validation_results}
