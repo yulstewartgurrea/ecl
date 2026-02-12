@@ -76,6 +76,7 @@ export default function OverlayDevelopmentPage2() {
       const cleaned = sanitizeInterpolationRows(resp.data || []);
     
       setRows(cleaned);
+      setLoading(false);
       setExportReady(Array.isArray(cleaned) && cleaned.length > 0);
     } catch (e: any) {
       // If GET fails (e.g., 404 / empty), we keep table empty and let the user POST via button
@@ -117,6 +118,7 @@ export default function OverlayDevelopmentPage2() {
       await fetchInterpolation();
     } catch (e: any) {
       setErr(e?.message || "Failed to run interpolation.");
+      setLoading(false)
     } finally {
       setPosting(false);
     }
@@ -250,7 +252,7 @@ export default function OverlayDevelopmentPage2() {
             <div className="flex items-center gap-3">
               <button
                 onClick={fetchInterpolation}
-                disabled={loading || !selectedWorkflowId}
+                disabled={loading || !selectedWorkflowId || loading}
                 className="cursor-pointer rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"
                 title={
                   !selectedWorkflowId

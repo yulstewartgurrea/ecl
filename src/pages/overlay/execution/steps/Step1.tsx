@@ -182,7 +182,7 @@ export default function Step1() {
   const overlayExecApiBase = `${API_BASE.replace(/\/+$/g, "")}/api/overlay/execution`;
 
   type WorkflowKey = "upload_manual" | "forecast_mev";
-
+  const hasSelectedWorkflow = Boolean(effectiveWorkflowId || workflowName);
   const currentWorkflowKey: WorkflowKey =
     mode === "AUTO_GENERATE" ? "forecast_mev" : "upload_manual";
 
@@ -1015,6 +1015,11 @@ export default function Step1() {
             {!isAuto && uploadStatus.status === "uploading" && <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700"><div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-top-transparent" />Uploading...</span>}
             {!isAuto && uploadStatus.status === "error" && <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700"><ExclamationTriangleIcon className="h-4 w-4" />Upload Failed</span>}
             {!isAuto && uploadStatus.status === "partial" && <span className="inline-flex items-center gap-1 rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-medium text-yellow-700"><ExclamationTriangleIcon className="h-4 w-4" />Partial Upload</span>}
+            {!hasSelectedWorkflow && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-400">
+                Please select a workflow to upload
+              </span>
+            )}
           </div>
         </div>
 

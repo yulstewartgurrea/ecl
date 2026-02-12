@@ -419,7 +419,7 @@ formData.append(
               <button
                 type="button"
                 onClick={() => fetchEclData({ page })}
-                disabled={busy || !hasInitialFetched}
+                disabled={busy || !hasInitialFetched || loading}
                 className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
                 title="GET again"
               >

@@ -96,7 +96,7 @@ export default function Step1() {
   const hasWorkflow = Number.isFinite(selectedWorkflowId);
 
   const effectiveWorkflowId = selectedWorkflowId;
-
+  const hasSelectedWorkflow = Boolean(effectiveWorkflowId || workflowName);
   /* -----------------------------------------------------------
      Fetch existing documents
   ----------------------------------------------------------- */
@@ -405,7 +405,11 @@ export default function Step1() {
             >
               Switch Workflow
             </button>
-
+            {!hasSelectedWorkflow && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-400">
+                Please select a workflow to upload
+              </span>
+            )}
             {uploadStatus.status === "success" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                 <CheckCircleIcon className="h-4 w-4" /> All Uploaded

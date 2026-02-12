@@ -48,6 +48,47 @@ function flattenLeaves(nodes: ColumnNode[], out: ColumnNode[] = []): ColumnNode[
   return out;
 }
 
+// Normalize headers: if "x" exists, change to "index"; if "index" already exists, rename it to "index-x"
+function normalizeColumnHeaders(cols: ColumnNode[]): ColumnNode[] {
+  // First pass: collect all header names to check for conflicts
+  const headerNames = new Set<string>();
+  const collectHeaders = (nodes: ColumnNode[]) => {
+    for (const node of nodes) {
+      if (typeof node.header === "string") {
+        headerNames.add(node.header.toLowerCase().trim());
+      }
+      if (node.children) collectHeaders(node.children);
+    }
+  };
+  collectHeaders(cols);
+
+  const hasX = headerNames.has("x");
+  const hasIndex = headerNames.has("index");
+
+  // Second pass: rename headers
+  const renameHeaders = (nodes: ColumnNode[]): ColumnNode[] => {
+    return nodes.map((node) => {
+      let newHeader = node.header;
+      if (typeof node.header === "string") {
+        const headerLower = node.header.toLowerCase().trim();
+        if (headerLower === "x" && hasX) {
+          newHeader = "index";
+        } else if (headerLower === "index" && hasX && hasIndex) {
+          newHeader = "index-x";
+        }
+      }
+
+      return {
+        ...node,
+        header: newHeader,
+        children: node.children ? renameHeaders(node.children) : undefined,
+      };
+    });
+  };
+
+  return renameHeaders(cols);
+}
+
 /* ---------- robust key + formatting helpers ---------- */
 function leafKey(leaf: ColumnNode): string {
   const k =
@@ -79,9 +120,11 @@ export function MacroTable<T extends Record<string, any>>({
   numberFormat,
   className,
 }: MacroTableProps<T>) {
-  const maxDepth = Math.max(...columns.map(getDepth));
-  const headerRows = collectRows(columns);
-  const leafs = flattenLeaves(columns);
+  // Normalize headers before processing
+  const normalizedColumns = normalizeColumnHeaders(columns);
+  const maxDepth = Math.max(...normalizedColumns.map(getDepth));
+  const headerRows = collectRows(normalizedColumns);
+  const leafs = flattenLeaves(normalizedColumns);
 
   const headerLevelClass = (level: number) =>
     level === 0
