@@ -60,7 +60,6 @@ function App() {
       try {
         const ok = await invoke<boolean>("backend_is_ready");
         if (!cancelled && ok) {
-          console.log("[App] backend_is_ready() returned true");
           setBackendReady(true); // triggers cleanup below (clears interval)
         }
       } catch (e) {
@@ -79,9 +78,6 @@ function App() {
       clearInterval(id);
     };
   }, [backendReady]);
-
-  console.log("isLoggedIn: ", isLoggedIn);
-  console.log("backendReady: ", backendReady);
 
   // Block the whole app until FastAPI/backend is ready
   if (!backendReady) {

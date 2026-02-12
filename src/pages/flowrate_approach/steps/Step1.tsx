@@ -70,17 +70,22 @@ export default function Step1() {
 
   const workflowIdFromRedux =
     currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
-  const workflowId = Number.isFinite(Number(workflowIdFromRedux))
+  const rawWorkflowId = Number.isFinite(Number(workflowIdFromRedux))
     ? Number(workflowIdFromRedux)
     : undefined;
+
+  const rawWfName =
+    currentPdTransitionMatrixWorkflowData?.workflow_name || pdTransitionMatrixWfName;
+
+  // Sync logic: if one is empty, the other must be empty too
+  const workflowId = rawWorkflowId && rawWfName ? rawWorkflowId : undefined;
+  const wfName = rawWfName && rawWorkflowId ? rawWfName : "";
 
   const entity =
     currentPdTransitionMatrixWorkflowData?.entity || selectedPdTransitionMatrixEntity;
   const period =
     currentPdTransitionMatrixWorkflowData?.reporting_period ||
     selectedPdTransitionMatrixReportingPeriod
-  const wfName =
-    currentPdTransitionMatrixWorkflowData?.workflow_name || pdTransitionMatrixWfName;
   const loanProduct =
     currentPdTransitionMatrixWorkflowData?.loan_product ||
     selectedPdTransitionMatrixLoanProduct
