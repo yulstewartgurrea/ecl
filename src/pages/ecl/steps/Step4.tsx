@@ -195,7 +195,7 @@ export default function Step4() {
                   ? "Loading initial data"
                   : needsRun
                   ? "No computed data found. Click Run to compute."
-                  : "Bars show loan balance per bucket; line shows ECL rate (weightedEcl / loanBalance Ã— 100)."}
+                  : "Bars show loan balance per bucket; line shows ECL rate (Weighted ECL/ Loan Balance - 100)."}
               </p>
             </div>
 

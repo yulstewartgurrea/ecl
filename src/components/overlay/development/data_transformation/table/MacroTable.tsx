@@ -45,8 +45,35 @@ export default function MacroTable<T extends Record<string, any>>({
   numberFormat,
   className,
 }: MacroTableProps<T>) {
-  const maxDepth = Math.max(...columns.map(depth));
-  const headerRows = collectRows(columns);
+  // Prune columns to remove any Month (int) headers before rendering
+  const isMonthInt = (leaf: ColumnNode) => {
+    const key = String(leaf.key ?? "").toLowerCase().trim();
+    const header = (typeof leaf.header === "string" ? leaf.header : String(leaf.header ?? "")).toLowerCase().trim();
+    if (!key && !header) return false;
+    const candidates = [key, header];
+    return candidates.some((s) => {
+      if (!s) return false;
+      const cleaned = s.replace(/[_\s]/g, "");
+      return cleaned === "month(int)" || cleaned === "monthint" || (s.includes("month") && s.includes("int"));
+    });
+  };
+
+  const prune = (nodes: ColumnNode[]): ColumnNode[] =>
+    nodes
+      .map((n) => {
+        if (isMonthInt(n)) return null as any;
+        if (n.children?.length) {
+          const kids = prune(n.children);
+          return { ...n, children: kids } as ColumnNode;
+        }
+        return n;
+      })
+      .filter(Boolean) as ColumnNode[];
+
+  const prunedColumns = prune(columns);
+
+  const maxDepth = Math.max(...prunedColumns.map(depth));
+  const headerRows = collectRows(prunedColumns);
 
   const tierClass = (level: number) =>
     level === 0
@@ -61,7 +88,9 @@ export default function MacroTable<T extends Record<string, any>>({
   const flatLeaves: ColumnNode[] = [];
   (function flatten(nodes: ColumnNode[]) {
     nodes.forEach((n) => (n.children?.length ? flatten(n.children) : flatLeaves.push(n)));
-  })(columns);
+  })(prunedColumns);
+
+  const displayLeaves = flatLeaves; // already pruned
 
   return (
     <div className={"w-full overflow-auto rounded-2xl border border-gray-200 bg-white shadow-sm " + (className ?? "")}>
@@ -109,9 +138,9 @@ export default function MacroTable<T extends Record<string, any>>({
                 key={rowKey}
                 className={zebra && idx % 2 ? "bg-gray-50" : undefined}
             >
-                {flatLeaves.map((leaf, j) => {
+                {displayLeaves.map((leaf, j) => {
                 const v = leaf.key ? r[leaf.key] : undefined;
-                const content = numberFormat ? numberFormat(v, leaf.key || "") : defaultFmt(v);
+                const content = numberFormat ? numberFormat(v, leaf.key || "") : defaultFmt(v, leaf.key || "");
                 const align =
                     leaf.align === "right" ? "text-right" :
                     leaf.align === "center" ? "text-center" : "text-left";
@@ -134,8 +163,15 @@ export default function MacroTable<T extends Record<string, any>>({
   );
 }
 
-function defaultFmt(v: any) {
+function defaultFmt(v: any, key: string | undefined = undefined) {
   if (v === null || v === undefined) return "";
-  if (typeof v === "number") return v.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  if (typeof v === "number") {
+    const k = String(key ?? "").toLowerCase();
+    // For year-like columns, avoid grouping separators (show 2003 instead of 2,003)
+    if (k === "year" || k.includes("year")) {
+      return String(Math.trunc(v));
+    }
+    return v.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  }
   return String(v);
 }
