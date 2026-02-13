@@ -33,7 +33,8 @@ export function buildColumnsFromRows(
     Object.keys(r || {}).forEach((k) => keys.add(k));
   }
 
-  const preferred = ["year", "quarter", "month", "period_id", "id", "index"];
+  // Treat 'x' as an alias for index and prefer it right after 'id'
+  const preferred = ["year", "quarter", "month", "period_id", "id", "index", "x"];
   const preferredKeys = preferred.filter((k) => keys.has(k));
   const rest = Array.from(keys)
     .filter((k) => !preferred.includes(k))
@@ -43,9 +44,11 @@ export function buildColumnsFromRows(
 
   return ordered.map((key) => {
     const sample = pickSampleValue(rows, key);
+    // If backend uses 'x' column, present header as 'index' while keeping the key mapping
+    const headerLabel = key === "x" ? "index" : key;
     return {
       key,
-      header: key,
+      header: headerLabel,
       align: isNumericValue(sample) ? "right" : "left",
     };
   });
@@ -117,13 +120,25 @@ export function buildMacroColumns(
     { key: "month", header: "Month", width: "72px" },
     { key: "period_id", header: "period_id", width: "96px" },
     { key: "id", header: "id", width: "96px" },
-    { key: "x", header: "x", width: "48px" },
+    // moved 'x' out to be a top-level 'index' column placed after Date and before metrics
   ];
+
+  const indexColumn: ColumnNode = {
+    header: "Index",
+    children: [
+      {
+        header: "index",
+        className: "text-[11px]",
+        children: [leaf("index", "index", "left", "48px")],
+      },
+    ],
+  };
 
   // ----- QUARTERLY: Levels only -----
   if (frequency === "quarterly") {
     return [
       { header: "Date", children: dateChildren },
+      indexColumn,
       ...BASE_METRICS.map(m => metricGroup(m.top, m.key, "In levels (million PHP)")),
       {
         header: "Unemployment rate",
@@ -139,7 +154,7 @@ export function buildMacroColumns(
   }
 
   // ----- MONTHLY: Levels + Growth Rates (extra columns) -----
-  const monthlyColumns: ColumnNode[] = [{ header: "Date", children: dateChildren }];
+  const monthlyColumns: ColumnNode[] = [{ header: "Date", children: dateChildren }, indexColumn];
 
   // Levels (same as quarterly)
   for (const m of BASE_METRICS) {
