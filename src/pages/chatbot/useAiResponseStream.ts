@@ -290,7 +290,7 @@ export function buildAccordionFromEvents(
   let excelPathOrUrl = "";
   let exportPayload: ExportPayload | null = null;
   const validationLogs: any[] = [];
-
+  console.log(previewTotals, directPreview)
   let lastOutput: "none" | "flowrate" | "credit_loss_rate" = "none";
   const chartRowsFromArtifacts = () => {
     if (creditLossRate?.preview?.length) return creditLossRate.preview;
@@ -390,6 +390,25 @@ export function buildAccordionFromEvents(
         fileName = art.file_name;
       }
 
+      // If artifacts include a summary (string or object), surface it immediately
+      try {
+        const maybeSummary =
+          art?.summary ?? (e as any).summary ?? (e as any).summaryText;
+        if (maybeSummary) {
+          if (typeof maybeSummary === "string") {
+            summaryText = maybeSummary;
+          } else if (typeof maybeSummary === "object") {
+            const kv = toKeyValueRows(maybeSummary)
+              .map((r) => `${r.key}: ${r.value}`)
+              .join("\n");
+            if (kv) summaryText = kv;
+          }
+        } else if (ans && !summaryText) {
+          // fall back to using the answer as a short summary if none provided
+          summaryText = ans;
+        }
+      } catch {}
+
       if (art?.flowrate) {
         flowrate = art.flowrate;
         lastOutput = "flowrate";
@@ -397,6 +416,22 @@ export function buildAccordionFromEvents(
       if (art?.credit_loss_rate) {
         creditLossRate = art.credit_loss_rate;
         lastOutput = "credit_loss_rate";
+      }
+      // If artifacts include a top-level preview/totals (some agents emit this shape),
+      // try to interpret it as credit loss rate results when totals contain relevant keys.
+      if (!creditLossRate && art?.preview && art?.totals) {
+        const totals = art.totals || {};
+        if (
+          typeof totals.avg_weighted_credit_loss_rate_per_month === "number" ||
+          typeof totals.avg_weighted_credit_loss_rate === "number"
+        ) {
+          creditLossRate = { preview: art.preview, totals: art.totals } as any;
+          lastOutput = "credit_loss_rate";
+        } else if (typeof totals.row_count === "number" && !flowrate) {
+          // fallback: treat as flowrate preview if row_count present and flowrate missing
+          flowrate = { preview: art.preview, totals: art.totals } as any;
+          lastOutput = "flowrate";
+        }
       }
 
       if (art?.preview?.length) {
@@ -530,6 +565,17 @@ export function buildAccordionFromEvents(
 
   const sections: AssistantSection[] = [];
 
+  // DEBUG: report what artifacts we detected (helps debug missing tables)
+  try {
+    console.log("Builder state:", {
+      workflowState,
+      fileName,
+      hasFlowrate: Boolean(flowrate?.preview?.length),
+      hasCreditLossRate: Boolean(creditLossRate?.preview?.length),
+      summaryText: Boolean(summaryText),
+    });
+  } catch {}
+
   const isThinkingOnly =
     Boolean(thinkingMessage) &&
     workflowState !== "done" &&
@@ -637,6 +683,22 @@ export function buildAccordionFromEvents(
     });
   }
 
+  // Show a brief validation summary immediately after validation completes
+  if (validationLogs.length && !isThinkingOnly && workflowState !== "done") {
+    const validationSummary =
+      summaryText ||
+      validationLogs
+        .map((v) => `${v.stage ?? "validation"}: ${v.message ?? "ok"}`)
+        .join("\n");
+    sections.push({
+      id: makeId(),
+      kind: "summary",
+      title: "Validation Summary",
+      content: validationSummary,
+      open: false,
+    });
+  }
+
   // Surface process entries (all process_step / chunk events) as a table
   if (processEntries.length && !isThinkingOnly) {
     const procRows = processEntries.map((p) => ({
@@ -697,6 +759,55 @@ export function buildAccordionFromEvents(
 
   // Default rendering with tables
   if (isDone) {
+    if (flowrate?.preview?.length) {
+      sections.push({
+        id: makeId(),
+        kind: "table",
+        title: "Flowrate Approach",
+        pill: "result",
+        totals: flowrate?.totals ?? {},
+        rows: flowrate.preview ?? [],
+        columns: uniqCols(flowrate.preview ?? []),
+        actions: flowExport
+          ? [
+              {
+                id: "export_flowrate_table",
+                label: "Export Flowrate (XLSX)",
+                variant: "ghost",
+                type: "export_xlsx",
+                payload: flowExport,
+                disabled: false,
+              },
+            ]
+          : [],
+        open: true,
+      });
+    }
+
+    if (creditLossRate?.preview?.length) {
+      sections.push({
+        id: makeId(),
+        kind: "table",
+        title: "Credit Loss Rate Approach",
+        pill: "result",
+        totals: creditLossRate?.totals ?? {},
+        rows: creditLossRate.preview ?? [],
+        columns: uniqCols(creditLossRate.preview ?? []),
+        actions: clrExport
+          ? [
+              {
+                id: "export_credit_loss_table",
+                label: "Export Credit Loss (XLSX)",
+                variant: "ghost",
+                type: "export_xlsx",
+                payload: clrExport,
+                disabled: false,
+              },
+            ]
+          : [],
+        open: true,
+      });
+    }
     if (summaryText || chartRowsFromArtifacts().length) {
       sections.push({
         id: makeId(),
@@ -704,12 +815,35 @@ export function buildAccordionFromEvents(
         title: "Summary",
         content: summaryText,
         chartData: chartRowsFromArtifacts(),
-        flowratePreview: flowrate?.preview ?? [],
-        creditLossRatePreview: creditLossRate?.preview ?? [],
         open: true,
       });
     }
   } else {
+    if (lastOutput === "flowrate" && flowrate?.preview?.length) {
+      sections.push({
+        id: makeId(),
+        kind: "table",
+        title: "Flowrate Approach",
+        pill: "stream",
+        totals: flowrate?.totals ?? {},
+        rows: flowrate.preview ?? [],
+        columns: uniqCols(flowrate.preview ?? []),
+        open: true,
+      });
+    }
+
+    if (lastOutput === "credit_loss_rate" && creditLossRate?.preview?.length) {
+      sections.push({
+        id: makeId(),
+        kind: "table",
+        title: "Credit Loss Rate Approach",
+        pill: "stream",
+        totals: creditLossRate?.totals ?? {},
+        rows: creditLossRate.preview ?? [],
+        columns: uniqCols(creditLossRate.preview ?? []),
+        open: true,
+      });
+    }
   }
 
   const title =

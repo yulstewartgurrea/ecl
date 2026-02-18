@@ -14,6 +14,8 @@ export type MessageRequest = {
 export type StreamRequest = {
   session_id: string;
   message: string; // backend requires this field; we’ll send "start" on Start click
+  history?: Array<{ role: string; content: string }>;
+  stream?: boolean;
 };
 
 const API_BASE = "https://brain-sam.sgvnexus.uk";
@@ -28,7 +30,7 @@ const getAuthHeaders = (tokenai?: string | null): Record<string, string> => {
 export async function uploadEclFile(
   args: { session_id: string; file: File },
   signal?: AbortSignal,
-  tokenai?: string | null
+  tokenai?: string | null,
 ): Promise<UploadResponse> {
   const fd = new FormData();
   fd.append("session_id", args.session_id);
@@ -52,7 +54,7 @@ export async function uploadEclFile(
 export async function messageEcl(
   req: MessageRequest,
   signal?: AbortSignal,
-  tokenai?: string | null
+  tokenai?: string | null,
 ): Promise<any> {
   const res = await fetch(`${API_BASE}/deepagents/ecl/message`, {
     method: "POST",
@@ -72,7 +74,7 @@ export async function messageEcl(
 export async function streamEcl(
   req: StreamRequest,
   signal?: AbortSignal,
-  tokenai?: string | null
+  tokenai?: string | null,
 ): Promise<Response> {
   const res = await fetch(`${API_BASE}/deepagents/ecl/stream`, {
     method: "POST",
@@ -86,7 +88,8 @@ export async function streamEcl(
     throw new Error(`Stream failed (${res.status}): ${txt || res.statusText}`);
   }
 
-  if (!res.body) throw new Error("Stream response has no body (ReadableStream missing).");
+  if (!res.body)
+    throw new Error("Stream response has no body (ReadableStream missing).");
 
   return res;
 }

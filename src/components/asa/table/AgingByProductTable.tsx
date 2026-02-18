@@ -15,7 +15,12 @@ import {
 
 const baseCols: Column<AgingRow>[] = [
   { key: "product", header: "Product", width: 160, sticky: true },
-  { key: "date", header: "Date", width: 140, formatter: (v) => fmtDate(v as any) },
+  {
+    key: "date",
+    header: "Date",
+    width: 140,
+    formatter: (v) => fmtDate(v as any),
+  },
   {
     key: "total_loan_balance_with_cp",
     header: "Total Loan Balance with C/P",
@@ -23,15 +28,69 @@ const baseCols: Column<AgingRow>[] = [
     align: "right",
     formatter: (v) => fmtNum(v),
   },
-  { key: "d0", header: "0 day", width: 140, align: "right", formatter: (v) => fmtNum(v) },
-  { key: "par1", header: "PAR 1 (1 & 30 days)", width: 190, align: "right", formatter: (v) => fmtNum(v) },
-  { key: "par30", header: "PAR 30 (31 & 60 days)", width: 200, align: "right", formatter: (v) => fmtNum(v) },
-  { key: "par60", header: "PAR 60 (61 & 90 days)", width: 200, align: "right", formatter: (v) => fmtNum(v) },
-  { key: "par90", header: "PAR 90 (91 & 120 days)", width: 210, align: "right", formatter: (v) => fmtNum(v) },
-  { key: "par120", header: "PAR 120 (121 & 180 days)", width: 220, align: "right", formatter: (v) => fmtNum(v) },
-  { key: "par180", header: "PAR 180 (181 & 240 days)", width: 220, align: "right", formatter: (v) => fmtNum(v) },
-  { key: "par240", header: "PAR 240 (241 & 360 days)", width: 220, align: "right", formatter: (v) => fmtNum(v) },
-  { key: "par360", header: "PAR 360 (361 & Up days)", width: 220, align: "right", formatter: (v) => fmtNum(v) },
+  {
+    key: "d0",
+    header: "0 day",
+    width: 140,
+    align: "right",
+    formatter: (v) => fmtNum(v),
+  },
+  {
+    key: "par1",
+    header: "PAR 1 (1 & 30 days)",
+    width: 190,
+    align: "right",
+    formatter: (v) => fmtNum(v),
+  },
+  {
+    key: "par30",
+    header: "PAR 30 (31 & 60 days)",
+    width: 200,
+    align: "right",
+    formatter: (v) => fmtNum(v),
+  },
+  {
+    key: "par60",
+    header: "PAR 60 (61 & 90 days)",
+    width: 200,
+    align: "right",
+    formatter: (v) => fmtNum(v),
+  },
+  {
+    key: "par90",
+    header: "PAR 90 (91 & 120 days)",
+    width: 210,
+    align: "right",
+    formatter: (v) => fmtNum(v),
+  },
+  {
+    key: "par120",
+    header: "PAR 120 (121 & 180 days)",
+    width: 220,
+    align: "right",
+    formatter: (v) => fmtNum(v),
+  },
+  {
+    key: "par180",
+    header: "PAR 180 (181 & 240 days)",
+    width: 220,
+    align: "right",
+    formatter: (v) => fmtNum(v),
+  },
+  {
+    key: "par240",
+    header: "PAR 240 (241 & 360 days)",
+    width: 220,
+    align: "right",
+    formatter: (v) => fmtNum(v),
+  },
+  {
+    key: "par360",
+    header: "PAR 360 (361 & Up days)",
+    width: 220,
+    align: "right",
+    formatter: (v) => fmtNum(v),
+  },
 ];
 
 export default function AgingByProductTable({
@@ -48,7 +107,7 @@ export default function AgingByProductTable({
   /* ---------- Filtering ---------- */
   const products = useMemo(
     () => Array.from(new Set(rows.map((r) => r.product))).sort(),
-    [rows]
+    [rows],
   );
 
   const [open, setOpen] = useState(false);
@@ -73,8 +132,9 @@ export default function AgingByProductTable({
   }, [open]);
 
   const filtered = useMemo(
-    () => (selected === "All" ? rows : rows.filter((r) => r.product === selected)),
-    [rows, selected]
+    () =>
+      selected === "All" ? rows : rows.filter((r) => r.product === selected),
+    [rows, selected],
   );
 
   /* ---------- Pagination ---------- */
@@ -113,9 +173,11 @@ export default function AgingByProductTable({
         {open && (
           <div className="absolute right-0 mt-2 w-64 rounded-xl border bg-white shadow-lg z-20">
             <div className="p-3  bg-yellow-50 rounded-t-xl flex items-center justify-between">
-              <div className="text-xs font-medium text-gray-800">Filter by product</div>
+              <div className="text-xs font-medium text-gray-800">
+                Filter by product
+              </div>
               <button
-                className="p-1 text-gray-600 hover:bg-yellow-400/30 rounded-md"
+                className="p-1 text-gray-600 hover:bg-yellow-200/30 rounded-md"
                 onClick={() => setOpen(false)}
                 aria-label="Close"
               >
@@ -140,14 +202,14 @@ export default function AgingByProductTable({
                 <button
                   type="button"
                   onClick={() => setSelected("All")}
-                  className="text-xs px-2.5 py-1.5 rounded-md border border-yellow-400 bg-yellow-400 text-gray-900 hover:brightness-95"
+                  className="text-xs px-2.5 py-1.5 rounded-md border border-yellow-400 bg-yellow-200 text-gray-900 hover:brightness-95"
                 >
                   Clear
                 </button>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="text-xs px-2.5 py-1.5 rounded-md bg-yellow-400 border border-yellow-400 text-gray-900 hover:brightness-95"
+                  className="text-xs px-2.5 py-1.5 rounded-md bg-yellow-200 border border-yellow-400 text-gray-900 hover:brightness-95"
                 >
                   Apply
                 </button>
@@ -177,7 +239,9 @@ export default function AgingByProductTable({
       <div className="ml-auto flex items-center gap-2">
         <span className="text-gray-600 text-sm">
           Showing{" "}
-          <span className="font-medium text-gray-900">{totalRows === 0 ? 0 : startIdx + 1}</span>
+          <span className="font-medium text-gray-900">
+            {totalRows === 0 ? 0 : startIdx + 1}
+          </span>
           <span className="font-medium text-gray-900">{endIdx}</span> of{" "}
           <span className="font-medium text-gray-900">{totalRows}</span>
         </span>

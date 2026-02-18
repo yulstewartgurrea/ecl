@@ -382,7 +382,7 @@ const Step7: React.FC = () => {
         {/* Selection banner */}
         <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-neutral-900">
           <div className="flex items-center gap-3">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 font-semibold text-black">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-200 font-semibold text-black">
                
             </span>
             <p className="text-base">

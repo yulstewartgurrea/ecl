@@ -288,8 +288,33 @@ export default function ChatbotPage() {
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
     try {
+      // build history payload from the current thread messages
+      const thread = threadsRef.current.find((t) => t.id === threadId);
+      const history = (thread?.messages ?? []).map((m: any) => {
+        if (m.role === "user")
+          return { role: "user", content: m.content ?? "" };
+        // assistant messages: concat text-like sections
+        const secs = Array.isArray(m.sections) ? m.sections : [];
+        const content = secs
+          .map((s: any) => {
+            if (!s) return "";
+            if (
+              s.kind === "text" ||
+              s.kind === "thinking" ||
+              s.kind === "summary"
+            )
+              return s.content ?? "";
+            if (s.kind === "table")
+              return s.rows && s.rows.length ? JSON.stringify(s.rows) : "";
+            return "";
+          })
+          .filter(Boolean)
+          .join("\n\n");
+        return { role: "assistant", content };
+      });
+
       const res = await streamEcl(
-        { session_id: sessionId, message },
+        { session_id: sessionId, message, history, stream: true },
         ctrl.signal,
         tokenai,
       );

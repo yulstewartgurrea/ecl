@@ -35,7 +35,7 @@ export function ChatSidebar({
         <button
           type="button"
           onClick={onNewChat}
-          className="w-full px-3 py-2 rounded-xl border border-yellow-500 text-gray-900 hover:bg-yellow-400 text-sm"
+          className="w-full px-3 py-2 rounded-xl border border-yellow-500 text-gray-900 hover:bg-yellow-200 text-sm"
         >
           New chat
         </button>
@@ -62,7 +62,9 @@ export function ChatSidebar({
                   <div
                     className={[
                       "group rounded-xl px-3 py-2 cursor-pointer",
-                      active ? "border-yellow-500 bg-yellow-50" : " hover:bg-gray-50",
+                      active
+                        ? "border-yellow-500 bg-yellow-50"
+                        : " hover:bg-gray-50",
                     ].join(" ")}
                     onClick={() => onSelect(t.id)}
                   >
@@ -74,7 +76,9 @@ export function ChatSidebar({
                         </div>
                         <div className="text-[11px] text-gray-500 truncate">
                           {t.files.length} file(s)
-                          {t.session_id ? ` · ${t.session_id.slice(0, 8)}…` : ""}
+                          {t.session_id
+                            ? ` · ${t.session_id.slice(0, 8)}…`
+                            : ""}
                         </div>
                       </div>
 
@@ -95,8 +99,12 @@ export function ChatSidebar({
                           className="text-[11px] px-2 py-1 rounded-lg border border-gray-200 hover:bg-gray-50"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const title = window.prompt("Rename chat:", t.title);
-                            if (title && title.trim()) onRename(t.id, title.trim());
+                            const title = window.prompt(
+                              "Rename chat:",
+                              t.title,
+                            );
+                            if (title && title.trim())
+                              onRename(t.id, title.trim());
                           }}
                           title="Rename"
                         >

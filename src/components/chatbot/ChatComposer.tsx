@@ -1,5 +1,5 @@
 // # file: src/features/chatbot/components/ChatComposer.tsx
-import React, { useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 type Props = {
   disabled?: boolean;

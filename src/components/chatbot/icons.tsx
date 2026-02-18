@@ -1,5 +1,3 @@
-import React from "react";
-
 export const Icon = {
   Spark: (p: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>

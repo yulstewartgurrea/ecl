@@ -76,7 +76,7 @@ function ActionButtons({
         const variant = a.variant ?? "secondary";
         const theme =
           variant === "primary"
-            ? "bg-yellow-500 border-yellow-500 text-gray-900 hover:bg-yellow-400"
+            ? "bg-yellow-500 border-yellow-500 text-gray-900 hover:bg-yellow-200"
             : variant === "ghost"
               ? "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
               : "bg-gray-100 border-gray-200 text-gray-800 hover:bg-gray-200";
@@ -422,7 +422,6 @@ function SectionRenderer({
                 <h4 className="text-sm font-semibold text-gray-800 mb-3">
                   Visualization
                 </h4>
-                <CreditLossRateCharts data={section.rows ?? []} />
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-gray-800 mb-3">

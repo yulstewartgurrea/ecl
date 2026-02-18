@@ -32,15 +32,23 @@ function countLeaves(node: ColumnNode): number {
   if (!node.children || node.children.length === 0) return 1;
   return node.children.map(countLeaves).reduce((a, b) => a + b, 0);
 }
-function collectRows(nodes: ColumnNode[], level = 0, rows: ColumnNode[][] = []): ColumnNode[][] {
+function collectRows(
+  nodes: ColumnNode[],
+  level = 0,
+  rows: ColumnNode[][] = [],
+): ColumnNode[][] {
   rows[level] = rows[level] || [];
   for (const n of nodes) {
     rows[level].push(n);
-    if (n.children && n.children.length > 0) collectRows(n.children, level + 1, rows);
+    if (n.children && n.children.length > 0)
+      collectRows(n.children, level + 1, rows);
   }
   return rows;
 }
-function flattenLeaves(nodes: ColumnNode[], out: ColumnNode[] = []): ColumnNode[] {
+function flattenLeaves(
+  nodes: ColumnNode[],
+  out: ColumnNode[] = [],
+): ColumnNode[] {
   for (const n of nodes) {
     if (n.children && n.children.length > 0) flattenLeaves(n.children, out);
     else out.push(n);
@@ -50,10 +58,9 @@ function flattenLeaves(nodes: ColumnNode[], out: ColumnNode[] = []): ColumnNode[
 
 /* ---------- robust key + formatting helpers ---------- */
 function leafKey(leaf: ColumnNode): string {
-  const k =
-    (leaf.key ??
-      (typeof leaf.header === "string" ? leaf.header : "")
-    ).toString();
+  const k = (
+    leaf.key ?? (typeof leaf.header === "string" ? leaf.header : "")
+  ).toString();
   return k.trim().toLowerCase().replace(/\s+/g, "_");
 }
 function stripCommas(v: any): string {
@@ -85,10 +92,10 @@ export function MacroTable<T extends Record<string, any>>({
 
   const headerLevelClass = (level: number) =>
     level === 0
-      ? "bg-yellow-400 text-gray-900 font-semibold"
+      ? "bg-yellow-200 text-gray-900 font-semibold"
       : level === 1
-      ? "bg-gray-700 text-white"
-      : "bg-gray-600 text-white";
+        ? "bg-gray-700 text-white"
+        : "bg-gray-600 text-white";
 
   const headerBase =
     "whitespace-pre-wrap text-xs leading-tight px-2 py-2 border border-gray-300 text-left align-bottom";
@@ -111,7 +118,9 @@ export function MacroTable<T extends Record<string, any>>({
               {row.map((col, idx) => {
                 const colSpan = countLeaves(col);
                 const rowSpan =
-                  col.children && col.children.length > 0 ? 1 : maxDepth - level;
+                  col.children && col.children.length > 0
+                    ? 1
+                    : maxDepth - level;
                 return (
                   <th
                     key={idx}
@@ -122,7 +131,9 @@ export function MacroTable<T extends Record<string, any>>({
                       headerBase,
                       headerLevelClass(level),
                       level === 0 && idx === 0 ? "rounded-tl-2xl" : "",
-                      level === 0 && idx === row.length - 1 ? "rounded-tr-2xl" : "",
+                      level === 0 && idx === row.length - 1
+                        ? "rounded-tr-2xl"
+                        : "",
                       col.className || "",
                     ].join(" ")}
                   >
@@ -160,8 +171,8 @@ export function MacroTable<T extends Record<string, any>>({
                   leaf.align === "right"
                     ? "text-right"
                     : leaf.align === "center"
-                    ? "text-center"
-                    : "text-left";
+                      ? "text-center"
+                      : "text-left";
 
                 return (
                   <td

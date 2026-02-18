@@ -113,8 +113,8 @@ function labelFromKey(k: string) {
 }
 
 function bucketSort(a: string, b: string) {
-  const na = Number((a.match(/(\d+(\.\d+)?)/)?.[1] ?? "NaN"));
-  const nb = Number((b.match(/(\d+(\.\d+)?)/)?.[1] ?? "NaN"));
+  const na = Number(a.match(/(\d+(\.\d+)?)/)?.[1] ?? "NaN");
+  const nb = Number(b.match(/(\d+(\.\d+)?)/)?.[1] ?? "NaN");
   const aHas = Number.isFinite(na);
   const bHas = Number.isFinite(nb);
   if (aHas && bHas) return na - nb;
@@ -132,7 +132,14 @@ function deriveSchema(rows: CreditLossRateAnyRow[], opts?: Partial<Props>) {
 
   const dateKey = pickKey(
     keys,
-    opts?.dateKeyCandidates ?? ["date", "Date", "report_date", "Report Date", "month", "period"]
+    opts?.dateKeyCandidates ?? [
+      "date",
+      "Date",
+      "report_date",
+      "Report Date",
+      "month",
+      "period",
+    ],
   );
 
   const weightedKey = pickKey(
@@ -143,7 +150,7 @@ function deriveSchema(rows: CreditLossRateAnyRow[], opts?: Partial<Props>) {
       "weighted_loss_rate",
       "weighted",
       "weighted_rate",
-    ]
+    ],
   );
 
   const monotonicKey = pickKey(keys, ["Monotonic?", "monotonic", "Monotonic"]);
@@ -151,7 +158,9 @@ function deriveSchema(rows: CreditLossRateAnyRow[], opts?: Partial<Props>) {
   const extraExclude = (opts?.excludeKeyCandidates ?? []).map(clean);
 
   const excludeSet = new Set<string>();
-  [dateKey, weightedKey, monotonicKey].filter(Boolean).forEach((k) => excludeSet.add(String(k)));
+  [dateKey, weightedKey, monotonicKey]
+    .filter(Boolean)
+    .forEach((k) => excludeSet.add(String(k)));
 
   const bucketKeys = keys
     .filter((k) => !excludeSet.has(k))
@@ -184,7 +193,7 @@ export default function CreditLossRateCharts({
         weightedKeyCandidates,
         excludeKeyCandidates,
       }),
-    [rows, dateKeyCandidates, weightedKeyCandidates, excludeKeyCandidates]
+    [rows, dateKeyCandidates, weightedKeyCandidates, excludeKeyCandidates],
   );
 
   const filteredRows = useMemo(() => {
@@ -210,7 +219,7 @@ export default function CreditLossRateCharts({
       return;
     }
     setBucketKey((prev) =>
-      prev && schema.bucketKeys.includes(prev) ? prev : schema.bucketKeys[0]
+      prev && schema.bucketKeys.includes(prev) ? prev : schema.bucketKeys[0],
     );
     setVisibleBuckets((prev) => {
       const keep = prev.filter((k) => schema.bucketKeys.includes(k));
@@ -267,7 +276,7 @@ export default function CreditLossRateCharts({
 
   return (
     <div className={`w-full ${className}`}>
-      <div className="flex items-center justify-between bg-yellow-400 rounded-t-lg px-4 py-3 shadow-sm">
+      <div className="flex items-center justify-between bg-yellow-200 rounded-t-lg px-4 py-3 shadow-sm">
         <div>
           <div className="text-base font-semibold text-gray-900">{title}</div>
           <div className="text-xs text-gray-800 opacity-80 -mt-0.5">
@@ -351,8 +360,17 @@ export default function CreditLossRateCharts({
                       <ResponsiveContainer>
                         <LineChart data={weightedSeries}>
                           <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="date" tick={{ fontSize: 12 }} minTickGap={24} height={38} />
-                          <YAxis tickFormatter={(v) => `${v}%`} width={60} tick={{ fontSize: 12 }} />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 12 }}
+                            minTickGap={24}
+                            height={38}
+                          />
+                          <YAxis
+                            tickFormatter={(v) => `${v}%`}
+                            width={60}
+                            tick={{ fontSize: 12 }}
+                          />
                           <Tooltip
                             formatter={(v: any) => fmtPct(v as number)}
                             labelFormatter={(l) => `Date: ${l}`}
@@ -364,7 +382,9 @@ export default function CreditLossRateCharts({
                             name={schema.weightedKey ?? "Weighted"}
                             dot={false}
                             strokeWidth={2}
-                            stroke={colorForKey(schema.weightedKey ?? "weighted")}
+                            stroke={colorForKey(
+                              schema.weightedKey ?? "weighted",
+                            )}
                           />
                         </LineChart>
                       </ResponsiveContainer>
@@ -400,9 +420,14 @@ export default function CreditLossRateCharts({
                         </div>
 
                         <div className="hidden sm:flex items-center gap-2 flex-wrap">
-                          <span className="text-sm text-gray-600">Compare:</span>
+                          <span className="text-sm text-gray-600">
+                            Compare:
+                          </span>
                           {schema.bucketKeys.map((k) => (
-                            <label key={k} className="text-xs flex items-center gap-1">
+                            <label
+                              key={k}
+                              className="text-xs flex items-center gap-1"
+                            >
                               <input
                                 type="checkbox"
                                 className="rounded border-gray-300"
@@ -411,7 +436,7 @@ export default function CreditLossRateCharts({
                                   setVisibleBuckets((prev) =>
                                     e.target.checked
                                       ? Array.from(new Set([...prev, k]))
-                                      : prev.filter((x) => x !== k)
+                                      : prev.filter((x) => x !== k),
                                   )
                                 }
                               />
@@ -425,8 +450,17 @@ export default function CreditLossRateCharts({
                         <ResponsiveContainer>
                           <LineChart data={multiBucketSeries}>
                             <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="date" tick={{ fontSize: 12 }} minTickGap={24} height={38} />
-                            <YAxis tickFormatter={(v) => `${v}%`} width={60} tick={{ fontSize: 12 }} />
+                            <XAxis
+                              dataKey="date"
+                              tick={{ fontSize: 12 }}
+                              minTickGap={24}
+                              height={38}
+                            />
+                            <YAxis
+                              tickFormatter={(v) => `${v}%`}
+                              width={60}
+                              tick={{ fontSize: 12 }}
+                            />
                             <Tooltip
                               formatter={(v: any, name: any) => [
                                 fmtPct(v as number),

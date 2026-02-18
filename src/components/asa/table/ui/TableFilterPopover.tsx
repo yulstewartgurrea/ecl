@@ -2,7 +2,11 @@
 // components/asa/table/ui/TableFilterPopover.tsx (UPDATED)
 // ==========================
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FunnelIcon, ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  FunnelIcon,
+  ChevronDownIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
 
 type Props = {
   value: string | null;
@@ -29,7 +33,9 @@ export default function TableFilterPopover({
   const [temp, setTemp] = useState<string | null>(value ?? null);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { if (open) setTemp(value ?? null); }, [open, value]);
+  useEffect(() => {
+    if (open) setTemp(value ?? null);
+  }, [open, value]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -41,7 +47,9 @@ export default function TableFilterPopover({
   }, [open]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     if (open) document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
@@ -53,12 +61,14 @@ export default function TableFilterPopover({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-300 bg-yellow-400 border-yellow-400 text-gray-900 hover:brightness-95 ${hasFilter ? "" : ""}`}
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-300 bg-yellow-200 border-yellow-400 text-gray-900 hover:brightness-95 ${hasFilter ? "" : ""}`}
         title="Filter"
       >
         <FunnelIcon className="h-4 w-4" />
         {label}
-        <ChevronDownIcon className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDownIcon
+          className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
+        />
       </button>
 
       {open && (
@@ -70,7 +80,7 @@ export default function TableFilterPopover({
             <div className="text-sm font-semibold text-gray-800">{title}</div>
             <button
               type="button"
-              className="p-1 text-gray-600 hover:bg-yellow-400/30 rounded-md"
+              className="p-1 text-gray-600 hover:bg-yellow-200/30 rounded-md"
               onClick={() => setOpen(false)}
               aria-label="Close"
             >
@@ -84,7 +94,9 @@ export default function TableFilterPopover({
               <select
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-yellow-300"
                 value={temp ?? ""}
-                onChange={(e) => setTemp(e.target.value ? e.target.value : null)}
+                onChange={(e) =>
+                  setTemp(e.target.value ? e.target.value : null)
+                }
               >
                 <option value="">All products</option>
                 {options.map((opt) => (
@@ -104,7 +116,7 @@ export default function TableFilterPopover({
                   onApply(null);
                   setOpen(false);
                 }}
-                className="rounded-lg border border-yellow-400 bg-yellow-400 px-3 py-1.5 text-sm text-gray-900 hover:brightness-95"
+                className="rounded-lg border border-yellow-400 bg-yellow-200 px-3 py-1.5 text-sm text-gray-900 hover:brightness-95"
               >
                 Clear
               </button>
@@ -115,7 +127,7 @@ export default function TableFilterPopover({
                   onApply(temp ?? null);
                   setOpen(false);
                 }}
-                className="rounded-lg bg-yellow-400 border border-yellow-400 px-3 py-1.5 text-sm font-medium text-gray-900 hover:brightness-95"
+                className="rounded-lg bg-yellow-200 border border-yellow-400 px-3 py-1.5 text-sm font-medium text-gray-900 hover:brightness-95"
               >
                 Apply
               </button>

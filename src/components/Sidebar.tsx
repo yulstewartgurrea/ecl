@@ -29,8 +29,11 @@ import { resetPdTransitionMatrixWfHelperData } from "../redux_toolkit/features/p
 // ----- Sidebar items (unchanged except for added tabs) -----
 const sidebarOptions: any[] = [
   { tabName: "Workflows", icon: FolderIcon, subTabs: [] },
-  {  tabName: "Probability of Default (PD)",
-    icon: PercentBadgeIcon, subTabs: [] },
+  {
+    tabName: "Probability of Default (PD)",
+    icon: PercentBadgeIcon,
+    subTabs: [],
+  },
   { tabName: "Flowrate Approach", icon: ChartBarIcon, subTabs: [] },
   { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
   { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
@@ -41,20 +44,19 @@ const sidebarOptions: any[] = [
 
 // ----- Route maps (tab -> route, subtab -> route) -----
 const TAB_TO_ROUTE: Record<string, string> = {
-  "Workflows": "/workflows",
-    "Probability of Default (PD)": "/pd_landing",
-  "Overlay": "/overlay",
+  Workflows: "/workflows",
+  "Probability of Default (PD)": "/pd_landing",
+  Overlay: "/overlay",
   "Flowrate Approach": "/flowrate",
   "Expected Credit Loss (ECL)": "/ecl",
-    "AI Mode": "/chatbot",
-  "Configuration": "/ecl_configuration",
+  "AI Mode": "/chatbot",
+  Configuration: "/ecl_configuration",
   // "General Settings": "/settings",
 };
 
-
 // build reverse map to sync Redux from URL
 const ROUTE_TO_TAB: Record<string, string> = Object.fromEntries(
-  Object.entries(TAB_TO_ROUTE).map(([tab, path]) => [path, tab])
+  Object.entries(TAB_TO_ROUTE).map(([tab, path]) => [path, tab]),
 );
 
 const Sidebar = () => {
@@ -63,7 +65,7 @@ const Sidebar = () => {
   const location = useLocation();
 
   const { isSidebarOpen, activeTab, activeSubTab } = useAppSelector(
-    (state) => state.navUIState
+    (state) => state.navUIState,
   );
 
   const [expandedTabs, setExpandedTabs] = useState<Set<string>>(new Set());
@@ -80,7 +82,7 @@ const Sidebar = () => {
     dispatch(resetStateAuth());
     dispatch(resetPdTransitionMatrixWfHelperData());
     dispatch(resetStateNavUIState());
-    navigate("/")
+    navigate("/");
     // Clear persisted auth and in-memory uploader caches to avoid stale sessions
     localStorage.removeItem("persist:root");
     const g: any = window as any;
@@ -102,7 +104,7 @@ const Sidebar = () => {
   const handleTabDownArrowClick = (
     e: React.MouseEvent,
     tabName: string,
-    hasSubTabs: boolean
+    hasSubTabs: boolean,
   ) => {
     e.stopPropagation();
     // highlight the tab without navigation (useful if you just want to expand)
@@ -120,7 +122,7 @@ const Sidebar = () => {
   const handleSubTabClick = (tabName: string, subTabName: string) => {
     dispatch(setActiveTab(tabName));
     dispatch(setActiveSubTab(subTabName));
-    const path =TAB_TO_ROUTE[tabName] ?? "/";
+    const path = TAB_TO_ROUTE[tabName] ?? "/";
     navigate(path);
   };
 
@@ -128,7 +130,7 @@ const Sidebar = () => {
   useEffect(() => {
     const currentPath = location.pathname;
     // 1) try exact tab match
-    console.log('currentPath: sidebar: ', currentPath)
+    console.log("currentPath: sidebar: ", currentPath);
     const tabFromRoute = ROUTE_TO_TAB[currentPath];
     if (tabFromRoute) {
       if (tabFromRoute !== activeTab) {
@@ -139,7 +141,7 @@ const Sidebar = () => {
     }
 
     const inferred = Object.entries(TAB_TO_ROUTE).find(([, path]) =>
-      currentPath.startsWith(path)
+      currentPath.startsWith(path),
     );
     if (inferred) {
       const [tab] = inferred;
@@ -158,7 +160,7 @@ const Sidebar = () => {
           {
             "w-[20%] shadow-lg bg-white": isSidebarOpen,
             "w-8 md:w-10 items-center bg-gray-50": !isSidebarOpen,
-          }
+          },
         )}
       >
         <button
@@ -168,7 +170,7 @@ const Sidebar = () => {
             {
               "top-4 right-2": isSidebarOpen,
               "top-4 left-1/2 -translate-x-1/2": !isSidebarOpen,
-            }
+            },
           )}
         >
           <Bars3Icon className="text-[#ffbe0b] w-6 h-6" />
@@ -181,7 +183,11 @@ const Sidebar = () => {
           })}
         >
           <div className="w-full flex justify-center px-4 mb-12">
-            <img src="/ASALogo.png" alt="Logo" className="h-16 object-contain" />
+            <img
+              src="/SGVLogoLight.png"
+              alt="Logo"
+              className="h-16 object-contain"
+            />
           </div>
 
           <nav className="flex flex-col space-y-1 text-gray-700 px-2">
@@ -195,7 +201,7 @@ const Sidebar = () => {
                     onClick={() => handleTabClick(option.tabName)}
                     className={clsx(
                       "flex items-center justify-between px-1 py-2 rounded-md cursor-pointer hover:bg-[#f8f8f8] transition-all duration-200 gap-1",
-                      { "bg-[#f8f8f8]": active }
+                      { "bg-[#f8f8f8]": active },
                     )}
                   >
                     <div
@@ -214,13 +220,13 @@ const Sidebar = () => {
                       <ChevronDownIcon
                         className={clsx(
                           "w-4 h-4 transition-transform duration-200 text-gray-600",
-                          { "rotate-180": isExpanded }
+                          { "rotate-180": isExpanded },
                         )}
                         onClick={(e) =>
                           handleTabDownArrowClick(
                             e,
                             option.tabName,
-                            option.subTabs.length > 0
+                            option.subTabs.length > 0,
                           )
                         }
                       />
@@ -235,18 +241,24 @@ const Sidebar = () => {
                           <div
                             key={subTab.subTabName}
                             onClick={() =>
-                              handleSubTabClick(option.tabName, subTab.subTabName)
+                              handleSubTabClick(
+                                option.tabName,
+                                subTab.subTabName,
+                              )
                             }
                             className={clsx(
                               "py-1 px-2 rounded-md cursor-pointer text-sm flex items-center gap-2 group transition-all duration-300",
                               {
                                 "bg-[#f8f8f8] text-gray-600": isActiveSub,
-                                "text-gray-600 hover:bg-[#f8f8f8]": !isActiveSub,
-                              }
+                                "text-gray-600 hover:bg-[#f8f8f8]":
+                                  !isActiveSub,
+                              },
                             )}
                           >
                             <div className="w-2 h-2 rounded-full bg-white border border-[#ffbe0b]" />
-                            <span className="whitespace-nowrap">{subTab.subTabName}</span>
+                            <span className="whitespace-nowrap">
+                              {subTab.subTabName}
+                            </span>
                           </div>
                         );
                       })}
@@ -282,4 +294,3 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
-
