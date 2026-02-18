@@ -11,6 +11,8 @@ import {
   // Cog6ToothIcon,
   AdjustmentsHorizontalIcon,
   FolderIcon,
+  PercentBadgeIcon,
+  ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
 
 // redux toolkit
@@ -27,9 +29,12 @@ import { resetPdTransitionMatrixWfHelperData } from "../redux_toolkit/features/p
 // ----- Sidebar items (unchanged except for added tabs) -----
 const sidebarOptions: any[] = [
   { tabName: "Workflows", icon: FolderIcon, subTabs: [] },
+  {  tabName: "Probability of Default (PD)",
+    icon: PercentBadgeIcon, subTabs: [] },
   { tabName: "Flowrate Approach", icon: ChartBarIcon, subTabs: [] },
   { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
   { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
+  { tabName: "AI Mode", icon: ChatBubbleLeftRightIcon, subTabs: [] },
   { tabName: "Configuration", icon: AdjustmentsHorizontalIcon, subTabs: [] },
   // { tabName: "General Settings", icon: Cog6ToothIcon, subTabs: [] },
 ];
@@ -37,9 +42,11 @@ const sidebarOptions: any[] = [
 // ----- Route maps (tab -> route, subtab -> route) -----
 const TAB_TO_ROUTE: Record<string, string> = {
   "Workflows": "/workflows",
+    "Probability of Default (PD)": "/pd_landing",
   "Overlay": "/overlay",
   "Flowrate Approach": "/flowrate",
   "Expected Credit Loss (ECL)": "/ecl",
+    "AI Mode": "/chatbot",
   "Configuration": "/ecl_configuration",
   // "General Settings": "/settings",
 };

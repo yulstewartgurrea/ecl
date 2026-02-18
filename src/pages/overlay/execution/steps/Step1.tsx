@@ -1,5 +1,5 @@
 ﻿// src/pages/execution/Step1.tsx
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import UploadDropzone from "../../../../components/ui/UploadDropzone";
 import {
   CheckCircleIcon,
@@ -165,6 +165,9 @@ export default function Step1() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [skipFetchExisting, setSkipFetchExisting] = useState(false);
 
+  // Store AbortController to cancel in-flight requests when workflow changes
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // auto-generation state
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoMonthlyOk, setAutoMonthlyOk] = useState<boolean | null>(null);
@@ -248,9 +251,25 @@ export default function Step1() {
      Final model and historical weighted go to their shared slots.
   ----------------------------------------------------------- */
   const fetchExistingDocuments = useCallback(async () => {
-    if (!selectedWorkflowId || !token) return;
+    if (!selectedWorkflowId || !token) {
+      // Clear files when there's no workflow
+      setMonthlyFiles([]);
+      setQuarterlyFiles([]);
+      setAutoMonthlyFiles([]);
+      setAutoQuarterlyFiles([]);
+      setFinalModelFiles([]);
+      setHistoricalWeightedFiles([]);
+      setUploadedFiles(new Set());
+      return;
+    }
 
     if (skipFetchExisting) return;
+
+    // Cancel any previous in-flight requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
 
     const documentTypes = [
       DOC_MONTHLY,
@@ -268,11 +287,33 @@ export default function Step1() {
         )}`,
         {
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          signal: abortControllerRef.current.signal
         }
       );
-      if (!resp.ok) return;
+      if (!resp.ok) {
+        // Clear files on error
+        setMonthlyFiles([]);
+        setQuarterlyFiles([]);
+        setAutoMonthlyFiles([]);
+        setAutoQuarterlyFiles([]);
+        setFinalModelFiles([]);
+        setHistoricalWeightedFiles([]);
+        setUploadedFiles(new Set());
+        return;
+      }
+      
       const result = await resp.json();
-      if (!result?.success || !Array.isArray(result.data)) return;
+      if (!result?.success || !Array.isArray(result.data)) {
+        // Clear files if response is invalid
+        setMonthlyFiles([]);
+        setQuarterlyFiles([]);
+        setAutoMonthlyFiles([]);
+        setAutoQuarterlyFiles([]);
+        setFinalModelFiles([]);
+        setHistoricalWeightedFiles([]);
+        setUploadedFiles(new Set());
+        return;
+      }
 
       // Separate arrays for persisted docs: manual slots and auto slots
       const nextManualMonthly: ExistingDocFile[] = [];
@@ -331,13 +372,23 @@ export default function Step1() {
       setFinalModelFiles(nextFinal.slice(0, 1));
       setHistoricalWeightedFiles(nextHistWeighted.slice(0, 1));
       setUploadedFiles(nextUploaded);
-    } catch (err) {
-      console.error("Failed to fetch execution docs:", err);
+    } catch (err: any) {
+      // Only log if it's not an abort error
+      if (err.name !== 'AbortError') {
+        console.error("Failed to fetch execution docs:", err);
+      }
     }
   }, [selectedWorkflowId, token, skipFetchExisting]);
 
   useEffect(() => {
     if (selectedWorkflowId) fetchExistingDocuments();
+
+    // Cleanup: cancel in-flight requests when component unmounts or workflow changes
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [selectedWorkflowId, fetchExistingDocuments]);
 
   /* -----------------------------------------------------------

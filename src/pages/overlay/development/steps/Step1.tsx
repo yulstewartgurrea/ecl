@@ -1,5 +1,5 @@
 ﻿// src/pages/execution/Step1.tsx
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import UploadDropzone from "../../../../components/ui/UploadDropzone";
 import OverlayUploadResultModal, { type IssueRow } from "../../../../components/modals/OverlayUploadResultModal";
 import WorkflowPickerModal from "../../../../components/modals/WorkflowPickerModal";
@@ -88,6 +88,9 @@ export default function Step1() {
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [skipFetchExisting, setSkipFetchExisting] = useState(false);
+  
+  // Store AbortController to cancel in-flight requests when workflow changes
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const accept = ".csv,.xlsx,.xls";
   const maxSizeMB = 20;
@@ -101,20 +104,52 @@ export default function Step1() {
      Fetch existing documents
   ----------------------------------------------------------- */
   const fetchExistingDocuments = useCallback(async () => {
-    if (!selectedWorkflowId || !token) return;
+    if (!selectedWorkflowId || !token) {
+      // Clear files when there's no workflow
+      setMonthlyFiles([]);
+      setQuarterlyFiles([]);
+      setHistoricalFiles([]);
+      setUploadedFiles(new Set());
+      return;
+    }
     
     // Skip fetching if we just uploaded a new file (to prevent overwriting the new upload)
     if (skipFetchExisting) {
       return;
     }
 
+    // Cancel any previous in-flight requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     const url = `${API_BASE}/documents/workflow-documents/?workflow_id=${selectedWorkflowId}&document_types=${[DOC_MONTHLY, DOC_QUARTERLY, DOC_HISTORICAL].join(",")}`;
 
     try {
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
-      if (!response.ok) return;
+      const response = await fetch(url, { 
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        signal: abortControllerRef.current.signal
+      });
+      
+      if (!response.ok) {
+        // Clear files on error
+        setMonthlyFiles([]);
+        setQuarterlyFiles([]);
+        setHistoricalFiles([]);
+        setUploadedFiles(new Set());
+        return;
+      }
+      
       const result = await response.json();
-      if (!result?.success || !Array.isArray(result.data)) return;
+      if (!result?.success || !Array.isArray(result.data)) {
+        // Clear files if response is invalid
+        setMonthlyFiles([]);
+        setQuarterlyFiles([]);
+        setHistoricalFiles([]);
+        setUploadedFiles(new Set());
+        return;
+      }
 
       const nextMonthly: ExistingDocFile[] = [];
       const nextQuarterly: ExistingDocFile[] = [];
@@ -145,13 +180,23 @@ export default function Step1() {
       setQuarterlyFiles(nextQuarterly.slice(0, 1));
       setHistoricalFiles(nextHistorical.slice(0, 1));
       setUploadedFiles(nextUploadedNames);
-    } catch (err) {
-      console.error("Failed to fetch overlay docs:", err);
+    } catch (err: any) {
+      // Only log if it's not an abort error
+      if (err.name !== 'AbortError') {
+        console.error("Failed to fetch overlay docs:", err);
+      }
     }
-  }, [selectedWorkflowId, token]);
+  }, [selectedWorkflowId, token, skipFetchExisting]);
 
   useEffect(() => {
     if (selectedWorkflowId) fetchExistingDocuments();
+    
+    // Cleanup: cancel in-flight requests when component unmounts or workflow changes
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [selectedWorkflowId, fetchExistingDocuments]);
 
   /* -----------------------------------------------------------

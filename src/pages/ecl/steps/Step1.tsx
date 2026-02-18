@@ -1,7 +1,7 @@
 ﻿// ==========================
 // pages/flowrate/steps/Step1.tsx
 // ==========================
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import UploadDropzone from "../../../components/ui/UploadDropzone";
 import OverlayUploadResultModal from "../../../components/modals/OverlayUploadResultModal";
 import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
@@ -67,6 +67,9 @@ export default function Step1() {
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [skipFetchExisting, setSkipFetchExisting] = useState(false);
+  
+  // Store AbortController to cancel in-flight requests when workflow changes
+  const abortControllerRef = useRef<AbortController | null>(null);
  
     const workflowIdFromRedux =
     currentPdTransitionMatrixWorkflowId ?? currentPdTransitionMatrixWorkflowData?.id;
@@ -168,18 +171,31 @@ export default function Step1() {
     }
     if (skipFetchExisting) return;
 
+    // Cancel any previous in-flight requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       const response = await fetch(
         `${API_BASE}/documents/workflow-documents/?workflow_id=${workflowId}&document_types=${ECL_DOC_TYE}`,
         {
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          signal: abortControllerRef.current.signal
         }
       );
 
-      if (!response.ok) return setFile(null);
+      if (!response.ok) {
+        setFile(null);
+        return;
+      }
 
       const result = await response.json();
-      if (!result?.success || !Array.isArray(result.data) || result.data.length === 0) return setFile(null);
+      if (!result?.success || !Array.isArray(result.data) || result.data.length === 0) {
+        setFile(null);
+        return;
+      }
 
       const doc = result.data[0];
       const mime =
@@ -199,14 +215,24 @@ export default function Step1() {
       setFile(existingFile);
       setUploaded(true);
       setFailed(false);
-    } catch (err) {
-      console.error("Failed to fetch existing document:", err);
+    } catch (err: any) {
+      // Only log if it's not an abort error
+      if (err.name !== 'AbortError') {
+        console.error("Failed to fetch existing document:", err);
+      }
       setFile(null);
     }
   }, [workflowId, token, skipFetchExisting]);
 
   useEffect(() => {
     fetchExistingDocument();
+
+    // Cleanup: cancel in-flight requests when component unmounts or workflow changes
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [fetchExistingDocument]);
 
   const handlePickWorkflow = useCallback(

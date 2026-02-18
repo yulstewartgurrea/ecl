@@ -1,10 +1,10 @@
-import { combineReducers } from '@reduxjs/toolkit';
+import { combineReducers } from "@reduxjs/toolkit";
 
 //slices
-import auth from './features/general/auth';
-import navUIState from './features/general/navUIState';
-import pdTransitionMatrixWfHelper from './features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper';
-import pdMatrixWfHelper from './features/probability_of_default/transition_matrix/pdMatrixWfHelper';
+import auth from "./features/general/auth";
+import navUIState from "./features/general/navUIState";
+import pdTransitionMatrixWfHelper from "./features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
+import pdMatrixWfHelper from "./features/probability_of_default/transition_matrix/pdMatrixWfHelper";
 import eclEntitiesReducer from "./features/ecl/eclConfigSlice";
 import eclBaselinesReducer from "./features/ecl/eclBaselinesSlice";
 import eclDpdBucketsSlice from "./features/ecl/eclDpdBucketsSlice";
@@ -15,6 +15,7 @@ import finalModelExecutionFileReducer from "./features/overlay/finalModelExecuti
 import historicalWeightedCreditLossRateFileReducer from "./features/overlay/historicalWeightedCreditLossRateFileSlice";
 import flowrateStep5Reducer from "./features/asa/flowrateStep5Slice";
 import moduleProgressReducer from "./features/progress/moduleProgressSlice";
+import workflow from "./features/workflow/workflowSlice";
 export const rootReducer = combineReducers({
   auth,
   navUIState,
@@ -25,9 +26,11 @@ export const rootReducer = combineReducers({
   eclDpdBucketsSlice,
   eclLoanProductsReducer,
   eclReportingPeriodsReducer,
+  workflow,
   executionInputFile: executionInputFileReducer,
   finalModelExecutionFile: finalModelExecutionFileReducer,
-  historicalWeightedCreditLossRateFile: historicalWeightedCreditLossRateFileReducer,
+  historicalWeightedCreditLossRateFile:
+    historicalWeightedCreditLossRateFileReducer,
   flowrateStep3: flowrateStep5Reducer,
   moduleProgress: moduleProgressReducer,
-})
+});

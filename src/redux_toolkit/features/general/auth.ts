@@ -6,13 +6,15 @@ interface AuthState {
   token: string | null
   username: string
   role: string
+  tokenai: string | null
 }
 
 const initialState: AuthState = {
   isLoggedIn: false,
   token: null,
   username: "",
-  role: ""
+  role: "",
+  tokenai: null
 }
 
 const authSlice = createSlice({
@@ -26,9 +28,14 @@ const authSlice = createSlice({
       state.username =username;
       state.role =role;
     },
+    setTokenAi: (state, action: PayloadAction<{ tokenai: string }>) => {
+      const { tokenai } = action.payload;
+      state.tokenai = tokenai;
+    },
     logout: (state) => {
       state.isLoggedIn = false
       state.token = null
+      state.tokenai = null
     },
     setAllAuthData: (_, action: PayloadAction<AuthState>) => {
       return action.payload
@@ -37,5 +44,5 @@ const authSlice = createSlice({
   },
 })
 
-export const { login, logout, setAllAuthData, resetStateAuth } = authSlice.actions
+export const { login, setTokenAi, logout, setAllAuthData, resetStateAuth } = authSlice.actions
 export default authSlice.reducer

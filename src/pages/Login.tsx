@@ -1,7 +1,8 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLogin } from "../hooks/useLogin";
+import { useAppDispatch } from "../redux_toolkit/hooks";
+import { setTokenAi } from "../redux_toolkit/features/general/auth";
 import ApiStatusIndicator from "../components/ApiStatusIndicators";
 import BackgroundComponent from "../components/BGComponent";
 import { ArrowRightStartOnRectangleIcon } from "@heroicons/react/24/outline";
@@ -9,20 +10,43 @@ const APP_VERSION = "v2.0.0";
 const Login = () => {
   const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
   const [message, setMessage] = useState<string | undefined>();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const { trigger } = useLogin();
 
-  const handleLogin = async (e?: FormEvent) => {
-    e?.preventDefault();
+  const fetchAiToken = async () => {
+    try {
+      const response = await fetch("https://brain-sam.sgvnexus.uk/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: "sgvai0987" }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.token) {
+          dispatch(setTokenAi({ tokenai: data.token }));
+          localStorage.setItem("tokenai", data.token);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch AI token:", err);
+    }
+  };
+
+  const handleLogin = async () => {
     setStatus("loading");
     setMessage("Logging in...");
     try {
       await trigger({ username, password });
       setStatus("success");
       setMessage("Login successful!");
-      setTimeout(() => navigate("/"), 300);
+      await fetchAiToken();
+      setTimeout(() => navigate("/workflow"), 300);
     } catch (err: any) {
       setStatus("error");
       setMessage(err?.message || "Login failed (unknown error)");
@@ -38,7 +62,7 @@ const Login = () => {
           <div className="bg-white flex flex-row items-center justify-center px-2 py-4 pt-6 text-center sm:px-16 text-black relative">
             <div className="flex flex-col items-center mr-8">
               <img
-                src="/ASALogo.png"
+                src="/SGVLogoLight.png"
                 alt="Logo"
                 height={80}
                 width={80}
@@ -56,7 +80,9 @@ const Login = () => {
             className="flex flex-col bg-white px-2 py-4 pt-6 sm:px-16"
           >
             <div>
-              <label htmlFor="username" className="block uppercase">Username</label>
+              <label htmlFor="username" className="block uppercase">
+                Username
+              </label>
               <input
                 id="username"
                 name="username"
@@ -68,7 +94,9 @@ const Login = () => {
               />
             </div>
             <div className="mt-6">
-              <label htmlFor="password" className="block uppercase">Password</label>
+              <label htmlFor="password" className="block uppercase">
+                Password
+              </label>
               <input
                 id="password"
                 name="password"
@@ -79,17 +107,21 @@ const Login = () => {
               />
             </div>
             <div className="my-10">
-              {status === "error" && message && <p className="text-red-500">{message}</p>}
-               <button
-                 type="submit"
-                 className="bg-gradient-to-r from-[#EA8024] to-[#FFBB00] hover:from-[#FFBB00] hover:to-[#EA8024] text-lg text-white font-bold py-6 w-full rounded-2xl flex items-center justify-center cursor-pointer gap-2 transition-all duration-300 shadow-lg hover:shadow-xl"
-               >
+              {status === "error" && message && (
+                <p className="text-red-500">{message}</p>
+              )}
+              <button
+                type="submit"
+                className="bg-gradient-to-r from-[#EA8024] to-[#FFBB00] hover:from-[#FFBB00] hover:to-[#EA8024] text-lg text-white font-bold py-6 w-full rounded-2xl flex items-center justify-center cursor-pointer gap-2 transition-all duration-300 shadow-lg hover:shadow-xl"
+              >
                 {status !== "idle" ? "Logging in..." : "Log In"}
                 <ArrowRightStartOnRectangleIcon className="h-6 w-6" />
               </button>
             </div>
             {/* Version info */}
-            <p className="text-center text-gray-500 mt-2 text-sm">Version: {APP_VERSION}</p>
+            <p className="text-center text-gray-500 mt-2 text-sm">
+              Version: {APP_VERSION}
+            </p>
           </form>
         </div>
       )}

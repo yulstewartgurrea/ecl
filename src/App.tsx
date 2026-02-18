@@ -12,7 +12,8 @@ import WorkflowFolderList from "./pages/flowrate_approach/WorkflowFolderList";
 import EclUpload from "./pages/ecl/EclUpload";
 import BackendLoader from "./components/BackendLoader";
 import Workflows from "./pages/workflows/Workflows";
-
+import Chatbot from "./pages/chatbot/ChatbotPage";
+import PdLandingPage from "./pages/transition_matrix/Workflow";
 // redux toolkit
 import { useAppSelector } from "./redux_toolkit/hooks";
 import { resetInterpolationClient } from "./services/interpolation";
@@ -94,14 +95,15 @@ function App() {
         <Route index element={<WorkflowLists />} />
         <Route path="workflows" element={<Workflows />} />
         <Route path="flowrate" element={<FlowrateApproachPage />} />
-        <Route path="WorkflowFolderList" element={<WorkflowFolderList/>} />
-        <Route path="pd_landing" element={<FlowrateApproachPage />} />
+        <Route path="WorkflowFolderList" element={<WorkflowFolderList />} />
+        <Route path="pd_landing" element={<PdLandingPage />} />
         <Route path="overlay" element={<OverlayLandingPage />} />
         <Route path="settings" element={<Settings />} />
         <Route path="ecl_configuration" element={<Configuration />} />
         <Route path="page/flowrate" element={<FlowrateApproachPage />} />
         <Route path="page/upload" element={<EclUpload />} />
         <Route path="ecl" element={<EclUpload />} />
+           <Route path="/chatbot" element={<Chatbot />} />
       </Route>
       <Route path="*" element={<Navigate to={isLoggedIn ? "/" : "/login"} />} />
     </Routes>
