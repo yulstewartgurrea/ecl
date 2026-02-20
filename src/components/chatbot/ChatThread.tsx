@@ -346,8 +346,22 @@ export function ChatThread({
   /** Clamp visibleCount if the number of sections shrinks; keep as-is if it grows. */
   useEffect(() => {
     if (!gatingOn || !gatedMsgId) return;
-    setVisibleCount((c) => Math.min(c, newestSections.length));
+    setVisibleCount((c) => {
+      // If we previously had nothing visible but sections just arrived,
+      // initialize to reveal the first section rather than leaving blank.
+      if (c === 0 && newestSections.length > 0) return 1;
+      return Math.min(c, newestSections.length);
+    });
   }, [gatingOn, gatedMsgId, newestSections.length]);
+
+  /** Scroll in sync with sequential reveal so auto-scroll doesn't jump ahead. */
+  useEffect(() => {
+    if (!gatedMsgId) return;
+    // Only auto-scroll when user is near bottom
+    if (isNearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [gatedMsgId, visibleCount]);
 
   /** Advance to next section (bounded). */
   const advance = useCallback(() => {
