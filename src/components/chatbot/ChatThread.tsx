@@ -265,15 +265,22 @@ export function ChatThread({
 
   /** Track active typewriter count so ChatbotPage can disable composer while typing. */
   const activeCountRef = useRef(0);
+  const [typingActive, setTypingActive] = useState(false);
 
   const signalTypewriterStart = useCallback(() => {
     activeCountRef.current += 1;
-    if (activeCountRef.current === 1) onTypewriterActiveChange?.(true);
+    if (activeCountRef.current === 1) {
+      onTypewriterActiveChange?.(true);
+      setTypingActive(true);
+    }
   }, [onTypewriterActiveChange]);
 
   const signalTypewriterDone = useCallback(() => {
     activeCountRef.current = Math.max(0, activeCountRef.current - 1);
-    if (activeCountRef.current === 0) onTypewriterActiveChange?.(false);
+    if (activeCountRef.current === 0) {
+      onTypewriterActiveChange?.(false);
+      setTypingActive(false);
+    }
   }, [onTypewriterActiveChange]);
 
   /** Identify newest assistant message (we only gate + typewriter that one). */
@@ -362,6 +369,30 @@ export function ChatThread({
       bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [gatedMsgId, visibleCount]);
+
+  /** Keep scrolling to bottom while typing is active so the composer stays in view. */
+  useEffect(() => {
+    let rafId: number | null = null;
+    const loop = () => {
+      if (isNearBottomRef.current) {
+        bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+      }
+      rafId = requestAnimationFrame(loop);
+    };
+
+    if (typingActive) {
+      // start loop
+      rafId = requestAnimationFrame(loop);
+    }
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      // final smooth align when typing stops
+      if (!typingActive && isNearBottomRef.current) {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      }
+    };
+  }, [typingActive]);
 
   /** Advance to next section (bounded). */
   const advance = useCallback(() => {
