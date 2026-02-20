@@ -18,6 +18,18 @@ const STEP_ORDER: { id: string; label: string }[] = [
   { id: "summary", label: "Summary" },
 ];
 
+/** ✅ Stable, deterministic section IDs (prevents React remounts) */
+const SEC = {
+  workflow: "sec_workflow",
+  answer: "sec_answer",
+  flowrate: "sec_flowrate",
+  clr: "sec_credit_loss_rate",
+  validation: "sec_validation_logs",
+  process: "sec_process",
+  summary: "sec_summary",
+  viz: "sec_visualization",
+} as const;
+
 type ExportSheet = { name: string; rows: Record<string, any>[] };
 type ExportPayload = {
   fileName?: string;
@@ -232,6 +244,7 @@ export class JsonObjectStreamParser {
   }
 }
 
+/** ✅ Use stable Answer section id here too */
 export function createStreamingAssistantMsg(
   makeId: () => string,
 ): AssistantMsg {
@@ -244,7 +257,7 @@ export function createStreamingAssistantMsg(
     actions: [],
     sections: [
       {
-        id: makeId(),
+        id: SEC.answer, // ✅ stable id
         kind: "text",
         title: "Answer",
         pill: "stream",
@@ -266,7 +279,7 @@ function looksLikeStream(events: StreamEvent[]) {
 
 export function buildAccordionFromEvents(
   events: StreamEvent[],
-  makeId: () => string,
+  makeId: () => string, // kept for compatibility
   opts?: BuildOpts,
 ) {
   const showWorkflow = opts?.showWorkflow ?? looksLikeStream(events || []);
@@ -281,7 +294,8 @@ export function buildAccordionFromEvents(
     STEP_ORDER.map((s) => [s.id, "pending" as StepStatus]),
   );
 
-  let latestAnswer = "";
+  /** ✅ Make answer monotonic (never shrink) */
+  let answerSoFar = ""; // was latestAnswer
   let flowrate: any = null;
   let creditLossRate: any = null;
   let directPreview: any = null;
@@ -290,12 +304,13 @@ export function buildAccordionFromEvents(
   let excelPathOrUrl = "";
   let exportPayload: ExportPayload | null = null;
   const validationLogs: any[] = [];
-  console.log(previewTotals, directPreview)
   let lastOutput: "none" | "flowrate" | "credit_loss_rate" = "none";
+
   const chartRowsFromArtifacts = () => {
     if (creditLossRate?.preview?.length) return creditLossRate.preview;
     return [];
   };
+
   let thinkingMessage = "";
   const processEntries: any[] = [];
   const chunkEvents: any[] = [];
@@ -304,37 +319,26 @@ export function buildAccordionFromEvents(
     if (!e || typeof e !== "object") continue;
     const t = (e as any).type;
 
-    console.log("Processing event type:", t, e);
-
     if (t === "state") {
-      console.log("-- Entered STATE block", e);
       sessionId = (e as any).session_id ?? sessionId;
       fileName = (e as any).file_name ?? fileName;
       workflowState = (e as any).workflow_state ?? workflowState;
     }
 
     if (t === "step_start") {
-      console.log("-- Entered STEP_START block", e);
       const id = (e as any).step?.id;
       if (id && steps[id] !== "done") steps[id] = "running";
     }
 
     if (t === "step_done") {
-      console.log("-- Entered STEP_DONE block", e);
       const id = (e as any).step?.id;
       if (id) steps[id] = "done";
     }
 
-    // NEW: Handle process_step events
     if (t === "process_step") {
-      console.log("-- Entered PROCESS_STEP block", e);
       const id = (e as any).step?.id;
       const status = (e as any).step?.status;
-      if (id && status) {
-        // Accepts "running", "done", etc.
-        steps[id] = status;
-      }
-      // store the full step object for UI/process log
+      if (id && status) steps[id] = status as StepStatus;
       try {
         processEntries.push({
           ...(e as any).step,
@@ -342,18 +346,9 @@ export function buildAccordionFromEvents(
           total_chunks: (e as any).total_chunks,
         });
       } catch {}
-      // Optionally, collect details for display (not implemented here)
     }
 
-    // NEW: Handle chunk_start events
-    if (t === "chunk_start") {
-      console.log("-- Entered CHUNK_START block", e);
-      chunkEvents.push(e);
-    }
-
-    // NEW: Handle chunk_done events
-    if (t === "chunk_done") {
-      console.log("-- Entered CHUNK_DONE block", e);
+    if (t === "chunk_start" || t === "chunk_done") {
       chunkEvents.push(e);
     }
 
@@ -364,47 +359,62 @@ export function buildAccordionFromEvents(
       const detail = String(
         (e as any).error_detail || (e as any).message || "Unknown error.",
       ).trim();
-      if (detail) latestAnswer = detail;
+      if (detail) {
+        // Error text becomes the "answer" content
+        // Make it monotonic vs previous
+        answerSoFar =
+          detail.length >= answerSoFar.length ? detail : answerSoFar;
+      }
     }
 
     if (t === "result") {
-      console.log("-- Entered RESULT block", e);
       const ans = String((e as any).answer ?? "").trim();
-      const artifact = (e as any).artifacts;
-      console.log("Extracted answer:", ans);
-      console.log("Extracted artifacts:", artifact);
-      if (ans) latestAnswer = ans;
-      const hasArtifacts = Boolean(artifact);
+
+      // ✅ Keep "Answer" monotonic: prefer append or longer value
+      if (ans) {
+        if (answerSoFar && ans.startsWith(answerSoFar)) {
+          // appended
+          answerSoFar = ans;
+        } else if (ans.length >= answerSoFar.length) {
+          // rewritten but longer: accept
+          answerSoFar = ans;
+        }
+        // else: ignore shorter regressive updates
+      }
+
+      const art = (e as any).artifacts;
+      const hasArtifacts = Boolean(art);
       const ansSignalsDone = ans.includes("All done");
       const eventSaysDone = (e as any).workflow_state === "done";
+
       if (hasArtifacts || ansSignalsDone || eventSaysDone) {
-        console.log("Result indicates completion. Marking workflow as done.");
         workflowState = "done";
-        // clear any transient thinking message so UI shows final result
-        thinkingMessage = "";
+        thinkingMessage = ""; // clear transient
       } else if ((e as any).workflow_state) {
         workflowState = (e as any).workflow_state ?? workflowState;
       }
-      const art = (e as any).artifacts;
-      if (!fileName && art?.file_name) {
-        fileName = art.file_name;
-      }
 
-      // If artifacts include a summary (string or object), surface it immediately
+      if (!fileName && art?.file_name) fileName = art.file_name;
+
+      // Extract summary if present
       try {
         const maybeSummary =
           art?.summary ?? (e as any).summary ?? (e as any).summaryText;
         if (maybeSummary) {
           if (typeof maybeSummary === "string") {
-            summaryText = maybeSummary;
+            // keep the longer variant
+            summaryText =
+              maybeSummary.length >= summaryText.length
+                ? maybeSummary
+                : summaryText;
           } else if (typeof maybeSummary === "object") {
             const kv = toKeyValueRows(maybeSummary)
               .map((r) => `${r.key}: ${r.value}`)
               .join("\n");
-            if (kv) summaryText = kv;
+            if (kv)
+              summaryText = kv.length >= summaryText.length ? kv : summaryText;
           }
         } else if (ans && !summaryText) {
-          // fall back to using the answer as a short summary if none provided
           summaryText = ans;
         }
       } catch {}
@@ -417,8 +427,7 @@ export function buildAccordionFromEvents(
         creditLossRate = art.credit_loss_rate;
         lastOutput = "credit_loss_rate";
       }
-      // If artifacts include a top-level preview/totals (some agents emit this shape),
-      // try to interpret it as credit loss rate results when totals contain relevant keys.
+
       if (!creditLossRate && art?.preview && art?.totals) {
         const totals = art.totals || {};
         if (
@@ -428,7 +437,6 @@ export function buildAccordionFromEvents(
           creditLossRate = { preview: art.preview, totals: art.totals } as any;
           lastOutput = "credit_loss_rate";
         } else if (typeof totals.row_count === "number" && !flowrate) {
-          // fallback: treat as flowrate preview if row_count present and flowrate missing
           flowrate = { preview: art.preview, totals: art.totals } as any;
           lastOutput = "flowrate";
         }
@@ -440,7 +448,9 @@ export function buildAccordionFromEvents(
       }
 
       if (workflowState === "done") {
-        summaryText = ans || summaryText;
+        // prefer the longest answer available by now
+        const finalAns = ans.length >= answerSoFar.length ? ans : answerSoFar;
+        summaryText = finalAns || summaryText;
         if (art) {
           excelPathOrUrl =
             art.excel_file_url ||
@@ -454,7 +464,6 @@ export function buildAccordionFromEvents(
     }
 
     if (t === "thinking") {
-      console.log("-- Entered THINKING block", e);
       const msg = String((e as any).message ?? "").trim();
       if (msg) {
         thinkingMessage = thinkingMessage ? `${thinkingMessage}\n${msg}` : msg;
@@ -462,7 +471,6 @@ export function buildAccordionFromEvents(
     }
 
     if (t === "validation_log") {
-      console.log("-- Entered VALIDATION_LOG block", e);
       validationLogs.push({
         stage: (e as any).stage,
         chunk: (e as any).chunk,
@@ -486,7 +494,6 @@ export function buildAccordionFromEvents(
     label: s.label,
     status: steps[s.id],
     detail:
-      // take the last matching process entry detail for this step
       processEntries
         .slice()
         .reverse()
@@ -494,15 +501,12 @@ export function buildAccordionFromEvents(
         ?.details?.join(" \n") || undefined,
   }));
 
-  // Fallback: if backend never emitted a final `result` with artifacts
-  // but all known workflow steps are marked done, treat the run as done.
   if (
     workflowState !== "done" &&
     Object.values(steps).every((s) => s === "done")
   ) {
     workflowState = "done";
     thinkingMessage = "";
-    console.log("Fallback: all steps done — marking workflow as done.");
   }
 
   const liveMessage = buildLiveWorkflowMessage(steps, workflowState);
@@ -565,33 +569,24 @@ export function buildAccordionFromEvents(
 
   const sections: AssistantSection[] = [];
 
-  // DEBUG: report what artifacts we detected (helps debug missing tables)
-  try {
-    console.log("Builder state:", {
-      workflowState,
-      fileName,
-      hasFlowrate: Boolean(flowrate?.preview?.length),
-      hasCreditLossRate: Boolean(creditLossRate?.preview?.length),
-      summaryText: Boolean(summaryText),
-    });
-  } catch {}
-
   const isThinkingOnly =
     Boolean(thinkingMessage) &&
     workflowState !== "done" &&
     workflowState !== "error";
+
   if (isThinkingOnly) {
     sections.push({
-      id: makeId(),
-      kind: "thinking",
-      title: "Thought for a moment",
-      content: thinkingMessage,
+      id: SEC.answer, // ✅ keep Answer section id stable even while "thinking"
+      kind: "text",
+      title: "Answer",
+      pill: workflowState,
+      content: answerSoFar || thinkingMessage || "…",
       open: true,
     });
   } else {
     if (showWorkflow) {
       sections.push({
-        id: makeId(),
+        id: SEC.workflow, // ✅ stable id
         kind: "workflow",
         title: "Workflow",
         steps: workflowSteps,
@@ -600,13 +595,13 @@ export function buildAccordionFromEvents(
       });
     }
 
-    // Always show Answer
+    // ✅ Always show Answer with stable id & monotonic content
     sections.push({
-      id: makeId(),
+      id: SEC.answer,
       kind: "text",
       title: "Answer",
       pill: workflowState,
-      content: latestAnswer || thinkingMessage || "…",
+      content: answerSoFar || thinkingMessage || "…",
       open: true,
     });
   }
@@ -614,41 +609,36 @@ export function buildAccordionFromEvents(
   const isDone = workflowState === "done";
 
   /**
-   * Visualization mode:
-   * - Show ONLY Answer + Chart (no tables, no summary)
+   * Visualization mode: Answer + Chart only
    */
   if (showVisualization) {
-    if (isThinkingOnly) {
-      return {
-        title: "Thinking…",
-        subtitle: "Working on it",
-        sections,
-        actions,
-        workflowState,
-      };
-    }
-    const chartRows = chartRowsFromArtifacts();
+    const chartRows = (() => {
+      const rows = chartRowsFromArtifacts();
+      return Array.isArray(rows) ? rows : [];
+    })();
 
-    if (Array.isArray(chartRows) && chartRows.length) {
-      sections.push({
-        id: makeId(),
-        kind: "chart",
-        title: "Visualization",
-        pill: "viz",
-        chartType: "credit_loss_rate",
-        data: chartRows,
-        open: true,
-      });
-    } else {
-      sections.push({
-        id: makeId(),
-        kind: "text",
-        title: "Visualization",
-        pill: "viz",
-        content:
-          "I couldn’t find Credit Loss Rate rows to visualize. Please run NetFlow first (or ask to re-send the results).",
-        open: true,
-      });
+    if (!isThinkingOnly) {
+      if (chartRows.length) {
+        sections.push({
+          id: SEC.viz,
+          kind: "chart",
+          title: "Visualization",
+          pill: "viz",
+          chartType: "credit_loss_rate",
+          data: chartRows,
+          open: true,
+        });
+      } else {
+        sections.push({
+          id: SEC.viz,
+          kind: "text",
+          title: "Visualization",
+          pill: "viz",
+          content:
+            "I couldn’t find Credit Loss Rate rows to visualize. Please run NetFlow first (or ask to re-send the results).",
+          open: true,
+        });
+      }
     }
 
     const title =
@@ -672,7 +662,7 @@ export function buildAccordionFromEvents(
 
   if (validationLogs.length && !isThinkingOnly) {
     sections.push({
-      id: makeId(),
+      id: SEC.validation,
       kind: "table",
       title: "Validation Logs",
       pill: "log",
@@ -683,7 +673,6 @@ export function buildAccordionFromEvents(
     });
   }
 
-  // Show a brief validation summary immediately after validation completes
   if (validationLogs.length && !isThinkingOnly && workflowState !== "done") {
     const validationSummary =
       summaryText ||
@@ -691,7 +680,7 @@ export function buildAccordionFromEvents(
         .map((v) => `${v.stage ?? "validation"}: ${v.message ?? "ok"}`)
         .join("\n");
     sections.push({
-      id: makeId(),
+      id: "sec_validation_summary", // extra but stable
       kind: "summary",
       title: "Validation Summary",
       content: validationSummary,
@@ -699,7 +688,6 @@ export function buildAccordionFromEvents(
     });
   }
 
-  // Surface process entries (all process_step / chunk events) as a table
   if (processEntries.length && !isThinkingOnly) {
     const procRows = processEntries.map((p) => ({
       id: p.id,
@@ -713,7 +701,7 @@ export function buildAccordionFromEvents(
       total_chunks: p.total_chunks,
     }));
     sections.push({
-      id: makeId(),
+      id: SEC.process,
       kind: "table",
       title: "Process",
       pill: "process",
@@ -724,20 +712,7 @@ export function buildAccordionFromEvents(
     });
   }
 
-  /**
-   * ✅ If tables are disabled (explain output)
-   * keep Answer only (and optional Summary if non-duplicate)
-   */
   if (!showTables) {
-    if (isThinkingOnly) {
-      return {
-        title: "Thinking…",
-        subtitle: "Working on it",
-        sections,
-        actions,
-        workflowState,
-      };
-    }
     const title =
       workflowState === "done"
         ? "Run completed"
@@ -761,7 +736,7 @@ export function buildAccordionFromEvents(
   if (isDone) {
     if (flowrate?.preview?.length) {
       sections.push({
-        id: makeId(),
+        id: SEC.flowrate, // ✅ stable
         kind: "table",
         title: "Flowrate Approach",
         pill: "result",
@@ -786,7 +761,7 @@ export function buildAccordionFromEvents(
 
     if (creditLossRate?.preview?.length) {
       sections.push({
-        id: makeId(),
+        id: SEC.clr, // ✅ stable
         kind: "table",
         title: "Credit Loss Rate Approach",
         pill: "result",
@@ -808,9 +783,10 @@ export function buildAccordionFromEvents(
         open: true,
       });
     }
+
     if (summaryText || chartRowsFromArtifacts().length) {
       sections.push({
-        id: makeId(),
+        id: SEC.summary, // ✅ stable
         kind: "summary",
         title: "Summary",
         content: summaryText,
@@ -821,7 +797,7 @@ export function buildAccordionFromEvents(
   } else {
     if (lastOutput === "flowrate" && flowrate?.preview?.length) {
       sections.push({
-        id: makeId(),
+        id: SEC.flowrate, // ✅ stable even while streaming
         kind: "table",
         title: "Flowrate Approach",
         pill: "stream",
@@ -834,7 +810,7 @@ export function buildAccordionFromEvents(
 
     if (lastOutput === "credit_loss_rate" && creditLossRate?.preview?.length) {
       sections.push({
-        id: makeId(),
+        id: SEC.clr, // ✅ stable even while streaming
         kind: "table",
         title: "Credit Loss Rate Approach",
         pill: "stream",

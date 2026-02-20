@@ -11,6 +11,18 @@
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
 
+.reveal {
+  opacity: 0;
+  transform: translateY(2px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+.reveal.reveal--in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 @keyframes logo-spin {
   from {
     transform: rotate(0deg);
@@ -33,7 +45,6 @@
 .read-the-docs {
   color: #888;
 }
-
 
 @keyframes borderPulse {
   0% {
@@ -117,4 +128,3 @@
   border-width: 2px;
   border-style: solid;
 } */
-

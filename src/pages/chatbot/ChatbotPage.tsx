@@ -12,6 +12,14 @@ import {
   createStreamingAssistantMsg,
   JsonObjectStreamParser,
 } from "./useAiResponseStream";
+import {
+  makeId,
+  ensureSessionId,
+  normalizeMessageResponseToEvents,
+  isVisualizationRequest,
+  buildUploadResponseContent,
+  createNewThread,
+} from "./utils";
 
 import {
   uploadEclFile,
@@ -25,112 +33,6 @@ import { ChatComposer } from "../../components/chatbot/ChatComposer";
 import { useAppDispatch, useAppSelector } from "../../redux_toolkit/hooks";
 import { updateModuleData } from "../../redux_toolkit/features/workflow/workflowSlice";
 
-const SAM_INTRO = `Hi! I’m **Sam 👩🏻‍🦰** — I can help you run **NetFlow**, **Probability of Default (PD)**, or **Overlay / ECL**.
-
-### Choose what you want to calculate:
-- **Net Flow Approach**
-- **PD Transaction**
-- **Overlay**
-`;
-
-const makeId = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2);
-
-function ensureSessionId(thread: ChatThread) {
-  return thread.session_id ?? makeId();
-}
-
-function normalizeMessageResponseToEvents(resp: any): StreamEvent[] {
-  if (!resp) return [];
-  if (Array.isArray(resp)) return resp as StreamEvent[];
-  if (Array.isArray(resp.events)) return resp.events as StreamEvent[];
-  if (typeof resp === "object" && typeof resp.type === "string")
-    return [resp as StreamEvent];
-
-  if (typeof resp === "object" && typeof resp.answer === "string") {
-    return [
-      {
-        type: "result",
-        workflow_state: resp.workflow_state ?? "done",
-        answer: resp.answer,
-        artifacts: resp.artifacts,
-        sources: resp.sources ?? [],
-        confidence: resp.confidence,
-        mode: resp.mode,
-        mode_used: resp.mode_used,
-        session_id: resp.session_id,
-        file_name: resp.file_name,
-        workflow_steps: resp.workflow_steps,
-      } as any,
-    ];
-  }
-
-  return [
-    {
-      type: "result",
-      workflow_state: "done",
-      answer: typeof resp === "string" ? resp : JSON.stringify(resp, null, 2),
-      sources: [],
-      confidence: "unknown",
-      mode: "deepagents_ecl",
-      mode_used: "deepagents_ecl",
-    } as any,
-  ];
-}
-
-function createNewThread(): ChatThread {
-  const now = Date.now();
-  const session_id = makeId();
-  return {
-    id: makeId(),
-    title: "New chat",
-    createdAt: now,
-    updatedAt: now,
-    pinned: false,
-    files: [],
-    session_id,
-    has_uploaded_file: false,
-    upload_status: "idle",
-    upload_error: null,
-    upload_response: null,
-    last_artifacts: null,
-    messages: [
-      {
-        id: makeId(),
-        role: "assistant",
-        kind: "accordion",
-        title: "Sam 👩🏻‍🦰",
-        subtitle: "Getting started",
-        sections: [
-          {
-            id: makeId(),
-            kind: "text",
-            title: "Welcome",
-            pill: "intro",
-            content: SAM_INTRO,
-            open: true,
-          },
-        ],
-        isStreaming: false,
-      } as any,
-    ],
-  };
-}
-
-function isVisualizationRequest(text: string) {
-  const t = (text || "").toLowerCase();
-  return (
-    t.includes("visual") ||
-    t.includes("visualize") ||
-    t.includes("visualization") ||
-    t.includes("graph") ||
-    t.includes("chart") ||
-    t.includes("plot")
-  );
-}
-
 export default function ChatbotPage() {
   const dispatch = useAppDispatch();
   const threads = useAppSelector(
@@ -143,6 +45,8 @@ export default function ChatbotPage() {
   const [isSending, setIsSending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const uploadMsgIdRef = useRef<string | null>(null);
+  const [typewriterEnabled, setTypewriterEnabled] = useState<boolean>(true);
+  const [typewriterActive, setTypewriterActive] = useState<boolean>(false);
 
   const abortCtrlRef = useRef<AbortController | null>(null);
   const threadsRef = useRef<ChatThread[]>(threads);
@@ -162,6 +66,15 @@ export default function ChatbotPage() {
       );
     }
   }, [dispatch, threads.length]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "matchMedia" in window) {
+      const reduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      setTypewriterEnabled(!reduced);
+    }
+  }, []);
 
   const activeThread = threads.find((t) => t.id === activeId) ?? null;
 
@@ -194,29 +107,65 @@ export default function ChatbotPage() {
       };
     });
   };
-
-  const buildUploadResponseContent = (
-    uploaded: any,
-    fileName: string,
-    sessionId: string,
-  ) => {
-    const lines = [
-      `File: **${fileName}**`,
-      `Session ID: **${sessionId}**`,
-      uploaded?.workflow_state
-        ? `Workflow state: **${uploaded.workflow_state}**`
-        : null,
-      uploaded?.type ? `Type: **${uploaded.type}**` : null,
-    ].filter(Boolean);
-
-    const details =
-      uploaded && typeof uploaded === "object"
-        ? `\n\n\`\`\`json\n${JSON.stringify(uploaded, null, 2)}\n\`\`\``
-        : "";
-
-    return `${lines.join("\n")}${details}`;
+  /** Find the latest assistant message tagged as the upload bubble. */
+  const findLatestUploadMsg = (threadId: string) => {
+    const t = threadsRef.current.find((x) => x.id === threadId);
+    if (!t) return null;
+    const msgs = (t.messages ?? []).filter(
+      (m: any) => m?.role === "assistant" && m?.meta?.tag === "upload",
+    );
+    return msgs.length ? (msgs[msgs.length - 1] as any) : null;
   };
 
+  /** Patch a specific assistant message by id. */
+  const patchAssistantMessage = (
+    threadId: string,
+    messageId: string,
+    patch: (m: ChatMessage & { role: "assistant" }) => ChatMessage,
+  ) => {
+    mutateThread(threadId, (t) => ({
+      ...t,
+      updatedAt: Date.now(),
+      messages: t.messages.map((m: any) =>
+        m.id === messageId ? patch(m as any) : m,
+      ),
+    }));
+  };
+
+  /** Upsert OR patch-by-tag fallback (if id went missing). */
+  const upsertOrPatchUploadMsg = (
+    threadId: string,
+    messageId: string,
+    makeMsg: () => ChatMessage,
+    patch: (m: ChatMessage & { role: "assistant" }) => ChatMessage,
+  ) => {
+    const t = threadsRef.current.find((x) => x.id === threadId);
+    if (!t) {
+      // Thread gone; just ignore safely
+      return;
+    }
+    const has = t.messages.some((m) => m.id === messageId);
+    if (has) {
+      patchAssistantMessage(threadId, messageId, patch);
+      return;
+    }
+    // Fallback: find by tag
+    const existing = findLatestUploadMsg(threadId);
+    if (existing) {
+      patchAssistantMessage(threadId, existing.id, patch);
+      return;
+    }
+    // Last resort: upsert a new one (should rarely happen)
+    upsertAssistantMessage(threadId, makeMsg());
+  };
+
+  /** Small utilities to let UI commit before we start stream */
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const nextFrame = () =>
+    new Promise<void>((r) => {
+      if (typeof window === "undefined") return r();
+      requestAnimationFrame(() => r());
+    });
   const onNewChat = () => {
     const t = createNewThread();
     const current = threadsRef.current;
@@ -531,6 +480,7 @@ export default function ChatbotPage() {
 
     const list = Array.from(files);
 
+    // Build UI file list (unchanged)
     const newItems: UploadedFile[] = await Promise.all(
       list.map(async (f) => {
         const item: UploadedFile = {
@@ -540,20 +490,17 @@ export default function ChatbotPage() {
           size: f.size,
           lastModified: f.lastModified,
         };
-
         const isTextLike =
           f.type.startsWith("text/") ||
           f.name.endsWith(".json") ||
           f.name.endsWith(".csv") ||
           f.name.endsWith(".md") ||
           f.name.endsWith(".txt");
-
         if (isTextLike && f.size <= 200_000) {
           try {
             item.textPreview = (await f.text()).slice(0, 900);
           } catch {}
         }
-
         return item;
       }),
     );
@@ -567,13 +514,15 @@ export default function ChatbotPage() {
     const file = list[0];
 
     try {
-      const uploadMsgId = makeId();
-      uploadMsgIdRef.current = uploadMsgId;
+      // Guard against concurrent actions
       setIsUploading(true);
+
+      // Fresh abort controller for upload
       abortCtrlRef.current?.abort();
       const ctrl = new AbortController();
       abortCtrlRef.current = ctrl;
 
+      // Ensure session id on thread
       const session_id = ensureSessionId(activeThread);
 
       mutateThread(activeThread.id, (t) => ({
@@ -585,6 +534,10 @@ export default function ChatbotPage() {
         upload_error: null,
         upload_response: null,
       }));
+
+      // 1) Create the initial "Uploading..." bubble (TAGGED as 'upload')
+      const uploadMsgId = makeId();
+      uploadMsgIdRef.current = uploadMsgId;
 
       upsertAssistantMessage(activeThread.id, {
         id: uploadMsgId,
@@ -603,8 +556,10 @@ export default function ChatbotPage() {
           },
         ],
         isStreaming: true,
+        meta: { status: "uploading", tag: "upload" }, // 👈 tag + uploading
       } as any);
 
+      // 2) Do the upload
       const uploaded = await uploadEclFile(
         { session_id, file },
         ctrl.signal,
@@ -614,12 +569,14 @@ export default function ChatbotPage() {
       const finalSession = uploaded.session_id ?? session_id;
       const finalFileName = uploaded.file_name ?? file.name;
 
+      // Prebuild content for the success message body
       const uploadResponseContent = buildUploadResponseContent(
         uploaded,
         finalFileName,
         finalSession,
       );
 
+      // Update the thread-level upload state first
       mutateThread(activeThread.id, (t) => ({
         ...t,
         updatedAt: Date.now(),
@@ -628,41 +585,75 @@ export default function ChatbotPage() {
         has_uploaded_file: true,
         upload_status: "success",
         upload_response: uploaded ?? null,
+        upload_error: null,
       }));
 
-      const successMsgId = uploadMsgIdRef.current ?? makeId();
-      upsertAssistantMessage(activeThread.id, {
-        id: successMsgId,
-        role: "assistant",
-        kind: "accordion",
-        title: "Upload complete ✅",
-        subtitle: "I’ll start the calculations now…",
-        actions: [],
-        sections: [
-          {
-            id: makeId(),
-            kind: "text",
-            title: "Uploaded",
-            pill: "upload",
-            open: true,
-            content: `Nice, I received **${finalFileName}**.\nStarting calculations now…`,
-          },
-          {
-            id: makeId(),
-            kind: "text",
-            title: "Upload response",
-            pill: "result",
-            open: true,
-            content: uploadResponseContent,
-          },
-        ],
-        isStreaming: false,
-      } as any);
+      // 3) ✅ Patch the SAME upload bubble to SUCCESS
+      const successPatch = (m: ChatMessage & { role: "assistant" }) =>
+        ({
+          ...m,
+          title: "Upload complete",
+          subtitle: finalFileName,
+          sections: [
+            {
+              id: makeId(),
+              kind: "text",
+              title: "Uploaded",
+              pill: "upload",
+              open: true,
+              content: `Nice, I received **${finalFileName}**.\nStarting calculations now…`,
+            },
+            {
+              id: makeId(),
+              kind: "text",
+              title: "Upload response",
+              pill: "result",
+              open: true,
+              content: uploadResponseContent,
+            },
+          ],
+          isStreaming: false,
+          meta: { ...(m as any).meta, status: "success", tag: "upload" }, // 👈 success + tag
+        }) as any;
 
-      // ✅ auto run stream
+      upsertOrPatchUploadMsg(
+        activeThread.id,
+        uploadMsgIdRef.current!,
+        // makeMsg only used if fallback creation is needed
+        () =>
+          ({
+            id: uploadMsgIdRef.current!,
+            role: "assistant",
+            kind: "accordion",
+            title: "Upload complete",
+            subtitle: finalFileName,
+            actions: [],
+            sections: [
+              {
+                id: makeId(),
+                kind: "text",
+                title: "Uploaded",
+                pill: "upload",
+                open: true,
+                content: `Nice, I received **${finalFileName}**.\nStarting calculations now…`,
+              },
+            ],
+            isStreaming: false,
+            meta: { status: "success", tag: "upload" },
+          }) as any,
+        successPatch,
+      );
+
+      // 4) Give React/Redux a frame to commit the icon flip BEFORE we start stream
+      await nextFrame();
+      await wait(10);
+
+      // 5) Auto run the stream after upload visibly succeeded
       await runStream(activeThread.id, finalSession, "start");
     } catch (e: any) {
       const errorMessage = String(e?.message ?? e ?? "Upload error");
+
+      // Update thread-level status
       mutateThread(activeThread.id, (t) => ({
         ...t,
         updatedAt: Date.now(),
@@ -670,26 +661,56 @@ export default function ChatbotPage() {
         upload_error: errorMessage,
       }));
 
-      const failMsgId = uploadMsgIdRef.current ?? makeId();
-      upsertAssistantMessage(activeThread.id, {
-        id: failMsgId,
-        role: "assistant",
-        kind: "accordion",
-        title: "Upload failed",
-        subtitle: "Let’s try again",
-        sections: [
-          {
-            id: makeId(),
-            kind: "text",
-            title: "Error",
-            pill: "error",
-            open: true,
-            content: errorMessage,
-          },
-        ],
-        isStreaming: false,
-      } as any);
+      // Patch the SAME bubble to ERROR (by id or by tag)
+      const errorPatch = (m: ChatMessage & { role: "assistant" }) =>
+        ({
+          ...m,
+          title: "Upload failed",
+          subtitle: "Let’s try again",
+          sections: [
+            {
+              id: makeId(),
+              kind: "text",
+              title: "Error",
+              pill: "error",
+              open: true,
+              content: errorMessage,
+            },
+          ],
+          isStreaming: false,
+          meta: { ...(m as any).meta, status: "error", tag: "upload" },
+        }) as any;
 
+      const id = uploadMsgIdRef.current ?? makeId();
+
+      upsertOrPatchUploadMsg(
+        activeThread.id,
+        id,
+        () =>
+          ({
+            id,
+            role: "assistant",
+            kind: "accordion",
+            title: "Upload failed",
+            subtitle: "Let’s try again",
+            actions: [],
+            sections: [
+              {
+                id: makeId(),
+                kind: "text",
+                title: "Error",
+                pill: "error",
+                open: true,
+                content: errorMessage,
+              },
+            ],
+            isStreaming: false,
+            meta: { status: "error", tag: "upload" },
+          }) as any,
+        errorPatch,
+      );
+
+      // Optional: mark no uploaded file
       mutateThread(activeThread.id, (t) => ({
         ...t,
         updatedAt: Date.now(),
@@ -697,6 +718,8 @@ export default function ChatbotPage() {
       }));
     } finally {
       setIsUploading(false);
+      // Keep the id around until after stream starts (or clear now if you prefer)
+      // uploadMsgIdRef.current = null;
     }
   };
 
@@ -918,10 +941,13 @@ export default function ChatbotPage() {
                 onSend(msg);
               }
             }}
+            typewriterEnabled={typewriterEnabled}
+            onTypewriterActiveChange={(v: boolean) => setTypewriterActive(v)}
+            sequentialAccordions={true}
           />
 
           <ChatComposer
-            disabled={isSending || isUploading}
+            disabled={isSending || isUploading || typewriterActive}
             filesCount={activeThread.files.length}
             onSend={onSend}
             onUploadFiles={onUploadFiles}

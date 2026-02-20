@@ -130,6 +130,11 @@ export type AssistantMsg = ChatMessageBase & {
   sections: AssistantSection[];
   actions?: AssistantAction[];
   isStreaming?: boolean;
+  meta?: {
+    // optional UI metadata (e.g., upload status)
+    status?: string;
+    [key: string]: any;
+  };
 };
 
 export type ChatMessage = UserMsg | AssistantMsg;

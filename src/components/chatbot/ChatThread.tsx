@@ -1,386 +1,62 @@
 // # file: src/features/chatbot/components/ChatThread.tsx
-import React, { useMemo, useState, useEffect, useRef } from "react";
-import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { useMemo, useEffect, useRef, useState, useCallback } from "react";
+import {
+  CloudArrowUpIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+} from "@heroicons/react/24/outline";
+
 import type {
   ChatMessage,
   AssistantMsg,
   AssistantAction,
   AssistantSection,
 } from "../../pages/chatbot/chatbot.types";
-import { fmtForTableCell } from "../../pages/chatbot/useAiResponseStream";
+
 import { Markdown } from "./Markdown";
+import {
+  Bubble,
+  ActionButtons,
+  CompactCard,
+  WorkflowBar,
+  KeyValueTotals,
+  DataTable,
+} from "./ChatHelpers";
+
+import Typewriter from "../Typewriter";
 import CreditLossRateCharts from "../asa/graph/CreditLossRateCharts";
 
-async function exportToXlsx(payload: {
-  sheets: { name: string; rows: Record<string, any>[] }[];
-  suggestedName?: string;
-}) {
-  try {
-    const XLSX = await import("xlsx");
-    const wb = XLSX.utils.book_new();
-    (payload.sheets || []).forEach((sheet) => {
-      const ws = XLSX.utils.json_to_sheet(sheet.rows || []);
-      XLSX.utils.book_append_sheet(wb, ws, sheet.name || "Sheet");
-    });
-    const name = payload.suggestedName || "ecl_results.xlsx";
-    XLSX.writeFile(wb, name);
-  } catch (err) {
-    console.error("XLSX export failed:", err);
-    window.alert(
-      "XLSX export failed. Please ensure the 'xlsx' package is installed.",
-    );
-  }
+/** Typed sections we animate. */
+function isTextLikeSection(kind: string) {
+  return kind === "text" || kind === "summary";
 }
 
-function Bubble({
-  children,
-  align,
-  fullWidth,
-}: {
-  children: React.ReactNode;
-  align: "left" | "right";
-  fullWidth?: boolean;
-}) {
+/** Allow advance when workflow reports completion. */
+function isWorkflowDone(state: unknown) {
+  const s = String(state ?? "")
+    .toLowerCase()
+    .trim();
   return (
-    <div
-      className={align === "right" ? "flex justify-end" : "flex justify-start"}
-    >
-      <div
-        className={[
-          fullWidth ? "w-full" : "max-w-[900px]",
-          "rounded-2xl px-4 py-3",
-          align === "right"
-            ? "border border-yellow-500 text-gray-900"
-            : "bg-white text-gray-900",
-        ].join(" ")}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function ActionButtons({
-  msg,
-  onAction,
-}: {
-  msg: AssistantMsg;
-  onAction?: (action: AssistantAction) => void;
-}) {
-  const actions: AssistantAction[] = msg.actions ?? [];
-  if (!actions.length) return null;
-
-  const exportActions = actions.filter((a) => a.type === "export_xlsx");
-  const otherActions = actions.filter((a) => a.type !== "export_xlsx");
-
-  const [exportOpen, setExportOpen] = useState(false);
-  const exportRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (!exportRef.current) return;
-      if (!exportRef.current.contains(e.target as Node)) setExportOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  const base = "px-3 py-2 rounded-xl text-sm border flex items-center";
-
-  return (
-    <div className="flex flex-wrap gap-2 items-start relative">
-      {/* Export dropdown (single entry) */}
-      {exportActions.length > 0 && (
-        <div className="relative" ref={exportRef}>
-          <button
-            type="button"
-            className={`${base} bg-white border-gray-200 text-gray-700 hover:bg-gray-50`}
-            onClick={() => setExportOpen((s) => !s)}
-            aria-expanded={exportOpen}
-          >
-            <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
-            Export
-          </button>
-
-          {exportOpen && (
-            <div className="absolute left-0 mt-2 w-48 rounded-md border bg-white shadow-lg z-50 origin-top-left">
-              {exportActions.map((a) => (
-                <button
-                  key={a.id}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setExportOpen(false);
-                    if (a.payload?.sheets?.length) {
-                      void exportToXlsx(a.payload);
-                    } else {
-                      window.alert("No export data available yet.");
-                    }
-                  }}
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Other actions (links / send_message / generic) */}
-      {otherActions.map((a) => {
-        const variant = a.variant ?? "secondary";
-        const theme =
-          variant === "primary"
-            ? "bg-yellow-500 border-yellow-500 text-gray-900 hover:bg-yellow-400"
-            : variant === "ghost"
-              ? "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-              : "bg-gray-100 border-gray-200 text-gray-800 hover:bg-gray-200";
-        const cls = [
-          base,
-          theme,
-          a.disabled ? "opacity-50 cursor-not-allowed" : "",
-        ].join(" ");
-
-        if (a.href) {
-          return (
-            <a
-              key={a.id}
-              href={a.href}
-              className={cls}
-              {...(a.download ? { download: "" } : {})}
-              onClick={(e) => {
-                if (a.disabled) e.preventDefault();
-              }}
-            >
-              <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-              {a.label}
-            </a>
-          );
-        }
-
-        if (a.type === "send_message") {
-          return (
-            <button
-              key={a.id}
-              type="button"
-              disabled={!!a.disabled}
-              className={cls}
-              onClick={(e) => {
-                e.preventDefault();
-                if (a.disabled) return;
-                onAction?.(a);
-              }}
-            >
-              {a.label}
-            </button>
-          );
-        }
-
-        return (
-          <button
-            key={a.id}
-            type="button"
-            disabled={!!a.disabled}
-            className={cls}
-            onClick={(e) => e.preventDefault()}
-          >
-            {a.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function CompactCard({
-  title,
-  pill,
-  children,
-  openDefault,
-}: {
-  title: string;
-  pill?: string;
-  children: React.ReactNode;
-  openDefault?: boolean;
-}) {
-  const [open, setOpen] = useState(openDefault ?? true);
-
-  return (
-    <div className=" rounded-2xl bg-white overflow-hidden w-full">
-      <button
-        type="button"
-        onClick={() => setOpen((s) => !s)}
-        className="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-gray-50"
-      >
-        <div className="min-w-0 flex items-center gap-2">
-          <div className="text-sm font-semibold text-gray-900 truncate">
-            {title}
-          </div>
-          {pill ? (
-            <span className="text-[11px] px-2 py-0.5 rounded-full  text-gray-600 bg-white">
-              {pill}
-            </span>
-          ) : null}
-        </div>
-        <div className="text-xs text-gray-500">{open ? "▲" : "▼"}</div>
-      </button>
-
-      {open ? <div className="px-4 pb-4">{children}</div> : null}
-    </div>
-  );
-}
-
-function LiveChecklistCard({ text }: { text: string }) {
-  const lines = String(text || "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  if (!lines.length) return null;
-
-  return (
-    <div className="rounded-2xl  bg-gray-50 p-3">
-      <div className="text-xs font-semibold text-gray-700">Progress</div>
-      <div className="mt-2 space-y-1.5">
-        {lines.map((line, idx) => {
-          const parts = line.split(" ");
-          const first = parts[0] || "•";
-          const rest = line.slice(first.length).trim();
-
-          return (
-            <div key={idx} className="flex items-start gap-2">
-              <div className="mt-[1px] text-sm leading-none">{first}</div>
-              <div className="text-sm text-gray-800">{rest}</div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function WorkflowBar({
-  s,
-}: {
-  s: Extract<AssistantSection, { kind: "workflow" }>;
-}) {
-  const statusStyle = (st: string) => {
-    if (st === "done") return "bg-emerald-500 border-emerald-500";
-    if (st === "running") return "bg-yellow-500 border-yellow-500";
-    if (st === "error") return "bg-red-500 border-red-500";
-    return "bg-gray-200 border-gray-300";
-  };
-
-  return (
-    <div className="space-y-3">
-      {s.meta?.fileName ? (
-        <div className="text-xs text-gray-600">
-          File:{" "}
-          <span className="font-medium text-gray-900">{s.meta.fileName}</span>
-          {s.meta?.sessionId ? (
-            <span className="text-gray-400">
-              {" "}
-              · {String(s.meta.sessionId).slice(0, 8)}…
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-
-      {s.meta?.liveMessage ? (
-        <LiveChecklistCard text={s.meta.liveMessage} />
-      ) : null}
-
-      <div className="flex flex-wrap gap-2">
-        {s.steps.map((st) => (
-          <div
-            key={st.id}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl  bg-white"
-          >
-            <div
-              className={[
-                "w-2.5 h-2.5 rounded-full",
-                statusStyle(st.status),
-              ].join(" ")}
-            />
-            <div className="text-xs font-medium text-gray-800">{st.label}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function KeyValueTotals({ totals }: { totals?: Record<string, any> }) {
-  const entries = Object.entries(totals ?? {});
-  if (!entries.length) return null;
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-      {entries.map(([k, v]) => (
-        <div key={k} className="rounded-xl  bg-white px-3 py-2">
-          <div className="text-[11px] text-gray-500 truncate">{k}</div>
-          <div className="text-sm font-semibold text-gray-900 truncate">
-            {fmtForTableCell(v)}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DataTable({
-  columns,
-  rows,
-}: {
-  columns: string[];
-  rows: Record<string, any>[];
-}) {
-  return (
-    <div className=" rounded-2xl overflow-hidden w-full">
-      <div className="max-h-[280px] overflow-auto">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-gray-50">
-            <tr>
-              {columns.map((c) => (
-                <th
-                  key={c}
-                  className="text-left font-semibold text-gray-700 px-3 py-2 whitespace-nowrap"
-                >
-                  {c}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, idx) => (
-              <tr key={idx} className=" hover:bg-gray-50">
-                {columns.map((c) => (
-                  <td
-                    key={c}
-                    className="px-3 py-2 whitespace-nowrap text-gray-900"
-                  >
-                    {fmtForTableCell((r as any)[c])}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {!rows.length ? (
-          <div className="p-4 text-sm text-gray-500">No rows.</div>
-        ) : null}
-      </div>
-    </div>
+    s === "done" || s === "success" || s === "complete" || s === "completed"
   );
 }
 
 function SectionRenderer({
   section,
   onAction,
+  useTypewriter = true,
+  isNewestMessage = false,
+  isCurrent = false,
+  onTypewriterStart,
+  onTypewriterDone,
 }: {
   section: AssistantSection;
   onAction?: (action: AssistantAction) => void;
+  useTypewriter?: boolean;
+  isNewestMessage?: boolean;
+  isCurrent?: boolean; // current gated section
+  onTypewriterStart?: () => void;
+  onTypewriterDone?: () => void;
 }) {
   if (section.kind === "workflow") {
     return (
@@ -395,6 +71,8 @@ function SectionRenderer({
   }
 
   if (section.kind === "text") {
+    const content = String(section.content ?? "");
+    const shouldType = useTypewriter && isNewestMessage && isCurrent;
     return (
       <CompactCard
         title={section.title}
@@ -402,7 +80,22 @@ function SectionRenderer({
         openDefault={section.open ?? false}
       >
         <div className="text-sm text-gray-800 leading-relaxed">
-          <Markdown>{String(section.content ?? "")}</Markdown>
+          {shouldType ? (
+            <Typewriter
+              text={content}
+              enabled={true}
+              speed={10}
+              jitter={3}
+              // continueOnAppend is supported by the improved Typewriter.tsx I sent
+              // @ts-ignore
+              continueOnAppend={true}
+              renderText={(d) => <Markdown>{d}</Markdown>}
+              onStart={onTypewriterStart}
+              onDone={onTypewriterDone}
+            />
+          ) : (
+            <Markdown>{content}</Markdown>
+          )}
         </div>
       </CompactCard>
     );
@@ -429,6 +122,7 @@ function SectionRenderer({
     const cols =
       section.columns ??
       (section.rows?.[0] ? Object.keys(section.rows[0]) : []);
+
     const hasParData = cols.some(
       (col) =>
         col.toLowerCase().includes("par") ||
@@ -448,14 +142,11 @@ function SectionRenderer({
               onAction={onAction}
             />
           ) : null}
+
           <KeyValueTotals totals={section.totals} />
+
           {hasParData && section.rows?.length ? (
             <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-semibold text-gray-800 mb-3">
-                  Visualization
-                </h4>
-              </div>
               <div>
                 <h4 className="text-sm font-semibold text-gray-800 mb-3">
                   Data
@@ -484,6 +175,8 @@ function SectionRenderer({
   }
 
   if (section.kind === "summary") {
+    const content = String(section.content ?? "");
+    const shouldType = useTypewriter && isNewestMessage && isCurrent;
     return (
       <CompactCard
         title={section.title}
@@ -493,9 +186,24 @@ function SectionRenderer({
         <div className="space-y-4">
           {section.content ? (
             <div className="text-sm text-gray-800 leading-relaxed">
-              <Markdown>{String(section.content ?? "")}</Markdown>
+              {shouldType ? (
+                <Typewriter
+                  text={content}
+                  enabled={true}
+                  speed={10}
+                  jitter={3}
+                  // @ts-ignore
+                  continueOnAppend={true}
+                  renderText={(d) => <Markdown>{d}</Markdown>}
+                  onStart={onTypewriterStart}
+                  onDone={onTypewriterDone}
+                />
+              ) : (
+                <Markdown>{content}</Markdown>
+              )}
             </div>
           ) : null}
+
           {section.flowratePreview?.length ? (
             <div>
               <h4 className="text-sm font-semibold text-gray-800 mb-3">
@@ -507,6 +215,7 @@ function SectionRenderer({
               />
             </div>
           ) : null}
+
           {section.creditLossRatePreview?.length ? (
             <div>
               <h4 className="text-sm font-semibold text-gray-800 mb-3">
@@ -518,6 +227,7 @@ function SectionRenderer({
               />
             </div>
           ) : null}
+
           {section.chartData?.length ? (
             <div>
               <h4 className="text-sm font-semibold text-gray-800 mb-3">
@@ -537,20 +247,183 @@ function SectionRenderer({
 export function ChatThread({
   messages,
   onAction,
+  typewriterEnabled = true,
+  onTypewriterActiveChange,
+  sequentialAccordions = true, // default on
 }: {
   messages: ChatMessage[];
   onAction?: (action: AssistantAction) => void;
+  typewriterEnabled?: boolean;
+  onTypewriterActiveChange?: (active: boolean) => void;
+  sequentialAccordions?: boolean;
 }) {
   const list = useMemo(() => messages ?? [], [messages]);
+
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const isNearBottomRef = useRef(true);
 
+  /** Track active typewriter count so ChatbotPage can disable composer while typing. */
+  const activeCountRef = useRef(0);
+
+  const signalTypewriterStart = useCallback(() => {
+    activeCountRef.current += 1;
+    if (activeCountRef.current === 1) onTypewriterActiveChange?.(true);
+  }, [onTypewriterActiveChange]);
+
+  const signalTypewriterDone = useCallback(() => {
+    activeCountRef.current = Math.max(0, activeCountRef.current - 1);
+    if (activeCountRef.current === 0) onTypewriterActiveChange?.(false);
+  }, [onTypewriterActiveChange]);
+
+  /** Identify newest assistant message (we only gate + typewriter that one). */
+  const lastAssistantId = useMemo(() => {
+    for (let i = list.length - 1; i >= 0; i -= 1) {
+      const m: any = list[i];
+      if (m?.role === "assistant") return m.id as string;
+    }
+    return undefined;
+  }, [list]);
+
+  const newestAssistant = useMemo(() => {
+    if (!lastAssistantId) return null;
+    const found = list.find(
+      (m: any) => m?.role === "assistant" && m.id === lastAssistantId,
+    );
+    return (found as AssistantMsg) ?? null;
+  }, [list, lastAssistantId]);
+
+  const newestSections = (newestAssistant?.sections ??
+    []) as AssistantSection[];
+
+  /**
+   * ✅ IMPORTANT change:
+   * Gate the newest assistant message whether streaming or not.
+   * This lets us reveal sections sequentially even if backend sends everything at once.
+   */
+  const gatingOn = !!sequentialAccordions && !!lastAssistantId;
+
+  /** For gating: store gatedMsgId + visibleCount. */
+  const [gatedMsgId, setGatedMsgId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState<number>(0);
+
+  // Track previous gated message to avoid unnecessary resets
+  const prevGatedMsgIdRef = useRef<string | null>(null);
+
+  /**
+   * Initialize or reset gating ONLY when the newest assistant message id changes,
+   * or when gating is turned off completely.
+   */
+  useEffect(() => {
+    if (!gatingOn || !lastAssistantId) {
+      prevGatedMsgIdRef.current = null;
+      setGatedMsgId(null);
+      setVisibleCount(0);
+
+      // Ensure we don't leave typewriterActive stuck
+      activeCountRef.current = 0;
+      onTypewriterActiveChange?.(false);
+      return;
+    }
+
+    if (prevGatedMsgIdRef.current !== lastAssistantId) {
+      prevGatedMsgIdRef.current = lastAssistantId;
+      setGatedMsgId(lastAssistantId);
+      // Always start by revealing the first section (even if we already have many)
+      setVisibleCount(newestSections.length > 0 ? 1 : 0);
+
+      // Reset typewriter active when a new run starts
+      activeCountRef.current = 0;
+      onTypewriterActiveChange?.(false);
+    }
+  }, [
+    gatingOn,
+    lastAssistantId,
+    newestSections.length,
+    onTypewriterActiveChange,
+  ]);
+
+  /** Clamp visibleCount if the number of sections shrinks; keep as-is if it grows. */
+  useEffect(() => {
+    if (!gatingOn || !gatedMsgId) return;
+    setVisibleCount((c) => Math.min(c, newestSections.length));
+  }, [gatingOn, gatedMsgId, newestSections.length]);
+
+  /** Advance to next section (bounded). */
+  const advance = useCallback(() => {
+    if (!gatingOn || !gatedMsgId) return;
+    setVisibleCount((c) => Math.min(c + 1, newestSections.length));
+  }, [gatingOn, gatedMsgId, newestSections.length]);
+
+  /**
+   * Auto-advance non-text sections so we don't get stuck.
+   * Also auto-advance text-like sections when typewriter is disabled (reduced motion).
+   */
+  useEffect(() => {
+    if (!gatingOn || !gatedMsgId) return;
+    if (visibleCount <= 0) return;
+    if (visibleCount >= newestSections.length) return;
+
+    const currentIndex = visibleCount - 1;
+    const current = newestSections[currentIndex];
+    if (!current) return;
+
+    // Text-like sections:
+    if (isTextLikeSection(current.kind)) {
+      const content = String((current as any).content ?? "").trim();
+
+      // if empty, don't deadlock
+      if (content.length === 0) {
+        const t = setTimeout(() => advance(), 60);
+        return () => clearTimeout(t);
+      }
+
+      // if typewriter disabled (e.g., reduced motion), still do sequential:
+      if (!typewriterEnabled) {
+        const t = setTimeout(() => advance(), 140);
+        return () => clearTimeout(t);
+      }
+
+      // otherwise, wait for Typewriter onDone
+      return;
+    }
+
+    // Workflow: advance only if done
+    if (current.kind === "workflow") {
+      if (isWorkflowDone(current.meta?.state)) {
+        const t = setTimeout(() => advance(), 150);
+        return () => clearTimeout(t);
+      }
+      return;
+    }
+
+    // Other kinds: short dwell for smooth pacing
+    const dwell = current.kind === "thinking" ? 220 : 140;
+    const t = setTimeout(() => advance(), dwell);
+    return () => clearTimeout(t);
+  }, [
+    gatingOn,
+    gatedMsgId,
+    visibleCount,
+    newestSections,
+    advance,
+    typewriterEnabled,
+  ]);
+
+  /** Smooth auto-scroll if user is near bottom. */
   useEffect(() => {
     if (isNearBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [list.length]);
+
+  /** Cleanup: don't leave "typing active" stuck true on unmount. */
+  useEffect(() => {
+    return () => {
+      activeCountRef.current = 0;
+      onTypewriterActiveChange?.(false);
+    };
+  }, [onTypewriterActiveChange]);
 
   return (
     <div
@@ -575,14 +448,38 @@ export function ChatThread({
         }
 
         const am = m as AssistantMsg;
+        const isNewestMessage = am.id === lastAssistantId;
+        const allSections = (am.sections ?? []) as AssistantSection[];
+
+        /** Apply sequential gating ONLY to newest assistant message (streaming or not). */
+        const shouldGate = gatingOn && isNewestMessage && gatedMsgId === am.id;
+
+        /** Hide upcoming sections (hindi muna magpakita). */
+        const shownSections = shouldGate
+          ? allSections.slice(
+              0,
+              Math.max(0, Math.min(visibleCount, allSections.length)),
+            )
+          : allSections;
 
         return (
           <Bubble key={am.id} align="left" fullWidth>
             <div className="space-y-3 w-full">
               <div className="min-w-0">
-                <div className="text-sm font-semibold">
-                  {am.title ?? "Assistant"}
+                <div className="flex items-center gap-2">
+                  {am.meta?.status === "uploading" ? (
+                    <CloudArrowUpIcon className="h-5 w-5 text-yellow-500" />
+                  ) : am.meta?.status === "success" ? (
+                    <CheckCircleIcon className="h-5 w-5 text-emerald-500" />
+                  ) : am.meta?.status === "error" ? (
+                    <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
+                  ) : null}
+
+                  <div className="text-sm font-semibold">
+                    {am.title ?? "Assistant"}
+                  </div>
                 </div>
+
                 {am.subtitle ? (
                   <div className="text-xs text-gray-500">
                     {am.subtitle}
@@ -594,15 +491,38 @@ export function ChatThread({
               <ActionButtons msg={am} onAction={onAction} />
 
               <div className="space-y-2 w-full">
-                {(am.sections ?? []).map((s: any) => (
-                  <SectionRenderer key={s.id} section={s} onAction={onAction} />
-                ))}
+                {shownSections.map((s: any, idx: number) => {
+                  // Current gated section = last visible one
+                  const isCurrent =
+                    shouldGate && idx === shownSections.length - 1;
+
+                  const handleDone = () => {
+                    signalTypewriterDone();
+                    // Reveal next when the current typed section finishes.
+                    if (shouldGate) advance();
+                  };
+
+                  return (
+                    <SectionRenderer
+                      key={s.id}
+                      section={s}
+                      onAction={onAction}
+                      useTypewriter={typewriterEnabled}
+                      isNewestMessage={isNewestMessage}
+                      isCurrent={isCurrent}
+                      onTypewriterStart={signalTypewriterStart}
+                      onTypewriterDone={handleDone}
+                    />
+                  );
+                })}
               </div>
             </div>
           </Bubble>
         );
       })}
+
       <div ref={bottomRef} />
     </div>
   );
 }
+``;

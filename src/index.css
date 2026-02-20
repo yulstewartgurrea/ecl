@@ -38,6 +38,18 @@
   }
 }
 
+
+.reveal {
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.reveal.reveal--in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+
 .rotate-in {
   animation: rotateIn 0.2s forwards;
 }
