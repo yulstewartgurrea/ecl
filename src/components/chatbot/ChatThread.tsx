@@ -372,21 +372,18 @@ export function ChatThread({
 
   /** Keep scrolling to bottom while typing is active so the composer stays in view. */
   useEffect(() => {
-    let rafId: number | null = null;
-    const loop = () => {
-      if (isNearBottomRef.current) {
-        bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
-      }
-      rafId = requestAnimationFrame(loop);
-    };
-
-    if (typingActive) {
-      // start loop
-      rafId = requestAnimationFrame(loop);
+    // Throttle scroll updates while typing to reduce jank
+    let intervalId: number | null = null;
+    if (typingActive && typeof window !== "undefined") {
+      intervalId = window.setInterval(() => {
+        if (isNearBottomRef.current) {
+          bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+        }
+      }, 120);
     }
 
     return () => {
-      if (rafId) cancelAnimationFrame(rafId);
+      if (intervalId) window.clearInterval(intervalId);
       // final smooth align when typing stops
       if (!typingActive && isNearBottomRef.current) {
         bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
