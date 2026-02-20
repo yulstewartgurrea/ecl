@@ -19,7 +19,9 @@ const persistConfig = {
     "finalModelExecutionFile",
     "historicalWeightedCreditLossRateFile",
     "flowrateStep3",
-    "moduleProgress"
+    "moduleProgress",
+    // Persist workflow (chatbot threads, messages, last_artifacts)
+    "workflow",
   ],
 };
 

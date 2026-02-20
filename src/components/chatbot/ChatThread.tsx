@@ -1,5 +1,6 @@
 // # file: src/features/chatbot/components/ChatThread.tsx
 import React, { useMemo, useState, useEffect, useRef } from "react";
+import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import type {
   ChatMessage,
   AssistantMsg,
@@ -69,14 +70,68 @@ function ActionButtons({
   const actions: AssistantAction[] = msg.actions ?? [];
   if (!actions.length) return null;
 
+  const exportActions = actions.filter((a) => a.type === "export_xlsx");
+  const otherActions = actions.filter((a) => a.type !== "export_xlsx");
+
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!exportRef.current) return;
+      if (!exportRef.current.contains(e.target as Node)) setExportOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const base = "px-3 py-2 rounded-xl text-sm border flex items-center";
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {actions.map((a) => {
-        const base = "px-3 py-2 rounded-xl text-sm border";
+    <div className="flex flex-wrap gap-2 items-start relative">
+      {/* Export dropdown (single entry) */}
+      {exportActions.length > 0 && (
+        <div className="relative" ref={exportRef}>
+          <button
+            type="button"
+            className={`${base} bg-white border-gray-200 text-gray-700 hover:bg-gray-50`}
+            onClick={() => setExportOpen((s) => !s)}
+            aria-expanded={exportOpen}
+          >
+            <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
+            Export
+          </button>
+
+          {exportOpen && (
+            <div className="absolute left-0 mt-2 w-48 rounded-md border bg-white shadow-lg z-50 origin-top-left">
+              {exportActions.map((a) => (
+                <button
+                  key={a.id}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setExportOpen(false);
+                    if (a.payload?.sheets?.length) {
+                      void exportToXlsx(a.payload);
+                    } else {
+                      window.alert("No export data available yet.");
+                    }
+                  }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Other actions (links / send_message / generic) */}
+      {otherActions.map((a) => {
         const variant = a.variant ?? "secondary";
         const theme =
           variant === "primary"
-            ? "bg-yellow-500 border-yellow-500 text-gray-900 hover:bg-yellow-200"
+            ? "bg-yellow-500 border-yellow-500 text-gray-900 hover:bg-yellow-400"
             : variant === "ghost"
               ? "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
               : "bg-gray-100 border-gray-200 text-gray-800 hover:bg-gray-200";
@@ -97,30 +152,9 @@ function ActionButtons({
                 if (a.disabled) e.preventDefault();
               }}
             >
-              👩🏻‍🦰 {a.label}
+              <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+              {a.label}
             </a>
-          );
-        }
-
-        if (a.type === "export_xlsx") {
-          return (
-            <button
-              key={a.id}
-              type="button"
-              disabled={!!a.disabled}
-              className={cls}
-              onClick={(e) => {
-                e.preventDefault();
-                if (a.disabled) return;
-                if (a.payload?.sheets?.length) {
-                  void exportToXlsx(a.payload);
-                } else {
-                  window.alert("No export data available yet.");
-                }
-              }}
-            >
-              👩🏻‍🦰 {a.label}
-            </button>
           );
         }
 
@@ -137,12 +171,11 @@ function ActionButtons({
                 onAction?.(a);
               }}
             >
-              👩🏻‍🦰 {a.label}
+              {a.label}
             </button>
           );
         }
 
-        // no other non-link actions needed now s
         return (
           <button
             key={a.id}
@@ -151,7 +184,7 @@ function ActionButtons({
             className={cls}
             onClick={(e) => e.preventDefault()}
           >
-            👩🏻‍🦰 {a.label}
+            {a.label}
           </button>
         );
       })}
