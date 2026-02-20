@@ -313,12 +313,7 @@ export default function ChatbotPage() {
         });
         if (!built) return;
         if (built.workflowState === "done") stopStreaming = true;
-        console.log("Render called", {
-          streaming,
-          workflowState: built.workflowState,
-          title: built.title,
-          subtitle: built.subtitle,
-        });
+        // render called (stream update) — keep silent in production
         mutateThread(threadId, (t) => {
           let forcedWorkflowState = built.workflowState;
           return {

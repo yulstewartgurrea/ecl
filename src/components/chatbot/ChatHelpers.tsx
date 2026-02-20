@@ -377,7 +377,11 @@ export function DataTable({
                           enabled={true}
                           speed={typewriterSpeed}
                           jitter={typewriterJitter}
-                          ariaLive="polite"
+                          // aria-live off for table cells to avoid noisy screenreader output
+                          ariaLive="off"
+                          // preserve append behavior for streaming updates
+                          // @ts-ignore continueOnAppend exists on Typewriter
+                          continueOnAppend={true}
                           className="inline"
                         />
                       ) : (

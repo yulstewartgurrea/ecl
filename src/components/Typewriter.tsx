@@ -1,22 +1,16 @@
 // # file: src/features/chatbot/components/Typewriter.tsx
-import React, { useEffect, useRef, useState, useImperativeHandle } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useImperativeHandle,
+  forwardRef,
+  memo,
+} from "react";
 
 export type TypewriterHandle = { finish: () => void };
 
-export default function Typewriter({
-  text,
-  enabled = true,
-  speed = 8, // slightly smoother default
-  jitter = 3, // small jitter so it feels organic
-  onDone,
-  onStart,
-  className,
-  innerClassName,
-  forwardRef,
-  renderText,
-  ariaLive = "polite",
-  continueOnAppend = true, // ✅ NEW: don't restart when text grows
-}: {
+type Props = {
   text: string;
   enabled?: boolean;
   speed?: number; // ms per char
@@ -25,11 +19,28 @@ export default function Typewriter({
   onStart?: () => void;
   className?: string;
   innerClassName?: string;
-  forwardRef?: React.Ref<TypewriterHandle | null>;
   renderText?: (displayed: string) => React.ReactNode;
   ariaLive?: "polite" | "off";
   continueOnAppend?: boolean;
-}) {
+  cursor?: boolean;
+};
+
+function TypewriterInner(
+  {
+    text,
+    enabled = true,
+    speed = 8,
+    jitter = 3,
+    onDone,
+    onStart,
+    className,
+    innerClassName,
+    renderText,
+    ariaLive = "polite",
+    continueOnAppend = true,
+  }: Props,
+  ref: React.Ref<TypewriterHandle | null>,
+) {
   const prefersReduced = useRef(false);
   const [displayed, setDisplayed] = useState("");
   const idxRef = useRef(0);
@@ -37,24 +48,19 @@ export default function Typewriter({
   const lastTimeRef = useRef<number | null>(null);
   const accRef = useRef(0);
 
-  // Keep both last text and current text refs
   const textRef = useRef(text || "");
   const prevTextRef = useRef(text || "");
   const startedRef = useRef(false);
 
-  useImperativeHandle(forwardRef, () => ({
+  useImperativeHandle(ref, () => ({
     finish: () => {
-      cancelLoop();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
       idxRef.current = textRef.current.length;
       setDisplayed(textRef.current);
       onDone?.();
     },
   }));
-
-  function cancelLoop() {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-  }
 
   useEffect(() => {
     if (typeof window !== "undefined" && "matchMedia" in window) {
@@ -68,13 +74,13 @@ export default function Typewriter({
     const newText = text ?? "";
     const oldText = textRef.current;
 
-    // Update refs
     prevTextRef.current = oldText;
     textRef.current = newText;
 
-    // Reduced motion or disabled -> show instantly
+    // If reduced motion or disabled: render instantly but still trigger onDone
     if (!enabled || prefersReduced.current) {
-      cancelLoop();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
       startedRef.current = false;
       idxRef.current = newText.length;
       setDisplayed(newText);
@@ -82,29 +88,24 @@ export default function Typewriter({
       return;
     }
 
-    // Decide whether to reset
     const appended =
       continueOnAppend &&
       oldText.length > 0 &&
       newText.length >= oldText.length &&
       newText.startsWith(oldText);
 
-    // If content was rewritten (not appended), reset index
     if (!appended && idxRef.current > newText.length) {
       idxRef.current = 0;
       accRef.current = 0;
       lastTimeRef.current = null;
       startedRef.current = false;
-      setDisplayed(""); // hard reset
+      setDisplayed("");
     }
 
-    // If appended, DO NOT reset idx; just keep going.
-    // If we were still typing oldText, keep idx as-is.
-    // Clamp to new length for safety:
     idxRef.current = Math.min(idxRef.current, newText.length);
 
-    // Start loop (restart safely)
-    cancelLoop();
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
     const step = (t: number) => {
       if (!startedRef.current) {
         startedRef.current = true;
@@ -128,12 +129,12 @@ export default function Typewriter({
           textRef.current.length,
           idxRef.current + advance,
         );
-
         const next = textRef.current.slice(0, idxRef.current);
         setDisplayed(next);
 
         if (idxRef.current >= textRef.current.length) {
-          cancelLoop();
+          if (rafRef.current) cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
           onDone?.();
           return;
         }
@@ -145,7 +146,8 @@ export default function Typewriter({
     rafRef.current = requestAnimationFrame(step);
 
     return () => {
-      cancelLoop();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     };
   }, [text, enabled, speed, jitter, onDone, onStart, continueOnAppend]);
 
@@ -159,3 +161,7 @@ export default function Typewriter({
     </span>
   );
 }
+
+const Typewriter = memo(forwardRef(TypewriterInner));
+
+export default Typewriter;
