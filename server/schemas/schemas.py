@@ -44,7 +44,9 @@ class DocumentBase(BaseModel):
     version: Optional[int] = None
     workflow_path: str
 class DocumentCreate(DocumentBase):
-    pass
+    # Optional for backward compatibility with older clients.
+    # If omitted, the server will attempt to infer it from workflow_path.
+    workflow_id: Optional[int] = None
 
 class DocumentResponse(DocumentBase):
     id: int

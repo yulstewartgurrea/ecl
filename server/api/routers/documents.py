@@ -49,7 +49,10 @@ def insert_documents(
 ):
     created_documents = []
     for document in documents:
-        created = create_document(db=db, document=document, user_id=current_user.id)
+        try:
+            created = create_document(db=db, document=document, user_id=current_user.id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         created_documents.append(created)
     return created_documents
 
