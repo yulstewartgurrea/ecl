@@ -307,7 +307,7 @@ export default function ChatbotPage() {
       let stopStreaming = false;
 
       const render = (streaming: boolean) => {
-        const built = buildAccordionFromEvents(allEvents, makeId, {
+        const built = buildAccordionFromEvents(allEvents, {
           showWorkflow: true,
           showTables: true,
         });
@@ -782,7 +782,7 @@ export default function ChatbotPage() {
       // Visualization mode: show chart, hide tables & summary
       const wantsViz = isVisualizationRequest(text);
 
-      const built = buildAccordionFromEvents(events, makeId, {
+      const built = buildAccordionFromEvents(events, {
         showWorkflow: false,
         showTables: !wantsViz,
         showVisualization: wantsViz,
@@ -816,7 +816,6 @@ export default function ChatbotPage() {
                   artifacts: fallbackArtifacts,
                 } as any,
               ],
-              makeId,
               {
                 showWorkflow: false,
                 showTables: false,

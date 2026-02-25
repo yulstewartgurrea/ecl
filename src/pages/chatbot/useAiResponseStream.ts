@@ -279,7 +279,6 @@ function looksLikeStream(events: StreamEvent[]) {
 
 export function buildAccordionFromEvents(
   events: StreamEvent[],
-  makeId: () => string, // kept for compatibility
   opts?: BuildOpts,
 ) {
   const showWorkflow = opts?.showWorkflow ?? looksLikeStream(events || []);
@@ -298,8 +297,6 @@ export function buildAccordionFromEvents(
   let answerSoFar = ""; // was latestAnswer
   let flowrate: any = null;
   let creditLossRate: any = null;
-  let directPreview: any = null;
-  let previewTotals: any = null;
   let summaryText = "";
   let excelPathOrUrl = "";
   let exportPayload: ExportPayload | null = null;
@@ -440,11 +437,6 @@ export function buildAccordionFromEvents(
           flowrate = { preview: art.preview, totals: art.totals } as any;
           lastOutput = "flowrate";
         }
-      }
-
-      if (art?.preview?.length) {
-        directPreview = art.preview;
-        previewTotals = art.totals;
       }
 
       if (workflowState === "done") {
