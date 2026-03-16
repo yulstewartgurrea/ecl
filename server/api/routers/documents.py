@@ -686,11 +686,6 @@ def get_consolidated_rows_only(
     existing = db.query(JsonData).filter(JsonData.workflow_path == workflow_path, JsonData.name == name).first()
 
     combined_data: list = []
-    desired_fields = [
-        "report_date", "loan_segment", "cis_number", "pn_number",
-        "loan_amount", "outstanding_balance", "amortization", "booking_date", "dpd"
-    ]
-
     try:
         # Build combined_data from each latest Document.json_data
         for record in records:
@@ -718,12 +713,17 @@ def get_consolidated_rows_only(
                 # unknown structure, skip
                 continue
 
-            # Filter only desired fields per row
+            # Filter only desired fields per row (include dimension cols if present in upload)
+            core = ["report_date", "loan_segment", "cis_number", "pn_number",
+                    "loan_amount", "outstanding_balance", "amortization", "booking_date", "dpd"]
+            dim_cols = ["economic_activity", "branch", "monthly_income_range", "age"]
             for row in rows:
-                # row might not be a dict, guard
                 if not isinstance(row, dict):
                     continue
-                filtered_row = {k: row.get(k) for k in desired_fields}
+                filtered_row = {k: row.get(k) for k in core}
+                for k in dim_cols:
+                    if k in row and row.get(k) is not None:
+                        filtered_row[k] = row[k]
                 combined_data.append(filtered_row)
 
         if not combined_data:
@@ -1206,6 +1206,10 @@ def bucket_dpd_everbad(
         if not required_columns.issubset(df.columns):
             return JSONResponse(status_code=400, content={"detail": f"Missing required columns: {required_columns - set(df.columns)}"})
 
+        # Preserve dimension columns for Step 11 filters (Industry, Branch, Income class, Age)
+        dim_cols = [c for c in ["economic_activity", "branch", "monthly_income_range", "age"] if c in df.columns]
+        dim_first = df.groupby(["pn_number", "loan_segment"])[dim_cols].first().reset_index() if dim_cols else None
+
         df.replace(["", None], pd.NA, inplace=True)
         df["report_date"] = pd.to_datetime(df["report_date"], format="%d/%m/%Y", errors="coerce")
         df.dropna(subset=["report_date"], inplace=True)
@@ -1218,7 +1222,10 @@ def bucket_dpd_everbad(
             aggfunc="first"
         ).reset_index()
 
-        date_columns = sorted([col for col in pivot_df.columns if col not in {"pn_number", "loan_segment"}])
+        if dim_first is not None:
+            pivot_df = pivot_df.merge(dim_first, on=["pn_number", "loan_segment"], how="left")
+
+        date_columns = sorted([col for col in pivot_df.columns if col not in {"pn_number", "loan_segment"} and col not in dim_cols])
         for col in date_columns:
             pivot_df[col] = pd.to_numeric(pivot_df[col], errors="coerce")
 
@@ -1431,14 +1438,49 @@ def calculate_odr(
         bad_count = len(turned_bad_accounts)
         odr = round((bad_count / good_count) * 100, 2) if good_count > 0 else 0.0
 
-        results.append({
+        result_item = {
             "Observation point": obs,
             "Start of performance window": start,
             "End of performance window": end,
             "Number of Good": good_count,
             "Number of Good that turned Bad": bad_count,
             "ODR": f"{odr:.2f}%"
-        })
+        }
+
+        # Breakdowns for Step 11 filters (Industry, Branch, Income class, Age)
+        breakdown_config = [
+            ("economic_activity", "economic_activity_breakdown", "economic_activity"),
+            ("branch", "branch_breakdown", "branch"),
+            ("monthly_income_range", "monthly_income_range_breakdown", "monthly_income_range"),
+            ("age", "age_breakdown", "age"),
+        ]
+        for dim_key, breakdown_key, label_key in breakdown_config:
+            if not filtered_good_payload or dim_key not in filtered_good_payload[0]:
+                continue
+            by_cat: Dict[str, List[Dict[str, Any]]] = {}
+            for row in filtered_good_payload:
+                cat = row.get(dim_key)
+                if cat is None or (isinstance(cat, float) and pd.isna(cat)):
+                    cat = ""
+                cat = str(cat).strip()
+                if cat not in by_cat:
+                    by_cat[cat] = []
+                by_cat[cat].append(row)
+            breakdown_list = []
+            for cat, group in by_cat.items():
+                pns_in_cat = set(r.get("pn_number") for r in group)
+                good_cat = len(pns_in_cat)
+                bad_cat = len(pns_in_cat & turned_bad_accounts)
+                odr_cat = round((bad_cat / good_cat) * 100, 2) if good_cat > 0 else 0.0
+                breakdown_list.append({
+                    label_key: cat,
+                    "Number of Good": good_cat,
+                    "Number of Good that turned Bad": bad_cat,
+                    "ODR": f"{odr_cat:.2f}%"
+                })
+            result_item[breakdown_key] = breakdown_list
+
+        results.append(result_item)
 
     # Save or update cache
     if existing:
@@ -1490,7 +1532,9 @@ def migration_matrix(
 
     # Original migration-matrix processing (unchanged)
     df = pd.DataFrame(rows_to_use)
-    date_cols = [col for col in df.columns if col not in ["pn_number", "loan_segment"]]
+    # Exclude dimension columns (from Step 11 filters); only date columns go into migration matrix
+    non_date_cols = {"pn_number", "loan_segment", "economic_activity", "branch", "monthly_income_range", "age"}
+    date_cols = [col for col in df.columns if col not in non_date_cols]
     date_cols_sorted = sorted(date_cols, key=pd.to_datetime)
     if len(date_cols_sorted) < 2:
         return {"error": "Payload must contain at least two date columns"}
@@ -1614,7 +1658,8 @@ def migration_matrix_percentage(
         return []
 
     df = pd.DataFrame(row_data)
-    date_cols = [col for col in df.columns if col not in ["pn_number", "loan_segment"]]
+    non_date_cols = {"pn_number", "loan_segment", "economic_activity", "branch", "monthly_income_range", "age"}
+    date_cols = [col for col in df.columns if col not in non_date_cols]
     if len(date_cols) < 2:
         return {"error": "Need at least two dates to calculate migration."}
     date_cols = sorted(date_cols, key=lambda x: pd.to_datetime(x))

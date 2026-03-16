@@ -13,29 +13,22 @@ export const useStep7ProcessedData = (
   );
   const fetcher = async (path: string, token: string) => {
     const data = await getStep7ProcessedData(path, token);
-    const existing = Array.isArray(existingCache) ? [...existingCache] : [];
-    data.forEach(
-      ({
-        "End of performance window": obsPoint,
-        ODR,
-      }: {
-        "End of performance window": string;
-        ODR: string;
-      }) => {
-        const idx = existing.findIndex(
-          (e: any) => e["End of performance window"] === obsPoint
-        );
-        if (idx >= 0) existing[idx].ODR = ODR;
-        else existing.push({ "End of performance window": obsPoint, ODR });
-      }
-    );
+    if (!Array.isArray(data)) {
+      dispatch(
+        updateModuleData({
+          moduleId: "transitionMatrix",
+          data: { odrByPoint: [] },
+        })
+      );
+      return [];
+    }
+    // Store full API response so Step11 gets breakdowns (industry, branch, income, age)
     dispatch(
       updateModuleData({
         moduleId: "transitionMatrix",
-        data: { odrByPoint: existing },
+        data: { odrByPoint: data },
       })
     );
-
     return data;
   };
 
