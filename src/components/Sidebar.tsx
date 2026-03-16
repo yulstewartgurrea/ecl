@@ -1,4 +1,4 @@
-﻿// Sidebar.tsx
+// Sidebar.tsx
 import React, { useEffect, useState } from "react";
 import clsx from "clsx";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
@@ -42,6 +42,9 @@ const sidebarOptions: any[] = [
   // { tabName: "General Settings", icon: Cog6ToothIcon, subTabs: [] },
 ];
 
+// ----- External link for AI Mode (Wash login; use same credential as app: password "sgvai0987") -----
+const AI_MODE_EXTERNAL_URL = "https://wash.sgvnexus.uk/login";
+
 // ----- Route maps (tab -> route, subtab -> route) -----
 const TAB_TO_ROUTE: Record<string, string> = {
   Workflows: "/workflows",
@@ -49,7 +52,7 @@ const TAB_TO_ROUTE: Record<string, string> = {
   Overlay: "/overlay",
   "Flowrate Approach": "/flowrate",
   "Expected Credit Loss (ECL)": "/ecl",
-  "AI Mode": "/chatbot",
+  "AI Mode": "/chatbot", // used only for ROUTE_TO_TAB / sync; click opens external URL
   Configuration: "/ecl_configuration",
   // "General Settings": "/settings",
 };
@@ -92,6 +95,12 @@ const Sidebar = () => {
   };
 
   const handleTabClick = (tabName: string) => {
+    // AI Mode opens Wash login in a new tab (credential: same as app login, see Login.tsx)
+    if (tabName === "AI Mode") {
+      window.open(AI_MODE_EXTERNAL_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
+
     // 1) mark active in Redux
     dispatch(setActiveTab(tabName));
     dispatch(setActiveSubTab("")); // clear any previous subtab
