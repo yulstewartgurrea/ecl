@@ -44,6 +44,7 @@ const sidebarOptions: any[] = [
 
 // ----- External link for AI Mode (Wash login; use same credential as app: password "sgvai0987") -----
 const AI_MODE_EXTERNAL_URL = "https://wash.sgvnexus.uk/login";
+const AI_MODE_TOKEN_SYNC_URL = "https://wash.sgvnexus.uk/api/auth/token";
 
 // ----- Route maps (tab -> route, subtab -> route) -----
 const TAB_TO_ROUTE: Record<string, string> = {
@@ -70,6 +71,7 @@ const Sidebar = () => {
   const { isSidebarOpen, activeTab, activeSubTab } = useAppSelector(
     (state) => state.navUIState,
   );
+  const tokenai = useAppSelector((state) => state.auth.tokenai);
 
   const [expandedTabs, setExpandedTabs] = useState<Set<string>>(new Set());
 
@@ -94,9 +96,20 @@ const Sidebar = () => {
     }
   };
 
-  const handleTabClick = (tabName: string) => {
+  const handleTabClick = async (tabName: string) => {
     // AI Mode opens Wash login in a new tab (credential: same as app login, see Login.tsx)
     if (tabName === "AI Mode") {
+      const aiToken = tokenai || localStorage.getItem("tokenai");
+      if (aiToken) {
+        try {
+          await fetch(
+            `${AI_MODE_TOKEN_SYNC_URL}?token=${encodeURIComponent(aiToken)}`,
+            { method: "GET", credentials: "include" },
+          );
+        } catch (err) {
+          console.error("Failed to sync AI token:", err);
+        }
+      }
       window.open(AI_MODE_EXTERNAL_URL, "_blank", "noopener,noreferrer");
       return;
     }

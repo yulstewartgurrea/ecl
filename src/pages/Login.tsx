@@ -28,9 +28,10 @@ const Login = () => {
 
       if (response.ok) {
         const data = await response.json();
-        if (data?.token) {
-          dispatch(setTokenAi({ tokenai: data.token }));
-          localStorage.setItem("tokenai", data.token);
+        const aiToken = data?.token ?? data?.access_token ?? null;
+        if (aiToken) {
+          dispatch(setTokenAi({ tokenai: aiToken }));
+          localStorage.setItem("tokenai", aiToken);
         }
       }
     } catch (err) {
