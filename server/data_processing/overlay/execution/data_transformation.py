@@ -1208,11 +1208,11 @@ def process_data_transformation(
         print('override_data_transformation_mevs_df \n', override_data_transformation_mevs_df)
 
         max_date = override_data_transformation_mevs_df.copy()
-        max_date['Period'] = pd.to_datetime(max_date['Period'])
+        max_date['Period'] = pd.to_datetime(max_date['Period'], format='mixed', dayfirst=False)
         max_date = max_date['Period'].max()
 
         override_data_transformation_mevs_df_copy = override_data_transformation_mevs_df.copy()
-        override_data_transformation_mevs_df_copy['Period'] = pd.to_datetime(override_data_transformation_mevs_df_copy['Period'])
+        override_data_transformation_mevs_df_copy['Period'] = pd.to_datetime(override_data_transformation_mevs_df_copy['Period'], format='mixed', dayfirst=False)
 
         override_data_transformation_mevs_df_copy['year'] = override_data_transformation_mevs_df_copy['Period'].dt.year
         override_data_transformation_mevs_df_copy['month (int)'] = override_data_transformation_mevs_df_copy['Period'].dt.month

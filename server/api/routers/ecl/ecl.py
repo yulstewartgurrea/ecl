@@ -105,6 +105,7 @@ async def calculate_ecl_data(
         output_folder = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/ecl/{workflow.loan_product}/ecl"
         document_type = "ECL_OUTPUT"
 
+        db.close()
         # Save data in documents models
         db = SessionLocal()
         try:
@@ -140,6 +141,32 @@ async def calculate_ecl_data(
             }
         )
 
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=400,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": str(e),
+                "data": None
+            }
+        )
+    except FileNotFoundError:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=404,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": (
+                    "Required input files not found. "
+                    "Please ensure the Client Loan Balances input file is uploaded "
+                    "and the Credit Loss Rates calculation has been completed."
+                ),
+                "data": None
+            }
+        )
     except Exception as e:
         traceback.print_exc()
         return JSONResponse(
@@ -147,7 +174,11 @@ async def calculate_ecl_data(
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong. {str(e)}",
+                "msg": (
+                    f"An unexpected error occurred during ECL calculation. "
+                    f"Please verify that the Client Loan Balances input file and Credit Loss Rates output "
+                    f"are available and have the correct format. Detail: {str(e)}"
+                ),
                 "data": None
             }
         )
@@ -164,11 +195,13 @@ async def get_ecl_data(
     """
     try:
         db = SessionLocal()
-        
-        workflow = db.query(Workflow).filter(
-            Workflow.id == workflow_id, 
-            Workflow.user_id == current_user.id
-        ).first()
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id,
+                Workflow.user_id == current_user.id
+            ).first()
+        finally:
+            db.close()
         if not workflow:
             return JSONResponse(
                 status_code=404,
@@ -188,11 +221,15 @@ async def get_ecl_data(
             f"input/ecl/{workflow.loan_product}/ECL_CLIENT_LOAN_BALANCES"
         )
 
-        client_loan_balances_file = max(
-            (p for p in Path(client_loan_balances_path).iterdir() if p.is_file()),
-            key=lambda p: p.stat().st_mtime,
-            default=None
-        )
+        client_loan_balances_dir = Path(client_loan_balances_path)
+        if client_loan_balances_dir.is_dir():
+            client_loan_balances_file = max(
+                (p for p in client_loan_balances_dir.iterdir() if p.is_file()),
+                key=lambda p: p.stat().st_mtime,
+                default=None
+            )
+        else:
+            client_loan_balances_file = None
 
         if not client_loan_balances_file:
             return JSONResponse(
@@ -370,11 +407,13 @@ async def export_ecl_data(
     """
     try:
         db = SessionLocal()
-        
-        workflow = db.query(Workflow).filter(
-            Workflow.id == workflow_id, 
-            Workflow.user_id == current_user.id
-        ).first()
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id,
+                Workflow.user_id == current_user.id
+            ).first()
+        finally:
+            db.close()
         if not workflow:
             return JSONResponse(
                 status_code=404,

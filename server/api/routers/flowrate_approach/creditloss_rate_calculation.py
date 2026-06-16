@@ -100,12 +100,20 @@ async def get_credit_loss_calculation(
         }
         
         return JSONResponse(status_code=200, content=res)
+    except ValueError as e:
+        traceback.print_exc()
+        res = {
+            'code': -1,
+            'success': False,
+            'msg': f'Error reading credit loss output file. {e}. Please re-run the credit loss calculation.'
+        }
+        return JSONResponse(status_code=400, content=res)
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
             'success': False,
-            'msg': f'Something went wrong. {e}'
+            'msg': f'An unexpected error occurred while retrieving credit loss data. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)
 
@@ -173,11 +181,18 @@ async def export_credit_loss_calculation(
             filename=document.filename,
             media_type=media_type
         )
+    except ValueError as e:
+        res = {
+            'code': -1,
+            'success': False,
+            'msg': f'Error exporting credit loss file. {e}. Please re-run the credit loss calculation.'
+        }
+        return JSONResponse(status_code=400, content=res)
     except Exception as e:
         res = {
             'code': -1,
             'success': False,
-            'msg': f'Something went wrong. {e}'
+            'msg': f'An unexpected error occurred while exporting credit loss data. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)
 
@@ -208,25 +223,41 @@ async def credit_loss_calculation(
             f"output/flowrate_approach/{workflow.loan_product}/flow_rate"
         )
 
+        if not os.path.exists(flowrate_output_path):
+            return JSONResponse(status_code=404, content={
+                'code': -1,
+                'success': False,
+                'msg': 'Flow rate output directory does not exist. Please run the flow rate calculation first before running credit loss calculation.'
+            })
+
         flowrate_output_file = max(
             Path(flowrate_output_path).glob(f"{workflow.loan_product}_flow_rate_output*"),
             key=lambda p: p.stat().st_mtime,   # last modified time
             default=None
         )
-        
-        if not os.path.exists(flowrate_output_path):
+
+        if flowrate_output_file is None:
             return JSONResponse(status_code=404, content={
                 'code': -1,
                 'success': False,
-                'msg': 'Flowrate output file does not exist. Pls. run flowrate first.'
+                'msg': 'No flow rate output file found. Please run the flow rate calculation first before running credit loss calculation.'
             })
 
         # returns a dictionary
         flowrate_output_data = parse_flowrate_output_file(flowrate_output_file)
         # print('flowrate_output_data \n', flowrate_output_data)
+        
 
         creditloss_rate_res = creditloss_rate_main(flowrate_output_data)
-        print('creditloss_rate_res \n', creditloss_rate_res)
+        # print('creditloss_rate_res \n', creditloss_rate_res)
+
+        # Check if creditloss_rate_main returned an error
+        if creditloss_rate_res.get('code') == -1:
+            return JSONResponse(status_code=400, content={
+                'code': -1,
+                'success': False,
+                'msg': creditloss_rate_res.get('msg', 'Credit loss calculation failed.')
+            })
 
         filename = f"{workflow.loan_product}_creditloss_rate_{get_time_date()}.xlsx"
         output_folder = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/flowrate_approach/{workflow.loan_product}/creditloss_rate"
@@ -266,11 +297,19 @@ async def credit_loss_calculation(
         }
         return JSONResponse(status_code=200, content=res)
 
+    except ValueError as e:
+        traceback.print_exc()
+        res = {
+            'code': -1,
+            'success': "False",
+            'msg': str(e)
+        }
+        return JSONResponse(status_code=400, content=res)
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
             'success': False,
-            'msg': f'Something went wrong. {e}'
+            'msg': f'An unexpected error occurred during credit loss calculation. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)

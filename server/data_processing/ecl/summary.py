@@ -235,6 +235,13 @@ def process_summary_data(aging_report_file, credit_loss_rates_file, ecl_file, to
         
         return df
         
-    except Exception:
+    except ValueError:
+        raise
+    except Exception as e:
         traceback.print_exc()
-        return None	
+        raise ValueError(
+            f"An error occurred during ECL summary calculation. "
+            f"Please verify that the Aging Report output, Credit Loss Rates output, ECL output, "
+            f"and probability weights are available and have the correct format. "
+            f"Detail: {e}"
+        )	

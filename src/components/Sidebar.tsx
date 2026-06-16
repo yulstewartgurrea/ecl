@@ -14,6 +14,7 @@ import {
   PercentBadgeIcon,
   ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 // redux toolkit
 import { useAppDispatch, useAppSelector } from "../redux_toolkit/hooks";
@@ -102,15 +103,22 @@ const Sidebar = () => {
       const aiToken = tokenai || localStorage.getItem("tokenai");
       if (aiToken) {
         try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 3000);
           await fetch(
             `${AI_MODE_TOKEN_SYNC_URL}?token=${encodeURIComponent(aiToken)}`,
-            { method: "GET", credentials: "include" },
+            { method: "GET", credentials: "include", signal: ctrl.signal },
           );
+          clearTimeout(timer);
         } catch (err) {
           console.error("Failed to sync AI token:", err);
         }
       }
-      window.open(AI_MODE_EXTERNAL_URL, "_blank", "noopener,noreferrer");
+      try {
+        await openUrl(AI_MODE_EXTERNAL_URL);
+      } catch (err) {
+        console.error("Failed to open AI Mode URL:", err);
+      }
       return;
     }
 

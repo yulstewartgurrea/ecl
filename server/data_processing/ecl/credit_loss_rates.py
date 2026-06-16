@@ -18,7 +18,7 @@ def process_credit_loss_rates(aging_report_file,
     average_df = net_flow_rate_df[net_flow_rate_df["date"] == "Average"]
     # Drop unwanted columns
     average_df = average_df.drop(
-        columns=["date", "Monotonic?", "Weighted Credit Loss Rate per Month"]
+        columns=["date", "Strictly Increasing?", "Weighted Credit Loss Rate per Month"]
     )
     avg_values = average_df.iloc[0].values
 
@@ -47,7 +47,11 @@ def process_credit_loss_rates(aging_report_file,
     elif 'date' in column_names_lower:
         time_col = column_names_lower['date']
     else:
-        raise ValueError("No 'period', 'time' or 'date' column found in historical_default_rates_df")
+        raise ValueError(
+            "No 'period', 'time', or 'date' column found in the Historical Default Rate input file. "
+            "Please ensure your Historical Default Rate file contains a column named 'Period', 'Time', or 'Date' "
+            "and re-upload the file."
+        )
     
     # Convert to datetime with errors='coerce' to handle invalid dates (like "Average")
     historical_default_rates_df[time_col] = pd.to_datetime(historical_default_rates_df[time_col], errors='coerce')
@@ -96,6 +100,13 @@ def process_credit_loss_rates(aging_report_file,
 
     return df
   
+  except ValueError:
+    raise
   except Exception as e:
     traceback.print_exc()
-    return None
+    raise ValueError(
+        f"An error occurred during credit loss rates calculation. "
+        f"Please verify that the Aging Report output, Net Flow Rate output, Overlay Multiplier output, "
+        f"Historical Default Rate input file, and ECL Multiplier file are available and have the correct format. "
+        f"Detail: {e}"
+    )

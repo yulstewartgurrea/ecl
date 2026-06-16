@@ -173,12 +173,19 @@ async def calculate_pd_calibration(workflow_id: int = Form(...),
         )
 
         return JSONResponse(status_code=200, content=res)
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={'code': -1, 'success': False, 'msg': str(e)})
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
-            'msg': f'Something went wrong. {e}',
-            'success': False
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred during PD calibration. '
+                f'Please verify that the Overlay Multiplier output and 12-month Transition Matrix data are available '
+                f'and have the correct format. Detail: {e}'
+            )
         }
         return JSONResponse(status_code=500, content=res)
 

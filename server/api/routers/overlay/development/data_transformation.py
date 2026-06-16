@@ -36,6 +36,9 @@ from helpers.format_dataframe_constructor import format_dataframe_constructor
 
 import threading
 
+from helpers.get_latest_file import get_latest_file
+from helpers.file_utils import get_root_folder, read_data_file
+
 # Thread tracking registry for Solution 3
 # Tracks active threads per workflow to prevent concurrent jobs
 active_threads = {}  # {workflow_id: {'thread': Thread, 'started_at': datetime, 'job_id': int}}
@@ -192,10 +195,20 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
             OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id
         ).order_by(OverlayDevelopmentDataInterpolationOutput.created_at.desc()).first()
         
-        historical_default_rates = db.query(OverlayDevelopmentHistoricalDefaultRateInput).filter(
-            OverlayDevelopmentHistoricalDefaultRateInput.workflow_id == workflow_id
-        ).order_by(OverlayDevelopmentHistoricalDefaultRateInput.created_at.desc()).first()
+        # historical_default_rates = db.query(OverlayDevelopmentHistoricalDefaultRateInput).filter(
+        #     OverlayDevelopmentHistoricalDefaultRateInput.workflow_id == workflow_id
+        # ).order_by(OverlayDevelopmentHistoricalDefaultRateInput.created_at.desc()).first()
+
+        historical_default_rates_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
+            )
         
+        historical_default_rates_file = get_latest_file(historical_default_rates_path)
+        historical_default_rates_df = read_data_file(historical_default_rates_file)
 
         # Helper function to calculate and set running time
         def set_running_time():
@@ -205,10 +218,19 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
                 job.completed_at = completed_time
                 job.running_time_seconds = int(running_time)
 
-        if not all([workflow, log_record, monthly_historical_mev, data_interpolation, historical_default_rates]):
+        if not all([workflow, log_record, monthly_historical_mev, data_interpolation, historical_default_rates_file]):
             set_running_time()
+            missing_items = []
+            if not workflow: missing_items.append("workflow")
+            if not log_record: missing_items.append("log record")
+            if not monthly_historical_mev: missing_items.append("Monthly Historical MEV input")
+            if not data_interpolation: missing_items.append("Data Interpolation output")
+            if not historical_default_rates_file: missing_items.append("Historical Default Rate input")
             job.status = "failed"
-            job.error_message = "Required data not found"
+            job.error_message = (
+                f"Required data not found: {', '.join(missing_items)}. "
+                f"Please ensure all required input files are uploaded and previous steps (data interpolation) are completed."
+            )
             db.commit()
             return
         
@@ -243,7 +265,7 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
         
         monthly_historical_mev_df = format_dataframe_constructor(monthly_historical_mev.json_data)
         data_interpolation_df = format_dataframe_constructor(data_interpolation.json_data)
-        historical_default_rates_df = format_dataframe_constructor(historical_default_rates.json_data)
+        # historical_default_rates_df = format_dataframe_constructor(historical_default_rates.json_data)
         
         # Process transformation with progress updates
         update_progress(20, "Starting data transformation...")
@@ -281,7 +303,12 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
         if not process_data_transformation_res or 'docs' not in process_data_transformation_res:
             set_running_time()
             job.status = "failed"
-            job.error_message = "Data transformation failed - no results returned"
+            job.error_message = (
+                "Data transformation failed — no results were returned. "
+                "This may indicate an issue with the input data format. "
+                "Please verify that the Monthly Historical MEV, Data Interpolation output, and Historical Default Rate "
+                "input files have the correct format and data, then retry."
+            )
             db.commit()
             return
         
@@ -354,7 +381,19 @@ def run_data_transformation_background(job_id: int, workflow_id: int, user_id: i
                 # Only update status if not already cancelled
                 if job.status != "cancelled":
                     job.status = "failed"
-                    job.error_message = str(e)
+                    error_detail = str(e)
+                    if "unsupported operand" in error_detail or "could not convert" in error_detail.lower():
+                        job.error_message = (
+                            f"Data format error during transformation: {error_detail}. "
+                            f"Please check that all numeric columns in your input files contain valid numbers "
+                            f"(remove commas, currency symbols, or text from numeric fields)."
+                        )
+                    else:
+                        job.error_message = (
+                            f"Data transformation failed: {error_detail}. "
+                            f"Please verify that all input files (Monthly Historical MEV, Data Interpolation output, "
+                            f"Historical Default Rate) have the correct format and data."
+                        )
                 db.commit()
         except:
             pass
@@ -400,11 +439,18 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
                 OverlayDevelopmentDataInterpolationOutput.workflow_id == workflow_id
             ).order_by(OverlayDevelopmentDataInterpolationOutput.created_at.desc()).first()
 
-            historical_default_rates = db.query(OverlayDevelopmentHistoricalDefaultRateInput).filter(
-                OverlayDevelopmentHistoricalDefaultRateInput.workflow_id == workflow_id
-            ).order_by(OverlayDevelopmentHistoricalDefaultRateInput.created_at.desc()).first()
+            # historical_default_rates = db.query(OverlayDevelopmentHistoricalDefaultRateInput).filter(
+            #     OverlayDevelopmentHistoricalDefaultRateInput.workflow_id == workflow_id
+            # ).order_by(OverlayDevelopmentHistoricalDefaultRateInput.created_at.desc()).first()
 
-            print(historical_default_rates.json_data)
+            historical_default_rates_path = (
+                f"{get_root_folder()}/server/files/"
+                f"{workflow.entity}/"
+                f"{workflow.reporting_period}/"
+                f"{workflow.workflow_name}/"
+                f"input/overlay/development/{workflow.loan_product}/OVERLAY_DEVELOPMENT_HISTORICAL_DEFAULT_RATE"
+            )
+            historical_default_rates_file = get_latest_file(historical_default_rates_path)
 
             if not workflow:
                 return JSONResponse(
@@ -450,7 +496,7 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
                     }
                 )
 
-            if not historical_default_rates:
+            if not historical_default_rates_file:
                 return JSONResponse(
                     status_code=404,
                     content={
@@ -534,14 +580,29 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
             }
         )
         
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=400,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": str(e),
+                "data": None
+            }
+        )
     except Exception as e:
         traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={
                 "code": -1,
-                "msg": f"Something went wrong. {e}",
                 "success": False,
+                "msg": (
+                    f"An unexpected error occurred while starting data transformation. "
+                    f"Please verify that the required input files (Monthly Historical MEV, Data Interpolation output, "
+                    f"Historical Default Rate) are uploaded and have the correct format. Detail: {e}"
+                ),
                 "data": None
             }
         )
@@ -610,7 +671,7 @@ async def get_data_transformation_status(workflow_id: int,
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": f"An unexpected error occurred while retrieving data transformation status. Please contact support. Detail: {str(e)}",
                 "data": None
             }
         )
@@ -685,7 +746,7 @@ async def cancel_data_transformation(workflow_id: int = Form(...),
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": f"An unexpected error occurred while cancelling data transformation. Please contact support. Detail: {str(e)}",
                 "data": None
             }
         )
@@ -779,7 +840,7 @@ async def get_data_transformation_results(workflow_id: int = Query(...),
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": f"An unexpected error occurred while retrieving data transformation results. Please verify the transformation completed successfully and retry. Detail: {str(e)}",
                 "data": None
             }
         )
@@ -853,10 +914,12 @@ async def export_data_transformation_results(
             mem_file.seek(0)
 
             zip_name = f"{portfolio}_Transformed_Data_{get_time_date()}.zip"
+            # Use quoted filename so clients (e.g. Tauri on macOS) parse it reliably
+            safe_name = zip_name.replace('"', '\\"')
             return StreamingResponse(
                 mem_file,
                 media_type="application/zip",
-                headers={"Content-Disposition": f"attachment; filename={zip_name}"}
+                headers={"Content-Disposition": f'attachment; filename="{safe_name}"'}
             )
         finally:
             db.close()

@@ -13,6 +13,21 @@ warnings.filterwarnings('ignore')
 
 from helpers.routers.rename_bucket_cols import rename_bucket_cols
 
+OUTPUT_DECIMAL_PLACES = 16
+
+def _round_numeric(df: pd.DataFrame, places: int = OUTPUT_DECIMAL_PLACES) -> pd.DataFrame:
+    """
+    Round numeric columns for stable exported output (e.g., Excel comparisons).
+    Leaves non-numeric columns (like 'date') unchanged.
+    """
+    if df is None or df.empty:
+        return df
+    out = df.copy()
+    num_cols = out.select_dtypes(include=[np.number]).columns
+    if len(num_cols) > 0:
+        out[num_cols] = out[num_cols].round(places)
+    return out
+
 def flow_rate_main(aging_report):
     """
     Main entry point for flow rate calculation.
@@ -35,20 +50,80 @@ def flow_rate_main(aging_report):
               probability of loans transitioning between buckets over time
     """
     # Parse JSON data from aging report
-    loan_balance_matrix = json.loads(aging_report.json_data)
-    
+    try:
+        loan_balance_matrix = json.loads(aging_report.json_data)
+    except (json.JSONDecodeError, TypeError) as e:
+        raise ValueError(
+            f"Invalid data format in the aging report input file. "
+            f"The uploaded file could not be parsed. "
+            f"Please check your aging report input file and ensure it contains valid data. "
+            f"Detail: {e}"
+        )
+
     # Convert timestamp dates to YYYY-MM-DD format for all records
-    for i in loan_balance_matrix:
-        i['date'] = timestamp_to_yyyy_mm_dd(i['date'])
+    for idx, i in enumerate(loan_balance_matrix):
+        try:
+            i['date'] = timestamp_to_yyyy_mm_dd(i['date'])
+        except (ValueError, KeyError) as e:
+            row_num = idx + 2  # +2 for 1-based index + header row
+            raw_date = i.get('date', '(missing)')
+            raise ValueError(
+                f"Invalid date value '{raw_date}' found in row {row_num} of the aging report input file. "
+                f"Supported date formats: MM/DD/YYYY, YYYY-MM-DD, DD/MM/YYYY, or numeric timestamps. "
+                f"Two-digit years (e.g. '12/31/25') are not supported — please use four-digit years (e.g. '12/31/2025'). "
+                f"Please update the date in your aging report input file and re-upload."
+            )
 
     # Convert to DataFrame for easier manipulation
     loan_balance_matrix_df = pd.DataFrame(loan_balance_matrix)
 
+    # Convert numeric columns from formatted strings (e.g. "53,773,459,030.00") to actual numbers
+    numeric_cols = [col for col in loan_balance_matrix_df.columns if col != 'date']
+    for col in numeric_cols:
+        if loan_balance_matrix_df[col].dtype == object:
+            # Remove commas from formatted number strings before converting
+            cleaned = loan_balance_matrix_df[col].astype(str).str.replace(',', '', regex=False)
+            converted = pd.to_numeric(cleaned, errors='coerce')
+            # Check if any values failed to convert
+            failed_mask = converted.isna() & loan_balance_matrix_df[col].notna()
+            if failed_mask.any():
+                bad_values = loan_balance_matrix_df.loc[failed_mask, col].tolist()
+                bad_dates = loan_balance_matrix_df.loc[failed_mask, 'date'].tolist()
+                raise ValueError(
+                    f"Column '{col}' contains non-numeric values {bad_values} at dates {bad_dates}. "
+                    f"All columns except 'date' must contain numeric values. "
+                    f"Please fix these values in your aging report input file and re-upload."
+                )
+            loan_balance_matrix_df[col] = converted
+
+    # Validate required columns exist
+    if 'total loan balance with c/p' not in loan_balance_matrix_df.columns:
+        raise ValueError(
+            "Missing required column 'total loan balance with c/p' in the aging report input file. "
+            "Please ensure your aging report input file contains this column and re-upload."
+        )
+
+    # Validate no zero total balances (would cause division errors in distribution calculation)
+    zero_balance_rows = loan_balance_matrix_df[
+        pd.to_numeric(loan_balance_matrix_df['total loan balance with c/p'], errors='coerce') == 0
+    ]
+    if not zero_balance_rows.empty:
+        dates = zero_balance_rows['date'].tolist()
+        raise ValueError(
+            f"The 'total loan balance with c/p' column has zero values for dates: {dates}. "
+            f"This would cause division errors in the distribution calculation. "
+            f"Please check your aging report input file and ensure all total loan balance values are non-zero."
+        )
+
     # Calculate percentage distribution of loan balances across aging buckets
     flow_of_loan_balance_principal_matrix_dist_df = calculate_flow_of_loan_balance_principal_matrix_dist(loan_balance_matrix_df)
-    
+
     # Calculate flow rates (probability of loans moving between buckets)
     flow_rate_df = calculate_flow_rate(loan_balance_matrix_df)
+
+    # Round numeric outputs for consistent downstream exports/comparisons
+    # flow_of_loan_balance_principal_matrix_dist_df = _round_numeric(flow_of_loan_balance_principal_matrix_dist_df)
+    # flow_rate_df = _round_numeric(flow_rate_df)
     
     return {
         'Flow of Loan Balance Principal Matrix': loan_balance_matrix_df.to_dict(orient='records'),

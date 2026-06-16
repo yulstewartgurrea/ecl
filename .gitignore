@@ -24,6 +24,7 @@ dist-ssr
 *.sw?
 # Ignore server persistence
 server/files/
+/files/
 server/db.sqlite
 server/.venv
 server/venv/

@@ -31,9 +31,16 @@ def process_ecl_data(client_loan_balances_file, credit_loss_rates_file, parsed_p
         required_rates_cols = {"aging category", "upside", "baseline", "downside"}
 
         if not required_client_cols.issubset(df.columns):
-            raise ValueError(f"Client file missing columns: {sorted(required_client_cols - set(df.columns))}")
+            raise ValueError(
+                f"Client Loan Balances input file is missing required columns: {sorted(required_client_cols - set(df.columns))}. "
+                f"Please check your Client Loan Balances input file and ensure it contains an 'Aging Category' column."
+            )
         if not required_rates_cols.issubset(credit_loss_rates_df.columns):
-            raise ValueError(f"Rates file missing columns: {sorted(required_rates_cols - set(credit_loss_rates_df.columns))}")
+            raise ValueError(
+                f"Credit Loss Rates file is missing required columns: {sorted(required_rates_cols - set(credit_loss_rates_df.columns))}. "
+                f"Please ensure the Credit Loss Rates output file contains 'Aging Category', 'Upside', 'Baseline', and 'Downside' columns. "
+                f"You may need to re-run the Credit Loss Rates calculation."
+            )
 
         # Normalize the key values
         df["aging category"] = df["aging category"].astype(str).str.strip().str.lower()
@@ -84,6 +91,13 @@ def process_ecl_data(client_loan_balances_file, credit_loss_rates_file, parsed_p
 
         return df
 
-    except Exception:
+    except ValueError:
+        raise
+    except Exception as e:
         traceback.print_exc()
-        return None
+        raise ValueError(
+            f"An error occurred during ECL calculation. "
+            f"Please verify that the Client Loan Balances input file contains a 'date' header row and an 'aging category' column, "
+            f"and that the Credit Loss Rates file contains 'aging category', 'upside', 'baseline', and 'downside' columns. "
+            f"Detail: {e}"
+        )

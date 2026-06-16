@@ -51,7 +51,7 @@ def load_transformed_data(
     This function:
     1. Finds the latest transformed data files for the portfolio
     2. Loads independent and dependent variable DataFrames
-    3. Drops columns matching forbidden patterns (".asinh.diff_12.lag", ".ln.diff_12.lag", ".diff_12.lag", ".asinh")
+    3. Drops columns matching forbidden patterns (".ln.diff_12.lag", ".diff_12.lag")
     4. Left-joins X and Y data on 'Time' column
     5. Excludes predefined columns (from excluded_columns list)
     6. Returns separate X, Y DataFrames, merged regression data, and variable name lists
@@ -98,8 +98,8 @@ def load_transformed_data(
     print(x_df.columns)
     print(y_df.columns)
     # # # Drop columns matching forbidden patterns (matching R script filters)
-    # R filters: ".asinh.diff_12.lag", ".ln.diff_12.lag", ".diff_12.lag", ".asinh"
-    drop_patterns = (".asinh.diff_12.lag", ".ln.diff_12.lag", ".diff_12.lag", ".asinh")
+    # R filters: ".ln.diff_12.lag", ".diff_12.lag"
+    drop_patterns = (".ln.diff_12.lag", ".diff_12.lag")
     cols_to_drop = [c for c in x_df.columns if any(p in c for p in drop_patterns)]
     x_df = x_df.drop(columns=cols_to_drop, errors="ignore")
 
@@ -179,8 +179,8 @@ def load_combinations(
         df = df.iloc[:limit, :]
 
     # Filter out any rows where any X contains the forbidden substrings (matching R script)
-    # R filters: "asinh.diff_12.lag", "ln.diff_12.lag", "diff_12.lag", "asinh"
-    bad_substrings = (".asinh.diff_12.lag", ".ln.diff_12.lag", ".diff_12.lag", ".asinh")
+    # R filters: "ln.diff_12.lag", "diff_12.lag"
+    bad_substrings = (".ln.diff_12.lag", ".diff_12.lag")
     mask_bad = df.apply(
         lambda row: any(
             (isinstance(v, str) and any(b in v for b in bad_substrings)) for v in row
@@ -616,6 +616,17 @@ def run_mfa(
     Raises:
         Exception: If cancellation_check returns True ("Job cancelled by user")
     """
+    # Validate dep_var exists in regression_data so we fail fast instead of
+    # silently producing zero rows when every OLS fit raises.
+    if dep_var not in regression_data.columns:
+        available = sorted(regression_data.columns.tolist())
+        raise ValueError(
+            f"Dependent variable '{dep_var}' not found in transformed data. "
+            f"Available columns: {available}. "
+            f"Re-run the data transformation step (Step 3) so the dependent file "
+            f"contains a '{dep_var}' column."
+        )
+
     # Create folder based on base filename (without extension)
     base_name = out_csv_path.stem  # filename without extension
     output_folder = out_csv_path.parent / base_name
@@ -624,6 +635,8 @@ def run_mfa(
     buffer: List[Dict[str, Any]] = []
     total = combinations.shape[0]
     global_index = 1  # Start index from 1
+    successful_rows = 0
+    failed_rows = 0
     
     # File rotation tracking
     MAX_ROWS_PER_FILE = 10000  # 200k rows per file (adjust for testing if needed)
@@ -676,10 +689,13 @@ def run_mfa(
                     raise Exception("Job cancelled by user")
                 
                 index, row = result
-                
+
                 # Only add successful results to buffer
                 if row is not None:
                     buffer.append(row)
+                    successful_rows += 1
+                else:
+                    failed_rows += 1
                 
                 # Update progress if callback is provided
                 if progress_callback:
@@ -795,5 +811,17 @@ def run_mfa(
             df.to_csv(current_file_path, mode=write_mode, header=header, index=False)
             current_file_row_count += len(buffer)
             print(f"Final flush: {len(buffer)} rows -> {current_file_path} (total: {current_file_row_count} rows)")
-        
+
         buffer.clear()
+
+    # Guard against silent success: if every combination failed, no CSVs were
+    # ever written. Raise so the router marks the job failed instead of completed.
+    written_files = sorted(output_folder.glob("*.csv"))
+    if not written_files:
+        raise RuntimeError(
+            f"Multifactor analysis produced no output rows: "
+            f"{failed_rows}/{total} combinations failed (0 successful). "
+            f"This usually means the dependent variable '{dep_var}' is incompatible "
+            f"with the transformed data, or the variable combinations reference "
+            f"columns missing from the regression data."
+        )

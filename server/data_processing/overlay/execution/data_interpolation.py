@@ -33,7 +33,56 @@ def parse_quarter_date(value: str) -> Optional[pd.Timestamp]:
     return pd.Timestamp(year=year, month=month, day=1) + pd.offsets.MonthEnd(0)
 
 
-def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
+def _get_arima_file_last_date(file_path) -> Optional[pd.Timestamp]:
+    """
+    Return the latest period (as a month-end pd.Timestamp) present in an ARIMA
+    forecast file (monthly or quarterly), or None if it cannot be determined.
+
+    Used to extend the interpolation horizon: the interpolation normally ends at the
+    QUARTERLY forecast's last quarter-end, but if the MONTHLY ARIMA forecast runs past
+    that (e.g. monthly through Oct while quarterly stops at Q3/Sep), the end date should
+    follow whichever forecast ends later.
+
+    Locates the header row containing 'Date', parses the Date column (supporting quarter
+    formats via parse_quarter_date), and returns the max.
+    """
+    if not file_path:
+        return None
+    try:
+        file_ext = os.path.splitext(str(file_path))[1].lower()
+        if file_ext in ['.xlsx', '.xls']:
+            df = pd.read_excel(file_path, header=None, dtype=str, keep_default_na=False, na_filter=False)
+        elif file_ext == '.csv':
+            df = pd.read_csv(file_path, header=None, dtype=str, keep_default_na=False, na_filter=False)
+        else:
+            return None
+
+        # Find the header row that contains a 'Date' column
+        header_row_idx = None
+        for idx, row in df.iterrows():
+            if any(str(cell).strip().lower() == 'date' for cell in row.tolist()):
+                header_row_idx = idx
+                break
+        if header_row_idx is None:
+            return None
+
+        df.columns = df.iloc[header_row_idx]
+        df = df.iloc[header_row_idx + 1:].reset_index(drop=True)
+
+        if 'Date' not in df.columns:
+            return None
+
+        parsed = df['Date'].apply(lambda v: parse_quarter_date(v) or pd.to_datetime(v, errors='coerce'))
+        parsed = parsed.dropna()
+        if len(parsed) == 0:
+            return None
+        return pd.Timestamp(parsed.max()) + pd.offsets.MonthEnd(0)
+    except Exception as e:
+        print(f"Could not determine last date from {file_path}: {e}")
+        return None
+
+
+def process_data_interpolation(quarterly_file_path: str, monthly_file_path: str = None) -> pd.DataFrame:
     """
     Interpolate quarterly MEV ARIMA data to monthly data using linear interpolation.
     
@@ -43,9 +92,12 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
     - For each monthly point, use VLOOKUP if exact match, otherwise use FORECAST (linear interpolation)
     
     Args:
-        quarterly_file_path: Path to the quarterly file (CSV or Excel format)
-        output_file_path: Optional path to save the interpolated monthly data
-    
+        quarterly_file_path: Path to the quarterly MEV ARIMA forecast file (CSV or Excel)
+        monthly_file_path: Optional path to the monthly MEV ARIMA forecast file. Used only
+            to extend the interpolation end date when the monthly forecast runs later than
+            the quarterly forecast's last quarter; if None, the end date follows the
+            quarterly forecast alone (original behavior).
+
     Returns:
         DataFrame with monthly interpolated data
     """
@@ -174,20 +226,32 @@ def process_data_interpolation(quarterly_file_path: str) -> pd.DataFrame:
         first_year = first_date.year
         first_month = first_date.month
         
-        # Get end date from quarterly data
-        end_date = df_q['Date'].max()
-        end_year = end_date.year
-        
+        # End date implied by the QUARTERLY ARIMA forecast (its last quarter-end).
+        quarterly_end_date = pd.Timestamp(df_q['Date'].max()) + pd.offsets.MonthEnd(0)
+
+        # Follow whichever ARIMA forecast (quarterly vs monthly) ends later. The quarterly
+        # forecast only lands on quarter-end months; if the MONTHLY ARIMA forecast extends
+        # past the last quarter (e.g. monthly through Oct while quarterly stops at Q3/Sep),
+        # extend the horizon so that tail is produced. Interpolated columns hold the last
+        # quarterly value (forward-fill) across the tail; the real monthly values are merged
+        # back in downstream (combine_monthly_mev_data_interpolation, left join on 'id').
+        end_date = quarterly_end_date
+        monthly_end_date = _get_arima_file_last_date(monthly_file_path)
+        if monthly_end_date is not None and monthly_end_date > end_date:
+            print(f"Extending interpolation end from {quarterly_end_date.strftime('%Y-%m')} "
+                  f"(quarterly) to {monthly_end_date.strftime('%Y-%m')} (monthly ARIMA ends later)")
+            end_date = monthly_end_date
+
         print(f"First quarter with x value: {first_year}-{first_month:02d} with x={first_x_value}")
-        
+
         # Step 5: Create monthly date range starting from the first actual data point
         print("\nStep 5: Creating monthly date range starting from first data point...")
-        
-        # Create monthly date range starting from the first actual data point
+
+        # Create monthly date range from the first data point to the last date in the input
         # Use 'MS' (Month Start) to start from day 1 of the first month, then convert to month end
         monthly_dates = pd.date_range(
             start=f"{first_year}-{first_month:02d}-01",
-            end=f"{end_year}-12-31",
+            end=end_date,
             freq='MS'  # Month Start
         )
         

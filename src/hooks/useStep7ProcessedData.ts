@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import { getStep7ProcessedData } from "../services/documents";
-import { useAppDispatch, useAppSelector } from "../redux_toolkit/hooks";
+import { useAppDispatch } from "../redux_toolkit/hooks";
 import { updateModuleData } from "../redux_toolkit/features/workflow/workflowSlice";
 
 export const useStep7ProcessedData = (
@@ -8,9 +8,6 @@ export const useStep7ProcessedData = (
   token: string | null
 ) => {
   const dispatch = useAppDispatch();
-  const existingCache = useAppSelector(
-    (state) => state.workflow.modules.transitionMatrix.data.odrByPoint ?? []
-  );
   const fetcher = async (path: string, token: string) => {
     const data = await getStep7ProcessedData(path, token);
     if (!Array.isArray(data)) {

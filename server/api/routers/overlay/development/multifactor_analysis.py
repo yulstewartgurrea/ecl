@@ -78,8 +78,11 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
         
         if not workflow or not log_record:
             set_running_time()
+            missing_items = []
+            if not workflow: missing_items.append("workflow")
+            if not log_record: missing_items.append("development log record")
             job.status = "failed"
-            job.error_message = "Required workflow or log record not found"
+            job.error_message = f"Required data not found: {', '.join(missing_items)}. Please ensure the workflow exists and the development overlay log is set up."
             db.commit()
             return
         
@@ -107,7 +110,7 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
             return
         
         portfolio = workflow.loan_product
-        ODR = target_variable
+        CLR = target_variable
         
         data_transformation_path = (
             f"{get_root_folder()}/files/"
@@ -154,12 +157,12 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
             f"{workflow.workflow_name}/"
             f"output/overlay/development/{portfolio}/multifactor_analysis"
         )
-        out_csv = Path(f"{multifactor_analysis_output_path}/{portfolio}_mfa_{ODR}_{num_vars_taken}-var_{pid}_{get_time_date()}.csv")
+        out_csv = Path(f"{multifactor_analysis_output_path}/{portfolio}_mfa_{CLR}_{num_vars_taken}-var_{pid}_{get_time_date()}.csv")
         
         # Step 4 — run MFA with progress tracking
         try:
             run_mfa(
-                dep_var=ODR,
+                dep_var=CLR,
                 combinations=mfa_runs,
                 regression_data=regression_data,
                 max_bg_order=max_bgtest_order,
@@ -212,7 +215,18 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
                 # Only update status if not already cancelled
                 if job.status != "cancelled":
                     job.status = "failed"
-                    job.error_message = str(e)
+                    error_detail = str(e)
+                    if "'Time' column" in error_detail:
+                        job.error_message = (
+                            f"Missing 'Time' column in transformed data: {error_detail}. "
+                            f"Please ensure the data transformation step completed successfully and the output files contain a 'Time' column."
+                        )
+                    else:
+                        job.error_message = (
+                            f"Multifactor analysis failed: {error_detail}. "
+                            f"Please verify that the data transformation step completed successfully "
+                            f"and the transformed data files have the correct format."
+                        )
                 db.commit()
         except:
             pass
@@ -223,7 +237,7 @@ def run_multifactor_analysis_background(job_id: int, workflow_id: int, user_id: 
 @router.post("/multifactor_analysis")
 async def process_multifactor_analysis(
     workflow_id: int = Form(...),
-    target_variable: str = Form('odr.logit', description="Target variable (e.g., odr.logit)"),
+    target_variable: str = Form('clr.logit', description="Target variable (e.g., clr.logit)"),
     max_combinations: int = Form(5, description="Maximum number of combinations to test"),
     max_bgtest_order: int = Form(2, description="Maximum order for Breusch-Godfrey test"),
     current_user: User = Depends(get_current_user)
@@ -327,6 +341,17 @@ async def process_multifactor_analysis(
             }
         )
         
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=400,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": str(e),
+                "data": None
+            }
+        )
     except Exception as e:
         traceback.print_exc()
         return JSONResponse(
@@ -334,7 +359,11 @@ async def process_multifactor_analysis(
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong. {e}",
+                "msg": (
+                    f"An unexpected error occurred while starting multifactor analysis. "
+                    f"Please verify that the data transformation step completed successfully "
+                    f"and the transformed data files exist. Detail: {e}"
+                ),
                 "data": None
             }
         )
@@ -402,7 +431,7 @@ async def get_multifactor_analysis_status(workflow_id: int,
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": f"An unexpected error occurred while retrieving multifactor analysis status. Please contact support. Detail: {str(e)}",
                 "data": None
             }
         )
@@ -477,7 +506,7 @@ async def cancel_multifactor_analysis(workflow_id: int = Form(...),
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": f"An unexpected error occurred while cancelling multifactor analysis. Please contact support. Detail: {str(e)}",
                 "data": None
             }
         )
@@ -918,7 +947,7 @@ async def get_mfa_results(
         folder_path = Path(multifactor_analysis_output_path)
         
         # Look for folders matching the pattern (folder-based approach)
-        # Pattern: {portfolio}_mfa_{ODR}_{num_vars_taken}-var_*
+        # Pattern: {portfolio}_mfa_{CLR}_{num_vars_taken}-var_*
         mfa_folders = list(folder_path.glob(f"{portfolio}_mfa_*_*-var_*"))
         
         if not mfa_folders:

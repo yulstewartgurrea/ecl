@@ -150,11 +150,7 @@ async def calculate_credit_loss_rates(
             f"input/flowrate_approach/"
         )
 
-        aging_report_file = max(
-            (p for p in Path(aging_report_path).iterdir() if p.is_file()),
-            key=lambda p: p.stat().st_mtime,
-            default=None
-        )
+        aging_report_file = get_latest_file(aging_report_path)
 
         net_flow_rate_path = (
             f"{get_root_folder()}/server/files/"
@@ -164,11 +160,7 @@ async def calculate_credit_loss_rates(
             f"output/flowrate_approach/{workflow.loan_product}/creditloss_rate"
         )
 
-        net_flow_rate_file = max(
-            (p for p in Path(net_flow_rate_path).iterdir() if p.is_file()),
-            key=lambda p: p.stat().st_mtime,
-            default=None
-        )
+        net_flow_rate_file = get_latest_file(net_flow_rate_path)
 
         ecl_multiplier_path = (
             f"{get_root_folder()}/server/files/"
@@ -179,11 +171,7 @@ async def calculate_credit_loss_rates(
             f"input/flowrate_approach/"
         )
 
-        ecl_multiplier_file = max(
-            (p for p in Path(ecl_multiplier_path).iterdir() if p.is_file()),
-            key=lambda p: p.stat().st_mtime,
-            default=None
-        )
+        ecl_multiplier_file = get_latest_file(ecl_multiplier_path)
 
         overlay_multiplier_path = (
             f"{get_root_folder()}/server/files/"
@@ -192,12 +180,8 @@ async def calculate_credit_loss_rates(
             f"{workflow.workflow_name}/"
             f"output/overlay/execution/{workflow.loan_product}/overlay_multiplier"
         )
-        
-        overlay_multiplier_file = max(
-            (p for p in Path(overlay_multiplier_path).iterdir() if p.is_file()),
-            key=lambda p: p.stat().st_mtime,
-            default=None
-        )
+
+        overlay_multiplier_file = get_latest_file(overlay_multiplier_path)
 
         development_historical_default_rate_path = (
             f"{get_root_folder()}/server/files/"
@@ -220,10 +204,35 @@ async def calculate_credit_loss_rates(
 
         print(aging_report_file)
         print(parsed_probability_weights)
-        
+
+        missing_inputs = []
+        if not aging_report_file:
+            missing_inputs.append("Flowrate Approach aging report (input/flowrate_approach)")
+        if not net_flow_rate_file:
+            missing_inputs.append("Flowrate Approach credit loss rate output")
+        if not ecl_multiplier_file:
+            missing_inputs.append("ECL multiplier (input/flowrate_approach)")
+        if not overlay_multiplier_file:
+            missing_inputs.append("Overlay execution multiplier output")
+        if not historical_default_rates_file:
+            missing_inputs.append("Overlay historical default rate / weighted credit loss rate")
+        if missing_inputs:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "code": -1,
+                    "success": False,
+                    "msg": (
+                        "Cannot calculate Credit Loss Rates — required input(s) not found: "
+                        + "; ".join(missing_inputs)
+                    ),
+                    "data": None
+                }
+            )
+
         process_credit_loss_rates_res = process_credit_loss_rates(
-            aging_report_file, 
-            ecl_multiplier_file, 
+            aging_report_file,
+            ecl_multiplier_file,
             parsed_probability_weights,
             net_flow_rate_file,
             overlay_multiplier_file,

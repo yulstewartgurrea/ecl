@@ -282,6 +282,38 @@ async def calculate_data_interpolation(
 
             print('quarterly_mev_arima_file', quarterly_mev_arima_file)
 
+            # Resolve the MONTHLY MEV ARIMA forecast file too, so the interpolation
+            # horizon can follow whichever forecast (quarterly vs monthly) ends later.
+            if execution_input_file == "forecast_mev":
+                monthly_mev_arima_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"output/overlay/execution/{workflow.loan_product}/generated/mev_monthly_arima_forecast"
+                )
+            else:
+                monthly_mev_arima_path = (
+                    f"{get_root_folder()}/server/files/"
+                    f"{workflow.entity}/"
+                    f"{workflow.reporting_period}/"
+                    f"{workflow.workflow_name}/"
+                    f"input/overlay/execution/{workflow.loan_product}/OVERLAY_EXECUTION_MEV_MONTHLY_ARIMA"
+                )
+
+            monthly_mev_arima_dir = Path(monthly_mev_arima_path)
+            if monthly_mev_arima_dir.exists() and monthly_mev_arima_dir.is_dir():
+                monthly_files = [p for p in monthly_mev_arima_dir.iterdir() if p.is_file()]
+                monthly_mev_arima_file = max(
+                    monthly_files,
+                    key=lambda p: p.stat().st_mtime,
+                    default=None
+                ) if monthly_files else None
+            else:
+                monthly_mev_arima_file = None
+
+            print('monthly_mev_arima_file', monthly_mev_arima_file)
+
 
             print('workflow', workflow)
             log_record = db.query(OverlayLogs).filter(
@@ -316,7 +348,7 @@ async def calculate_data_interpolation(
         finally:
             db.close()
 
-        process_data_interpolation_res = process_data_interpolation(quarterly_mev_arima_file)
+        process_data_interpolation_res = process_data_interpolation(quarterly_mev_arima_file, monthly_mev_arima_file)
         
         filename = f"data_interpolation_output_{get_time_date()}.csv"
         output_folder_path = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/execution/{workflow.loan_product}/data_interpolation"
@@ -360,11 +392,18 @@ async def calculate_data_interpolation(
 
         res = make_json_serializable(res)
         return JSONResponse(status_code=200, content=res)
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={'code': -1, 'success': False, 'msg': str(e)})
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
-            'msg': f'Something went wrong. {e}',
-            'success': False
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred during data interpolation. '
+                f'Please verify that the Quarterly MEV ARIMA forecast output (or uploaded Quarterly ARIMA file) '
+                f'is available and has the correct format. Detail: {e}'
+            )
         }
         return JSONResponse(status_code=500, content=res)

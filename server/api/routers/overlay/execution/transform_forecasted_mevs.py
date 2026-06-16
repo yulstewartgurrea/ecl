@@ -217,12 +217,19 @@ async def calculate_transform_forecasted_mevs(workflow_id: int = Form(...),
         )
 
         return JSONResponse(status_code=200, content=res)
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={'code': -1, 'success': False, 'msg': str(e)})
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
-            'msg': f'Something went wrong. {e}',
-            'success': False
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred during transform forecasted MEVs. '
+                f'Please verify that the Final Models file, Data Transformation (Independent) output, and '
+                f'Override Data Transformation MEVs output are available and have the correct format. Detail: {e}'
+            )
         }
         return JSONResponse(status_code=500, content=res)
 
@@ -282,9 +289,10 @@ async def get_transform_forecasted_mevs_results(workflow_id: int = Query(...),
                 raise ValueError(f"Unsupported file format: {file_ext}. Supported formats: .csv, .xlsx, .xls")
             
             print(data)
-            data = data.where(pd.notna(data), None)
+            data = data.replace([np.inf, -np.inf], np.nan)
+            data = data.astype(object).where(pd.notna(data), None)
             return {
-                "code": 1, 
+                "code": 1,
                 "success": True,
                 'data': data.to_dict(orient='records')
             }

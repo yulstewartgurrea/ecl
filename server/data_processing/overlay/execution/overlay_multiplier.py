@@ -47,17 +47,20 @@ def process_overlay_multiplier(default_rates_df: pd.DataFrame,
         
         print('last_period_default_rate', last_period_default_rate)
         
-        # Find the ODR column name case-insensitively (accepts 'odr' or 'weighted credit loss rate per month')
+        # Find the ODR column name case-insensitively (accepts 'odr',
+        # 'clr', or 'weighted credit loss rate per month' — all three
+        # name the same metric depending on the upstream source).
         odr_col = None
         odr_column_names_lower = {col.lower(): col for col in last_period_default_rate.columns}
-        
-        # Try 'odr' first, then 'weighted credit loss rate per month'
+
         if 'odr' in odr_column_names_lower:
             odr_col = odr_column_names_lower['odr']
+        elif 'clr' in odr_column_names_lower:
+            odr_col = odr_column_names_lower['clr']
         elif 'weighted credit loss rate per month' in odr_column_names_lower:
             odr_col = odr_column_names_lower['weighted credit loss rate per month']
         else:
-            raise ValueError("Could not find 'odr' or 'Weighted Credit Loss Rate per Month' column (case-insensitive)")
+            raise ValueError("Could not find 'odr', 'CLR', or 'Weighted Credit Loss Rate per Month' column (case-insensitive)")
         
         if last_period_default_rate.empty:
             raise ValueError("No data found for latest date")

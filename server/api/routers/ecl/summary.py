@@ -245,6 +245,7 @@ async def get_summary_data(
         output_folder = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/ecl/{workflow.loan_product}/ecl_summary"
         document_type = "ECL_SUMMARY"
 
+        db.close()
         # # Save data in documents models
         db = SessionLocal()
         try:
@@ -280,6 +281,32 @@ async def get_summary_data(
             }
         )
 
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=400,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": str(e),
+                "data": None
+            }
+        )
+    except FileNotFoundError:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=404,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": (
+                    "Required input files not found. "
+                    "Please ensure the Aging Report output, Credit Loss Rates output, and ECL output "
+                    "are available. You may need to run previous steps first."
+                ),
+                "data": None
+            }
+        )
     except Exception as e:
         traceback.print_exc()
         return JSONResponse(
@@ -287,7 +314,11 @@ async def get_summary_data(
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong. {str(e)}",
+                "msg": (
+                    f"An unexpected error occurred during ECL summary calculation. "
+                    f"Please verify that the Aging Report output, Credit Loss Rates output, ECL output, "
+                    f"and probability weights are available and have the correct format. Detail: {str(e)}"
+                ),
                 "data": None
             }
         )
@@ -304,11 +335,13 @@ async def get_summary_data(
     """
     try:
         db = SessionLocal()
-        
-        workflow = db.query(Workflow).filter(
-            Workflow.id == workflow_id, 
-            Workflow.user_id == current_user.id
-        ).first()
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id,
+                Workflow.user_id == current_user.id
+            ).first()
+        finally:
+            db.close()
         if not workflow:
             return JSONResponse(
                 status_code=404,
@@ -458,11 +491,13 @@ async def export_summary_data(
     """
     try:
         db = SessionLocal()
-        
-        workflow = db.query(Workflow).filter(
-            Workflow.id == workflow_id, 
-            Workflow.user_id == current_user.id
-        ).first()
+        try:
+            workflow = db.query(Workflow).filter(
+                Workflow.id == workflow_id,
+                Workflow.user_id == current_user.id
+            ).first()
+        finally:
+            db.close()
         if not workflow:
             return JSONResponse(
                 status_code=404,

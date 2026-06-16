@@ -19,6 +19,7 @@ from database import SessionLocal
 
 from models.overlay.development import (
     OverlayDevelopmentQuarterlyHistoricalMevInput,
+    OverlayDevelopmentMonthlyHistoricalMevInput,
     OverlayDevelopmentDataInterpolationOutput,
     OverlayLogs
 )
@@ -203,6 +204,12 @@ async def calculate_data_interpolation(
                 OverlayDevelopmentQuarterlyHistoricalMevInput.workflow_id == workflow_id
             ).order_by(OverlayDevelopmentQuarterlyHistoricalMevInput.created_at.desc()).first()
 
+            # Monthly MEV is optional here: used only to extend the interpolation end
+            # date when the monthly data runs later than the last completed quarter.
+            monthly_record = db.query(OverlayDevelopmentMonthlyHistoricalMevInput).filter(
+                OverlayDevelopmentMonthlyHistoricalMevInput.workflow_id == workflow_id
+            ).order_by(OverlayDevelopmentMonthlyHistoricalMevInput.created_at.desc()).first()
+
             workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
 
             log_record = db.query(OverlayLogs).filter(
@@ -247,14 +254,21 @@ async def calculate_data_interpolation(
             import json
             # quarterly_data = json.loads(quarterly_record.json_data) if quarterly_record.json_data else []
             quarterly_df = format_dataframe_constructor(quarterly_record.json_data)
-            
+
 
             print(quarterly_df)
-            
+
             # Convert to DataFrame
             # quarterly_df = pd.DataFrame(quarterly_data)
             print(f"Retrieved quarterly data: {len(quarterly_df)} rows")
-            
+
+            # Build monthly MEV df (if uploaded) so the interpolation horizon can
+            # follow whichever source ends later.
+            monthly_df = None
+            if monthly_record and monthly_record.json_data:
+                monthly_df = format_dataframe_constructor(monthly_record.json_data)
+                print(f"Retrieved monthly data: {len(monthly_df)} rows")
+
         finally:
             db.close()
 
@@ -274,7 +288,7 @@ async def calculate_data_interpolation(
         # Convert to dictionary format
         data = df_cleaned.to_dict(orient='records')
 
-        process_data_interpolation_res = process_data_interpolation(df_cleaned)
+        process_data_interpolation_res = process_data_interpolation(df_cleaned, monthly_df)
 
         
         filename = f"data_interpolation_output_{get_time_date()}.csv"
@@ -329,11 +343,23 @@ async def calculate_data_interpolation(
 
         res = make_json_serializable(res)
         return JSONResponse(status_code=200, content=res)
+    except ValueError as e:
+        traceback.print_exc()
+        res = {
+            'code': -1,
+            'success': False,
+            'msg': str(e)
+        }
+        return JSONResponse(status_code=400, content=res)
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
-            'msg': f'Something went wrong. {e}',
-            'success': False
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred during data interpolation. '
+                f'Please verify that your Quarterly Historical MEV input file has the correct format and data, '
+                f'then re-upload and retry. Detail: {e}'
+            )
         }
         return JSONResponse(status_code=500, content=res)

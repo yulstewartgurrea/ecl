@@ -16,6 +16,8 @@ except ImportError:
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
+from .seasonal_diff import seas_nsdiffs
+
 
 def forecast_mevs_quarterly(
     input_file_path: str = "Input/MEV Historical Quarterly Data.xlsx",
@@ -247,11 +249,19 @@ def forecast_mevs_quarterly(
                 # R: auto.arima(data.ts, allowdrift = FALSE, seasonal = TRUE)
                 try:
                     if PMDARIMA_AVAILABLE:
-                        # Use pmdarima for automatic ARIMA selection (similar to R's auto.arima)
+                        # Use pmdarima for automatic ARIMA selection (similar to R's auto.arima).
+                        # R's auto.arima defaults to seasonal.test="seas" (Wang-Smith-Hyndman
+                        # seasonal strength) to choose D; pmdarima only offers OCSB/CH, which
+                        # under-detect seasonality on short series. Compute D the R way and pass
+                        # it in so seasonal models are considered. ic="aicc" also matches R.
+                        seasonal_D = seas_nsdiffs(data_ts.values, m=4, max_D=1)
+                        print(f"      Seasonal differences (R 'seas' test) D={seasonal_D}")
                         fit = auto_arima(
                             data_ts,
                             seasonal=True,
                             m=4,  # Quarterly seasonality
+                            D=seasonal_D,
+                            information_criterion='aicc',
                             allowdrift=False,
                             suppress_warnings=True,
                             error_action='ignore',

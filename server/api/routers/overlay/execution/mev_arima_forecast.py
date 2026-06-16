@@ -278,12 +278,19 @@ async def calculate_mev_monthly_arima_forecast(
         res = make_json_serializable(res)
         return JSONResponse(status_code=200, content=res)
         
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={'code': -1, 'success': False, 'msg': str(e)})
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
-            'msg': f'Something went wrong: {str(e)}',
-            'success': False
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred during monthly MEV ARIMA forecast. '
+                f'Please verify that the Monthly Historical MEV input file is uploaded '
+                f'and has the correct format (dates and numeric values). Detail: {e}'
+            )
         }
         return JSONResponse(status_code=500, content=res)
 
@@ -497,12 +504,19 @@ async def calculate_mev_quarterly_arima_forecast(
         res = make_json_serializable(res)
         return JSONResponse(status_code=200, content=res)
         
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={'code': -1, 'success': False, 'msg': str(e)})
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
-            'msg': f'Something went wrong: {str(e)}',
-            'success': False
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred during quarterly MEV ARIMA forecast. '
+                f'Please verify that the Quarterly Historical MEV input file is uploaded '
+                f'and has the correct format (dates and numeric values). Detail: {e}'
+            )
         }
         return JSONResponse(status_code=500, content=res)
 

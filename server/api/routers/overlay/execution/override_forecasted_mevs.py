@@ -367,12 +367,19 @@ async def calculate_override_forecasted_mevs(
 
         res = make_json_serializable(res)
         return JSONResponse(status_code=200, content=res)
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={'code': -1, 'success': False, 'msg': str(e)})
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
-            'msg': f'Something went wrong. {e}',
-            'success': False
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred while saving override forecasted MEVs. '
+                f'Please verify that the override values have the correct format (numeric values for all scenario columns). '
+                f'Detail: {e}'
+            )
         }
         return JSONResponse(status_code=500, content=res)
 
@@ -451,13 +458,17 @@ async def get_override_forecasted_mevs_input(
 
             print(final_models_data)
 
-            period_data['time'] = pd.to_datetime(period_data['time'], format="%m/%d/%Y")
+            period_data['time'] = pd.to_datetime(period_data['time'], format="mixed", errors="coerce")
             last_time = period_data['time'].max()
             if pd.isna(last_time):
                 raise ValueError(f"No time found in {period_file}")
             # add 12 months to the last time
+            # Snap each period to the true calendar month-end (+ MonthEnd(0)) so it matches
+            # the forecast/interpolation Dates, which are month-end. Without this, relativedelta
+            # preserves last_time's day (e.g. 30), so 31-day months never match the forecast
+            # values downstream.
             forecasted_periods = [
-                (last_time + relativedelta(months=i)).strftime("%m/%d/%Y")
+                (last_time + relativedelta(months=i) + pd.offsets.MonthEnd(0)).strftime("%m/%d/%Y")
                 for i in range(13)
             ]
 
@@ -466,7 +477,7 @@ async def get_override_forecasted_mevs_input(
             # 2. Grab the first (and only) row
             row = final_models_data.iloc[0]
             # 3. Build a dict: {"X1": "rrp_rate", "X2": "gni_growth_12m", ...}
-            x_values = [row[col] for col in x_cols]
+            x_values = [None if pd.isna(row[col]) else row[col] for col in x_cols]
 
             return {
                 'code': 1,
@@ -479,11 +490,18 @@ async def get_override_forecasted_mevs_input(
         finally:
             db.close()
 
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={'code': -1, 'success': False, 'msg': str(e)})
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
-            'msg': f'Something went wrong. {e}',
-            'success': False
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred while generating override forecasted MEVs input template. '
+                f'Please verify that the Historical Default Rate (or Historical Weighted Credit Loss Rate) input file '
+                f'and the Final Models file are available. Detail: {e}'
+            )
         }
         return JSONResponse(status_code=500, content=res)

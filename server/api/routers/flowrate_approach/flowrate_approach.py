@@ -81,11 +81,18 @@ async def get_processed_flow_rate_approach(
         }
         
         return JSONResponse(status_code=200, content=res)
+    except ValueError as e:
+        res = {
+            'code': -1,
+            'success': False,
+            'msg': f'Error reading flow rate output file. {e}. Please re-run the flow rate calculation.'
+        }
+        return JSONResponse(status_code=400, content=res)
     except Exception as e:
         res = {
             'code': -1,
             'success': False,
-            'msg': f'Something went wrong. {e}'
+            'msg': f'An unexpected error occurred while retrieving flow rate data. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)
 
@@ -146,11 +153,18 @@ async def export_processed_flow_rate_approach(
             filename=document.filename,
             media_type=media_type
         )
+    except ValueError as e:
+        res = {
+            'code': -1,
+            'success': False,
+            'msg': f'Error exporting flow rate output file. {e}. Please re-run the flow rate calculation.'
+        }
+        return JSONResponse(status_code=400, content=res)
     except Exception as e:
         res = {
             'code': -1,
             'success': False,
-            'msg': f'Something went wrong. {e}'
+            'msg': f'An unexpected error occurred while exporting flow rate data. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)
 
@@ -218,11 +232,19 @@ async def flow_rate_approach(
         }
         return JSONResponse(status_code=200, content=res)
 
+    except ValueError as e:
+        traceback.print_exc()
+        res = {
+            'code': -1,
+            'success': False,
+            'msg': str(e)
+        }
+        return JSONResponse(status_code=400, content=res)
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
             'success': False,
-            'msg': f'Something went wrong. {e}'
+            'msg': f'An unexpected error occurred during flow rate calculation. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)

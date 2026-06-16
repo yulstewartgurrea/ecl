@@ -865,8 +865,12 @@ async def calculate_data_transformation(workflow_id: int = Form(...),
             status_code=500,
             content={
                 "code": -1,
-                "msg": f"Something went wrong. {e}",
                 "success": False,
+                "msg": (
+                    f"An unexpected error occurred while starting execution data transformation. "
+                    f"Please verify that the required input files (Monthly Historical MEV, Data Interpolation output, "
+                    f"Historical Default Rate or Historical Weighted Credit Loss Rate) are uploaded and have the correct format. Detail: {e}"
+                ),
                 "data": None
             }
         )
@@ -935,7 +939,7 @@ async def get_data_transformation_status(workflow_id: int,
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": f"An unexpected error occurred while retrieving execution data transformation status. Please contact support. Detail: {str(e)}",
                 "data": None
             }
         )
@@ -1010,7 +1014,7 @@ async def cancel_data_transformation(workflow_id: int = Form(...),
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": f"An unexpected error occurred while cancelling execution data transformation. Please contact support. Detail: {str(e)}",
                 "data": None
             }
         )
@@ -1104,7 +1108,7 @@ async def get_data_transformation_results(workflow_id: int = Query(...),
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": f"An unexpected error occurred while retrieving execution data transformation results. Please verify the transformation completed successfully and retry. Detail: {str(e)}",
                 "data": None
             }
         )
@@ -1247,7 +1251,7 @@ async def get_combine_monthly_mev_data_interpolation_results(workflow_id: int = 
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": f"An unexpected error occurred while retrieving combined monthly MEV data interpolation results. Please verify the data is available and retry. Detail: {str(e)}",
                 "data": None
             }
         )
@@ -1438,6 +1442,9 @@ async def process_combine_monthly_mev_data_interpolation(
 
         return JSONResponse(status_code=200, content=res)
 
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={'code': -1, 'success': False, 'msg': str(e), 'data': None})
     except Exception as e:
         traceback.print_exc()
         return JSONResponse(
@@ -1445,9 +1452,11 @@ async def process_combine_monthly_mev_data_interpolation(
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": (
+                    f"An unexpected error occurred during combine monthly MEV data interpolation. "
+                    f"Please verify that the Data Interpolation output, Monthly MEV ARIMA forecast, "
+                    f"and Final Models file are available and have the correct format. Detail: {str(e)}"
+                ),
                 "data": None
             }
         )
-
-            

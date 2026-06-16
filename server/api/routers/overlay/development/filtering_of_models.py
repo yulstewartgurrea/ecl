@@ -529,7 +529,7 @@ async def get_filtered_results_values(
             content={
                 "code": -1,
                 "success": False,
-                "msg": f"Something went wrong: {str(e)}",
+                "msg": f"An unexpected error occurred while retrieving column values. Please contact support. Detail: {str(e)}",
                 "data": None
             }
         )

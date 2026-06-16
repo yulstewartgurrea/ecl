@@ -64,9 +64,11 @@ def process_transform_forecasted_mevs(data_transformation_df: pd.DataFrame,
 
         transformed_mev_forecasts_df = format_override_forecasted_mevs_df_res.copy()
         
-        # Ensure Period columns are datetime and normalize to month-end
-        transformed_mev_forecasts_df['Period'] = pd.to_datetime(transformed_mev_forecasts_df['Period'], errors='coerce')
-        raw_mev_forecasts_df['Period'] = pd.to_datetime(raw_mev_forecasts_df['Period'], errors='coerce')
+        # Ensure Period columns are datetime and normalize to month-end.
+        # `format='mixed'` is required because uploaded override CSVs can
+        # contain both MM/DD/YYYY and YYYY-MM-DD on different rows.
+        transformed_mev_forecasts_df['Period'] = pd.to_datetime(transformed_mev_forecasts_df['Period'], format='mixed', errors='coerce')
+        raw_mev_forecasts_df['Period'] = pd.to_datetime(raw_mev_forecasts_df['Period'], format='mixed', errors='coerce')
         
         # Normalize all Period dates to month-end for consistent matching
         transformed_mev_forecasts_df['Period'] = transformed_mev_forecasts_df['Period'] + pd.offsets.MonthEnd(0)
@@ -283,8 +285,8 @@ def populate_previous_dates(data_transformation_df: pd.DataFrame,
         new_df['Period'] = dates
 
         # Ensure Date column in data_transformation_df is datetime for proper merging
-        data_transformation_df_copy['Date'] = pd.to_datetime(data_transformation_df_copy['Date'], errors='coerce')
-        new_df['Period'] = pd.to_datetime(new_df['Period'], errors='coerce')
+        data_transformation_df_copy['Date'] = pd.to_datetime(data_transformation_df_copy['Date'], format='mixed', errors='coerce')
+        new_df['Period'] = pd.to_datetime(new_df['Period'], format='mixed', errors='coerce')
         
         cols = new_df.columns.tolist()
         

@@ -117,7 +117,60 @@ def extract_data(df, target_columns):
         print(f"Error: {e}")
         return None
 
-def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
+def _get_monthly_mev_last_date(monthly_hist_mev_df):
+    """
+    Return the latest period (as a month-start pd.Timestamp) present in a monthly
+    historical MEV DataFrame, or None if unavailable.
+
+    The interpolation horizon is normally driven by the quarterly MEV, whose points
+    only land on quarter-end months (Mar/Jun/Sep/Dec). When the monthly MEV extends
+    past the last completed quarter (e.g. data through Apr while the quarterly data
+    stops at Q1/Mar), that tail month would be dropped. This lets the caller extend
+    the end date to whichever source ends later.
+
+    Parses the 'id' column (format 'YYYY-Mon', e.g. '2026-Apr'); falls back to the
+    numeric 'year'/'month' columns. Definition/header rows are ignored.
+    """
+    if monthly_hist_mev_df is None or len(monthly_hist_mev_df) == 0:
+        return None
+
+    month_map = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+                 'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12}
+
+    df = monthly_hist_mev_df.copy()
+    df.columns = df.columns.str.strip().str.lower()
+
+    last_date = None
+
+    # Preferred source: 'id' column like "2026-Apr"
+    if 'id' in df.columns:
+        for raw in df['id'].dropna().astype(str):
+            parts = raw.strip().split('-')
+            if len(parts) != 2:
+                continue
+            year_str, mon_str = parts[0].strip(), parts[1].strip().lower()
+            if not year_str.isdigit() or mon_str not in month_map:
+                continue
+            d = pd.Timestamp(year=int(year_str), month=month_map[mon_str], day=1)
+            if last_date is None or d > last_date:
+                last_date = d
+
+    if last_date is not None:
+        return last_date
+
+    # Fallback: numeric year + month columns
+    if 'year' in df.columns and 'month' in df.columns:
+        years = pd.to_numeric(df['year'], errors='coerce')
+        months = pd.to_numeric(df['month'], errors='coerce')
+        valid = years.notna() & months.notna() & months.between(1, 12)
+        for y, m in zip(years[valid].astype(int), months[valid].astype(int)):
+            d = pd.Timestamp(year=int(y), month=int(m), day=1)
+            if last_date is None or d > last_date:
+                last_date = d
+
+    return last_date
+
+def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame, monthly_hist_mev_df: pd.DataFrame = None):
     """
     Convert quarterly data to monthly interpolated data.
     
@@ -136,7 +189,12 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
     
     Args:
         quarterly_hist_mev_df (pd.DataFrame): Quarterly historical MEV DataFrame
-    
+        monthly_hist_mev_df (pd.DataFrame, optional): Monthly historical MEV DataFrame.
+            Used only to extend the interpolation end date when the monthly data runs
+            later than the last completed quarter; the interpolated values themselves
+            still come from the quarterly data. If None, the end date follows the
+            quarterly data alone (original behavior).
+
     Returns:
         pd.DataFrame | None: Monthly interpolated DataFrame with growth rates, or None if error
     """
@@ -261,12 +319,30 @@ def process_data_interpolation(quarterly_hist_mev_df: pd.DataFrame):
         # Step 4: Create monthly index starting from the first actual data point
         print("\nStep 4: Creating monthly index starting from first data point...")
         
-        end_year = df['year'].max()
-        
-        # Create monthly date range starting from the first actual data point
+        end_year = int(df['year'].max())
+        end_quarter = int(df.loc[df['year'] == end_year, 'quarter'].max())
+        end_month = quarter_to_month[end_quarter]
+
+        # End date implied by the QUARTERLY MEV (last quarter present).
+        quarterly_end_date = pd.Timestamp(year=end_year, month=end_month, day=1)
+
+        # Follow whichever source (quarterly vs monthly MEV) ends later. When the
+        # monthly MEV extends past the last completed quarter (e.g. Apr while the
+        # quarterly data stops at Q1/Mar), extend the horizon so that tail month is
+        # still produced. Interpolated MEV columns hold the last quarterly value
+        # (forward-fill) across the tail; the real monthly values are merged back in
+        # downstream (combine_monthly_mev_data_interpolation, left join on 'id').
+        final_end_date = quarterly_end_date
+        monthly_end_date = _get_monthly_mev_last_date(monthly_hist_mev_df)
+        if monthly_end_date is not None and monthly_end_date > final_end_date:
+            print(f"Extending interpolation end from {quarterly_end_date.strftime('%Y-%m')} "
+                  f"(quarterly) to {monthly_end_date.strftime('%Y-%m')} (monthly MEV ends later)")
+            final_end_date = monthly_end_date
+
+        # Create monthly date range from the first data point to the latest available period
         monthly_dates = pd.date_range(
             start=f"{first_year}-{first_month:02d}-01",
-            end=f"{end_year}-12-31",
+            end=final_end_date,
             freq='MS'  # Month start
         )
         

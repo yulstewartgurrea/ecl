@@ -262,10 +262,40 @@ def prepare_dependent_variables(df: pd.DataFrame, excluded_columns: list) -> pd.
             # Case 1: Column is already datetime → use it directly
             y_raw['Time'] = y_raw['time'].dt.strftime('%Y-%m')
         elif pd.api.types.is_numeric_dtype(y_raw['time']):
-            # Case 2: Column is numeric (Excel serial numbers) → convert from serial to datetime
-            # Excel serial dates: days since 1899-12-30 (Excel epoch, accounting for 1900 leap year bug)
-            y_raw['Time'] = pd.to_datetime('1899-12-30') + pd.to_timedelta(y_raw['time'], unit='D')
-            y_raw['Time'] = y_raw['Time'].dt.strftime('%Y-%m')
+            # Case 2: Column is numeric.
+            # It might be Excel serial days *or* Unix epoch seconds/milliseconds.
+            s = pd.to_numeric(y_raw['time'], errors='coerce')
+            finite = s.dropna()
+            if finite.empty:
+                raise ValueError("Time column contains no numeric values after coercion.")
+
+            abs_med = float(finite.abs().median())
+            abs_max = float(finite.abs().max())
+
+            dt = None
+            # Heuristic thresholds:
+            # - epoch ms around 1e12 (e.g., 1745971200000)
+            # - epoch seconds around 1e9 (e.g., 1745971200)
+            # - Excel serial days typically ~ 40k–60k, rarely > 200k
+            if abs_med >= 1e11:
+                dt = pd.to_datetime(s, unit='ms', errors='coerce')
+            elif abs_med >= 1e9:
+                dt = pd.to_datetime(s, unit='s', errors='coerce')
+            else:
+                # Treat as Excel serial days since 1899-12-30, but guard against extreme values
+                # that would overflow Pandas' datetime/timedelta range.
+                max_excel_days = 300_000  # ~ year 2721; well within pandas bounds
+                safe_days = s.where(s.abs() <= max_excel_days, np.nan)
+                dt = pd.to_datetime('1899-12-30') + pd.to_timedelta(safe_days, unit='D')
+
+                if abs_max > max_excel_days:
+                    # Keep consistent failure mode: tell user to check units rather than overflow.
+                    raise ValueError(
+                        "Time column has values too large to be Excel serial days. "
+                        "If your data uses Unix epoch timestamps, ensure they are in seconds or milliseconds."
+                    )
+
+            y_raw['Time'] = dt.dt.strftime('%Y-%m')
         else:
             # Case 3: Column is string/object → parse as date strings
             y_raw['Time'] = pd.to_datetime(y_raw['time'], errors='coerce').dt.strftime('%Y-%m')
@@ -290,9 +320,8 @@ def apply_transformations_to_independent_variables(x_raw: pd.DataFrame,
     
     This function creates multiple transformed versions of variables:
     1. Log transformation (.ln): Applied to variables with strictly positive minimum
-    2. Inverse hyperbolic sine (.asinh): Applied to variables with non-positive values
-    3. 12-month differencing (.diff_12): Applied to ALL columns (raw + transformed)
-    4. Lag transformations (.lag_3, .lag_6, .lag_9, .lag_12): Applied to ALL columns
+    2. 12-month differencing (.diff_12): Applied to ALL columns (raw + transformed)
+    3. Lag transformations (.lag_3, .lag_6, .lag_9, .lag_12): Applied to ALL columns
     
     Transformations are applied sequentially, so later transformations can use
     earlier transformed columns (e.g., diff_12 can be applied to .ln columns).
@@ -317,16 +346,6 @@ def apply_transformations_to_independent_variables(x_raw: pd.DataFrame,
                 x_transformed[f"{var}.ln"] = np.log(s)
         except Exception as e:
             print(f"  ln skip {var}: {e}")
-
-    # asinh
-    print("Applying asinh transformations...")
-    for var in x_raw_vars:
-        try:
-            s = pd.to_numeric(x_raw[var], errors='coerce')
-            if not s.isna().all() and s.min(skipna=True) <= 0:
-                x_transformed[f"{var}.asinh"] = np.arcsinh(s)
-        except Exception as e:
-            print(f"  asinh skip {var}: {e}")
 
     # diff_12 on ALL non-excluded
     print("Applying differencing transformations...")
@@ -502,7 +521,7 @@ def generate_variable_combinations(x_raw_vars: list,
     This function creates all possible 2-variable combinations by:
     1. Starting with base variable combinations (C(n,2) for n base vars)
     2. Applying Level/GR permutations: "", ".Level", ".GR" for each variable
-    3. Applying transformation permutations: "", ".ln", ".asinh" for each variable
+    3. Applying transformation permutations: "", ".ln" for each variable
     4. Applying differencing permutations: "", ".diff_12" for each variable
     5. Applying lag permutations: "", ".lag_3", ".lag_6", ".lag_9", ".lag_12" for each
     
@@ -564,7 +583,7 @@ def generate_variable_combinations(x_raw_vars: list,
     if cancellation_check and cancellation_check():
         raise Exception("Job cancelled")
     
-    trans_options = ["", ".ln", ".asinh"]
+    trans_options = ["", ".ln"]
     trans_perms = list(product(trans_options, repeat=num_vars_taken))
 
     new_ext = []
@@ -737,7 +756,7 @@ def process_data_transformation_output(combine_monthly_mev_data_interpolation_df
     
     This function orchestrates the full data transformation process:
     1. Prepare independent and dependent variables (clean, add Time, add .Level/.GR)
-    2. Apply transformations (ln, asinh, diff_12, lags for X; logit for Y)
+    2. Apply transformations (ln, diff_12, lags for X; logit for Y)
     3. Save transformed data files
     4. Perform ADF tests for stationarity
     5. Compute correlation matrix

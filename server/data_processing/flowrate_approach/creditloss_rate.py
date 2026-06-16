@@ -6,6 +6,7 @@ import traceback
 from datetime import datetime
 
 from helpers.routers.rename_bucket_cols import rename_bucket_cols
+from decimal import Decimal, localcontext, ROUND_HALF_UP
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -23,6 +24,8 @@ warnings.filterwarnings('ignore')
 # ]
 
 EMPTY_PRODUCT_VALUE = 1.0
+DECIMAL_PLACES = 16
+DECIMAL_CONTEXT_PREC = 50
 
 def creditloss_rate_main(flowrate_output_data):
     """
@@ -71,10 +74,44 @@ def creditloss_rate_main(flowrate_output_data):
         req = ["date"] + BUCKETS
         missing = [c for c in req if c not in flow_rate.columns]
         if missing:
-            return {"code": -1, "success": False, "msg": f"Missing columns: {missing}"}
+            return {
+                "code": -1,
+                "success": False,
+                "msg": (
+                    f"Missing required columns in the flow rate output: {missing}. "
+                    f"This usually means the aging report input file has incorrect or missing column headers. "
+                    f"Please check your aging report input file and ensure all aging bucket columns are present, then re-run the flow rate calculation."
+                )
+            }
+
+        # Validate input DataFrames are not empty
+        if flow_of_loan_balance_principal_matrix.empty:
+            return {
+                'code': -1,
+                'success': False,
+                'msg': (
+                    'The Flow of Loan Balance Principal Matrix section is empty in the flow rate output file. '
+                    'This may indicate the flow rate calculation did not complete successfully. '
+                    'Please check your aging report input file and re-run the flow rate calculation.'
+                )
+            }
+        if flow_rate.empty:
+            return {
+                'code': -1,
+                'success': False,
+                'msg': (
+                    'The Flow Rate Calculation section is empty in the flow rate output file. '
+                    'This may indicate the flow rate calculation did not complete successfully. '
+                    'Please check your aging report input file and re-run the flow rate calculation.'
+                )
+            }
 
         # Calculate aging buckets with tail products and weighted credit loss rates
         aging_buckets_res = calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rate)
+
+        # Check if calculate_aging_buckets returned an error
+        if aging_buckets_res.get('code') == -1:
+            return aging_buckets_res
 
         # Aging category calculation is commented out as overlay is a prerequisite
         # aging_category_res = calculate_aging_category(aging_buckets_res['data'], flow_of_loan_balance_principal_matrix_dist)
@@ -87,15 +124,24 @@ def creditloss_rate_main(flowrate_output_data):
             'data': aging_buckets_res['data'].to_dict(orient='records')
         }
         return res
-    except Exception as e:
-        # Print full traceback for debugging
+    except ValueError as e:
         traceback.print_exc()
-        res = {
+        return {
             'code': -1,
             'success': False,
-            'msg': f'Something went wrong. {e}'
+            'msg': str(e)
         }
-        return res
+    except Exception as e:
+        traceback.print_exc()
+        return {
+            'code': -1,
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred during credit loss rate calculation. '
+                f'Please verify that your aging report input file has the correct format and data, '
+                f'then re-run the flow rate calculation before retrying. Detail: {e}'
+            )
+        }
 
 def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rate):
     """
@@ -121,7 +167,7 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
             - 'data': DataFrame containing:
                 * Date column
                 * 9 bucket columns with tail products (credit loss rates for each bucket)
-                * 'Monotonic?' column indicating if tail products are strictly increasing
+                * 'Strictly Increasing?' column indicating if tail products are strictly increasing
                 * 'Weighted Credit Loss Rate per Month' column (SUMPRODUCT of tail products × distributions)
                 * Average row with mean values for all numeric columns
     """
@@ -133,7 +179,15 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
         req = ["date"] + BUCKETS
         missing = [c for c in req if c not in flow_rate.columns]
         if missing:
-            return {"code": -1, "success": False, "msg": f"Missing columns: {missing}"}
+            return {
+                "code": -1,
+                "success": False,
+                "msg": (
+                    f"Missing required columns in the flow rate data: {missing}. "
+                    f"This usually means the aging report input file has incorrect or missing column headers. "
+                    f"Please check your aging report input file and ensure all aging bucket columns are present, then re-run the flow rate calculation."
+                )
+            }
 
         # Work on a copy to avoid modifying original data
         # Coerce bucket columns to numeric (handles scientific notation strings like '8.77E-05')
@@ -146,7 +200,7 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
         # Example: For bucket 0, tail product = flow_rate[0] × flow_rate[1] × ... × flow_rate[8]
         bucket_vals = (
             df[BUCKETS]
-            .apply(lambda r: _offset_products(r.values.astype(float), BUCKETS), axis=1)
+            .apply(lambda r: _offset_products_decimal(r.values, BUCKETS), axis=1)
             .apply(pd.Series)
         )
         bucket_vals.columns = BUCKETS
@@ -162,6 +216,8 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
         # Standardize bucket column names to match BUCKETS list
         distribution_df = rename_bucket_cols(flow_of_loan_balance_principal_matrix_dist)
         distribution_df = distribution_df[BUCKETS].copy()
+        for c in BUCKETS:
+            distribution_df[c] = pd.to_numeric(distribution_df[c], errors="coerce")
         print('distribution_d \n', distribution_df)
         
         # Calculate SUMPRODUCT for each row: weighted average of tail products
@@ -176,12 +232,12 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
             
             # Calculate SUMPRODUCT: sum(tail_product[i] * dist_weight[i])
             # This gives the expected credit loss rate weighted by loan balance distribution
-            weighted_rate = np.sum(tail_products * dist_weights)
+            weighted_rate = _sumproduct_decimal(tail_products, dist_weights)
             weighted_credit_loss.append(weighted_rate)
 
         # Build output DataFrame with date, tail products, monotonicity check, and weighted rate
         out = pd.concat([df[["date"]].reset_index(drop=True), bucket_vals.reset_index(drop=True)], axis=1)
-        out["Monotonic?"] = mono
+        out["Strictly Increasing?"] = mono
         out["Weighted Credit Loss Rate per Month"] = weighted_credit_loss
 
         # Sort by date to ensure chronological order
@@ -194,14 +250,14 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
         print('out.columns', out.columns)
         print('out \n', out)
 
-        # Calculate averages for numeric columns (excluding 'date' and 'Monotonic?')
-        numeric_cols = [col for col in out.columns if col not in ['date', 'Monotonic?']]
+        # Calculate averages for numeric columns (excluding 'date' and 'Strictly Increasing?')
+        numeric_cols = [col for col in out.columns if col not in ['date', 'Strictly Increasing?']]
         
         # Create average row with mean values (excluding first month)
         avg_row = {'date': 'Average'}
         for col in numeric_cols:
             avg_row[col] = out[col].iloc[1:].mean()  # Exclude first month (index 0)
-        avg_row['Monotonic?'] = ''  # Empty for average row (not applicable)
+        avg_row['Strictly Increasing?'] = ''  # Empty for average row (not applicable)
         
         # Create average DataFrame row
         avg_rows_df = pd.DataFrame([avg_row])
@@ -219,12 +275,15 @@ def calculate_aging_buckets(flow_of_loan_balance_principal_matrix_dist, flow_rat
             'data': final_out
         }
     except Exception as e:
-        # Print full traceback for debugging
         traceback.print_exc()
         return {
             'code': -1,
             'success': False,
-            'msg': f'Something went wrong. {e}'
+            'msg': (
+                f'An unexpected error occurred during aging bucket calculation. '
+                f'Please verify that your aging report input file has the correct format and numeric data in all bucket columns, '
+                f'then re-run the flow rate calculation before retrying. Detail: {e}'
+            )
         }
 
 def calculate_aging_category(aging_buckets_df, distribution_df, scalar=-0.999620893082456):
@@ -371,6 +430,79 @@ def _safe_prod_nonzero(arr: np.ndarray) -> float:
     a = a[(a != 0) & ~np.isnan(a)]
     # Return 0 if no valid values, otherwise return product
     return 0 if a.size == 0 else float(np.prod(a))
+
+def _to_decimal(v) -> Decimal | None:
+    """
+    Convert a value to Decimal safely.
+
+    Notes:
+    - Prefer Decimal(str(v)) to avoid importing binary-float artifacts.
+    - Returns None for NaN / missing so callers can skip those entries.
+    """
+    if v is None:
+        return None
+    try:
+        # Handle numpy/pandas NaN
+        if isinstance(v, (float, np.floating)) and np.isnan(v):
+            return None
+    except Exception:
+        pass
+    try:
+        return Decimal(str(v))
+    except Exception:
+        return None
+
+def _quantize_decimal(x: Decimal, places: int = DECIMAL_PLACES) -> Decimal:
+    q = Decimal(1).scaleb(-places)  # 1E-places
+    return x.quantize(q, rounding=ROUND_HALF_UP)
+
+def _safe_prod_nonzero_decimal(arr) -> Decimal:
+    """
+    Decimal equivalent of _safe_prod_nonzero.
+
+    Mimics Excel PRODUCT(IF(...)) behavior:
+    - skips zeros and NaNs
+    - returns 0 if no valid factors exist
+    """
+    with localcontext() as ctx:
+        ctx.prec = DECIMAL_CONTEXT_PREC
+        prod = Decimal(1)
+        found = False
+        for v in arr:
+            dv = _to_decimal(v)
+            if dv is None:
+                continue
+            if dv == 0:
+                continue
+            prod *= dv
+            found = True
+        return Decimal(0) if not found else prod
+
+def _offset_products_decimal(row_vals, BUCKETS: list[str]) -> list[float]:
+    """
+    Decimal-based tail products, quantized to DECIMAL_PLACES, returned as floats.
+    """
+    out: list[float] = []
+    for i in range(len(BUCKETS)):
+        tail = _safe_prod_nonzero_decimal(row_vals[i:])
+        tail_q = _quantize_decimal(tail)
+        out.append(float(tail_q))
+    return out
+
+def _sumproduct_decimal(a_vals, b_vals) -> float:
+    """
+    Decimal SUMPRODUCT(a, b), quantized to DECIMAL_PLACES, returned as float.
+    """
+    with localcontext() as ctx:
+        ctx.prec = DECIMAL_CONTEXT_PREC
+        total = Decimal(0)
+        for a, b in zip(a_vals, b_vals):
+            da = _to_decimal(a)
+            db = _to_decimal(b)
+            if da is None or db is None:
+                continue
+            total += da * db
+        return float(_quantize_decimal(total))
 
 def _offset_products(row_vals: np.ndarray, BUCKETS: list[str]) -> list[float]:
     """

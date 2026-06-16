@@ -1,4 +1,4 @@
-from fastapi import Depends, Form, Query
+from fastapi import Depends, Form, Query, UploadFile, File
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 from starlette.responses import StreamingResponse
@@ -35,6 +35,54 @@ import re
 import numpy as np
 
 router = APIRouter(prefix="/api/overlay/execution", tags=["overlay-execution"])
+
+
+def _load_uploaded_override_file(file_path: Path) -> pd.DataFrame:
+    ext = file_path.suffix.lower()
+    if ext == ".csv":
+        return pd.read_csv(file_path)
+    if ext in [".xlsx", ".xls"]:
+        return pd.read_excel(file_path)
+    raise ValueError(f"Unsupported file format: {ext}. Supported formats: .csv, .xlsx, .xls")
+
+
+def _normalize_header_token(v: Any) -> str:
+    s = str(v if v is not None else "").strip().lower()
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def _validate_required_headers(file_path: Path) -> None:
+    """
+    Required header groups: Period, Upside, Base, Downside.
+    Accept both:
+    1) Two-row header files where row 1 contains Period/Upside/Base/Downside.
+    2) Flat headers like 'Upside gdp', 'Base cpi', etc.
+    """
+    ext = file_path.suffix.lower()
+    if ext == ".csv":
+        raw = pd.read_csv(file_path, header=None, nrows=2)
+        with_header = pd.read_csv(file_path)
+    else:
+        raw = pd.read_excel(file_path, header=None, nrows=2)
+        with_header = pd.read_excel(file_path)
+
+    required = {"period", "upside", "base", "downside"}
+
+    row0_tokens = set(_normalize_header_token(v) for v in raw.iloc[0].tolist())
+    if required.issubset(row0_tokens):
+        return
+
+    cols = [_normalize_header_token(c) for c in with_header.columns]
+    has_period = any(c == "period" or c.startswith("period ") for c in cols)
+    has_upside = any(c == "upside" or c.startswith("upside ") for c in cols)
+    has_base = any(c == "base" or c.startswith("base ") for c in cols)
+    has_downside = any(c == "downside" or c.startswith("downside ") for c in cols)
+
+    if not (has_period and has_upside and has_base and has_downside):
+        raise ValueError(
+            "Invalid headers. Uploaded file must include Period, Upside, Base, and Downside headers."
+        )
 
 
 def forecast_table_to_json(df: pd.DataFrame):
@@ -280,6 +328,98 @@ async def export_override_data_transformation_mevs(
             }
         )
 
+
+@router.post("/override_data_transformation_mevs/upload")
+async def upload_override_data_transformation_mevs_file(
+    workflow_id: int = Form(...),
+    upload_file: UploadFile = File(...),
+    user_id: User = Depends(get_current_user),
+):
+    """
+    Upload override data transformation template file.
+    Validation: header must contain Period/Upside/Base/Downside groups.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+            if not workflow:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "code": -1,
+                        "success": False,
+                        "msg": "No workflow found for this workflow id",
+                        "data": None,
+                    },
+                )
+        finally:
+            db.close()
+
+        original_name = Path(upload_file.filename or "override_data_transformation_upload.csv").name
+        ext = Path(original_name).suffix.lower()
+        if ext not in [".csv", ".xlsx", ".xls"]:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "code": -1,
+                    "success": False,
+                    "msg": "Invalid file type. Only .csv, .xlsx, and .xls are allowed.",
+                    "data": None,
+                },
+            )
+
+        # Requested storage path: workflow/.../workflow/overridedatetransformation/
+        upload_folder_rel = (
+            f"{workflow.entity}/"
+            f"{workflow.reporting_period}/"
+            f"{workflow.workflow_name}/"
+            f"workflow/overridedatetransformation"
+        )
+        upload_folder_abs = (
+            Path(get_root_folder()) / "server" / "files" / Path(upload_folder_rel)
+        )
+        upload_folder_abs.mkdir(parents=True, exist_ok=True)
+
+        saved_name = f"override_data_transformation_upload_{get_time_date()}{ext}"
+        saved_path = upload_folder_abs / saved_name
+
+        file_bytes = await upload_file.read()
+        with open(saved_path, "wb") as f:
+            f.write(file_bytes)
+
+        try:
+            _validate_required_headers(saved_path)
+            loaded_df = _load_uploaded_override_file(saved_path)
+            rows = forecast_table_to_json(loaded_df)
+        except Exception:
+            if saved_path.exists():
+                saved_path.unlink()
+            raise
+
+        res = {
+            "code": 1,
+            "success": True,
+            "msg": "File uploaded and validated successfully",
+            "data": {
+                "rows": rows,
+                "saved_path": str(Path(upload_folder_rel) / saved_name),
+                "uploaded_by": user_id.id,
+            },
+        }
+        return JSONResponse(status_code=200, content=make_json_serializable(res))
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=400,
+            content={
+                "code": -1,
+                "success": False,
+                "msg": f"Upload failed. {str(e)}",
+                "data": None,
+            },
+        )
+
 @router.post("/override_data_transformation_mevs")
 async def calculate_override_data_transformation_mevs(
     workflow_id: int = Form(...),
@@ -368,12 +508,19 @@ async def calculate_override_data_transformation_mevs(
 
         res = make_json_serializable(res)
         return JSONResponse(status_code=200, content=res)
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={'code': -1, 'success': False, 'msg': str(e)})
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
-            'msg': f'Something went wrong. {e}',
-            'success': False
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred while saving override data transformation MEVs. '
+                f'Please verify that the override values have the correct format (numeric values for all scenario columns). '
+                f'Detail: {e}'
+            )
         }
         return JSONResponse(status_code=500, content=res)
 
@@ -449,13 +596,17 @@ async def get_override_data_transformation_mevs_input(
 
             print(combined_monthly_mev_data_interpolation_data)
 
-            period_data['time'] = pd.to_datetime(period_data['time'], format="%m/%d/%Y")
+            period_data['time'] = pd.to_datetime(period_data['time'], format='mixed', dayfirst=False)
             last_time = period_data['time'].max()
             if pd.isna(last_time):
                 raise ValueError(f"No time found in {period_file}")
             # add 12 months to the last time
+            # Snap each period to the true calendar month-end (+ MonthEnd(0)) so it matches
+            # the forecast/interpolation Dates, which are month-end. Without this, relativedelta
+            # preserves last_time's day (e.g. 30), so 31-day months (05/30 vs 05/31) never match
+            # the forecast values and render as empty cells.
             data_transformation_periods = [
-                (last_time + relativedelta(months=i+1)).strftime("%m/%d/%Y")
+                (last_time + relativedelta(months=i+1) + pd.offsets.MonthEnd(0)).strftime("%m/%d/%Y")
                 for i in range(12)
             ]
 
@@ -502,11 +653,18 @@ async def get_override_data_transformation_mevs_input(
         finally:
             db.close()
 
+    except ValueError as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=400, content={'code': -1, 'success': False, 'msg': str(e)})
     except Exception as e:
         traceback.print_exc()
         res = {
             'code': -1,
-            'msg': f'Something went wrong. {e}',
-            'success': False
+            'success': False,
+            'msg': (
+                f'An unexpected error occurred while generating override data transformation input template. '
+                f'Please verify that the Historical Default Rate (or Historical Weighted Credit Loss Rate) input file '
+                f'and the Combined Monthly MEV Data Interpolation output are available. Detail: {e}'
+            )
         }
         return JSONResponse(status_code=500, content=res)
