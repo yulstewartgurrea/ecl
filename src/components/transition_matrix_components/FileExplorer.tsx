@@ -1,5 +1,5 @@
 // src/components/file_explorer/FileExplorer.tsx (adjust path if needed)
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -26,6 +26,7 @@ import {
   setPdTransitionMatrixSelectedReportingPeriod,
   setPdTransitionMatrixWfName,
   setPdTransitionMatrixWorkflowId,
+  setPdTransitionMatrixInputFiles,
 } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
@@ -188,6 +189,34 @@ export default function FileExplorer() {
     return `/${entity}/${period}/${workflowName}`;
   }, [entity, period, workflowName]);
 
+  // Stable key used to persist/restore the uploaded file list in Redux.
+  // Matches the workflow_path used when uploading (see processFileUpload).
+  const workflowKey = useMemo(() => {
+    if (!entity || !period || !workflowName) return null;
+    return `/${entity}/${period}/${workflowName}`;
+  }, [entity, period, workflowName]);
+
+  // Persisted-across-navigation file list (also survives reload via redux-persist).
+  const inputFilesByWorkflowPath: Record<string, FileItem[]> | undefined =
+    useAppSelector(
+      (s) => s.pdTransitionMatrixWfHelper.inputFilesByWorkflowPath
+    );
+  // Keep latest value in a ref so the hydrate effect can read it without
+  // re-running on every write-back to the store.
+  const inputFilesRef = useRef<Record<string, FileItem[]>>({});
+  inputFilesRef.current = inputFilesByWorkflowPath || {};
+
+  // Write the current file list back to Redux for the active workflow.
+  const persistContents = useCallback(
+    (files: FileItem[]) => {
+      if (!workflowKey) return;
+      dispatch(
+        setPdTransitionMatrixInputFiles({ workflowPath: workflowKey, files })
+      );
+    },
+    [dispatch, workflowKey]
+  );
+
   const handlePickWorkflow = useCallback(
     (w: Workflow) => {
       const nextEntity = (w as any).entity ?? "";
@@ -206,19 +235,26 @@ export default function FileExplorer() {
     [dispatch, loanProduct, reportDateStart]
   );
 
-  const clearWorkflowUi = useCallback(() => {
-    setContents([]);
-    setSelectedFiles({});
-    setValidationErrors([]);
-    setShowValidationErrors(false);
-    setYearValidationError(null);
-    setShowYearValidationError(false);
-  }, []);
-
-  // ✅ clear file UI when workflow changes (like Step1)
+  // Restore the uploaded file list for the active workflow.
+  // Runs on mount (e.g. when returning to Step 1 from Step 2) and whenever
+  // the selected workflow changes, so files are no longer lost on navigation.
   useEffect(() => {
-    clearWorkflowUi();
-  }, [workflowId, clearWorkflowUi]);
+    const restored = workflowKey
+      ? inputFilesRef.current[workflowKey] ?? []
+      : [];
+
+    setContents(restored);
+    setSelectedFiles({});
+
+    const names = restored.map((f) => f.name);
+    const vErrors = restored.length ? validateMonthlyFiles(names) : [];
+    const yError = restored.length ? validateConsecutiveYears(names) : null;
+
+    setValidationErrors(vErrors);
+    setYearValidationError(yError);
+    setShowValidationErrors(vErrors.length > 0);
+    setShowYearValidationError(!!yError);
+  }, [workflowKey]);
 
   // Fetch existing Excel files for workflow
   // const fetchExistingFiles = useCallback(async () => {
@@ -388,7 +424,15 @@ export default function FileExplorer() {
         ...prev,
         [currentPath]: [...(prev[currentPath] || []), ...newFiles],
       }));
-      setContents((prev) => [...prev, ...newFiles]);
+
+      // Replace any same-named entries (covers "Replace All") then append.
+      const newNames = new Set(newFiles.map((f) => f.name));
+      const nextContents = [
+        ...contents.filter((f) => !newNames.has(f.name)),
+        ...newFiles,
+      ];
+      setContents(nextContents);
+      persistContents(nextContents);
 
       setStatus("success");
       setStatusMessage("Upload successful!");
@@ -438,28 +482,26 @@ export default function FileExplorer() {
   });
 
   const handleRemoveFile = (fileName: string) => {
-    setContents((prev) => {
-      const next = prev.filter((f) => f.name !== fileName);
+    const next = contents.filter((f) => f.name !== fileName);
+    setContents(next);
+    persistContents(next);
 
-      const remainingNames = next.map((f) => f.name);
-      const vErrors = validateMonthlyFiles(remainingNames);
-      const yError = validateConsecutiveYears(remainingNames);
+    const remainingNames = next.map((f) => f.name);
+    const vErrors = validateMonthlyFiles(remainingNames);
+    const yError = validateConsecutiveYears(remainingNames);
 
-      setValidationErrors(vErrors);
-      setYearValidationError(yError);
+    setValidationErrors(vErrors);
+    setYearValidationError(yError);
 
-      if (vErrors.length === 0 && !yError) {
-        setShowValidationErrors(false);
-        setShowYearValidationError(false);
-        setStatus("success");
-        setStatusMessage("All months and years are now complete!");
-      } else {
-        if (vErrors.length > 0) setShowValidationErrors(true);
-        if (yError) setShowYearValidationError(true);
-      }
-
-      return next;
-    });
+    if (vErrors.length === 0 && !yError) {
+      setShowValidationErrors(false);
+      setShowYearValidationError(false);
+      setStatus("success");
+      setStatusMessage("All months and years are now complete!");
+    } else {
+      if (vErrors.length > 0) setShowValidationErrors(true);
+      if (yError) setShowYearValidationError(true);
+    }
   };
 
   const uploadStatus = useMemo(() => {

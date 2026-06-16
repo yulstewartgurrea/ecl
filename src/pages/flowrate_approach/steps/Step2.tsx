@@ -1,4 +1,4 @@
-﻿// pages/flowrate/steps/Step4.tsx
+// pages/flowrate/steps/Step4.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Squares2X2Icon,
@@ -15,6 +15,7 @@ import { useLocation, useSearchParams } from "react-router-dom";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 import { getFlowRateDataGET, runFlowRatePOST, exportFlowRateFile } from "../../../services/flowrate";
+import { downloadBlobWithTauri } from "../../../utils/downloadBlobWithTauri";
 import type { AnyRow } from "../../../components/asa/table/aging.types";
 
 /* -------- workflow id helpers -------- */
@@ -149,17 +150,9 @@ export default function Step4() {
     setToasterMessage("Exporting file...");
 
     try {
-      const blob = await exportFlowRateFile({ apiBase: API_BASE, token: authToken, workflowId: wf });
-      const filename = `flow_rate_output_${wf}.xlsx`;
+      const { blob, filename } = await exportFlowRateFile({ apiBase: API_BASE, token: authToken, workflowId: wf });
 
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      await downloadBlobWithTauri(blob, filename);
 
       setToasterStatus("success");
       setToasterMessage("File exported successfully!");

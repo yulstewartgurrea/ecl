@@ -100,23 +100,82 @@ export async function runFlowRatePOST(opts: {
 }
 
 /** Export: /api/flowrate_approach/flow_rate/export/?workflow_id=... */
+function parseContentDispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const match = header.match(/filename\s*=\s*"?([^";\n]+)"?/i);
+  return match ? match[1].trim() : null;
+}
+
+export type ExportFlowRateResult = { blob: Blob; filename: string };
+
+/** Export: /api/flowrate_approach/flow_rate/export/?workflow_id=... */
 export async function exportFlowRateFile(opts: {
   apiBase: string;
   token?: string | null;
   workflowId: number;
-}): Promise<Blob> {
+}): Promise<ExportFlowRateResult> {
   const { apiBase, token, workflowId } = opts;
   const url = `${base(apiBase)}/api/flowrate_approach/flow_rate/export/?workflow_id=${encodeURIComponent(
     String(workflowId)
   )}`;
-  const res = await xfetch(url, {
+  // Use native fetch in Tauri so the binary body is read in the webview and avoid
+  // plugin-http fetch_read_body/channel errors when streaming the blob back.
+  const fetcher = (typeof window !== "undefined" && (window as any).__TAURI__) ? fetch : xfetch;
+  const res = await fetcher(url, {
     method: "GET",
     headers: withAuth(token),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Export failed: HTTP ${res.status}${text ? ` – ${text}` : ""}`);
+    let errorMsg = `Export failed (HTTP ${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.msg) errorMsg = body.msg;
+    } catch {
+      const text = await res.text().catch(() => "");
+      if (text) errorMsg = `Export failed: HTTP ${res.status} – ${text}`;
+    }
+    throw new Error(errorMsg);
   }
-  return await res.blob();
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition");
+  const filename = parseContentDispositionFilename(disposition) ?? "flow_rate_export.xlsx";
+  return { blob, filename };
+}
+
+export type ExportCreditLossCalculationResult = { blob: Blob; filename: string };
+
+/** Export: /api/flowrate_approach/credit_loss_calculation/export?workflow_id=... */
+export async function exportCreditLossCalculationFile(opts: {
+  apiBase: string;
+  token?: string | null;
+  workflowId: number;
+}): Promise<ExportCreditLossCalculationResult> {
+  const { apiBase, token, workflowId } = opts;
+  const url = `${base(apiBase)}/api/flowrate_approach/credit_loss_calculation/export?workflow_id=${encodeURIComponent(
+    String(workflowId)
+  )}`;
+  // Use native fetch in Tauri so the binary body is read in the webview and avoid
+  // plugin-http fetch_read_body/channel errors when streaming the blob back.
+  const fetcher = typeof window !== "undefined" && (window as any).__TAURI__ ? fetch : xfetch;
+  const res = await fetcher(url, {
+    method: "GET",
+    headers: withAuth(token),
+  });
+  if (!res.ok) {
+    let errorMsg = `Export failed (HTTP ${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.msg) errorMsg = body.msg;
+    } catch {
+      const text = await res.text().catch(() => "");
+      if (text) errorMsg = `Export failed: HTTP ${res.status} – ${text}`;
+    }
+    throw new Error(errorMsg);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition");
+  const filename =
+    parseContentDispositionFilename(disposition) ?? "credit_loss_calculation_output.xlsx";
+  return { blob, filename };
 }
 

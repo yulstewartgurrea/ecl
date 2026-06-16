@@ -1,4 +1,4 @@
-﻿// pages/ecl/steps/Step5.tsx
+// pages/ecl/steps/Step5.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   InformationCircleIcon,
@@ -14,6 +14,7 @@ import {
   setModuleProgress,
 } from "../../../redux_toolkit/features/progress/moduleProgressSlice";
 import type { RootState } from "../../../redux_toolkit/store";
+import { downloadBlobWithTauri } from "../../../utils/downloadBlobWithTauri";
 
 type ApiRowRaw = Record<string, any>;
 
@@ -261,9 +262,6 @@ export default function Step5() {
       
       if (response.ok) {
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
         // Get filename from Content-Disposition header or use default
         const contentDisposition = response.headers.get("Content-Disposition");
         let filename = "credit_loss_rates.xlsx";
@@ -273,11 +271,7 @@ export default function Step5() {
             filename = filenameMatch[1];
           }
         }
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        await downloadBlobWithTauri(blob, filename);
       } else {
         const errorData = await response.json().catch(() => ({}));
         setError(errorData?.msg || "Failed to export credit loss rates");

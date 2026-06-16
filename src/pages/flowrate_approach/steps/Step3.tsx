@@ -1,4 +1,4 @@
-﻿// pages/flowrate/steps/Step5.tsx (API-DRIVEN, DYNAMIC)
+// pages/flowrate/steps/Step5.tsx (API-DRIVEN, DYNAMIC)
 import React, { useEffect, useState } from "react";
 import { PlayIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import CreditLossRateMatrix from "../../../components/asa/credit/CreditLossRateMatrix";
@@ -8,6 +8,10 @@ import { useAppSelector } from "../../../redux_toolkit/hooks";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 import { useDispatch } from "react-redux";
 import { setStep5Bundle } from "../../../redux_toolkit/features/asa/flowrateStep5Slice";
+import { exportCreditLossCalculationFile } from "../../../services/flowrate";
+import { downloadBlobWithTauri } from "../../../utils/downloadBlobWithTauri";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 /* -------- workflow id helpers (URL ?workflow_id=, route state, or localStorage) -------- */
 function useWorkflowId(): number {
@@ -216,11 +220,11 @@ const Step5: React.FC = () => {
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
-      }
-
       const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.msg || `API error: ${response.status} ${response.statusText}`);
+      }
 
       if (result.success || result.code === 1) {
         const step5Res = await getStep3Data(workflowId);
@@ -269,44 +273,13 @@ const Step5: React.FC = () => {
     setToasterMessage("Exporting file...");
 
     try {
-      const headers: Record<string, string> = {};
-      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+      const { blob, filename } = await exportCreditLossCalculationFile({
+        apiBase: API_BASE,
+        token: authToken,
+        workflowId,
+      });
 
-      const response = await fetch(
-        `http://localhost:8000/api/flowrate_approach/credit_loss_calculation/export?workflow_id=${workflowId}`,
-        {
-          method: "GET",
-          headers,
-        }
-      );
-
-      if (!response.ok) {
-        let errorMsg = `API error: ${response.status} ${response.statusText}`;
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.msg || errorMsg;
-        } catch {
-          /* ignore */
-        }
-        throw new Error(errorMsg);
-      }
-
-      const contentDisposition = response.headers.get("Content-Disposition");
-      let filename = "credit_loss_calculation_output.xlsx";
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?(.+)"?/);
-        if (match) filename = match[1];
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      await downloadBlobWithTauri(blob, filename);
 
       setToasterStatus("success");
       setToasterMessage("File exported successfully!");

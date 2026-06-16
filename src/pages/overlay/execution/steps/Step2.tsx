@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import ExeTable from "../../../../components/overlay/execution/interpolation/table/ExeTable";
 import type { Frequency } from "../../../../components/overlay/execution/interpolation/table/Columns";
 import { ProcessModal } from "../../../../components/ProcessModal";
@@ -17,6 +17,7 @@ import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -163,14 +164,7 @@ export default function OverlayDevelopmentPage2() {
         const fallback = `interpolation_export_${selectedWorkflowId}.csv`;
         const filename = (match && decodeURIComponent(match[1])) || fallback;
 
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(href);
+        await downloadBlobWithTauri(blob, filename);
       } catch (e: any) {
         setExportErr(e?.message || "Export failed");
       } finally {

@@ -1,17 +1,15 @@
-﻿// Step7.tsx
+// Step7.tsx
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ModelSpec } from "../../../../components/overlay/development/candidate_model/ModelCompareGrid";
 import type { RootState } from "../../../../redux_toolkit/store";
-import {
-  useAppDispatch,
-  useAppSelector,
-} from "../../../../redux_toolkit/hooks";
+import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
 import {
   selectModuleProgress,
   setModuleProgress,
 } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 import { postFinalModel } from "../../../../services/finalModels"; //   uses your existing service
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -24,11 +22,12 @@ const Step7: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
-    useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
+    const {
+    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
+  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
   const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
   const overlayRoot = useAppSelector((state: RootState) =>
-    selectModuleProgress(state, "overlayDevelopment"),
+    selectModuleProgress(state, "overlayDevelopment")
   );
   const lastWorkflowId = (overlayRoot?.data as any)?.lastWorkflowId as
     | number
@@ -44,12 +43,11 @@ const Step7: React.FC = () => {
   }, [selectedWorkflowId, lastWorkflowId]);
 
   const contextKey =
-    Number.isFinite(Number(effectiveWorkflowId)) &&
-    Number(effectiveWorkflowId) > 0
+    Number.isFinite(Number(effectiveWorkflowId)) && Number(effectiveWorkflowId) > 0
       ? String(effectiveWorkflowId)
       : undefined;
   const overlayProgress = useAppSelector((state: RootState) =>
-    selectModuleProgress(state, "overlayDevelopment", contextKey),
+    selectModuleProgress(state, "overlayDevelopment", contextKey)
   );
 
   // Helper to find column case-insensitively
@@ -65,9 +63,7 @@ const Step7: React.FC = () => {
   }
 
   // Helper to find all X columns dynamically (X1, X2, X3, ..., Xn)
-  function findAllXColumns(
-    row: any,
-  ): Array<{ index: number; name: string; value: any }> {
+  function findAllXColumns(row: any): Array<{ index: number; name: string; value: any }> {
     if (!row) return [];
     const matches: Array<{ index: number; name: string; value: any }> = [];
     Object.keys(row).forEach((key) => {
@@ -86,39 +82,53 @@ const Step7: React.FC = () => {
   function mapRowToModelSpec(row: any): ModelSpec {
     // Find all X columns dynamically
     const xColumns = findAllXColumns(row);
-
+    
     // Build title with all X variables
-    const xNames =
-      xColumns.length > 0 ? xColumns.map((x) => x.value).join(" | ") : "-";
+    const xNames = xColumns.length > 0 
+      ? xColumns.map(x => x.value).join(" | ")
+      : "-";
     const title = `${row?.Y ?? findColumn(row, "Y") ?? "Model"}: ${xNames}`;
+    
+    const interceptRaw = findColumn(row, "intercept") ?? findColumn(row, "intercepts");
+    const interceptVal = Number(interceptRaw);
 
-    // Build variables array dynamically
-    const variables = xColumns.map((xCol) => {
+    // Build variables array dynamically (Intercept is its own row)
+    const variables = [
+      ...(Number.isFinite(interceptVal)
+        ? [
+            {
+              name: "Intercept",
+              coeff_X1: interceptVal, // value goes to coefficient column
+              "p-value_X1": 0,
+              vif_X1: 0,
+              raw: interceptRaw,
+            },
+          ]
+        : []),
+      ...xColumns.map((xCol) => {
       const xName = xCol.name;
-
+      
       // Find coefficient (case-insensitive)
       const coeffKey = `coeff_${xName}`;
       const coeff = findColumn(row, coeffKey) ?? 0;
-
+      
       // Find p-value (case-insensitive, multiple formats)
       const pvalKey1 = `p-value_${xName}`;
       const pvalKey2 = `p_value_${xName}`;
       const pval = findColumn(row, pvalKey1) ?? findColumn(row, pvalKey2);
-
+      
       // Find VIF (case-insensitive)
       const vifKey = `vif_${xName}`;
       const vif = findColumn(row, vifKey);
-      const intercept =
-        findColumn(row, "intercept") ?? findColumn(row, "intercepts");
       return {
         name: String(xCol.value),
         coeff_X1: Number(coeff), // Keep field name for compatibility
         "p-value_X1": pval, // Keep field name for compatibility
         vif_X1: vif, // Keep field name for compatibility
         raw: coeff,
-        intercept: intercept,
       };
-    });
+    }),
+    ];
 
     // Build X object dynamically (X1, X2, X3, etc.)
     const xObject: Record<string, any> = {};
@@ -130,8 +140,7 @@ const Step7: React.FC = () => {
       title,
       variables,
       metrics: {
-        Adj_R_Squared:
-          findColumn(row, "Adj_R_Squared") ?? findColumn(row, "adj_r_squared"),
+        Adj_R_Squared: findColumn(row, "Adj_R_Squared") ?? findColumn(row, "adj_r_squared"),
         RMSE: findColumn(row, "RMSE") ?? findColumn(row, "rmse"),
         MAPE: findColumn(row, "MAPE") ?? findColumn(row, "mape"),
         R_Squared: findColumn(row, "R_Squared") ?? findColumn(row, "r_squared"),
@@ -141,9 +150,9 @@ const Step7: React.FC = () => {
       Y: findColumn(row, "Y") ?? findColumn(row, "y"),
       ...xObject, // Spread all X columns dynamically
       R_Squared: findColumn(row, "R_Squared") ?? findColumn(row, "r_squared"),
-      Adj_R_Squared:
-        findColumn(row, "Adj_R_Squared") ?? findColumn(row, "adj_r_squared"),
+      Adj_R_Squared: findColumn(row, "Adj_R_Squared") ?? findColumn(row, "adj_r_squared"),
       MAPE: findColumn(row, "MAPE") ?? findColumn(row, "mape"),
+      
     };
   }
 
@@ -171,12 +180,7 @@ const Step7: React.FC = () => {
       const json = await res.json();
       // API returns: { success: true, data: [...], pagination: {...} }
       // data is the array directly, not nested
-      if (
-        json?.success &&
-        json?.data &&
-        Array.isArray(json.data) &&
-        json.data.length > 0
-      ) {
+      if (json?.success && json?.data && Array.isArray(json.data) && json.data.length > 0) {
         // Take the first model from the response
         const firstModel = json.data[0];
         const modelSpec = mapRowToModelSpec(firstModel);
@@ -197,7 +201,7 @@ const Step7: React.FC = () => {
       step6Selected?: { model?: ModelSpec | null };
     };
     const redxModel = (data.step6Selected?.model as ModelSpec) ?? null;
-
+    
     if (redxModel) {
       // Prefer Redux model if available
       setModel(redxModel);
@@ -219,7 +223,7 @@ const Step7: React.FC = () => {
     const wfId = Number(effectiveWorkflowId);
     if (!Number.isFinite(wfId)) {
       setErr(
-        "Missing or invalid workflow id. Please select a workflow in Step 1.",
+        "Missing or invalid workflow id. Please select a workflow in Step 1."
       );
       return;
     }
@@ -255,7 +259,7 @@ const Step7: React.FC = () => {
             moduleKey: "overlayDevelopment",
             contextKey,
             data: { step6Selected: null },
-          }),
+          })
         );
       }
       setShowModal(true);
@@ -306,24 +310,12 @@ const Step7: React.FC = () => {
 
       if (ct.includes("csv") || ct.startsWith("text/csv")) {
         const blob = await res.blob();
-        const filename =
-          (nameMatch && decodeURIComponent(nameMatch[1])) || fallback;
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(href);
+        const filename = (nameMatch && decodeURIComponent(nameMatch[1])) || fallback;
+        await downloadBlobWithTauri(blob, filename);
       } else {
         // If server returns JSON, convert to CSV
         const json = await res.json();
-        const rows = Array.isArray(json?.data?.data)
-          ? json.data.data
-          : Array.isArray(json?.data)
-            ? json.data
-            : [];
+        const rows = Array.isArray(json?.data?.data) ? json.data.data : Array.isArray(json?.data) ? json.data : [];
         if (rows.length === 0) {
           throw new Error("No data to export");
         }
@@ -331,27 +323,16 @@ const Step7: React.FC = () => {
         const headers = Object.keys(rows[0] || {});
         const csvLines = [
           headers.join(","),
-          ...rows.map((r: any) =>
-            headers
-              .map((h) => {
-                const val = r[h];
-                if (val == null) return "";
-                const s = String(val);
-                return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-              })
-              .join(","),
-          ),
+          ...rows.map((r: any) => headers.map((h) => {
+            const val = r[h];
+            if (val == null) return "";
+            const s = String(val);
+            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+          }).join(","))
         ];
         const csv = "\uFEFF" + csvLines.join("\r\n");
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = fallback;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(href);
+        await downloadBlobWithTauri(blob, fallback);
       }
     } catch (e: any) {
       setErr(e?.message || "Export failed");
@@ -382,13 +363,15 @@ const Step7: React.FC = () => {
       </div>
     );
   }
-  console.log("model.variables: ", model.variables);
+  console.log('model.variables: ', model.variables)
   return (
     <>
       <div className="space-y-6">
         {/* Title */}
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Final Model</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Final Model
+          </h1>
         </div>
 
         {err && (
@@ -400,7 +383,9 @@ const Step7: React.FC = () => {
         {/* Selection banner */}
         <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-neutral-900">
           <div className="flex items-center gap-3">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-200 font-semibold text-black"></span>
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 font-semibold text-black">
+               
+            </span>
             <p className="text-base">
               <span className="font-medium">{model.title}</span> is locked in
               for your ECL computation.
@@ -414,7 +399,6 @@ const Step7: React.FC = () => {
             <thead className="bg-gray-700 text-white">
               <tr>
                 <th className="px-4 py-3 text-sm font-medium">Variable</th>
-                <th className="px-4 py-3 text-sm font-medium">Intercept</th>
                 <th className="px-4 py-3 text-right text-sm font-medium">
                   Coefficient
                 </th>
@@ -431,9 +415,6 @@ const Step7: React.FC = () => {
                 model.variables.map((v, i) => (
                   <tr key={i} className={i % 2 ? "bg-neutral-50/40" : ""}>
                     <td className="px-4 py-3 text-neutral-800">{v.name}</td>
-                    <td className="px-4 py-3 text-left tabular-nums">
-                      {v.intercept}
-                    </td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {fmtNumber(v.coeff_X1)}
                     </td>
@@ -464,13 +445,13 @@ const Step7: React.FC = () => {
           <StatTile
             label="RMSE"
             value={fmtPercent(
-              (model.metrics as any)?.RMSE ?? (model as any)?.RMSE,
+              (model.metrics as any)?.RMSE ?? (model as any)?.RMSE
             )}
           />
           <StatTile
             label="Adj. R²"
             value={fmtPercent(
-              model.metrics?.Adj_R_Squared ?? (model as any)?.Adj_R_Squared,
+              model.metrics?.Adj_R_Squared ?? (model as any)?.Adj_R_Squared
             )}
           />
           <StatTile
@@ -551,7 +532,9 @@ function Modal({
             onClick={onClose}
             className="rounded-md p-1 text-neutral-500 hover:bg-neutral-100"
             aria-label="Close"
-          ></button>
+          >
+            
+          </button>
         </div>
         {children}
       </div>
@@ -615,3 +598,4 @@ function fmtPctOrVal(v: number | string | undefined): string {
 // }
 
 export default Step7;
+

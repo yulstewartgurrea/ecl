@@ -161,7 +161,7 @@ export default function Step4() {
               <p className="mt-1 text-[11px] leading-relaxed text-amber-900/90">
                 <span className="font-semibold">Per bucket ECL Rate formula:</span>{" "}
                 <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-[10px]">
-                  ECL Rate (bucket) = Weighted ECL Ã· Loan Balance Ã— 100
+                  ECL Rate (bucket) = (Weighted ECL / Loan Balance) * 100
                 </code>
                 .
               </p>

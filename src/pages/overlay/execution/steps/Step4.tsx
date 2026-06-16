@@ -1,4 +1,4 @@
-﻿// src/pages/overlay/execution/Step4.tsx
+// src/pages/overlay/execution/Step4.tsx
 import React, { useState, useCallback, useEffect } from "react";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 
@@ -17,6 +17,7 @@ import {
   PlayCircleIcon,
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 const Step4: React.FC = () => {
   const {
@@ -120,8 +121,8 @@ const Step4: React.FC = () => {
         );
         setFinalModel(fm);
       } catch (err) {
-        console.error("Failed to load forecasted PD input data:", err);
-        alert("Failed to load forecasted PD data.");
+        console.error("Failed to load forecasted CLR input data:", err);
+        alert("Failed to load forecasted CLR data.");
         setFinalModel([]);
       } finally {
         setLoading(false);
@@ -139,7 +140,7 @@ const Step4: React.FC = () => {
       mapCalcData(calcData);
     } catch (err) {
       console.error(err);
-      alert("Failed to reload forecasted PD results.");
+      alert("Failed to reload forecasted CLR results.");
     }
   }, [selectedWorkflowId, token, mapCalcData]);
 
@@ -152,14 +153,14 @@ const Step4: React.FC = () => {
       await reloadCalc();
     } catch (err) {
       console.error(err);
-      alert("Run Forecasted PD failed.");
+      alert("Run Forecasted CLR failed.");
     } finally {
       setPosting(false);
     }
   }, [selectedWorkflowId, token, reloadCalc]);
 
   // Export everything that is displayed
-  const exportCsv = useCallback(() => {
+  const exportCsv = useCallback(async () => {
     if (!selectedWorkflowId) {
       alert("Select a workflow on Step 1 first.");
       return;
@@ -205,8 +206,8 @@ const Step4: React.FC = () => {
 
       lines.push("");
 
-      // Forecasted PDs (all rows)
-      lines.push("Forecasted PDs");
+      // Forecasted CLR (all rows)
+      lines.push("Forecasted CLRs");
       lines.push("Date,Upside,Base,Downside");
       forecastedPdRows.forEach((row) => {
         lines.push(
@@ -223,14 +224,7 @@ const Step4: React.FC = () => {
       const blob = new Blob([csv], {
         type: "text/csv;charset=utf-8;",
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `forecasted_pd_summary_${selectedWorkflowId}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      await downloadBlobWithTauri(blob, `forecasted_pd_summary_${selectedWorkflowId}.csv`);
     } catch (err) {
       console.error(err);
       alert("Export failed.");
@@ -247,11 +241,11 @@ const Step4: React.FC = () => {
         <div className="mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-              Forcasted Loss Rate Calculation
+              Forecasted Loss Rate Calculation
             </h1>
             {loading && (
               <p className="mt-1 text-xs text-gray-500">
-                Loading forecasted PD data
+                Loading forecasted CLR data
               </p>
             )}
           </div>
@@ -265,11 +259,11 @@ const Step4: React.FC = () => {
               title={
                 !selectedWorkflowId
                   ? "Select a workflow on Step 1 first"
-                  : "Run Forecasted PD calculation"
+                  : "Run Forecasted CLRs calculation"
               }
             >
               <PlayCircleIcon className="h-4 w-4" />
-              <span>{posting ? "Running" : "Run Forecasted PD"}</span>
+              <span>{posting ? "Running" : "Run Forecasted CLRs"}</span>
             </button>
 
             {/* Export CSV */}

@@ -1,4 +1,4 @@
-﻿// pages/ecl/steps/Step2.tsx
+// pages/ecl/steps/Step2.tsx
 import  { useEffect, useMemo, useRef, useState } from "react";
 import {
   InformationCircleIcon,
@@ -16,6 +16,7 @@ import type { RootState } from "../../../redux_toolkit/store";
 import EclCombinedExcelTable, {
   type EclClientRow,
 } from "../../../components/asa/ecl/EclTablesCombined";
+import { downloadBlobWithTauri } from "../../../utils/downloadBlobWithTauri";
 
 type ApiRowRaw = Record<string, any>;
 
@@ -287,9 +288,6 @@ formData.append(
       
       if (response.ok) {
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
         // Get filename from Content-Disposition header or use default
         const contentDisposition = response.headers.get("Content-Disposition");
         let filename = "ecl_data.xlsx";
@@ -299,11 +297,7 @@ formData.append(
             filename = filenameMatch[1];
           }
         }
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        await downloadBlobWithTauri(blob, filename);
       } else {
         const errorData = await response.json().catch(() => ({}));
         setError(errorData?.msg || "Failed to export ECL data");

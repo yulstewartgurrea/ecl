@@ -1,4 +1,4 @@
-﻿// src/pages/overlay/execution/Step6.tsx
+// src/pages/overlay/execution/Step6.tsx
 import React, {
   useState,
   useCallback,
@@ -20,6 +20,7 @@ import {
   PlayCircleIcon,
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 const mapPdRows = (apiRows: GetPdCalibrationRow[]): PdCalibrationRow[] => {
   return apiRows.map((r) => ({
@@ -111,7 +112,7 @@ const Step6: React.FC = () => {
   }, [selectedWorkflowId, token]);
 
   // -------- Export CSV (from current rows) --------
-  const exportCsv = useCallback(() => {
+  const exportCsv = useCallback(async () => {
     if (!selectedWorkflowId || rows.length === 0) return;
 
     setExporting(true);
@@ -150,14 +151,7 @@ const Step6: React.FC = () => {
       const blob = new Blob([csv], {
         type: "text/csv;charset=utf-8;",
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `pd_calibration_${selectedWorkflowId}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      await downloadBlobWithTauri(blob, `pd_calibration_${selectedWorkflowId}.csv`);
     } catch (err) {
       console.error(err);
       alert("Export failed.");

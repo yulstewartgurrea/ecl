@@ -1,4 +1,4 @@
-﻿// src/pages/overlay/execution/Step7.tsx
+// src/pages/overlay/execution/Step7.tsx
 import React, {
   useState,
   useCallback,
@@ -19,6 +19,7 @@ import {
   PlayCircleIcon,
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 const Step7: React.FC = () => {
   // read workflow_id + token
@@ -74,7 +75,7 @@ const Step7: React.FC = () => {
   }, [selectedWorkflowId, loadFinalPitPd]);
 
   // ---- Export CSV ----
-  const exportCsv = useCallback(() => {
+  const exportCsv = useCallback(async () => {
     if (!selectedWorkflowId) return;
 
     setExporting(true);
@@ -107,14 +108,7 @@ const Step7: React.FC = () => {
       const blob = new Blob([csv], {
         type: "text/csv;charset=utf-8;",
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `fl_pit_pds_${selectedWorkflowId ?? "export"}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      await downloadBlobWithTauri(blob, `fl_pit_pds_${selectedWorkflowId ?? "export"}.csv`);
     } catch (err) {
       console.error(err);
       alert("Export failed.");

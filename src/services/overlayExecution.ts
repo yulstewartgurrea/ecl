@@ -1,5 +1,6 @@
 // src/services/overlayExecution.ts
 import type { ScenarioRow } from "../components/overlay/execution/mev/ConfigModal";
+import { downloadBlobWithTauri } from "../utils/downloadBlobWithTauri";
 
 export type OverrideGetResponse = {
   periods: string[];
@@ -18,6 +19,11 @@ export type OverrideDataTransformationResponse = {
   default_values?: Array<Record<string, any>>;
 };
 
+export type OverrideDataTransformationUploadResponse = {
+  rows?: ScenarioRow[];
+  saved_path?: string;
+};
+
 export const API_BASE =
   (import.meta.env.VITE_API_BASE as string) || "http://localhost:8000";
 
@@ -34,11 +40,10 @@ const toYMD = (p: string) => {
   return p;
 };
 
-
 // ---------- existing endpoints ----------
 export async function overrideGetForcasted(
   workflowId: number | string,
-  token?: string | null
+  token?: string | null,
 ): Promise<OverrideGetForcastedResponse> {
   const url = `${API_BASE}/api/overlay/execution/override_forecasted_mevs/?workflow_id=${workflowId}`;
   const res = await fetch(url, { headers: authHeader(token) });
@@ -54,27 +59,32 @@ export async function overrideGetForcasted(
 /** GET: /override_data_transformation_mevs/?workflow_id=ID */
 export async function overrideGetDataTransformationMevs(
   workflowId: number | string,
-  token?: string | null
+  token?: string | null,
 ): Promise<OverrideDataTransformationResponse> {
   const url = `${API_BASE}/api/overlay/execution/override_data_transformation_mevs/?workflow_id=${workflowId}`;
   const res = await fetch(url, { headers: authHeader(token) });
   if (res.status === 404 || res.status === 204) {
     return { rows: [], periods: [], variables: [] };
   }
-  if (!res.ok) throw new Error(`GET data transformation override failed: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`GET data transformation override failed: ${res.status}`);
   const json = await res.json();
   const data = json?.data ?? {};
 
   const rows: ScenarioRow[] | undefined = Array.isArray(data)
     ? (data as ScenarioRow[])
     : Array.isArray(data?.rows)
-    ? (data.rows as ScenarioRow[])
-    : undefined;
+      ? (data.rows as ScenarioRow[])
+      : undefined;
 
   const periods: string[] = Array.isArray(data?.period) ? data.period : [];
-  const variables: string[] = Array.isArray(data?.variables) ? data.variables : [];
-  const default_values: Array<Record<string, any>> | undefined = Array.isArray(data?.default_values) 
-    ? data.default_values 
+  const variables: string[] = Array.isArray(data?.variables)
+    ? data.variables
+    : [];
+  const default_values: Array<Record<string, any>> | undefined = Array.isArray(
+    data?.default_values,
+  )
+    ? data.default_values
     : undefined;
 
   return { rows, periods, variables, default_values };
@@ -83,7 +93,7 @@ export async function overrideGetDataTransformationMevs(
 /** GET: /override_forecasted_mevs/input/?workflow_id=ID */
 export async function overrideGetInput(
   workflowId: number | string,
-  token?: string | null
+  token?: string | null,
 ): Promise<OverrideGetResponse> {
   const url = `${API_BASE}/api/overlay/execution/override_forecasted_mevs/input/?workflow_id=${workflowId}`;
   const res = await fetch(url, { headers: authHeader(token) });
@@ -91,24 +101,31 @@ export async function overrideGetInput(
   const json = await res.json();
   const data = json?.data ?? {};
   const periods: string[] = Array.isArray(data.period) ? data.period : [];
-  const variables: string[] = Array.isArray(data.variables) ? data.variables : [];
+  const variables: string[] = Array.isArray(data.variables)
+    ? data.variables
+    : [];
   return { periods, variables };
 }
 
 /** GET: /override_data_transformation_mevs/input/?workflow_id=ID */
 export async function overrideGetDataTransformationInput(
   workflowId: number | string,
-  token?: string | null
+  token?: string | null,
 ): Promise<OverrideGetResponse> {
   const url = `${API_BASE}/api/overlay/execution/override_data_transformation_mevs/input/?workflow_id=${workflowId}`;
   const res = await fetch(url, { headers: authHeader(token) });
-  if (!res.ok) throw new Error(`GET data transformation input failed: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`GET data transformation input failed: ${res.status}`);
   const json = await res.json();
   const data = json?.data ?? {};
   const periods: string[] = Array.isArray(data.period) ? data.period : [];
-  const variables: string[] = Array.isArray(data.variables) ? data.variables : [];
-  const default_values: Array<Record<string, any>> | undefined = Array.isArray(data?.default_values) 
-    ? data.default_values 
+  const variables: string[] = Array.isArray(data.variables)
+    ? data.variables
+    : [];
+  const default_values: Array<Record<string, any>> | undefined = Array.isArray(
+    data?.default_values,
+  )
+    ? data.default_values
     : undefined;
   return { periods, variables, default_values };
 }
@@ -117,7 +134,7 @@ export async function overrideGetDataTransformationInput(
 export async function overridePostForecastedMevs(
   workflowId: number | string,
   payloadRows: any,
-  token?: string | null
+  token?: string | null,
 ) {
   const url = `${API_BASE}/api/overlay/execution/override_forecasted_mevs/`;
   const fd = new FormData();
@@ -139,7 +156,7 @@ export async function overridePostForecastedMevs(
 export async function overridePostDataTransformationMevs(
   workflowId: number | string,
   payloadRows: any,
-  token?: string | null
+  token?: string | null,
 ) {
   const url = `${API_BASE}/api/overlay/execution/override_data_transformation_mevs/`;
   const fd = new FormData();
@@ -153,14 +170,46 @@ export async function overridePostDataTransformationMevs(
     headers: authHeader(token),
     body: fd,
   });
-  if (!res.ok) throw new Error(`POST data transformation override failed: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`POST data transformation override failed: ${res.status}`);
   return res.json();
+}
+
+/** POST: /override_data_transformation_mevs/upload */
+export async function overrideUploadDataTransformationMevsFile(
+  workflowId: number | string,
+  file: File,
+  token?: string | null,
+): Promise<OverrideDataTransformationUploadResponse> {
+  const url = `${API_BASE}/api/overlay/execution/override_data_transformation_mevs/upload`;
+  const fd = new FormData();
+  fd.append("workflow_id", String(workflowId));
+  fd.append("upload_file", file);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: authHeader(token),
+    body: fd,
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json?.success === false) {
+    const msg = json?.msg || `Upload failed: ${res.status}`;
+    throw new Error(msg);
+  }
+
+  const data = json?.data ?? {};
+  return {
+    rows: Array.isArray(data?.rows) ? (data.rows as ScenarioRow[]) : [],
+    saved_path:
+      typeof data?.saved_path === "string" ? data.saved_path : undefined,
+  };
 }
 
 /** POST: /transform_forecasted_mevs/ */
 export async function transformForecastedMevs(
   workflowId: number | string,
-  token?: string | null
+  token?: string | null,
 ) {
   const url = `${API_BASE}/api/overlay/execution/transform_forecasted_mevs/`;
   const fd = new FormData();
@@ -181,7 +230,7 @@ export async function transformForecastedMevs(
  * Used to see if may laman bago mag-transform.
  */
 export async function checkTransformForecastedMevs(
-  token?: string | null
+  token?: string | null,
 ): Promise<any[]> {
   const url = `${API_BASE}/api/overlay/execution/transform_forecasted_mevs/`;
   const res = await fetch(url, { headers: authHeader(token) });
@@ -195,7 +244,7 @@ export async function checkTransformForecastedMevs(
 export async function getTransformedForecastedMevs(
   workflowId: number | string,
   variables: string[],
-  token?: string | null
+  token?: string | null,
 ): Promise<ScenarioRow[]> {
   const url = `${API_BASE}/api/overlay/execution/transform_forecasted_mevs/?workflow_id=${workflowId}`;
   const res = await fetch(url, { headers: authHeader(token) });
@@ -209,23 +258,26 @@ export async function getTransformedForecastedMevs(
   // Look for columns like "Upside gdp", "Base gni", "Downside gdp", etc.
   const firstRow = rows[0];
   const extractedVariables = new Set<string>();
-  
+
   Object.keys(firstRow).forEach((colName) => {
     // Skip Period column
     if (colName.toLowerCase() === "period") return;
-    
+
     // Extract variable name from column patterns: "Upside gdp" -> "gdp"
     // Handle different casings: "Upside", "UPSIDE", "upside", "Base", "BASE", "base", etc.
-    const match = colName.match(/^(Upside|Base|Downside|UPSIDE|BASE|DOWNSIDE|upside|base|downside)\s+(.+)$/i);
+    const match = colName.match(
+      /^(Upside|Base|Downside|UPSIDE|BASE|DOWNSIDE|upside|base|downside)\s+(.+)$/i,
+    );
     if (match && match[2]) {
       extractedVariables.add(match[2].trim());
     }
   });
 
   // Use extracted variables, fallback to provided variables if extraction failed
-  const varsToUse = extractedVariables.size > 0 
-    ? Array.from(extractedVariables).sort() 
-    : variables;
+  const varsToUse =
+    extractedVariables.size > 0
+      ? Array.from(extractedVariables).sort()
+      : variables;
 
   // Transform rows using extracted variables
   const out: ScenarioRow[] = rows.map((r: any) => {
@@ -236,16 +288,18 @@ export async function getTransformedForecastedMevs(
 
     varsToUse.forEach((v) => {
       // Try multiple column name variations for robustness
-      const upsideVal = r[`Upside ${v}`] ?? r[`UPSIDE ${v}`] ?? r[`upside ${v}`] ?? "";
+      const upsideVal =
+        r[`Upside ${v}`] ?? r[`UPSIDE ${v}`] ?? r[`upside ${v}`] ?? "";
       const baseVal = r[`Base ${v}`] ?? r[`BASE ${v}`] ?? r[`base ${v}`] ?? "";
-      const downsideVal = r[`Downside ${v}`] ?? r[`DOWNSIDE ${v}`] ?? r[`downside ${v}`] ?? "";
-      
+      const downsideVal =
+        r[`Downside ${v}`] ?? r[`DOWNSIDE ${v}`] ?? r[`downside ${v}`] ?? "";
+
       // Remove % sign if present, return value as string without %
       const stripPercent = (val: any) => {
         const s = String(val ?? "").trim();
         return s.endsWith("%") ? s.slice(0, -1) : s;
       };
-      
+
       upside[v] = stripPercent(upsideVal);
       base[v] = stripPercent(baseVal);
       downside[v] = stripPercent(downsideVal);
@@ -260,32 +314,29 @@ export async function getTransformedForecastedMevs(
 /** Export: /api/overlay/execution/transform_forecasted_mevs/export/?workflow_id=... */
 export async function exportTransformForecastedMevs(
   workflowId: number | string,
-  token?: string | null
+  token?: string | null,
 ): Promise<void> {
   const url = `${API_BASE}/api/overlay/execution/transform_forecasted_mevs/export/?workflow_id=${workflowId}`;
   const res = await fetch(url, { headers: authHeader(token) });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Export failed: HTTP ${res.status}${text ? ` – ${text}` : ""}`);
+    throw new Error(
+      `Export failed: HTTP ${res.status}${text ? ` – ${text}` : ""}`,
+    );
   }
-  
+
   const blob = await res.blob();
   const contentDisposition = res.headers.get("Content-Disposition");
   let filename = `transform_forecasted_mevs_${workflowId}.csv`;
-  
+
   if (contentDisposition) {
-    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    const filenameMatch = contentDisposition.match(
+      /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/,
+    );
     if (filenameMatch && filenameMatch[1]) {
       filename = filenameMatch[1].replace(/['"]/g, "");
     }
   }
-  
-  const downloadUrl = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = downloadUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(downloadUrl);
+
+  await downloadBlobWithTauri(blob, filename);
 }

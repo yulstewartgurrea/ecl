@@ -24,6 +24,7 @@ import {
   type FilterLogic,
 } from "../../../../utils/overlay/headersStorage";
 import { selectModuleProgress, setModuleProgress } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -404,7 +405,9 @@ const applySearch = useCallback(() => {
       setErrMsg("Missing or invalid selectedWorkflowId.");
       return;
     }
-    if (selectedCount === 0) {
+    const effectiveFilters = (filtersToUse && filtersToUse.length ? filtersToUse : payloadFilters) || [];
+    const effectiveCount = effectiveFilters.filter((f) => f?.column && f.value && f.value !== "0").length;
+    if (effectiveCount === 0) {
       setErrMsg("Please configure at least one filter (gear icon).");
       return;
     }
@@ -530,16 +533,7 @@ const applySearch = useCallback(() => {
       if (ct.includes("csv") || ct.startsWith("text/csv")) {
         const blob = await res.blob();
         const filename = (nameMatch && decodeURIComponent(nameMatch[1])) || fallback;
-        const href = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-
-        URL.revokeObjectURL(href);
+        await downloadBlobWithTauri(blob, filename);
       } else {
         const json = await res.json();
         const jsonRows: Row[] = Array.isArray(json?.rows) ? json.rows : Array.isArray(json) ? json : [];
@@ -547,16 +541,7 @@ const applySearch = useCallback(() => {
         const csv = toCsv(headers, jsonRows);
 
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const href = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = fallback;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-
-        URL.revokeObjectURL(href);
+        await downloadBlobWithTauri(blob, fallback);
       }
     } catch (e: any) {
       setExportErr(e?.message || "Export failed");

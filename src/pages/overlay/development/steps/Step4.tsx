@@ -1,4 +1,4 @@
-﻿// src/pages/overlay/development/.../Step4.tsx
+// src/pages/overlay/development/.../Step4.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Multi_Table, type Row } from "../../../../components/overlay/development/multi_factor/Multi_Table";
 import { 
@@ -8,7 +8,6 @@ import {
   cancelMultiFactorAnalysis,
   getMultiFactorFiles,
   getMultiFactorFile,
-  exportMultiFactorFiles,
   type MultiFactorStatus,
   type MultiFactorFilesData,
 } from "../../../../services/multi_factor";
@@ -28,6 +27,7 @@ import {
 // NEW: headers storage helper
 import { saveHeaders, saveStep3Config } from "../../../../utils/overlay/headersStorage";
 import ConfirmCancelModal from "../../../../components/modals/ConfirmCancelModal";
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
@@ -561,11 +561,30 @@ const onCancel = async () => {
     setExportMsg(null);
     setExportingAllFiles(true);
     try {
-      await exportMultiFactorFiles({
-        apiBase: API_BASE,
-        token,
-        workflowId: Number(selectedWorkflowId),
+      const wfId = Number(selectedWorkflowId);
+      const url = `${API_BASE.replace(/\/+$/, "")}/api/overlay/development/multifactor_analysis/files/export?workflow_id=${encodeURIComponent(
+        String(wfId)
+      )}`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Export failed: HTTP ${res.status}${text ? ` – ${text}` : ""}`);
+      }
+
+      const cd = res.headers.get("content-disposition") || "";
+      const nameMatch =
+        cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i) ||
+        cd.match(/filename=["']?([^"']+)["']?/i);
+      const fallback = `mfa_files_export_${wfId}.zip`;
+      const filename = (nameMatch && decodeURIComponent(nameMatch[1])) || fallback;
+
+      const blob = await res.blob();
+      await downloadBlobWithTauri(blob, filename);
       setExportMsg("All files exported successfully.");
     } catch (e: any) {
       setExportErr(e?.message || "Export failed");

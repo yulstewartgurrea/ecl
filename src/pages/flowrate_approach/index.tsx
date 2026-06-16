@@ -24,6 +24,8 @@ import {
 import { useState, useEffect, useMemo } from "react";
 import { setModuleProgress } from "../../redux_toolkit/features/progress/moduleProgressSlice";
 
+const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+
 const TransitionMatrixLanding = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -150,7 +152,7 @@ useEffect(() => {
         });
 
         const workflowRes = await fetch(
-          `http://127.0.0.1:8000/workflows/?${params.toString()}`,
+          `${API_BASE}/workflows/?${params.toString()}`,
           { headers: { Authorization: `Bearer ${authToken}` } }
         );
 
@@ -246,7 +248,7 @@ useEffect(() => {
         setStatusMessage("Checking existing workflow...");
 
         const checkUrl = new URL(
-          "http://127.0.0.1:8000/documents/workflows/check"
+          `${API_BASE}/documents/workflows/check`
         );
 
         checkUrl.searchParams.set(
@@ -269,6 +271,7 @@ useEffect(() => {
           "workflow_name",
           pdTransitionMatrixWfName
         );
+        checkUrl.searchParams.set("workflow_type", "asa");
 
         const checkResponse = await fetch(checkUrl.toString(), {
           headers: { Authorization: `Bearer ${authToken}` },
@@ -298,7 +301,7 @@ useEffect(() => {
             });
 
             const existingRes = await fetch(
-              `http://127.0.0.1:8000/workflows/?${params.toString()}`,
+              `${API_BASE}/workflows/?${params.toString()}`,
               { headers: { Authorization: `Bearer ${authToken}` } }
             );
 
@@ -386,7 +389,7 @@ useEffect(() => {
         };
 
         const workflowResponse = await fetch(
-          "http://127.0.0.1:8000/workflows/",
+          `${API_BASE}/workflows/`,
           {
             method: "POST",
             headers: {

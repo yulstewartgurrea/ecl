@@ -1,4 +1,4 @@
-﻿// src/pages/overlay/development/.../OverlayDevelpmentPage3.tsx
+// src/pages/overlay/development/.../OverlayDevelpmentPage3.tsx
 import { useState, useEffect, useCallback } from "react";
 import ExeTable from "../../../../components/overlay/development/data_transformation/table/ExeTable";
 import type {
@@ -29,6 +29,7 @@ import {
 } from "../../../../services/dataTransformation";
 import { saveStep3Config } from "../../../../utils/overlay/headersStorage";
 import ConfirmCancelModal from "../../../../components/modals/ConfirmCancelModal";
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -439,28 +440,14 @@ export default function OverlayDevelpmentPage3() {
     setExporting(true);
 
     try {
-      const blob = await exportDataTransformation({
+      const { blob, filename } = await exportDataTransformation({
         apiBase: API_BASE,
         token,
         workflowId: Number(selectedWorkflowId),
         fileType: "both",
       });
 
-      // Determine filename based on content type
-      const contentType = blob.type;
-      const isZip = contentType.includes("zip") || contentType.includes("application/zip");
-      const extension = isZip ? "zip" : "csv";
-      const filename = `data_transformation_results_${selectedWorkflowId}.${extension}`;
-
-      // Create download link
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = href;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(href);
+      await downloadBlobWithTauri(blob, filename);
     } catch (e: any) {
       console.error(e);
       setExportErr(e?.message || "Export failed");

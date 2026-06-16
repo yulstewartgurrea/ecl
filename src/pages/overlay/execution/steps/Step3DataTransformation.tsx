@@ -29,7 +29,9 @@ import {
   overrideGetDataTransformationMevs,
   overrideGetDataTransformationInput,
   overridePostDataTransformationMevs,
+  overrideUploadDataTransformationMevsFile,
 } from "../../../../services/overlayExecution";
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -39,23 +41,23 @@ export default function OverlayDevelpmentPage3() {
   const [frequency] = useState<Frequency>("monthly");
   const [view] = useState<ViewMode>("transformations");
 
-  const {
-    currentPdTransitionMatrixWorkflowId: selectedWorkflowId
-  } = useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
-  const token = useAppSelector(
-    (s) => (s as any)?.auth?.token
-  ) as string | null;
+  const { currentPdTransitionMatrixWorkflowId: selectedWorkflowId } =
+    useAppSelector((s) => s.pdTransitionMatrixWfHelper as any);
+  const token = useAppSelector((s) => (s as any)?.auth?.token) as string | null;
 
   const executionInputFile = useAppSelector(
-    (state) => (state as any).executionInputFile?.execution_input_file
+    (state) => (state as any).executionInputFile?.execution_input_file,
   ) as string | null;
 
   const finalModelExecutionFile = useAppSelector(
-    (state) => (state as any).finalModelExecutionFile?.final_model_execution_file
+    (state) =>
+      (state as any).finalModelExecutionFile?.final_model_execution_file,
   ) as boolean;
-  
+
   const historicalWeightedCreditLossRateFile = useAppSelector(
-    (state) => (state as any).historicalWeightedCreditLossRateFile?.historical_weighted_credit_loss_rate_file
+    (state) =>
+      (state as any).historicalWeightedCreditLossRateFile
+        ?.historical_weighted_credit_loss_rate_file,
   ) as boolean;
 
   const [busy, setBusy] = useState(false);
@@ -81,8 +83,12 @@ export default function OverlayDevelpmentPage3() {
   const [mevConfigOpen, setMevConfigOpen] = useState(false);
   const [mevPeriods, setMevPeriods] = useState<string[]>([]);
   const [mevVariables, setMevVariables] = useState<string[]>([]);
-  const [availableMevVariables, setAvailableMevVariables] = useState<string[]>([]);
-  const [mevPrefillRows, setMevPrefillRows] = useState<ScenarioRow[] | null>(null);
+  const [availableMevVariables, setAvailableMevVariables] = useState<string[]>(
+    [],
+  );
+  const [mevPrefillRows, setMevPrefillRows] = useState<ScenarioRow[] | null>(
+    null,
+  );
   const [mevLoadingCfg, setMevLoadingCfg] = useState(false);
 
   const normalizePeriodOut = (p: string) => {
@@ -115,16 +121,16 @@ export default function OverlayDevelpmentPage3() {
   // Transform default_values from API into ScenarioRow format
   const transformDefaultValuesToRows = (
     defaultValues: Array<Record<string, any>>,
-    variables: string[]
+    variables: string[],
   ): ScenarioRow[] => {
     if (!defaultValues || defaultValues.length === 0) return [];
-    
+
     return defaultValues.map((dv) => {
       const period = normalizePeriodOut(String(dv.Date ?? dv.date ?? ""));
       const upside: Record<string, string> = {};
       const base: Record<string, string> = {};
       const downside: Record<string, string> = {};
-      
+
       // Extract variable values from keys ending with ".Point Forecast"
       // Populate all three scenarios (upside, base, downside) with the same default values
       variables.forEach((varName) => {
@@ -147,28 +153,32 @@ export default function OverlayDevelpmentPage3() {
   };
 
   const handleChangeModel = async () => {
-const inputData = await overrideGetDataTransformationInput(
-          selectedWorkflowId,
-          token
-        );
-        const { periods, variables, default_values } = inputData;
-        const filtered = filterDefaults(variables);
-        
-        // If input endpoint has default_values, use them to populate the table
-        if (default_values && default_values.length > 0 && periods.length > 0 && filtered.length > 0) {
-          const transformedRows = transformDefaultValuesToRows(
-            default_values,
-            filtered
-          );
-          // Normalize periods to match the format used in transformedRows (YYYY-MM-DD)
-          const normalizedPeriods = periods.map((p) => normalizePeriodOut(p));
-          setMevPrefillRows(transformedRows);
-          setMevPeriods(normalizedPeriods);
-          setAvailableMevVariables(filtered);
-          setMevVariables(filtered);
+    const inputData = await overrideGetDataTransformationInput(
+      selectedWorkflowId,
+      token,
+    );
+    const { periods, variables, default_values } = inputData;
+    const filtered = filterDefaults(variables);
 
-  }
-}
+    // If input endpoint has default_values, use them to populate the table
+    if (
+      default_values &&
+      default_values.length > 0 &&
+      periods.length > 0 &&
+      filtered.length > 0
+    ) {
+      const transformedRows = transformDefaultValuesToRows(
+        default_values,
+        filtered,
+      );
+      // Normalize periods to match the format used in transformedRows (YYYY-MM-DD)
+      const normalizedPeriods = periods.map((p) => normalizePeriodOut(p));
+      setMevPrefillRows(transformedRows);
+      setMevPeriods(normalizedPeriods);
+      setAvailableMevVariables(filtered);
+      setMevVariables(filtered);
+    }
+  };
   // Load MEV config shape (periods/variables) with fallback
   useEffect(() => {
     const boot = async () => {
@@ -177,12 +187,12 @@ const inputData = await overrideGetDataTransformationInput(
       try {
         const existing = await overrideGetDataTransformationMevs(
           selectedWorkflowId,
-          token
+          token,
         );
-        
+
         // If existing rows are present, use them
         if (existing?.rows && existing.rows.length > 0) {
-          console.log('Existing MEV rows found, using them to populate table.');
+          console.log("Existing MEV rows found, using them to populate table.");
           setMevPrefillRows(existing.rows);
           const derivedPeriods = existing.periods?.length
             ? existing.periods
@@ -199,34 +209,38 @@ const inputData = await overrideGetDataTransformationInput(
         // If no existing rows but default_values exist, transform them
         if (existing?.default_values && existing.default_values.length > 0) {
           let periods = existing.periods?.length ? existing.periods : [];
-          let variables = existing.variables?.length 
-            ? filterDefaults(existing.variables) 
+          let variables = existing.variables?.length
+            ? filterDefaults(existing.variables)
             : [];
-          
+
           // If variables not provided, extract from default_values keys
           if (variables.length === 0 && existing.default_values.length > 0) {
             const firstRow = existing.default_values[0];
             const extractedVars = new Set<string>();
             Object.keys(firstRow).forEach((key) => {
-              if (key !== "Date" && key !== "date" && key.endsWith(".Point Forecast")) {
+              if (
+                key !== "Date" &&
+                key !== "date" &&
+                key.endsWith(".Point Forecast")
+              ) {
                 const varName = key.replace(".Point Forecast", "");
                 extractedVars.add(varName);
               }
             });
             variables = filterDefaults(Array.from(extractedVars));
           }
-          
+
           // If periods not provided, extract from default_values Date field
           if (periods.length === 0 && existing.default_values.length > 0) {
-            periods = existing.default_values.map((dv) => 
-              normalizePeriodOut(String(dv.Date ?? dv.date ?? ""))
+            periods = existing.default_values.map((dv) =>
+              normalizePeriodOut(String(dv.Date ?? dv.date ?? "")),
             );
           }
-          
+
           if (periods.length > 0 && variables.length > 0) {
             const transformedRows = transformDefaultValuesToRows(
               existing.default_values,
-              variables
+              variables,
             );
             // Normalize periods to match the format used in transformedRows (YYYY-MM-DD)
             const normalizedPeriods = periods.map((p) => normalizePeriodOut(p));
@@ -241,16 +255,21 @@ const inputData = await overrideGetDataTransformationInput(
         // Fallback to input endpoint if no existing data or default values
         const inputData = await overrideGetDataTransformationInput(
           selectedWorkflowId,
-          token
+          token,
         );
         const { periods, variables, default_values } = inputData;
         const filtered = filterDefaults(variables);
-        
+
         // If input endpoint has default_values, use them to populate the table
-        if (default_values && default_values.length > 0 && periods.length > 0 && filtered.length > 0) {
+        if (
+          default_values &&
+          default_values.length > 0 &&
+          periods.length > 0 &&
+          filtered.length > 0
+        ) {
           const transformedRows = transformDefaultValuesToRows(
             default_values,
-            filtered
+            filtered,
           );
           // Normalize periods to match the format used in transformedRows (YYYY-MM-DD)
           const normalizedPeriods = periods.map((p) => normalizePeriodOut(p));
@@ -262,11 +281,16 @@ const inputData = await overrideGetDataTransformationInput(
           // No default values, just set periods and variables
           setMevPeriods(periods);
           setAvailableMevVariables(filtered);
-          const cached = localStorage.getItem("overlay_execution_mev_variables");
+          const cached = localStorage.getItem(
+            "overlay_execution_mev_variables",
+          );
           if (cached) {
             try {
               const parsed = JSON.parse(cached);
-              if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
+              if (
+                Array.isArray(parsed) &&
+                parsed.every((v) => typeof v === "string")
+              ) {
                 setMevVariables(parsed.filter((v) => filtered.includes(v)));
               } else {
                 setMevVariables([]);
@@ -296,6 +320,33 @@ const inputData = await overrideGetDataTransformationInput(
     setMevConfigOpen(true);
   };
 
+  const handleUploadMevHeaderFile = useCallback(
+    async (file: File) => {
+      if (!selectedWorkflowId && selectedWorkflowId !== 0) {
+        throw new Error("Please select a workflow first.");
+      }
+
+      const uploadRes = await overrideUploadDataTransformationMevsFile(
+        selectedWorkflowId,
+        file,
+        token,
+      );
+
+      const uploadedRows = uploadRes.rows ?? [];
+      if (!uploadedRows.length) {
+        throw new Error("Upload succeeded but no rows were found in the file.");
+      }
+
+      const derivedPeriods = derivePeriodsFromRows(uploadedRows);
+      const derivedVars = deriveVariablesFromRows(uploadedRows);
+
+      setMevPrefillRows(uploadedRows);
+      setMevPeriods(derivedPeriods);
+      setAvailableMevVariables(derivedVars);
+      setMevVariables(derivedVars);
+    },
+    [selectedWorkflowId, token],
+  );
 
   // ---- Core loader (POST or GET-only) ----
   const loadTransformation = useCallback(
@@ -304,7 +355,7 @@ const inputData = await overrideGetDataTransformationInput(
       setErrMsg(null);
       if (!selectedWorkflowId && selectedWorkflowId !== 0) {
         setErrMsg(
-          "Please select a workflow on Step 1 before running the transformation."
+          "Please select a workflow on Step 1 before running the transformation.",
         );
         return;
       }
@@ -328,9 +379,10 @@ const inputData = await overrideGetDataTransformationInput(
             // numCombinations: numCombinations,
             executionInputFile: executionInputFile,
             finalModelExecutionFile: finalModelExecutionFile,
-            historicalWeightedCreditLossRateFile: historicalWeightedCreditLossRateFile,
+            historicalWeightedCreditLossRateFile:
+              historicalWeightedCreditLossRateFile,
           });
-          
+
           // After starting job, check status instead of fetching results
           const statusResponse = await getDataTransformationStatusExecution({
             apiBase: API_BASE,
@@ -341,9 +393,12 @@ const inputData = await overrideGetDataTransformationInput(
           if (statusResponse?.success && statusResponse?.data) {
             setStatus(statusResponse.data);
             // Job will be pending/processing, so show status message
-            if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
+            if (
+              statusResponse.data.status === "processing" ||
+              statusResponse.data.status === "pending"
+            ) {
               setErrMsg(
-                `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
+                `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`,
               );
             }
           }
@@ -370,7 +425,13 @@ const inputData = await overrideGetDataTransformationInput(
           }
         }
       } catch (err: any) {
-        setErrMsg("Failed to run data transformation");
+        console.error("Data transformation error:", err);
+        const detail =
+          err?.response?.data?.detail ||
+          err?.response?.data?.message ||
+          err?.message ||
+          String(err);
+        setErrMsg(`Failed to run data transformation: ${detail}`);
         setMevRows([]);
         setDefRows([]);
         setMevCols([]);
@@ -379,7 +440,7 @@ const inputData = await overrideGetDataTransformationInput(
         setBusy(false);
       }
     },
-    [API_BASE, token, selectedWorkflowId, executionInputFile]
+    [API_BASE, token, selectedWorkflowId, executionInputFile],
   );
 
   const onRun = () => loadTransformation({ skipPost: false }); // POST
@@ -388,9 +449,7 @@ const inputData = await overrideGetDataTransformationInput(
   const onRefresh = useCallback(async () => {
     setErrMsg(null);
     if (!selectedWorkflowId && selectedWorkflowId !== 0) {
-      setErrMsg(
-        "Please select a workflow on Step 1 before refreshing."
-      );
+      setErrMsg("Please select a workflow on Step 1 before refreshing.");
       return;
     }
 
@@ -406,11 +465,14 @@ const inputData = await overrideGetDataTransformationInput(
 
       if (statusResponse?.success && statusResponse?.data) {
         setStatus(statusResponse.data);
-        
+
         // If job is still processing, show status but clear table data
-        if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
+        if (
+          statusResponse.data.status === "processing" ||
+          statusResponse.data.status === "pending"
+        ) {
           setErrMsg(
-            `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
+            `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`,
           );
           // Clear table data when job is not completed
           setMevRows([]);
@@ -425,7 +487,7 @@ const inputData = await overrideGetDataTransformationInput(
         // If job failed, show error and clear table data
         if (statusResponse.data.status === "failed") {
           setErrMsg(
-            `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`
+            `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`,
           );
           // Clear table data when job is not completed
           setMevRows([]);
@@ -470,7 +532,10 @@ const inputData = await overrideGetDataTransformationInput(
             setDefCols(shaped.dependentColumns);
             setErrMsg(null); // Clear any previous errors
           } else {
-            setErrMsg(resultsResponse?.msg || "Failed to retrieve transformation results");
+            setErrMsg(
+              resultsResponse?.msg ||
+                "Failed to retrieve transformation results",
+            );
           }
         }
       } else {
@@ -510,11 +575,15 @@ const inputData = await overrideGetDataTransformationInput(
       });
 
       if (cancelResponse?.success) {
-        setErrMsg("Job cancellation requested. The process will stop at the next checkpoint.");
+        setErrMsg(
+          "Job cancellation requested. The process will stop at the next checkpoint.",
+        );
         // Refresh status to update UI
         await onRefresh();
       } else {
-        setErrMsg(cancelResponse?.msg || "Failed to cancel data transformation");
+        setErrMsg(
+          cancelResponse?.msg || "Failed to cancel data transformation",
+        );
       }
     } catch (err: any) {
       setErrMsg(err?.message || "Failed to cancel data transformation");
@@ -525,8 +594,7 @@ const inputData = await overrideGetDataTransformationInput(
 
   // ---- Enable export ONLY after GET data is present ----
   useEffect(() => {
-    const hasData =
-      (mevRows?.length ?? 0) > 0 || (defRows?.length ?? 0) > 0;
+    const hasData = (mevRows?.length ?? 0) > 0 || (defRows?.length ?? 0) > 0;
     const hasWorkflow =
       selectedWorkflowId !== null && selectedWorkflowId !== undefined;
     setExportReady(Boolean(hasWorkflow && hasData && !busy));
@@ -552,11 +620,14 @@ const inputData = await overrideGetDataTransformationInput(
 
         if (statusResponse?.success && statusResponse?.data) {
           setStatus(statusResponse.data);
-          
+
           // If job is still processing, show status but clear table data
-          if (statusResponse.data.status === "processing" || statusResponse.data.status === "pending") {
+          if (
+            statusResponse.data.status === "processing" ||
+            statusResponse.data.status === "pending"
+          ) {
             setErrMsg(
-              `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`
+              `Job is ${statusResponse.data.status}. Progress: ${statusResponse.data.progress}% - ${statusResponse.data.message || "Processing..."}`,
             );
             // Clear table data when job is not completed
             setMevRows([]);
@@ -571,7 +642,7 @@ const inputData = await overrideGetDataTransformationInput(
           // If job failed, show error and clear table data
           if (statusResponse.data.status === "failed") {
             setErrMsg(
-              `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`
+              `Job failed: ${statusResponse.data.error_message || statusResponse.data.message || "Unknown error"}`,
             );
             // Clear table data when job is not completed
             setMevRows([]);
@@ -598,11 +669,13 @@ const inputData = await overrideGetDataTransformationInput(
 
           // If job is completed, fetch the results
           if (statusResponse.data.status === "completed") {
-            const resultsResponse = await getDataTransformationResultsExecution({
-              apiBase: API_BASE,
-              token,
-              workflowId: Number(selectedWorkflowId),
-            });
+            const resultsResponse = await getDataTransformationResultsExecution(
+              {
+                apiBase: API_BASE,
+                token,
+                workflowId: Number(selectedWorkflowId),
+              },
+            );
 
             if (resultsResponse?.success && resultsResponse?.data) {
               const shaped = shapeTransformationResults(resultsResponse.data, {
@@ -616,7 +689,10 @@ const inputData = await overrideGetDataTransformationInput(
               setDefCols(shaped.dependentColumns);
               setErrMsg(null); // Clear any previous errors
             } else {
-              setErrMsg(resultsResponse?.msg || "Failed to retrieve transformation results");
+              setErrMsg(
+                resultsResponse?.msg ||
+                  "Failed to retrieve transformation results",
+              );
             }
           }
         } else {
@@ -656,7 +732,9 @@ const inputData = await overrideGetDataTransformationInput(
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`Export failed: HTTP ${res.status}${text ? ` – ${text}` : ""}`);
+        throw new Error(
+          `Export failed: HTTP ${res.status}${text ? ` – ${text}` : ""}`,
+        );
       }
 
       // Extract filename from Content-Disposition header
@@ -669,28 +747,16 @@ const inputData = await overrideGetDataTransformationInput(
         }
       }
 
-      // Get the blob and create a download link
+      // Get the blob and download via Tauri-aware helper
       const blob = await res.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(downloadUrl);
+      await downloadBlobWithTauri(blob, filename);
     } catch (e: any) {
       console.error(e);
       setExportErr(e?.message || "Export failed");
     } finally {
       setExporting(false);
     }
-  }, [
-    selectedWorkflowId,
-    exportReady,
-    API_BASE,
-    token,
-  ]);
+  }, [selectedWorkflowId, exportReady, API_BASE, token]);
 
   const caption =
     view === "consolidated" ? "Consolidated monthly MEVs" : undefined;
@@ -703,14 +769,16 @@ const inputData = await overrideGetDataTransformationInput(
             <h1 className="text-lg md:text-2xl font-semibold tracking-tight text-gray-900">
               Data Transformation
             </h1>
-      
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* MEV Configuration Button */}
             <button
               onClick={handleOpenMevConfig}
-              disabled={mevLoadingCfg || (!selectedWorkflowId && selectedWorkflowId !== 0)}
+              disabled={
+                mevLoadingCfg ||
+                (!selectedWorkflowId && selectedWorkflowId !== 0)
+              }
               className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
               title="Configure MEV overrides"
             >
@@ -722,15 +790,10 @@ const inputData = await overrideGetDataTransformationInput(
             <button
               onClick={onRun}
               disabled={
-                busy ||
-                (!selectedWorkflowId && selectedWorkflowId !== 0)
+                busy || (!selectedWorkflowId && selectedWorkflowId !== 0)
               }
               className="cursor-pointer inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-yellow-300 to-yellow-400 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:from-yellow-300 hover:to-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-200 disabled:opacity-50"
-              title={
-                !selectedWorkflowId
-                  ? "Pick a workflow on Step 1"
-                  : ""
-              }
+              title={!selectedWorkflowId ? "Pick a workflow on Step 1" : ""}
             >
               <PlayCircleIcon className="h-4 w-4" />
               {busy ? "Processing" : "Run Data Transform"}
@@ -757,26 +820,28 @@ const inputData = await overrideGetDataTransformationInput(
             </button>
 
             {/* Cancel (only show when job is pending or processing) */}
-            {status && (status.status === "pending" || status.status === "processing") && (
-              <button
-                onClick={onCancel}
-                disabled={
-                  cancelling ||
-                  (!selectedWorkflowId && selectedWorkflowId !== 0)
-                }
-                className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:opacity-50"
-                title={
-                  !selectedWorkflowId
-                    ? "Pick a workflow on Step 1"
-                    : "Cancel the running data transformation job"
-                }
-              >
-                <XCircleIcon
-                  className={`h-4 w-4 ${cancelling ? "animate-spin" : ""}`}
-                />
-                {cancelling ? "Cancelling" : "Cancel"}
-              </button>
-            )}
+            {status &&
+              (status.status === "pending" ||
+                status.status === "processing") && (
+                <button
+                  onClick={onCancel}
+                  disabled={
+                    cancelling ||
+                    (!selectedWorkflowId && selectedWorkflowId !== 0)
+                  }
+                  className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:opacity-50"
+                  title={
+                    !selectedWorkflowId
+                      ? "Pick a workflow on Step 1"
+                      : "Cancel the running data transformation job"
+                  }
+                >
+                  <XCircleIcon
+                    className={`h-4 w-4 ${cancelling ? "animate-spin" : ""}`}
+                  />
+                  {cancelling ? "Cancelling" : "Cancel"}
+                </button>
+              )}
 
             {/* Export CSV â€“ now pure frontend */}
             <button
@@ -791,18 +856,16 @@ const inputData = await overrideGetDataTransformationInput(
                 !selectedWorkflowId
                   ? "Pick a workflow on Step 1"
                   : !exportReady
-                  ? "Load data first (Run or Refresh)"
-                  : "Download CSV"
+                    ? "Load data first (Run or Refresh)"
+                    : "Download CSV"
               }
             >
               <ArrowDownTrayIcon className="h-4 w-4" />
               {exporting ? "Exporting" : "Export CSV"}
             </button>
-
           </div>
         </div>
       </header>
-
 
       <ScenarioConfigModalTable
         open={mevConfigOpen}
@@ -811,9 +874,9 @@ const inputData = await overrideGetDataTransformationInput(
         variables={mevVariables}
         availableVariables={availableMevVariables}
         initialRows={mevPrefillRows ?? undefined}
+        onUploadFile={handleUploadMevHeaderFile}
         onChangeNewModel={async () => {
           await handleChangeModel();
-          
         }}
         onSave={async (rows, nextVariables) => {
           const payload = rows.map((r) => ({
@@ -826,17 +889,21 @@ const inputData = await overrideGetDataTransformationInput(
           if (!selectedWorkflowId) return;
 
           try {
-            await overridePostDataTransformationMevs(selectedWorkflowId, payload, token);
+            await overridePostDataTransformationMevs(
+              selectedWorkflowId,
+              payload,
+              token,
+            );
             setMevVariables(nextVariables);
             localStorage.setItem(
               "overlay_execution_mev_variables",
-              JSON.stringify(nextVariables)
+              JSON.stringify(nextVariables),
             );
             setMevConfigOpen(false);
 
             const latest = await overrideGetDataTransformationMevs(
               selectedWorkflowId,
-              token
+              token,
             );
             setMevPrefillRows(latest.rows ?? null);
 
@@ -860,44 +927,51 @@ const inputData = await overrideGetDataTransformationInput(
               {exportErr}
             </div>
           )}
-          {status && (status.status === "processing" || status.status === "pending") && (
-            <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-blue-900">
-                    Job Status: {status.status.charAt(0).toUpperCase() + status.status.slice(1)}
-                  </div>
-                  <div className="text-xs text-blue-700 mt-1">
-                    {status.message || "Processing..."}
-                  </div>
-                  {status.progress !== null && status.progress !== undefined && (
-                    <div className="mt-2">
-                      <div className="w-full bg-blue-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${status.progress}%` }}
-                        ></div>
-                      </div>
+          {status &&
+            (status.status === "processing" || status.status === "pending") && (
+              <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-blue-900">
+                      Job Status:{" "}
+                      {status.status.charAt(0).toUpperCase() +
+                        status.status.slice(1)}
+                    </div>
+                    <div className="text-xs text-blue-700 mt-1">
+                      {status.message || "Processing..."}
+                    </div>
+                    {status.progress !== null &&
+                      status.progress !== undefined && (
+                        <div className="mt-2">
+                          <div className="w-full bg-blue-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${status.progress}%` }}
+                            ></div>
+                          </div>
+                          <div className="text-xs text-blue-600 mt-1">
+                            {status.progress}% complete
+                          </div>
+                        </div>
+                      )}
+                    {status.running_time_seconds !== null && (
                       <div className="text-xs text-blue-600 mt-1">
-                        {status.progress}% complete
+                        Running time:{" "}
+                        {Math.floor(status.running_time_seconds / 60)}m{" "}
+                        {status.running_time_seconds % 60}s
                       </div>
-                    </div>
-                  )}
-                  {status.running_time_seconds !== null && (
-                    <div className="text-xs text-blue-600 mt-1">
-                      Running time: {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
           {status && status.status === "completed" && (
             <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
               Job completed successfully
               {status.running_time_seconds !== null && (
                 <span className="ml-2 text-xs">
-                  (Completed in {Math.floor(status.running_time_seconds / 60)}m {status.running_time_seconds % 60}s)
+                  (Completed in {Math.floor(status.running_time_seconds / 60)}m{" "}
+                  {status.running_time_seconds % 60}s)
                 </span>
               )}
             </div>
@@ -918,5 +992,3 @@ const inputData = await overrideGetDataTransformationInput(
     </div>
   );
 }
-
-

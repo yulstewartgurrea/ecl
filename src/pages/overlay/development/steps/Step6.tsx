@@ -13,6 +13,7 @@ import {
   setModuleProgress,
 } from "../../../../redux_toolkit/features/progress/moduleProgressSlice";
 import { postCandidateModels } from "../../../../services/candidateModels";
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
@@ -82,7 +83,23 @@ function mapStep5RowToModelSpec(row: any): ModelSpec {
   const xNames = xColumns.length > 0 ? xColumns.map((x) => x.value).join(" | ") : "-";
   const title = `${row?.Y ?? findColumn(row, "Y") ?? "Model"}: ${xNames}`;
   console.log('xColumns: ', xColumns,row)
-  const variables = xColumns.map((xCol) => {
+  const interceptRaw = findColumn(row, "intercept") ?? findColumn(row, "intercepts");
+  const interceptVal = Number(interceptRaw);
+
+  const variables = [
+    // Add Intercept as its own variable row (instead of a separate column).
+    ...(Number.isFinite(interceptVal)
+      ? [
+          {
+            name: "Intercept",
+            coeff_X1: interceptVal,
+            "p-value_X1": 0,
+            vif_X1: 0,
+            raw: interceptRaw,
+          },
+        ]
+      : []),
+    ...xColumns.map((xCol) => {
     const xName = xCol.name;
     const coeffKey = `coeff_${xName}`;
     const coeff = findColumn(row, coeffKey) ?? 0;
@@ -92,18 +109,15 @@ function mapStep5RowToModelSpec(row: any): ModelSpec {
     const vifKey = `vif_${xName}`;
     const vif = findColumn(row, vifKey);
 
-    // Intercept may be present as "intercept" or "intercepts" (or not at all).
-    const intercept = findColumn(row, "intercept") ?? findColumn(row, "intercepts");
-
     return {
       name: String(xCol.value),
       coeff_X1: Number(coeff),
       "p-value_X1": pval,
       vif_X1: vif,
       raw: coeff,
-      intercept: intercept,
     };
-  });
+  }),
+  ];
   const xObject: Record<string, any> = {};
   xColumns.forEach((xCol) => {
     xObject[xCol.name] = xCol.value;
@@ -338,28 +352,14 @@ const Step6: React.FC = () => {
       if (ct.includes("csv") || ct.startsWith("text/csv")) {
         const blob = await res.blob();
         const filename = (nameMatch && decodeURIComponent(nameMatch[1])) || fallback;
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(href);
+        await downloadBlobWithTauri(blob, filename);
       } else {
         const json = await res.json();
         const rows: ModelSpec[] = Array.isArray(json?.rows) ? json.rows : Array.isArray(json) ? json : [];
         const headers = deriveCsvHeadersFromModels(rows);
         const csv = toCsv(headers, rows);
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const href = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = fallback;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(href);
+        await downloadBlobWithTauri(blob, fallback);
       }
     } catch (e: any) {
       setExportErr(e?.message || "Export failed");

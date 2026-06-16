@@ -1,10 +1,18 @@
 import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 
+interface InputFileItem {
+  name: string;
+  is_folder: boolean;
+  is_sync?: boolean;
+}
+
 interface wfHelperData {
   [key: string]: any;
   // map: "/Entity/Loan/Period/Date/WorkflowName" -> step index
   stepsByWorkflowPath?: Record<string, number>;
+  // map: "/Entity/Period/WorkflowName" -> uploaded input files
+  inputFilesByWorkflowPath?: Record<string, InputFileItem[]>;
 }
 
 const initialState: wfHelperData = {
@@ -27,6 +35,9 @@ const initialState: wfHelperData = {
 
   // NEW: per-workflow step map
   stepsByWorkflowPath: {},
+
+  // NEW: per-workflow uploaded input files (survives step navigation / reload)
+  inputFilesByWorkflowPath: {},
 };
 
 const PdTransitionMatrixWfHelperSlice = createSlice({
@@ -117,6 +128,7 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
       return {
         ...initialState,
         stepsByWorkflowPath: {},
+        inputFilesByWorkflowPath: {},
       };
     },
 
@@ -134,6 +146,20 @@ const PdTransitionMatrixWfHelperSlice = createSlice({
         }
         state.stepsByWorkflowPath[workflowPath] = step;
       }
+    },
+
+    // 🔥 NEW: store the uploaded input files per workflowPath so they
+    // survive the Step1 unmount/remount when navigating between steps.
+    setPdTransitionMatrixInputFiles(
+      state,
+      action: PayloadAction<{ workflowPath: string; files: InputFileItem[] }>
+    ) {
+      const { workflowPath, files } = action.payload;
+      if (!workflowPath) return;
+      if (!state.inputFilesByWorkflowPath) {
+        state.inputFilesByWorkflowPath = {};
+      }
+      state.inputFilesByWorkflowPath[workflowPath] = files;
     },
 
     clearPdTransitionMatrixWorkflowStep(
@@ -178,6 +204,7 @@ export const {
   setPdTransitionMatrixWfData,
   resetPdTransitionMatrixWfHelperData,
   setPdTransitionMatrixCurrentStep,
+  setPdTransitionMatrixInputFiles,
   clearPdTransitionMatrixWorkflowStep,
   setPdTransitionMatrixWorkflowId,
   setPdTransitionMatrixWorkflowData,

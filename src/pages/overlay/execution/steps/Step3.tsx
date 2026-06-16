@@ -354,7 +354,7 @@ export default function OverlayExecutionPage3() {
                 }
               >
                 <ArrowPathIcon className="h-3.5 w-3.5" />
-                <span>{loading ? "Refreshingâ€¦" : "Refresh"}</span>
+                <span>{loading ? "Refreshing¦" : "Refresh"}</span>
               </button>
               <button
                 onClick={exportCsv}
@@ -369,7 +369,7 @@ export default function OverlayExecutionPage3() {
                 }
               >
                 <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-                <span>{exporting ? "Exportingâ€¦" : "Export"}</span>
+                <span>{exporting ? "Exporting¦" : "Export"}</span>
               </button>
               <span className="hidden text-xs text-gray-500 md:inline">
                 Sticky header Scroll horizontally
@@ -393,10 +393,10 @@ export default function OverlayExecutionPage3() {
             ) : overrideRows ? (
               <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 p-6 text-center">
                 <p className="text-sm font-medium text-amber-900">
-                  Overrides are saved, but the transformation hasnâ€™t been run yet.
+                  Overrides are saved, but the transformation hasn™t been run yet.
                 </p>
                 <p className="mt-1 text-xs text-amber-800">
-                  Click <span className="font-semibold">â€œRun forecasted MEVsâ€</span> to
+                  Click <span className="font-semibold">œRun forecasted MEVs</span> to
                   generate the transformed forecast table.
                 </p>
               </div>
