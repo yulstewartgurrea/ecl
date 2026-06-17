@@ -3,7 +3,11 @@ import {
   XMarkIcon,
   XCircleIcon,
   CheckCircleIcon,
+  ArrowUpTrayIcon,
+  ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
+import * as XLSX from "xlsx";
+import { downloadBlobWithTauri } from "../../../../utils/downloadBlobWithTauri";
 
 export type ScenarioBlock = Record<string, string>; // variable -> "123.45%"
 export type ScenarioRow = {
@@ -22,6 +26,7 @@ type Props = {
   initialRows?: ScenarioRow[]; // optional prefill from GET
   onSave: (rows: ScenarioRow[], variables: string[]) => void; // rows normalized with %
   onChangeNewModel?: () => Promise<void>; // callback for "Change New Model"
+  onUploadFile?: (file: File) => Promise<void>;
 };
 
 /* ---------------- helpers: shape & normalization ---------------- */
@@ -32,7 +37,10 @@ function makeBlankBlock(vars: string[]): ScenarioBlock {
   return b;
 }
 
-function buildTemplateRows(periods: string[], variables: string[]): ScenarioRow[] {
+function buildTemplateRows(
+  periods: string[],
+  variables: string[],
+): ScenarioRow[] {
   return periods.map((p) => ({
     period: p,
     upside: makeBlankBlock(variables),
@@ -90,7 +98,7 @@ function toYMD(t: string): string {
 function alignRowsToShape(
   incoming: ScenarioRow[] | undefined,
   periods: string[],
-  variables: string[]
+  variables: string[],
 ): ScenarioRow[] {
   if (!incoming?.length) return buildTemplateRows(periods, variables);
 
@@ -129,6 +137,7 @@ export default function ScenarioConfigModalTable({
   onClose,
   onSave,
   onChangeNewModel,
+  onUploadFile,
   periods,
   variables,
   availableVariables,
@@ -138,10 +147,14 @@ export default function ScenarioConfigModalTable({
   const availableList = availableVariables ?? variables;
   const [showChangeModelConfirm, setShowChangeModelConfirm] = useState(false);
   const [changingModel, setChangingModel] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   // Build from initialRows if provided, otherwise blank template
   const [rows, setRows] = useState<ScenarioRow[]>(
-    alignRowsToShape(initialRows, periods, variables)
+    alignRowsToShape(initialRows, periods, variables),
   );
 
   // Re-align when shape changes while open (periods/variables updates)
@@ -149,7 +162,7 @@ export default function ScenarioConfigModalTable({
     if (!open) return;
     setLocalVariables(variables);
     setRows((prev) =>
-      alignRowsToShape(prev?.length ? prev : initialRows, periods, variables)
+      alignRowsToShape(prev?.length ? prev : initialRows, periods, variables),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, periods, variables]);
@@ -160,6 +173,14 @@ export default function ScenarioConfigModalTable({
       setRows(alignRowsToShape(initialRows, periods, variables));
     }
   }, [open, initialRows, periods, variables]);
+
+  useEffect(() => {
+    if (!open) {
+      setUploadMessage(null);
+      setUploadError(null);
+      setDownloadError(null);
+    }
+  }, [open]);
 
   // esc to close
   useEffect(() => {
@@ -180,10 +201,10 @@ export default function ScenarioConfigModalTable({
       localVariables.length > 0 &&
       rows.every((r) =>
         (["upside", "base", "downside"] as const).every((b) =>
-          localVariables.every((v) => hasValue((r as any)[b][v]))
-        )
+          localVariables.every((v) => hasValue((r as any)[b][v])),
+        ),
       ),
-    [rows, localVariables]
+    [rows, localVariables],
   );
 
   /* ---------------- editing handlers ---------------- */
@@ -193,7 +214,7 @@ export default function ScenarioConfigModalTable({
     rIdx: number,
     block: "upside" | "base" | "downside",
     variable: string,
-    raw: string
+    raw: string,
   ) => {
     const cleaned = sanitizeFloat(raw);
     setRows((prev) => {
@@ -207,7 +228,7 @@ export default function ScenarioConfigModalTable({
   const stripPercentOnFocus = (
     rIdx: number,
     block: "upside" | "base" | "downside",
-    variable: string
+    variable: string,
   ) => {
     setRows((prev) => {
       const next = structuredClone(prev);
@@ -223,7 +244,7 @@ export default function ScenarioConfigModalTable({
   const ensurePercentOnBlur = (
     rIdx: number,
     block: "upside" | "base" | "downside",
-    variable: string
+    variable: string,
   ) => {
     setRows((prev) => {
       const next = structuredClone(prev);
@@ -237,7 +258,7 @@ export default function ScenarioConfigModalTable({
   /** Before saving: ensure every cell is normalized to "<float>" (no % sign) */
   const normalizeAllBeforeSave = (
     grid: ScenarioRow[],
-    vars: string[]
+    vars: string[],
   ): ScenarioRow[] => {
     const out = structuredClone(grid) as ScenarioRow[];
     out.forEach((row) => {
@@ -258,7 +279,7 @@ export default function ScenarioConfigModalTable({
   const upsertRowKey = (
     row: ScenarioRow,
     oldName: string | null,
-    newName: string | null
+    newName: string | null,
   ): ScenarioRow => {
     const next = structuredClone(row) as ScenarioRow;
     (["upside", "base", "downside"] as const).forEach((b) => {
@@ -289,6 +310,66 @@ export default function ScenarioConfigModalTable({
     setRows((prev) => prev.map((r) => upsertRowKey(r, name, null)));
   };
 
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const handleDownloadExcel = async () => {
+    setDownloadError(null);
+    try {
+    const numVars = localVariables.length;
+    const ws: XLSX.WorkSheet = {};
+
+    // Helper to set a cell
+    const set = (r: number, c: number, v: string, bold = false) => {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      ws[addr] = { v, t: "s", s: bold ? { font: { bold: true } } : undefined };
+    };
+
+    // Row 0: Period | Upside (span numVars) | Base (span numVars) | Downside (span numVars)
+    set(0, 0, "Period", true);
+    set(0, 1, "Upside", true);
+    set(0, 1 + numVars, "Base", true);
+    set(0, 1 + numVars * 2, "Downside", true);
+
+    // Row 1: (empty) | var1..varN | var1..varN | var1..varN
+    localVariables.forEach((v, i) => {
+      set(1, 1 + i, v, true);
+      set(1, 1 + numVars + i, v, true);
+      set(1, 1 + numVars * 2 + i, v, true);
+    });
+
+    // Data rows starting at row 2
+    rows.forEach((r, ri) => {
+      set(2 + ri, 0, r.period);
+      localVariables.forEach((v, vi) => {
+        set(2 + ri, 1 + vi, r.upside[v] ?? "");
+        set(2 + ri, 1 + numVars + vi, r.base[v] ?? "");
+        set(2 + ri, 1 + numVars * 2 + vi, r.downside[v] ?? "");
+      });
+    });
+
+    // Set sheet range
+    ws["!ref"] = XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: 2 + rows.length - 1, c: 1 + numVars * 3 - 1 },
+    });
+
+    // Merge scenario header cells
+    ws["!merges"] = [
+      { s: { r: 0, c: 1 }, e: { r: 0, c: numVars } },                       // Upside
+      { s: { r: 0, c: 1 + numVars }, e: { r: 0, c: numVars * 2 } },         // Base
+      { s: { r: 0, c: 1 + numVars * 2 }, e: { r: 0, c: numVars * 3 } },     // Downside
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "MEV Config");
+    const buffer = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    await downloadBlobWithTauri(blob, "mev_config.xlsx");
+    } catch (err: any) {
+      console.error("Download failed:", err);
+      setDownloadError(err?.message || String(err) || "Download failed.");
+    }
+  };
 
   /* ---------------- UI ---------------- */
 
@@ -323,6 +404,17 @@ export default function ScenarioConfigModalTable({
         </div>
 
         <div className="px-4 py-3 overflow-auto">
+          {(uploadMessage || uploadError || downloadError) && (
+            <div
+              className={`mb-3 rounded-lg border px-3 py-2 text-xs ${
+                uploadError || downloadError
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-green-200 bg-green-50 text-green-700"
+              }`}
+            >
+              {uploadError ?? downloadError ?? uploadMessage}
+            </div>
+          )}
           <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
             <span className="inline-flex w-fit items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600 shadow-sm">
               Available variables
@@ -402,7 +494,7 @@ export default function ScenarioConfigModalTable({
                             >
                               -
                             </th>,
-                          ]
+                          ],
                   )}
                 </tr>
               </thead>
@@ -413,7 +505,9 @@ export default function ScenarioConfigModalTable({
                     key={r.period}
                     className={i % 2 ? "bg-white" : "bg-gray-50"}
                   >
-                    <td className={`${cellBase} text-left font-medium sticky left-0 z-10 bg-[#F8F8F8]`}>
+                    <td
+                      className={`${cellBase} text-left font-medium sticky left-0 z-10 bg-[#F8F8F8]`}
+                    >
                       {r.period}
                     </td>
 
@@ -492,7 +586,9 @@ export default function ScenarioConfigModalTable({
                             type="text"
                             placeholder="e.g. 5.6%"
                             value={val}
-                            onFocus={() => stripPercentOnFocus(i, "downside", v)}
+                            onFocus={() =>
+                              stripPercentOnFocus(i, "downside", v)
+                            }
                             onChange={(e) =>
                               setCellFloat(i, "downside", v, e.target.value)
                             }
@@ -521,6 +617,52 @@ export default function ScenarioConfigModalTable({
             <XCircleIcon className="h-4 w-4" />
             <span>Cancel</span>
           </button>
+          {onUploadFile && (
+            <>
+              <input
+                ref={uploadInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.currentTarget.value = "";
+                  if (!file || !onUploadFile) return;
+                  setUploadMessage(null);
+                  setUploadError(null);
+                  setUploadingFile(true);
+                  try {
+                    await onUploadFile(file);
+                    setUploadMessage("Upload successful.");
+                  } catch (err: any) {
+                    setUploadError(err?.message || "Failed to upload file.");
+                  } finally {
+                    setUploadingFile(false);
+                  }
+                }}
+              />
+              <button
+                onClick={() => uploadInputRef.current?.click()}
+                disabled={uploadingFile}
+                className="cursor-pointer rounded-xl border border-blue-200 bg-blue-50 text-blue-700 px-4 py-2 text-sm hover:bg-blue-100 disabled:opacity-50 flex items-center gap-1.5"
+                title="Upload file with Period, Upside, Base, and Downside headers"
+              >
+                <ArrowUpTrayIcon className="h-4 w-4" />
+                <span>
+                  {uploadingFile ? "Uploading..." : "Upload"}
+                </span>
+              </button>
+            </>
+          )}
+          
+          <button
+            onClick={handleDownloadExcel}
+            disabled={rows.length === 0}
+            className="cursor-pointer rounded-xl border border-green-200 bg-green-50 text-green-700 px-4 py-2 text-sm hover:bg-green-100 disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <ArrowDownTrayIcon className="h-4 w-4" />
+            <span>Download</span>
+          </button>
           {onChangeNewModel && (
             <button
               onClick={() => setShowChangeModelConfirm(true)}
@@ -534,7 +676,10 @@ export default function ScenarioConfigModalTable({
             disabled={!canSave}
             onClick={() => {
               if (!canSave) return;
-              onSave(normalizeAllBeforeSave(rows, localVariables), localVariables);
+              onSave(
+                normalizeAllBeforeSave(rows, localVariables),
+                localVariables,
+              );
             }}
             className="cursor-pointer rounded-xl bg-gray-100 text-gray-900 px-4 py-2 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 flex items-center gap-1.5"
           >
@@ -557,7 +702,8 @@ export default function ScenarioConfigModalTable({
                     Change to New Model
                   </h3>
                   <p className="mt-2 text-sm text-gray-600">
-                    Changing to new model will overwrite existing data. Are you sure you want to continue?
+                    Changing to new model will overwrite existing data. Are you
+                    sure you want to continue?
                   </p>
                 </div>
               </div>
