@@ -11,6 +11,7 @@ use tauri::{Manager, WindowEvent};
 use tauri::Emitter; // needed for app_handle.emit(...)
 use tauri_plugin_updater::UpdaterExt;
 use chrono;
+use base64::{engine::general_purpose, Engine as _};
 
 struct FastApiProcess(Mutex<Option<std::process::Child>>);
 mod api;
@@ -507,6 +508,14 @@ fn backend_is_ready() -> bool {
     TcpStream::connect("127.0.0.1:8000").is_ok()
 }
 
+#[tauri::command]
+async fn save_download_file(path: String, base64_content: String) -> Result<(), String> {
+    let bytes = general_purpose::STANDARD
+        .decode(&base64_content)
+        .map_err(|e| format!("Failed to decode base64: {e}"))?;
+    fs::write(&path, &bytes).map_err(|e| format!("Failed to write file: {e}"))
+}
+
 
 #[tokio::main]
 async fn main() {
@@ -521,6 +530,7 @@ async fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(FastApiProcess(Mutex::new(None)))
             .invoke_handler(tauri::generate_handler![
         create_folder_tree,
@@ -531,6 +541,7 @@ async fn main() {
         // install_update,
         // get_app_version,
         backend_is_ready, // 🔹 NEW
+        save_download_file,
     ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
