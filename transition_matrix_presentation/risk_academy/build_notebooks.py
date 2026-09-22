@@ -203,10 +203,18 @@ files = sorted(DATA_ROOT.glob("*/Transactional Report *.xlsx"))
 print(f"Found {len(files)} monthly files")
 """)
 
-md("**Step 2 — read each file into a DataFrame.** (This is the slow one — ~40s.)")
+md(r"""
+**Step 2 — read each file into a DataFrame.** This is the slow step (~40s), so we
+loop over the files and **print progress** as we go, so you can see it's working.
+""")
 
 code(r"""
-frames = [pd.read_excel(f) for f in files]   # a list of ~60 tables
+frames = []                                  # we'll collect the 60 tables here
+for i, f in enumerate(files, start=1):
+    frames.append(pd.read_excel(f))          # read one file into a DataFrame
+    if i % 10 == 0 or i == len(files):       # tick every 10 files
+        print(f"  read {i} / {len(files)} files…")
+
 print("One file :", frames[0].shape)         # (rows, columns)
 """)
 

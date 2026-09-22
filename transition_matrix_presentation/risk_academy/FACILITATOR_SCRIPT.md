@@ -88,12 +88,11 @@ things — here, file names. `glob` finds files matching a pattern, and the `*` 
 wildcard meaning 'anything goes here.' So this line finds every monthly file and
 remembers them in a variable called `files`." *(run Step 1 — 'found 60')*
 
-"Now let's read them all in. This line looks compact, but it's really just a loop:
-'for every file `f` in `files`, read it into a table, and collect all those tables in
-a list.' That square-bracket shortcut for building a list is called a *list
-comprehension* — a normal `for` loop does the same thing, it's just tidier. This is
-the slow one, about 40 seconds, so let me start it and keep talking." *(run Step 2)*
-"…and there — one file is about a thousand rows."
+"Now let's read them all in. We **loop** over the files — for each one, read it into a
+table and add it to a list — and print progress every 10 files so we can see it
+ticking along. This is the slow step, about 40 seconds, so let me start it and keep
+talking." *(run Step 2)* "…there go the progress lines, and one file is about a
+thousand rows."
 
 "Last, let's glue those 60 tables into one. `concat` — short for concatenate — stacks
 them on top of each other into a single big table. `ignore_index=True` just renumbers
