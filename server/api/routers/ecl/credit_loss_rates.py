@@ -37,8 +37,8 @@ async def get_credit_loss_rates_data(
     """
     Get Credit Loss Rates data
     """
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id, 
@@ -103,6 +103,8 @@ async def get_credit_loss_rates_data(
                 "data": None
             }
         )
+    finally:
+        db.close()
 
 @router.post("/credit_loss_rates")
 async def calculate_credit_loss_rates(
@@ -113,8 +115,8 @@ async def calculate_credit_loss_rates(
     """
     Calculate Credit Loss Rates
     """
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         # Parse probability_weights JSON string
         try:
             parsed_probability_weights = json.loads(probability_weights) if isinstance(probability_weights, str) else probability_weights
@@ -244,7 +246,7 @@ async def calculate_credit_loss_rates(
         document_type = "ECL_CREDIT_LOSS_RATES_OUTPUT"
 
         # Save data in documents models
-        db = SessionLocal()
+        save_db = SessionLocal()
         try:
             # Create Document record
             new_document = Document(
@@ -255,11 +257,11 @@ async def calculate_credit_loss_rates(
                 workflow_id=workflow_id,
                 workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
             )
-            db.add(new_document)
-            db.commit()
-            db.refresh(new_document)
+            save_db.add(new_document)
+            save_db.commit()
+            save_db.refresh(new_document)
         finally:
-            db.close()
+            save_db.close()
         
         print(process_credit_loss_rates_res)
         save_csv_data_in_folder(
@@ -287,6 +289,8 @@ async def calculate_credit_loss_rates(
                 "data": None
             }
         )
+    finally:
+        db.close()
 
 @router.get("/credit_loss_rates/export")
 async def export_credit_loss_rates(
@@ -296,8 +300,8 @@ async def export_credit_loss_rates(
     """
     Export Credit Loss Rates data as Excel file
     """
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id, 
@@ -352,3 +356,5 @@ async def export_credit_loss_rates(
                 "data": None
             }
         )
+    finally:
+        db.close()

@@ -43,8 +43,8 @@ async def calculate_ecl_data(
     """
     Calculate ECL data
     """
+    db = SessionLocal()
     try:
-        db = SessionLocal()
 
         try:
             parsed_probability_weights = json.loads(probability_weights) if isinstance(probability_weights, str) else probability_weights
@@ -107,7 +107,7 @@ async def calculate_ecl_data(
 
         db.close()
         # Save data in documents models
-        db = SessionLocal()
+        save_db = SessionLocal()
         try:
             # Create Document record
             new_document = Document(
@@ -118,11 +118,11 @@ async def calculate_ecl_data(
                 workflow_id=workflow_id,
                 workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
             )
-            db.add(new_document)
-            db.commit()
-            db.refresh(new_document)
+            save_db.add(new_document)
+            save_db.commit()
+            save_db.refresh(new_document)
         finally:
-            db.close()
+            save_db.close()
         
         save_csv_data_in_folder(
             workflow_path=output_folder,
@@ -182,6 +182,8 @@ async def calculate_ecl_data(
                 "data": None
             }
         )
+    finally:
+        db.close()
 
 @router.get("/")
 async def get_ecl_data(

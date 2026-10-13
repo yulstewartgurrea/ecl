@@ -45,8 +45,8 @@ async def get_summary_data(
     """
     Get Summary data
     """
+    db = SessionLocal()
     try:
-        db = SessionLocal()        
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id, 
             Workflow.user_id == current_user.id
@@ -247,7 +247,7 @@ async def get_summary_data(
 
         db.close()
         # # Save data in documents models
-        db = SessionLocal()
+        save_db = SessionLocal()
         try:
             # Create Document record
             new_document = Document(
@@ -258,11 +258,11 @@ async def get_summary_data(
                 workflow_id=workflow_id,
                 workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
             )
-            db.add(new_document)
-            db.commit()
-            db.refresh(new_document)
+            save_db.add(new_document)
+            save_db.commit()
+            save_db.refresh(new_document)
         finally:
-            db.close()
+            save_db.close()
         
         save_csv_data_in_folder(
             workflow_path=output_folder,
@@ -322,6 +322,8 @@ async def get_summary_data(
                 "data": None
             }
         )
+    finally:
+        db.close()
 
 @router.get("/summary")
 async def get_summary_data(
