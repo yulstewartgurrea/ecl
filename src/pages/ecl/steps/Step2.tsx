@@ -1,5 +1,6 @@
 // pages/ecl/steps/Step2.tsx
 import  { useEffect, useMemo, useRef, useState } from "react";
+import { EclCalculationsAbout } from "../../../components/about/EclAbout";
 import {
   InformationCircleIcon,
   ArrowPathIcon,
@@ -353,6 +354,8 @@ formData.append(
             </div>
           </div>
         </section>
+
+        <EclCalculationsAbout />
 
         {error ? (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">

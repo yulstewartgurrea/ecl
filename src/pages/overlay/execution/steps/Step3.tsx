@@ -1,5 +1,6 @@
 ﻿// src/pages/overlay/execution/OverlayExecutionPage3.tsx
 import { useCallback, useEffect, useRef, useState } from "react";
+import { OeMevForecastAbout } from "../../../../components/about/OverlayExecutionAbout";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 
 import type { ScenarioRow } from "../../../../components/overlay/execution/mev/ConfigModal";
@@ -325,6 +326,10 @@ export default function OverlayExecutionPage3() {
           </div>
         </div>
       </header>
+
+      <div className="px-4 pt-3">
+        <OeMevForecastAbout />
+      </div>
 
       {/* Main content */}
       <main className="mx-auto px-4 md:px-6 py-6 md:py-2">

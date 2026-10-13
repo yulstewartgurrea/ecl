@@ -1,5 +1,6 @@
 // src/pages/overlay/development/multi_factor/Step5.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { OdFilteringAbout } from "../../../../components/about/OverlayDevelopmentAbout";
 import { Multi_Table, type Row } from "../../../../components/overlay/development/multi_factor/Multi_Table";
 import { getFilteringModels, postFilteringModels } from "../../../../services/filteringModels";
 import { useAppDispatch, useAppSelector } from "../../../../redux_toolkit/hooks";
@@ -742,6 +743,10 @@ const applySearch = useCallback(() => {
           {description ? <p className="mt-1 max-w-3xl text-sm text-neutral-600">{description}</p> : null}
         </div>
         {headerRight}
+      </div>
+
+      <div className="mb-4">
+        <OdFilteringAbout />
       </div>
 
       <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">

@@ -2,7 +2,7 @@
 import { useMemo } from "react";
 import type { AnyRow } from "./aging.types";
 import { deriveKeys, fmtDate, toFraction } from "./aging.types";
-import AboutTablePanel, { ColumnDefinitions, InfoCard } from "./AboutTablePanel";
+import AboutTablePanel, { ColumnDefinitions, InfoCard } from "../../about/AboutTablePanel";
 import { bucketLabels, findDateKey } from "./agingBuckets";
 
 const isReportDate = (v: unknown) => /^\d{4}-\d{2}-\d{2}/.test(fmtDate(v));

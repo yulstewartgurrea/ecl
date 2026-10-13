@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { OeForecastInterpolationAbout } from "../../../../components/about/OverlayExecutionAbout";
 import ExeTable from "../../../../components/overlay/execution/interpolation/table/ExeTable";
 import type { Frequency } from "../../../../components/overlay/execution/interpolation/table/Columns";
 import { ProcessModal } from "../../../../components/ProcessModal";
@@ -228,6 +229,10 @@ export default function OverlayDevelopmentPage2() {
           </div>
         </div>
       </header>
+
+      <div className="px-4 pt-3">
+        <OeForecastInterpolationAbout rows={rows} />
+      </div>
 
       {/* Data card */}
       <main className="mx-auto px-4 pb-8">

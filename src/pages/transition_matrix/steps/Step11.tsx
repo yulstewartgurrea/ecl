@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { TmHistoricalDefaultRateAbout } from "../../../components/about/TransitionMatrixAbout";
 import { ArrowDownTrayIcon, FunnelIcon } from "@heroicons/react/24/outline";
 
 import TableTemplate1 from "../../../components/TableTemplate1";
@@ -536,6 +537,9 @@ const Step11 = () => {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
+            <div className="mb-3">
+              <TmHistoricalDefaultRateAbout />
+            </div>
             <p className="text-sm text-gray-500 mt-1">
               Filter by year/month. Select categories in any groups. The chart
               reflects the{" "}

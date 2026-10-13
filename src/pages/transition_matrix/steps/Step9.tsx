@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { TmMarkovChainAbout } from "../../../components/about/TransitionMatrixAbout";
 import clsx from "clsx";
 import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import ZoomSlider from "../../../components/ZoomSlider";
@@ -125,9 +126,9 @@ const Step9: React.FC = () => {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm text-gray-500 mt-1">
-              Average and month-by-month transition matrices.
-            </p>
+            <div className="mb-3">
+              <TmMarkovChainAbout average={migrationMatrixAverage} month2={matrixByMonth["Month 2"] ?? []} />
+            </div>
             <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
               <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
                 {entity || "—"}

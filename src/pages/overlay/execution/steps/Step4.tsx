@@ -1,5 +1,6 @@
 // src/pages/overlay/execution/Step4.tsx
 import React, { useState, useCallback, useEffect } from "react";
+import { OeForecastedLossRateAbout } from "../../../../components/about/OverlayExecutionAbout";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 
 import ForecastedPdSummary, {
@@ -278,6 +279,10 @@ const Step4: React.FC = () => {
           </div>
         </div>
       </header>
+
+      <div className="px-4 pt-3">
+        <OeForecastedLossRateAbout mlrRows={mlrRows} forecastRows={forecastedPdRows} />
+      </div>
 
       <main className="mx-auto px-0 md:px-0 pb-8">
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-5 md:px-6 md:py-6 max-h-[calc(100vh-220px)] overflow-y-auto">

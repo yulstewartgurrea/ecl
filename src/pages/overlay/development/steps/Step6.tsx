@@ -1,5 +1,6 @@
 // Step6.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { OdCandidateModelsAbout } from "../../../../components/about/OverlayDevelopmentAbout";
 import {
   ModelCompareGrid,
   type ModelSpec,
@@ -566,6 +567,10 @@ const Step6: React.FC = () => {
   return (
     <div className="min-h-dvh bg-neutral-50 p-6">
       {header}
+
+      <div className="mb-4">
+        <OdCandidateModelsAbout />
+      </div>
 
       {errMsg && (
         <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">

@@ -1,5 +1,6 @@
 // pages/ecl/steps/Step3.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { EclPortfolioSummaryAbout } from "../../../components/about/EclAbout";
 import {
   InformationCircleIcon,
   ExclamationTriangleIcon,
@@ -288,6 +289,8 @@ export default function Step3() {
             </div>
           </div>
         </section>
+
+        <EclPortfolioSummaryAbout rows={rows} eclRatePercent={overallEclRatePercent} />
 
         {error ? (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">

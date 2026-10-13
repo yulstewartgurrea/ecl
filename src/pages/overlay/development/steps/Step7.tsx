@@ -1,5 +1,6 @@
 // Step7.tsx
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { OdFinalModelAbout } from "../../../../components/about/OverlayDevelopmentAbout";
 import { useNavigate } from "react-router-dom";
 import type { ModelSpec } from "../../../../components/overlay/development/candidate_model/ModelCompareGrid";
 import type { RootState } from "../../../../redux_toolkit/store";
@@ -373,6 +374,8 @@ const Step7: React.FC = () => {
             Final Model
           </h1>
         </div>
+
+        <OdFinalModelAbout />
 
         {err && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">

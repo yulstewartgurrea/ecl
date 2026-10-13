@@ -1,5 +1,6 @@
 ﻿// src/pages/execution/Step1.tsx
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { OdInputsAbout } from "../../../../components/about/OverlayDevelopmentAbout";
 import UploadDropzone from "../../../../components/ui/UploadDropzone";
 import OverlayUploadResultModal, { type IssueRow } from "../../../../components/modals/OverlayUploadResultModal";
 import WorkflowPickerModal from "../../../../components/modals/WorkflowPickerModal";
@@ -413,6 +414,9 @@ export default function Step1() {
   ----------------------------------------------------------- */
   return (
     <div className="mx-auto max-w-8xl">
+      <div className="mb-4">
+        <OdInputsAbout />
+      </div>
       {successBanner && (
         <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <div className="flex items-center justify-between">

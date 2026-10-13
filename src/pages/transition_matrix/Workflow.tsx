@@ -40,41 +40,6 @@ const stepLabels = [
   "Historical Default Rate",
 ];
 
-const stepDescriptions = [
-  // 0 - Input Files
-  "Upload the raw portfolio and performance files required for the PD transition matrix workflow.",
-
-  // 1 - Data Validation
-  "Check uploaded data, formats, duplicates, and basic data quality issues.",
-
-  // 2 - Data Consolidation
-  "Merge and align validated datasets into a single consolidated view ready for transformation.",
-
-  // 3 - Pivoting
-  "Reshape the consolidated data into a pivoted structure by key dimensions (e.g., account, period, DPD).",
-
-  // 4 - Bucketing
-  "Assign exposures into predefined risk or DPD buckets to prepare for transition calculations.",
-
-  // 5 - Everbad
-  "Apply the everbad rule so that once an account is classified as bad, it remains bad in subsequent periods.",
-
-  // 6 - Default Rate
-  "Compute period-by-period default rates based on good vs bad account movements.",
-
-  // 7 - Matrix Construction
-  "Build the transition matrix showing probabilities of moving between buckets across observation periods.",
-
-  // 8 - Markov Chain
-  "Use the transition matrix in a Markov chain framework to derive multi-period transition behavior.",
-
-  // 9 - TTC PD
-  "Derive through-the-cycle PD estimates by smoothing or averaging point-in-time movements over time.",
-
-  // 10 - Historical Default Rate
-  "Review and compare historical default rates to assess model stability and back-test the results.",
-];
-
 const PdTransitionMatrixWorkflow = () => {
   const dispatch = useAppDispatch();
 
@@ -232,9 +197,6 @@ const PdTransitionMatrixWorkflow = () => {
 
       <div className="w-full flex flex-row p-2">
         <div className="w-full min-h-[750px] bg-white p-4 shadow-md rounded">
-          <p className="text-xs text-gray-600 mt-1 mb-1">
-            {stepDescriptions[currentStep]}
-          </p>
           {renderStepComponent()}
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { TmBucketingAbout } from "../../../components/about/TransitionMatrixAbout";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../../redux_toolkit/store";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
@@ -152,9 +153,9 @@ const Step5 = () => {
 
         <div className="flex items-start justify-between gap-4 b-10">
           <div>
-            <p className="text-sm text-gray-500 mt-1">
-              Average and month-by-month transition matrices.
-            </p>
+            <div className="mb-3">
+              <TmBucketingAbout />
+            </div>
             <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
               <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">
                 {entity || "—"}

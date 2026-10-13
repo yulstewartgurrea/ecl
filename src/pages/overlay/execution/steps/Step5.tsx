@@ -1,4 +1,5 @@
 // src/pages/overlay/execution/Step5.tsx
+import { OeOverlayMultiplierAbout } from "../../../../components/about/OverlayExecutionAbout";
 import React, {
   useState,
   useCallback,
@@ -359,6 +360,10 @@ const Step5: React.FC = () => {
           </div>
         </div>
       </header>
+
+      <div className="px-4 pt-3">
+        <OeOverlayMultiplierAbout />
+      </div>
 
       {/* Main content */}
       <main className="mx-auto px-0 md:px-0 pb-8">

@@ -1,5 +1,6 @@
 // src/pages/overlay/development/.../Step4.tsx
 import React, { useEffect, useMemo, useState } from "react";
+import { OdMultiFactorAbout } from "../../../../components/about/OverlayDevelopmentAbout";
 import { Multi_Table, type Row } from "../../../../components/overlay/development/multi_factor/Multi_Table";
 import { 
   // getMultiFactorResults, 
@@ -722,6 +723,10 @@ const onCancel = async () => {
           </button>
 
         </div>
+      </div>
+
+      <div className="mb-4">
+        <OdMultiFactorAbout rows={fileBasedRows.length > 0 ? fileBasedRows : serverRows} />
       </div>
       <ConfirmCancelModal
         open={confirmCancelOpen}

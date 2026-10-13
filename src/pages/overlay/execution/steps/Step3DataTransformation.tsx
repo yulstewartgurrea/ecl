@@ -1,5 +1,6 @@
 ﻿// src/pages/overlay/development/.../OverlayDevelpmentPage3.tsx
 import { useState, useEffect, useCallback } from "react";
+import { OeTransformationAbout } from "../../../../components/about/OverlayExecutionAbout";
 import ExeTable from "../../../../components/overlay/development/data_transformation/table/ExeTable";
 import type {
   Frequency,
@@ -866,6 +867,10 @@ export default function OverlayDevelpmentPage3() {
           </div>
         </div>
       </header>
+
+      <div className="px-4 pt-3">
+        <OeTransformationAbout defaultRows={defRows} />
+      </div>
 
       <ScenarioConfigModalTable
         open={mevConfigOpen}

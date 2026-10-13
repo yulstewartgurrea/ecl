@@ -1,5 +1,6 @@
 ﻿// pages/ecl/steps/Step4.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { EclOutputAbout } from "../../../components/about/EclAbout";
 import {
   InformationCircleIcon,
   ExclamationTriangleIcon
@@ -173,6 +174,8 @@ export default function Step4() {
           </div>
         </section>
 
+        <EclOutputAbout rows={rows} />
+
         {error ? (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
             <div className="flex items-center gap-2 font-semibold">
@@ -195,7 +198,7 @@ export default function Step4() {
                   ? "Loading initial data"
                   : needsRun
                   ? "No computed data found. Click Run to compute."
-                  : "Bars show loan balance per bucket; line shows ECL rate (Weighted ECL/ Loan Balance - 100)."}
+                  : "Bars show loan balance per bucket; line shows ECL rate (Weighted ECL ÷ Loan Balance × 100)."}
               </p>
             </div>
 

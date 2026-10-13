@@ -1,4 +1,4 @@
-// components/asa/table/AboutTablePanel.tsx
+// components/about/AboutTablePanel.tsx
 import { useState, type ReactNode } from "react";
 import {
   InformationCircleIcon,
@@ -35,7 +35,8 @@ export default function AboutTablePanel({
   children,
 }: {
   description: ReactNode;
-  legend: LegendItem[];
+  /** Omit for steps where higher/lower has no meaning (e.g. uploads) */
+  legend?: LegendItem[];
   usedNext?: ReactNode;
   notice?: ReactNode;
   children?: ReactNode;
@@ -76,38 +77,40 @@ export default function AboutTablePanel({
       {open && (
         <>
           {/* Higher / lower legend */}
-          <div className="mt-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              What higher or lower means
-            </h3>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {legend.map((item) => {
-                const tone = TONE[item.tone];
-                const Icon =
-                  item.direction === "higher"
-                    ? ArrowUpIcon
-                    : item.direction === "lower"
-                      ? ArrowDownIcon
-                      : InformationCircleIcon;
-                return (
-                  <div
-                    key={item.label}
-                    className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2"
-                  >
-                    <span
-                      className={`mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full ${tone.bg}`}
+          {legend && legend.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                What higher or lower means
+              </h3>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {legend.map((item) => {
+                  const tone = TONE[item.tone];
+                  const Icon =
+                    item.direction === "higher"
+                      ? ArrowUpIcon
+                      : item.direction === "lower"
+                        ? ArrowDownIcon
+                        : InformationCircleIcon;
+                  return (
+                    <div
+                      key={item.label}
+                      className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2"
                     >
-                      <Icon className={`h-4 w-4 ${tone.text}`} />
-                    </span>
-                    <div className="min-w-0">
-                      <div className={`text-sm font-semibold ${tone.text}`}>{item.label}</div>
-                      <p className="text-xs text-gray-600">{item.text}</p>
+                      <span
+                        className={`mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full ${tone.bg}`}
+                      >
+                        <Icon className={`h-4 w-4 ${tone.text}`} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className={`text-sm font-semibold ${tone.text}`}>{item.label}</div>
+                        <p className="text-xs text-gray-600">{item.text}</p>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {usedNext && (
             <div className="mt-4">

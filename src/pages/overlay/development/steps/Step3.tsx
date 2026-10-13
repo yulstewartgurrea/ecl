@@ -1,5 +1,6 @@
 // src/pages/overlay/development/.../OverlayDevelpmentPage3.tsx
 import { useState, useEffect, useCallback } from "react";
+import { OdTransformationAbout } from "../../../../components/about/OverlayDevelopmentAbout";
 import ExeTable from "../../../../components/overlay/development/data_transformation/table/ExeTable";
 import type {
   Frequency,
@@ -575,6 +576,10 @@ export default function OverlayDevelpmentPage3() {
           </div>
         </div>
       </header>
+
+      <div className="px-4 pt-3">
+        <OdTransformationAbout defaultRows={defRows} />
+      </div>
 
       {/* Configuration Modal */}
       {showConfig && (

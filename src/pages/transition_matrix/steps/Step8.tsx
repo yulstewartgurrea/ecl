@@ -1,5 +1,6 @@
 // Step8.tsx (replace your existing Step8 with this)
 import React, { useEffect, useState } from "react";
+import { TmMatrixConstructionAbout } from "../../../components/about/TransitionMatrixAbout";
 import clsx from "clsx";
 import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import ZoomSlider from "../../../components/ZoomSlider";
@@ -91,6 +92,9 @@ const Step8: React.FC = () => {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
+            <div className="mb-3">
+              <TmMatrixConstructionAbout countBlocks={migrationMatrixData} percentBlocks={migrationMatrixPercentage} />
+            </div>
             <p className="text-sm text-gray-500 mt-1">
               Review migration matrices for the selected entity and reporting
               period.

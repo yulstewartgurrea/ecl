@@ -2,6 +2,7 @@
 // pages/flowrate/steps/Step1.tsx
 // ==========================
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { EclInputsAbout } from "../../../components/about/EclAbout";
 import UploadDropzone from "../../../components/ui/UploadDropzone";
 import OverlayUploadResultModal from "../../../components/modals/OverlayUploadResultModal";
 import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
@@ -293,6 +294,9 @@ export default function Step1() {
 
   return (
     <div className="mx-auto max-w-8xl">
+      <div className="mb-4">
+        <EclInputsAbout />
+      </div>
       {successBanner && (
         <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <div className="flex items-center justify-between">

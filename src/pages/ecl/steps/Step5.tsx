@@ -1,5 +1,6 @@
 // pages/ecl/steps/Step5.tsx
 import React, { useEffect, useMemo, useState } from "react";
+import { EclCreditLossRateAbout } from "../../../components/about/EclAbout";
 import {
   InformationCircleIcon,
   ArrowPathIcon,
@@ -301,8 +302,8 @@ export default function Step5() {
                 Credit Loss Rate
               </h1>
               <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                Enter the scenario probability weights then submit. If successful, the system will
-                compute and return the forward-looking credit loss rates per aging category.
+                Enter the scenario probability weights, then submit. The rates below are computed per
+                scenario; the weights are used to blend the scenarios in ECL Calculations.
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Pill tone="blue">Workflow Name: {pdTransitionMatrixWfName || ""}</Pill>
@@ -322,6 +323,8 @@ export default function Step5() {
             </div>
           </div>
         </section>
+
+        <EclCreditLossRateAbout />
 
         {/* Input card */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">

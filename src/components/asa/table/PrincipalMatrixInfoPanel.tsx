@@ -2,7 +2,7 @@
 import { useMemo } from "react";
 import type { AnyRow } from "./aging.types";
 import { fmtDate, toNum } from "./aging.types";
-import AboutTablePanel, { ColumnDefinitions, InfoCard } from "./AboutTablePanel";
+import AboutTablePanel, { ColumnDefinitions, InfoCard } from "../../about/AboutTablePanel";
 import {
   bucketKeys,
   bucketLabels,

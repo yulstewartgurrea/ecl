@@ -1,5 +1,6 @@
 // src/pages/overlay/execution/steps/Step3DataTransformationCombineForecastedMEVAndInterpolation.tsx
 import { useState, useEffect, useCallback } from "react";
+import { OeCombineAbout } from "../../../../components/about/OverlayExecutionAbout";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 import {
   PlayCircleIcon,
@@ -308,6 +309,10 @@ export default function Step3DataTransformationCombineForecastedMEVAndInterpolat
             </div>
           </div>
         </header>
+
+      <div className="px-4 pt-3">
+        <OeCombineAbout />
+      </div>
 
         <main className="mx-auto px-4 pb-8 pt-4">
           <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6">

@@ -1,5 +1,6 @@
 // Step10.tsx (notes moved beneath TTC Table)
 import React, { useState } from "react";
+import { TmTtcPdAbout } from "../../../components/about/TransitionMatrixAbout";
 import {
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
@@ -117,6 +118,9 @@ const Step10: React.FC = () => {
         {/* Header + status */}
         <div className="flex items-start justify-between gap-4">
           <div>
+            <div className="mb-3">
+              <TmTtcPdAbout />
+            </div>
             <p className="text-sm text-gray-500 mt-1">
               Visualize TTC PD for Month 12 bucket-4 and export or save locally.
             </p>

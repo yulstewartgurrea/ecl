@@ -1,5 +1,6 @@
 ﻿// src/pages/execution/Step1.tsx
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { OeInputsAbout } from "../../../../components/about/OverlayExecutionAbout";
 import UploadDropzone from "../../../../components/ui/UploadDropzone";
 import {
   CheckCircleIcon,
@@ -1012,6 +1013,9 @@ export default function Step1() {
   ----------------------------------------------------------- */
   return (
     <div className="mx-auto max-w-8xl">
+      <div className="mb-4">
+        <OeInputsAbout />
+      </div>
       {/* Success banner */}
       {successBanner && (
         <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">

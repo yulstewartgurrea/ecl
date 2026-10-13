@@ -15,6 +15,7 @@ import {
 import { useAppDispatch, useAppSelector } from "../../redux_toolkit/hooks";
 import { updateModuleData } from "../../redux_toolkit/features/workflow/workflowSlice";
 import { useDocumentById } from "../../hooks/useDocumentById";
+import { TmValidationAbout } from "../about/TransitionMatrixAbout";
 
 const TabbedInterface = () => {
   const dispatch = useAppDispatch();
@@ -186,6 +187,11 @@ const TabbedInterface = () => {
           Failed to fetch migration data.
         </div>
       )}
+
+      {/* About this table */}
+      <div className="px-4 pt-4">
+        <TmValidationAbout rows={document?.json_data ?? []} />
+      </div>
 
       {/* Tabs Header */}
       <div className="px-4 pt-4">
