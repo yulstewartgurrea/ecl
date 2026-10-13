@@ -2,13 +2,15 @@
 import React, { useEffect, useState } from "react";
 import { PlayIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import CreditLossRateMatrix from "../../../components/asa/credit/CreditLossRateMatrix";
+import CreditLossInfoPanel from "../../../components/asa/table/CreditLossInfoPanel";
+import type { AnyRow } from "../../../components/asa/table/aging.types";
 import { useAsaApi } from "../../../lib/asaApi";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 import { useDispatch } from "react-redux";
 import { setStep5Bundle } from "../../../redux_toolkit/features/asa/flowrateStep5Slice";
-import { exportCreditLossCalculationFile } from "../../../services/flowrate";
+import { exportCreditLossCalculationFile, getFlowRateDataGET } from "../../../services/flowrate";
 import { downloadBlobWithTauri } from "../../../utils/downloadBlobWithTauri";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
@@ -198,6 +200,22 @@ const Step5: React.FC = () => {
     };
   }, [workflowId, getStep3Data, getStep3Data, dispatch]);
 
+  // Step 2 Distribution rows, used by the About panel's worked example
+  const [distributionRows, setDistributionRows] = useState<AnyRow[]>([]);
+  useEffect(() => {
+    let mounted = true;
+    getFlowRateDataGET({ apiBase: API_BASE, token: authToken, workflowId })
+      .then((res) => {
+        if (!mounted) return;
+        const block = res?.data?.["Flow of Loan Balance Principal Matrix (Distribution)"];
+        setDistributionRows(Array.isArray(block) ? (block as AnyRow[]) : []);
+      })
+      .catch(() => mounted && setDistributionRows([]));
+    return () => {
+      mounted = false;
+    };
+  }, [workflowId, authToken]);
+
   const handleRun = async () => {
     setRunning(true);
     setError(null);
@@ -340,6 +358,8 @@ const Step5: React.FC = () => {
             </button>
           </div>
         </div>
+
+        <CreditLossInfoPanel rows={rows ?? []} distributionRows={distributionRows} />
 
         <CreditLossRateMatrix
           rows={rows}

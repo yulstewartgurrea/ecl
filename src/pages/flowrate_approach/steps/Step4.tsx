@@ -5,6 +5,8 @@ import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
 import { useAsaApi } from "../../../lib/asaApi";
 
+import OutputInfoPanel from "../../../components/asa/table/OutputInfoPanel";
+import type { AnyRow } from "../../../components/asa/table/aging.types";
 import CreditLossRateCharts, {
   type CreditLossRateAnyRow,
 } from "../../../components/asa/graph/CreditLossRateCharts";
@@ -138,12 +140,15 @@ export default function Step4() {
             No data for workflow #{workflowId}. Run Step 5 first.
           </div>
         ) : (
-          <CreditLossRateCharts
-            data={sourceRows}
-            rateSets={rateSetNames}
-            title="Credit Loss Rate Approach – Visuals"
-            enableExport={false}
-          />
+          <>
+            <OutputInfoPanel rows={sourceRows as AnyRow[]} />
+            <CreditLossRateCharts
+              data={sourceRows}
+              rateSets={rateSetNames}
+              title="Credit Loss Rate Approach – Visuals"
+              enableExport={false}
+            />
+          </>
         )}
       </div>
     </>

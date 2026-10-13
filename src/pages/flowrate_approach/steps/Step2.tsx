@@ -10,6 +10,9 @@ import {
 
 import PrincipalMatrixTable from "../../../components/asa/table/PrincipalMatrixTable";
 import PrincipalMatrixDistributionTable from "../../../components/asa/table/PrincipalMatrixDistributionTable";
+import DistributionInfoPanel from "../../../components/asa/table/DistributionInfoPanel";
+import PrincipalMatrixInfoPanel from "../../../components/asa/table/PrincipalMatrixInfoPanel";
+import FlowRateInfoPanel from "../../../components/asa/table/FlowRateInfoPanel";
 import FlowRateCalcTable from "../../../components/asa/table/FlowRateCalcTable";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useAppSelector } from "../../../redux_toolkit/hooks";
@@ -106,6 +109,13 @@ export default function Step4() {
 
     return [] as AnyRow[];
   }, [apiData, view]);
+
+  // Principal Matrix amounts, used by the Distribution and Flow Rate panels for their worked examples
+  const principalRows = useMemo(() => {
+    const data = apiData?.data ?? apiData;
+    const block = data?.["Flow of Loan Balance Principal Matrix"];
+    return Array.isArray(block) ? (block as AnyRow[]) : [];
+  }, [apiData]);
 
   const handleRun = async () => {
     const wf = Number(workflowId);
@@ -246,21 +256,30 @@ export default function Step4() {
         ) : (
           <>
             {view === "principal" && (
-              <Card title="Principal Matrix">
-                <PrincipalMatrixTable rows={rowsForView} height={420} />
-              </Card>
+              <>
+                <PrincipalMatrixInfoPanel rows={rowsForView} />
+                <Card title="Principal Matrix">
+                  <PrincipalMatrixTable rows={rowsForView} height={420} />
+                </Card>
+              </>
             )}
 
             {view === "distribution" && (
-              <Card title="Distribution">
-                <PrincipalMatrixDistributionTable rows={rowsForView} height={420} />
-              </Card>
+              <>
+                <DistributionInfoPanel rows={rowsForView} principalRows={principalRows} />
+                <Card title="Distribution">
+                  <PrincipalMatrixDistributionTable rows={rowsForView} height={420} />
+                </Card>
+              </>
             )}
 
             {view === "flowrate" && (
-              <Card title="Flow Rate Calculation">
-                <FlowRateCalcTable rows={rowsForView} height={420} />
-              </Card>
+              <>
+                <FlowRateInfoPanel rows={rowsForView} principalRows={principalRows} />
+                <Card title="Flow Rate Calculation">
+                  <FlowRateCalcTable rows={rowsForView} height={420} />
+                </Card>
+              </>
             )}
           </>
         )}
