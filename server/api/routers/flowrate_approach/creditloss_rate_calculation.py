@@ -33,8 +33,8 @@ async def get_credit_loss_calculation(
     current_user: User = Depends(get_current_user)
 ):
 
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id,
             Workflow.user_id == current_user.id
@@ -116,14 +116,16 @@ async def get_credit_loss_calculation(
             'msg': f'An unexpected error occurred while retrieving credit loss data. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)
+    finally:
+        db.close()
 
 @router.get("/credit_loss_calculation/export")
 async def export_credit_loss_calculation(
     workflow_id: int = Query(..., description="Workflow ID to export credit loss calculation file"),
     current_user: User = Depends(get_current_user)
 ):
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id,
             Workflow.user_id == current_user.id
@@ -195,14 +197,16 @@ async def export_credit_loss_calculation(
             'msg': f'An unexpected error occurred while exporting credit loss data. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)
+    finally:
+        db.close()
 
 @router.post("/credit_loss_calculation")
 async def credit_loss_calculation(
     workflow_id: int = Form(..., description="Workflow ID to get credit loss calculation for"),
     current_user: User = Depends(get_current_user)
 ):
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id,
             Workflow.user_id == current_user.id
@@ -264,7 +268,7 @@ async def credit_loss_calculation(
         document_type = "FLOWRATE_APPROACH_CREDITLOSS_RATE_OUTPUT"
 
         # # Save data in documents models
-        db = SessionLocal()
+        save_db = SessionLocal()
         try:
             # Create Document record
             new_document = Document(
@@ -275,12 +279,12 @@ async def credit_loss_calculation(
                 workflow_id=workflow_id,
                 workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
             )
-            db.add(new_document)
-            db.commit()
-            db.refresh(new_document)
+            save_db.add(new_document)
+            save_db.commit()
+            save_db.refresh(new_document)
 
         finally:
-            db.close()
+            save_db.close()
 
         save_csv_data_in_folder(
             workflow_path=output_folder,
@@ -313,3 +317,5 @@ async def credit_loss_calculation(
             'msg': f'An unexpected error occurred during credit loss calculation. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)
+    finally:
+        db.close()

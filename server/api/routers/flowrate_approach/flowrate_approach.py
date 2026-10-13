@@ -33,8 +33,8 @@ async def get_processed_flow_rate_approach(
     current_user: User = Depends(get_current_user)
 ):
 
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id,
             Workflow.user_id == current_user.id
@@ -95,14 +95,16 @@ async def get_processed_flow_rate_approach(
             'msg': f'An unexpected error occurred while retrieving flow rate data. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)
+    finally:
+        db.close()
 
 @router.get("/flow_rate/export")
 async def export_processed_flow_rate_approach(
     workflow_id: int = Query(..., description="Workflow ID to export flowrate output file"),
     current_user: User = Depends(get_current_user)
 ):
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id,
             Workflow.user_id == current_user.id
@@ -167,14 +169,16 @@ async def export_processed_flow_rate_approach(
             'msg': f'An unexpected error occurred while exporting flow rate data. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)
+    finally:
+        db.close()
 
 @router.post("/flow_rate")
 async def flow_rate_approach(
     workflow_id: int = Form(..., description="Workflow ID to get flowrate approach for"),
     current_user: User = Depends(get_current_user)
 ):
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id,
             Workflow.user_id == current_user.id
@@ -198,7 +202,7 @@ async def flow_rate_approach(
         document_type = "FLOWRATE_APPROACH_FLOWRATE_OUTPUT"
 
         # Save data in documents models
-        db = SessionLocal()
+        save_db = SessionLocal()
         try:
             # Create Document record
             new_document = Document(
@@ -209,12 +213,12 @@ async def flow_rate_approach(
                 workflow_id=workflow_id,
                 workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
             )
-            db.add(new_document)
-            db.commit()
-            db.refresh(new_document)
+            save_db.add(new_document)
+            save_db.commit()
+            save_db.refresh(new_document)
 
         finally:
-            db.close()
+            save_db.close()
 
         save_csv_data_in_folder(
             workflow_path=output_folder,
@@ -248,3 +252,5 @@ async def flow_rate_approach(
             'msg': f'An unexpected error occurred during flow rate calculation. Please contact support. Detail: {e}'
         }
         return JSONResponse(status_code=500, content=res)
+    finally:
+        db.close()
