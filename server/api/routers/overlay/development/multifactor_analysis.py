@@ -901,11 +901,11 @@ async def get_mfa_results(
     Returns paginated results of the best performing variable combinations 
     based on the specified criteria.
     """
+    db = SessionLocal()
     try:
         # Validate pagination parameters
         page, page_size = validate_pagination_params(page, page_size, max_page_size=1000)
         
-        db = SessionLocal()
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id,
             Workflow.user_id == current_user.id
@@ -1033,3 +1033,5 @@ async def get_mfa_results(
                 "data": None
             }
         )
+    finally:
+        db.close()

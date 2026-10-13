@@ -1024,10 +1024,10 @@ async def cancel_data_transformation(workflow_id: int = Form(...),
 async def get_data_transformation_results(workflow_id: int = Query(...),
                                          current_user: User = Depends(get_current_user)):
     """Get the results of data transformation for display in Step3"""
+    db = SessionLocal()
     try:
         root_folder = get_root_folder()
         print('root_folder', root_folder)
-        db = SessionLocal()
         
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id,
@@ -1112,6 +1112,8 @@ async def get_data_transformation_results(workflow_id: int = Query(...),
                 "data": None
             }
         )
+    finally:
+        db.close()
 
 
 @router.get("/data_transformation_results/export")
@@ -1204,10 +1206,10 @@ async def export_data_transformation_results(
 async def get_combine_monthly_mev_data_interpolation_results(workflow_id: int = Query(...),
                                          current_user: User = Depends(get_current_user)):
     """Get the results of combined monthly MEV data interpolation for display"""
+    db = SessionLocal()
     try:
         root_folder = get_root_folder()
         print('root_folder', root_folder)
-        db = SessionLocal()
         
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id,
@@ -1255,6 +1257,8 @@ async def get_combine_monthly_mev_data_interpolation_results(workflow_id: int = 
                 "data": None
             }
         )
+    finally:
+        db.close()
 
 
 @router.get("/data_transformation/combine_monthly_mev_data_interpolation_results/export")
@@ -1405,7 +1409,7 @@ async def process_combine_monthly_mev_data_interpolation(
         document_type = "OVERLAY_EXECUTION_DATA_TRANSFORMATION_MEV_DATA_INTERPOLATION_OUTPUT"
         filename = f"data_transformation_mev_data_interpolation_output_{get_time_date()}.csv"
         output_folder_path = f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/execution/{workflow.loan_product}/data_transformation/combined_monthly_mev_data_interpolation"
-        db = SessionLocal()
+        save_db = SessionLocal()
         try:
             # Convert Date column to string for JSON serialization
             
@@ -1418,12 +1422,12 @@ async def process_combine_monthly_mev_data_interpolation(
                 workflow_id=workflow_id,
                 workflow_path=f"{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}"
             )
-            db.add(new_document)
-            db.commit()
-            db.refresh(new_document)
+            save_db.add(new_document)
+            save_db.commit()
+            save_db.refresh(new_document)
             
         finally:
-            db.close()
+            save_db.close()
 
         save_csv_data_in_folder(
             workflow_path=output_folder_path,
@@ -1460,3 +1464,5 @@ async def process_combine_monthly_mev_data_interpolation(
                 "data": None
             }
         )
+    finally:
+        db.close()

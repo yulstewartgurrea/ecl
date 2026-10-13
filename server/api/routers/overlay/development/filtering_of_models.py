@@ -28,9 +28,9 @@ async def start_model_filtering(
     filter_list: str = Form(...),  # JSON string that will be parsed
     current_user: User = Depends(get_current_user)
 ):
+    db = SessionLocal()
     try:
         import json
-        db = SessionLocal()
         
         # Parse filter_list JSON string
         try:
@@ -114,6 +114,8 @@ async def start_model_filtering(
                 "data": None
             }
         )
+    finally:
+        db.close()
 
 @router.get("/filtering_models")
 async def get_filtered_results(
@@ -668,8 +670,8 @@ async def export_filtered_results(
     current_user: User = Depends(get_current_user)
 ):
     """Export the latest filtered models CSV based on the same logic as the GET endpoint."""
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id, 
@@ -727,3 +729,5 @@ async def export_filtered_results(
                 "data": None
             }
         )
+    finally:
+        db.close()

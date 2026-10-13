@@ -756,10 +756,10 @@ async def cancel_data_transformation(workflow_id: int = Form(...),
 async def get_data_transformation_results(workflow_id: int = Query(...),
                                          current_user: User = Depends(get_current_user)):
     """Get the results of data transformation for display in Step3"""
+    db = SessionLocal()
     try:
         root_folder = get_root_folder()
         print('root_folder', root_folder)
-        db = SessionLocal()
         
         workflow = db.query(Workflow).filter(
             Workflow.id == workflow_id,
@@ -844,6 +844,8 @@ async def get_data_transformation_results(workflow_id: int = Query(...),
                 "data": None
             }
         )
+    finally:
+        db.close()
 
 
 @router.get("/data_transformation_results/export")
