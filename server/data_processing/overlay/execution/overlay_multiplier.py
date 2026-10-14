@@ -96,6 +96,12 @@ def process_overlay_multiplier(default_rates_df: pd.DataFrame,
         output_df['Base'] = [last_row_forecasted_pd['Base'] / latest_default_rate['odr']]
         output_df['Downside'] = [last_row_forecasted_pd['Downside'] / latest_default_rate['odr']]
 
+        # Inputs of the ratios above, kept so each multiplier can be traced in the UI
+        output_df['Observed Rate'] = [latest_default_rate['odr']]
+        output_df['Forecast Upside'] = [last_row_forecasted_pd['Upside']]
+        output_df['Forecast Base'] = [last_row_forecasted_pd['Base']]
+        output_df['Forecast Downside'] = [last_row_forecasted_pd['Downside']]
+
         print('output_df \n', output_df)
         return output_df
 
