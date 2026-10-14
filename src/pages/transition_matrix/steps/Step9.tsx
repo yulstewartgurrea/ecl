@@ -11,6 +11,7 @@ import { updateModuleData } from "../../../redux_toolkit/features/workflow/workf
 import type { RootState } from "../../../redux_toolkit/store";
 
 import { useStep9MigrationMatrix } from "../../../hooks/useStep9MigrationMatrix";
+import { getSavedMigrationMatrixPercentage } from "../../../services/documents";
 import ApiStatusIndicator from "../../../components/ApiStatusIndicators";
 import { downloadValidRowsExcel } from "../../../services/documents";
 import SkeletonTable from "../../../components/SkeletonTable";
@@ -36,6 +37,15 @@ const Step9: React.FC = () => {
 
   const authToken = useAppSelector((state) => state.auth.token);
   const directoryPath = `/${entity}/${period}/${workflowName}`;
+
+  // Step 8 month-pair percentage tables, for the About panel's Average Transition Matrix example
+  const [percentBlocks, setPercentBlocks] = useState<Record<string, unknown>[][]>([]);
+  useEffect(() => {
+    if (!authToken) return;
+    getSavedMigrationMatrixPercentage(directoryPath, authToken)
+      .then((res) => setPercentBlocks(Array.isArray(res) ? res : []))
+      .catch(() => setPercentBlocks([]));
+  }, [directoryPath, authToken]);
 
   const { data, error, isLoading } = useStep9MigrationMatrix(
     directoryPath || null,
@@ -127,7 +137,12 @@ const Step9: React.FC = () => {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="mb-3">
-              <TmMarkovChainAbout average={migrationMatrixAverage} month2={matrixByMonth["Month 2"] ?? []} />
+              <TmMarkovChainAbout
+                average={migrationMatrixAverage}
+                month2={matrixByMonth["Month 2"] ?? []}
+                month12={matrixByMonth["Month 12"] ?? []}
+                percentBlocks={percentBlocks}
+              />
             </div>
             <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
               <span className="px-2 py-1 bg-white border border-gray-200 rounded-md">

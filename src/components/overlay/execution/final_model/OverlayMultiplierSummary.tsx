@@ -7,6 +7,11 @@ export type OverlayMultiplierRow = {
   upside: number;       // raw multiplier (0“1 or >1)
   base: number;
   downside: number;
+  // Inputs of the multipliers, as fractions (present in outputs saved after they were added)
+  observedRate?: number;
+  forecastUpside?: number;
+  forecastBase?: number;
+  forecastDownside?: number;
 };
 
 export type OverlayMultiplierSummaryProps = {

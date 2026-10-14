@@ -598,10 +598,67 @@ export function TmMatrixConstructionAbout({
 export function TmMarkovChainAbout({
   average,
   month2,
+  month12 = [],
+  percentBlocks = [],
 }: {
   average: Row[];
   month2: Row[];
+  month12?: Row[];
+  /** Step 8 month-pair percentage tables */
+  percentBlocks?: Row[][];
 }) {
+  // Worked example: Average, bucket 0 → 0 DPD = simple average of that cell over all month pairs
+  const averageExample = useMemo(() => {
+    const target = average?.find((r) => num(r.Bucket) === 0);
+    if (!target || !percentBlocks?.length) return null;
+    const values = percentBlocks
+      .map((block) => {
+        const row = block?.find((r) => {
+          const k = bucketKeyOf(r);
+          return k !== undefined && num(r[k]) === 0;
+        });
+        return row ? num(row["0 DPD_0"]) : NaN;
+      })
+      .filter(Number.isFinite);
+    if (!values.length) return null;
+    const pct = (v: number) => formatValueGeneral(v, "percentage", 2);
+    const sum = values.reduce((acc, v) => acc + v, 0);
+    const result = pct(sum / values.length);
+    const shown = pct(num(target["0 DPD_0"]));
+    const listed =
+      values.length > 4
+        ? `${values.slice(0, 3).map(pct).join(" + ")} + … + ${pct(values[values.length - 1])}`
+        : values.map(pct).join(" + ");
+    const zeros = values.filter((v) => v === 0).length;
+    return {
+      heading: "Average Transition Matrix · Bucket 0 → 0 DPD",
+      steps: [
+        `average of this cell in the ${values.length} month-pair percentage tables (Step 8)`,
+        `(${listed}) ÷ ${values.length}`,
+        `${pct(sum)} ÷ ${values.length}`,
+      ],
+      result,
+      tableValue: shown === result ? result : shown,
+      footnote: zeros
+        ? `${zeros} of the ${values.length} month pairs had no loans in bucket 0 and count as 0%.`
+        : "Every month pair counts equally, however many loans it had.",
+    };
+  }, [average, percentBlocks]);
+
+  // "Reading your numbers": a few cells read out in words, formatted like the tables
+  const readings = useMemo(() => {
+    const cell = (rows: Row[], bucket: number, col: string) => {
+      const r = rows?.find((x) => num(x.Bucket) === bucket);
+      const v = r ? num(r[col]) : NaN;
+      return Number.isFinite(v) ? formatValueGeneral(v, "percentage", 2) : null;
+    };
+    return {
+      stayCurrent: cell(average, 0, "0 DPD_0"),
+      lateToDefault: cell(average, 3, "91+ DPD_4"),
+      currentDefault12: cell(month12, 0, "91+ DPD_4"),
+    };
+  }, [average, month12]);
+
   // Worked example: Month 2, bucket 0 → 0 DPD = Σ_k Avg[0][k] × Avg[k][0]
   const example = useMemo(() => {
     if (!average?.length || !month2?.length) return null;
@@ -620,10 +677,11 @@ export function TmMarkovChainAbout({
     return {
       heading: "Month 2 · Bucket 0 → 0 DPD",
       steps: ["Σ over buckets k: (Average, bucket 0 → k) × (Average, bucket k → 0)"],
+      // average values shown as in the Average Transition Matrix table; the result as in Month 2
       terms: terms.map((t) => ({
         label: t.label,
-        parts: `${fmtMatrixPct(t.a)} × ${fmtMatrixPct(t.b)}`,
-        value: fmtMatrixPct(t.product),
+        parts: `${formatValueGeneral(t.a, "percentage", 2)} × ${formatValueGeneral(t.b, "percentage", 2)}`,
+        value: formatValueGeneral(t.product, "percentage", 2),
       })),
       result,
       tableValue: shown === result ? result : shown,
@@ -635,16 +693,41 @@ export function TmMarkovChainAbout({
     <AboutTablePanel
       description={
         <>
-          Applies the average one-month transition matrix month after month to estimate where loans
-          in each bucket are likely to be 1 to 12 months from now.
+          The Average Transition Matrix shows the chance a loan moves from one delinquency bucket
+          to another in one month. Matrix Multiplication applies it month after month to show where
+          loans in each bucket are likely to be 1 to 12 months from now.
         </>
       }
       legend={[
         {
+          direction: "note",
+          tone: "neutral",
+          label: "Diagonal (same bucket)",
+          text: "Higher: loans tend to stay where they are. Good for 0 DPD (staying current); for past-due buckets it means they stay behind.",
+        },
+        {
           direction: "higher",
           tone: "bad",
-          label: "Higher 91+ DPD column",
-          text: "A higher chance the loan is in default by that month.",
+          label: "Right of the diagonal",
+          text: "Higher: more loans roll into a worse bucket.",
+        },
+        {
+          direction: "higher",
+          tone: "good",
+          label: "Left of the diagonal",
+          text: "Higher: more loans cure (catch up) and move to a better bucket.",
+        },
+        {
+          direction: "higher",
+          tone: "bad",
+          label: "91+ DPD column",
+          text: "Higher: a bigger chance the loan is in default by that month.",
+        },
+        {
+          direction: "higher",
+          tone: "good",
+          label: "0 DPD column",
+          text: "Higher: a bigger chance the loan is current (not past due).",
         },
         {
           direction: "note",
@@ -659,6 +742,48 @@ export function TmMarkovChainAbout({
         </>
       }
     >
+      <InfoCard title="Reading the two tables" wide>
+        <ColumnDefinitions
+          items={[
+            {
+              name: "Average Transition Matrix",
+              text: "Each row is the bucket a loan is in today; each column is where it is one month later. A cell is the chance of that move in one month. For example, row 1–30 DPD, column 31–60 DPD is the chance a loan 1–30 days late is 31–60 days late next month.",
+            },
+            {
+              name: "Matrix Multiplication (Month 1 … Month 12)",
+              text: "The same layout, but that many months ahead. Over the months the diagonal shrinks and the 91+ DPD column grows, because loans that reach default stay there.",
+            },
+          ]}
+        />
+        {(readings.stayCurrent || readings.lateToDefault || readings.currentDefault12) && (
+          <>
+            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Reading your numbers
+            </p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {readings.stayCurrent && (
+                <li>
+                  A loan that is current today has a <b>{readings.stayCurrent}</b> chance of still
+                  being current next month (Average Transition Matrix, bucket 0, 0 DPD).
+                </li>
+              )}
+              {readings.lateToDefault && (
+                <li>
+                  A loan 61–90 days late has a <b>{readings.lateToDefault}</b> chance of being 91+
+                  days late next month (bucket 3, 91+ DPD).
+                </li>
+              )}
+              {readings.currentDefault12 && (
+                <li>
+                  A loan that is current today has a <b>{readings.currentDefault12}</b> chance of
+                  being 91+ days late in 12 months (Month 12, bucket 0, 91+ DPD). This is its TTC PD
+                  on the next page.
+                </li>
+              )}
+            </ul>
+          </>
+        )}
+      </InfoCard>
       <InfoCard title="Column definitions">
         <ColumnDefinitions
           items={[
@@ -682,6 +807,11 @@ export function TmMarkovChainAbout({
           Each month's matrix is the previous month's matrix × the average matrix. This assumes
           every future month behaves like the average historical month.
         </p>
+        <p className="mt-2">
+          The Average Transition Matrix itself is the simple average of each cell across all the
+          month-pair percentage tables in Step 8.
+        </p>
+        {averageExample && <CalcExample {...averageExample} />}
         {example && <CalcExample {...example} />}
       </InfoCard>
     </AboutTablePanel>

@@ -1,6 +1,7 @@
 ﻿// src/pages/overlay/execution/OverlayExecutionPage3.tsx
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OeMevForecastAbout } from "../../../../components/about/OverlayExecutionAbout";
+import { getForecastedPdInput } from "../../../../services/forecastedPd";
 import { useAppSelector } from "../../../../redux_toolkit/hooks";
 
 import type { ScenarioRow } from "../../../../components/overlay/execution/mev/ConfigModal";
@@ -33,6 +34,20 @@ export default function OverlayExecutionPage3() {
   const [apiVariables, setApiVariables] = useState<string[]>([]);
   const [variables, setVariables] = useState<string[]>([]);
   const [prefillRows, setPrefillRows] = useState<ScenarioRow[] | null>(null);
+
+  // Final model coefficients, for the About panel's "what a higher value does" table
+  const [modelTerms, setModelTerms] = useState<{ variable: string; coefficient: number }[]>([]);
+  useEffect(() => {
+    if (!selectedWorkflowId) {
+      setModelTerms([]);
+      return;
+    }
+    getForecastedPdInput(selectedWorkflowId, token)
+      .then((input) =>
+        setModelTerms(Object.entries(input).map(([variable, coefficient]) => ({ variable, coefficient: Number(coefficient) })))
+      )
+      .catch(() => setModelTerms([]));
+  }, [selectedWorkflowId, token]);
   const [running, setRunning] = useState(false);
 
   // for Inline actions
@@ -328,7 +343,7 @@ export default function OverlayExecutionPage3() {
       </header>
 
       <div className="px-4 pt-3">
-        <OeMevForecastAbout />
+        <OeMevForecastAbout modelTerms={modelTerms} />
       </div>
 
       {/* Main content */}

@@ -13,6 +13,7 @@ import {
   getForecastedPdCalc,
   runForecastedPdCalc,
 } from "../../../../services/forecastedPd";
+import { getTransformedForecastedMevs } from "../../../../services/overlayExecution";
 
 import {
   PlayCircleIcon,
@@ -40,6 +41,18 @@ const Step4: React.FC = () => {
   const [finalModel, setFinalModel] = useState<FinalModelRow[]>([]);
   const [mlrRows, setMlrRows] = useState<ScenarioRow[]>([]);
   const [forecastedPdRows, setForecastedPdRows] = useState<ScenarioRow[]>([]);
+  // Scenario values from MEVs Forecast Transformation, for the About panel's MLR example
+  const [mevRows, setMevRows] = useState<Awaited<ReturnType<typeof getTransformedForecastedMevs>>>([]);
+
+  useEffect(() => {
+    if (!selectedWorkflowId) {
+      setMevRows([]);
+      return;
+    }
+    getTransformedForecastedMevs(selectedWorkflowId, [], token)
+      .then(setMevRows)
+      .catch(() => setMevRows([]));
+  }, [selectedWorkflowId, token]);
 
   const formatDate = (period: string): string => {
     // "2024-10-31" -> "10/31/2024"
@@ -281,7 +294,12 @@ const Step4: React.FC = () => {
       </header>
 
       <div className="px-4 pt-3">
-        <OeForecastedLossRateAbout mlrRows={mlrRows} forecastRows={forecastedPdRows} />
+        <OeForecastedLossRateAbout
+          mlrRows={mlrRows}
+          forecastRows={forecastedPdRows}
+          finalModel={finalModel}
+          mevRows={mevRows}
+        />
       </div>
 
       <main className="mx-auto px-0 md:px-0 pb-8">

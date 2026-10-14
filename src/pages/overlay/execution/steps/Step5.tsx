@@ -1,5 +1,11 @@
 // src/pages/overlay/execution/Step5.tsx
 import { OeOverlayMultiplierAbout } from "../../../../components/about/OverlayExecutionAbout";
+
+// Multiplier inputs are only in outputs saved after they were added; missing -> undefined
+const optionalNumber = (v: unknown) => {
+  const n = Number(v);
+  return v === undefined || v === null || v === "" || !Number.isFinite(n) ? undefined : n;
+};
 import React, {
   useState,
   useCallback,
@@ -130,6 +136,10 @@ const Step5: React.FC = () => {
             upside: upsideVal,
             base: baseVal,
             downside: downsideVal,
+            observedRate: optionalNumber(r["Observed Rate"]),
+            forecastUpside: optionalNumber(r["Forecast Upside"]),
+            forecastBase: optionalNumber(r["Forecast Base"]),
+            forecastDownside: optionalNumber(r["Forecast Downside"]),
           };
         });
 
@@ -231,6 +241,10 @@ const Step5: React.FC = () => {
             upside: upsideVal,
             base: baseVal,
             downside: downsideVal,
+            observedRate: optionalNumber(r["Observed Rate"]),
+            forecastUpside: optionalNumber(r["Forecast Upside"]),
+            forecastBase: optionalNumber(r["Forecast Base"]),
+            forecastDownside: optionalNumber(r["Forecast Downside"]),
           };
         });
 
@@ -362,7 +376,7 @@ const Step5: React.FC = () => {
       </header>
 
       <div className="px-4 pt-3">
-        <OeOverlayMultiplierAbout />
+        <OeOverlayMultiplierAbout rows={rows} />
       </div>
 
       {/* Main content */}

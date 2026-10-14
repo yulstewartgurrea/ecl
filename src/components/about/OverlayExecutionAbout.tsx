@@ -1,10 +1,20 @@
 // components/about/OverlayExecutionAbout.tsx
 // "About this table" panels for the Overlay Execution workflow steps.
 import { useMemo } from "react";
-import AboutTablePanel, { CalcExample, ColumnDefinitions, InfoCard } from "./AboutTablePanel";
+import AboutTablePanel, { CalcExample, ColumnDefinitions, DefinitionTable, InfoCard } from "./AboutTablePanel";
 import { interpolationExample, logitExample, type Row } from "./overlayExamples";
 
 type ScenarioRow = { date: string; upside: number; base: number; downside: number };
+type ModelTerm = { variable: string; coefficient: number };
+type MevRow = { period: string; base: Record<string, string> };
+
+// "2026-12-31" or "12/31/2026" -> "2026-12-31", so MLR rows and scenario values can be matched
+const toYmd = (d: string) => {
+  const s = String(d ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}` : s;
+};
 
 // Execution interpolation table: up to 2 decimals
 const fmt2 = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -50,11 +60,58 @@ export function OeInputsAbout() {
           ]}
         />
       </InfoCard>
-      <InfoCard title="How the forecast works (Forecast MEV)">
+      <InfoCard title="How ARIMA forecasts (Forecast MEV)">
+        <p>
+          ARIMA guesses each indicator's next values from its own history, assuming its past
+          pattern continues. It doesn't use any other information about the economy.
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>
+            <b>Recent values matter:</b> if unemployment was high last month, it's probably still
+            high this month.
+          </li>
+          <li>
+            <b>Changes, not just levels:</b> it looks at how much a value moves each month, so a
+            steady rise doesn't confuse it.
+          </li>
+          <li>
+            <b>Learns from misses:</b> if the last guess was too low, it nudges the next one up.
+          </li>
+          <li>
+            <b>Seasons:</b> it picks up patterns that repeat every year, like a December spike.
+          </li>
+          <li>
+            For each indicator the app tries many versions and keeps the one that fits the history
+            best without being overly complicated.
+          </li>
+        </ul>
+      </InfoCard>
+      <InfoCard title="What you get">
         <ul className="list-disc space-y-1 pl-5">
-          <li>Each variable gets its own seasonal ARIMA model, chosen automatically.</li>
-          <li>The forecast runs 12 months (monthly) or 4 quarters (quarterly) past the latest data.</li>
-          <li>{FORECAST_BANDS}</li>
+          <li>A forecast for the next 12 months (monthly data) or 4 quarters (quarterly data).</li>
+          <li>
+            <b>Point Forecast:</b> the single best guess. This is the only value used in the later
+            steps.
+          </li>
+          <li>
+            <b>Lo/Hi 80 and Lo/Hi 95:</b> the likely range around the guess. It gets wider the
+            further ahead you look, like a weather forecast. These ranges aren't used later.
+          </li>
+          <li>For past months, all of these columns simply equal the actual value.</li>
+        </ul>
+      </InfoCard>
+      <InfoCard title="Keep in mind">
+        <ul className="list-disc space-y-1 pl-5">
+          <li>It can't see surprises coming, such as a crisis or a sudden policy change.</li>
+          <li>
+            Each indicator is forecast on its own: it doesn't know that GDP and unemployment affect
+            each other.
+          </li>
+          <li>With only a few years of history, forecasts tend to flatten out.</li>
+          <li>
+            It gives one "most likely" path. Upside, Base and Downside all start from it and only
+            differ if you change them in <b>MEV Config</b> (Data Transformation step).
+          </li>
         </ul>
       </InfoCard>
     </AboutTablePanel>
@@ -204,16 +261,45 @@ export function OeTransformationAbout({ defaultRows }: { defaultRows: Row[] }) {
 
 /* ---------------- Step 5 – MEVs Forecast Transformation ---------------- */
 
-export function OeMevForecastAbout() {
+// "unemp_rate.lag_3" -> "value from 3 months earlier"
+const describeModelVariable = (v: string) => {
+  const parts: string[] = [];
+  if (/\.ln\b/.test(v)) parts.push("log of the value");
+  if (/\.diff_12\b/.test(v)) parts.push("change vs 12 months earlier");
+  const lag = v.match(/\.lag_(\d+)/);
+  if (lag) parts.push(`value from ${lag[1]} months earlier`);
+  return parts.length ? parts.join(", ") : "value of the same month";
+};
+
+export function OeMevForecastAbout({ modelTerms = [] }: { modelTerms?: ModelTerm[] }) {
+  const terms = modelTerms.filter((t) => t.variable.toLowerCase() !== "intercept" && Number.isFinite(t.coefficient));
+  const strongest = terms.reduce<ModelTerm | null>(
+    (best, t) => (!best || Math.abs(t.coefficient) > Math.abs(best.coefficient) ? t : best),
+    null
+  );
+
   return (
     <AboutTablePanel
       description={
         <>
-          Shifts each scenario's forecast values by the time lag the final model uses for that
-          variable, so each month lines up with the model's inputs.
+          Shows each scenario's forecast values for the economic indicators used by the final
+          model, shifted by the time lag the model uses for each one. Each number is the
+          indicator's value for that month and scenario; rates are decimals (0.06 = 6%).
         </>
       }
       legend={[
+        {
+          direction: "higher",
+          tone: "neutral",
+          label: "Higher value",
+          text: "Raises the forecast loss rate if the model's coefficient for that indicator is positive, and lowers it if negative. See the table below.",
+        },
+        {
+          direction: "note",
+          tone: "neutral",
+          label: "Downside vs Base",
+          text: "The further Downside is from Base (in the direction that raises losses), the harsher the stress scenario.",
+        },
         {
           direction: "note",
           tone: "neutral",
@@ -227,11 +313,49 @@ export function OeMevForecastAbout() {
         </>
       }
     >
+      <InfoCard title="What a higher value does in this model" wide>
+        {terms.length > 0 ? (
+          <>
+            <DefinitionTable
+              headers={["Indicator", "Used in the model as", "Coefficient", "A higher value…"]}
+              rows={terms.map((t) => [
+                t.variable.split(".")[0],
+                `${t.variable} (${describeModelVariable(t.variable)})`,
+                `${t.coefficient > 0 ? "+" : ""}${fmt4(t.coefficient)}`,
+                t.coefficient > 0 ? (
+                  <span className="font-semibold text-red-700">raises the forecast loss rate (worse)</span>
+                ) : t.coefficient < 0 ? (
+                  <span className="font-semibold text-green-700">lowers the forecast loss rate (better)</span>
+                ) : (
+                  "has no effect"
+                ),
+              ])}
+            />
+            {strongest && (
+              <p className="mt-2">
+                The size matters too: the effect is coefficient × change in value. For example, if{" "}
+                {strongest.variable.split(".")[0]} rises by 0.01 (one percentage point for a rate),
+                the model score on the next page (MLR) changes by {fmt4(strongest.coefficient * 0.01)},
+                which {strongest.coefficient > 0 ? "raises" : "lowers"} the forecast loss rate.
+              </p>
+            )}
+          </>
+        ) : (
+          <p>
+            It depends on the indicator and the final model: if the model's coefficient for an
+            indicator is positive, a higher value raises the forecast loss rate; if negative, it
+            lowers it. The coefficients are shown on the next page.
+          </p>
+        )}
+      </InfoCard>
       <InfoCard title="Column definitions">
         <ColumnDefinitions
           items={[
             { name: "Period", text: "The forecast month." },
-            { name: "Upside / Base / Downside", text: "One column per model variable for each scenario." },
+            {
+              name: "Upside / Base / Downside",
+              text: "One column per model indicator for each scenario. Rates are decimals, shown to 2 places (0.06 = 6%).",
+            },
           ]}
         />
       </InfoCard>
@@ -257,10 +381,54 @@ export function OeMevForecastAbout() {
 export function OeForecastedLossRateAbout({
   mlrRows,
   forecastRows,
+  finalModel = [],
+  mevRows = [],
 }: {
   mlrRows: ScenarioRow[];
   forecastRows: ScenarioRow[];
+  /** Intercept and coefficients shown in the Final Overlay Model table */
+  finalModel?: ModelTerm[];
+  /** Scenario values from MEVs Forecast Transformation */
+  mevRows?: MevRow[];
 }) {
+  // Worked example: the Base MLR in the last month = intercept + Σ coefficient × Base value.
+  // Like the backend, a variable such as unemp_rate.lag_3 uses the "Base unemp_rate" value
+  // (already shifted for the lag), and a missing value counts as 0.
+  const mlrExample = useMemo(() => {
+    const mlr = mlrRows?.[mlrRows.length - 1];
+    const intercept = finalModel.find((t) => t.variable.toLowerCase() === "intercept");
+    const terms = finalModel.filter((t) => t.variable.toLowerCase() !== "intercept");
+    if (!mlr || !intercept || !terms.length || !mevRows.length) return null;
+    const values = mevRows.find((r) => toYmd(r.period) === toYmd(mlr.date))?.base;
+    if (!values) return null;
+
+    const lines = terms.map((t) => {
+      const name = t.variable.split(".")[0];
+      const raw = Number(String(values[name] ?? "").replace(/,/g, ""));
+      const value = Number.isFinite(raw) && String(values[name] ?? "").trim() !== "" ? raw : 0;
+      return { variable: t.variable, name, coefficient: t.coefficient, value, product: t.coefficient * value };
+    });
+    const total = intercept.coefficient + lines.reduce((sum, l) => sum + l.product, 0);
+    const result = total.toFixed(2);
+    const shown = mlr.base.toFixed(2);
+    return {
+      heading: `Base MLR for ${mlr.date}`,
+      steps: ["Intercept + Σ (coefficient × Base value of the variable)"],
+      terms: [
+        { label: "Intercept", parts: "", value: fmt4(intercept.coefficient) },
+        ...lines.map((l) => ({
+          label: l.variable,
+          parts: `${fmt4(l.coefficient)} × ${fmt4(l.value)}`,
+          value: fmt4(l.product),
+        })),
+      ],
+      result,
+      tableValue: shown === result ? result : shown,
+      footnote:
+        "Base values come from MEVs Forecast Transformation (the Base column of each variable, already shifted for any lag).",
+    };
+  }, [mlrRows, finalModel, mevRows]);
+
   // Worked example: the Base forecast rate in the last month, from that month's MLR value
   const example = useMemo(() => {
     const mlr = mlrRows?.[mlrRows.length - 1];
@@ -282,15 +450,40 @@ export function OeForecastedLossRateAbout({
       description={
         <>
           Applies the final model's equation to each scenario's forecast economic values, giving a
-          forecast monthly loss rate for Upside, Base and Downside.
+          forecast monthly loss rate for Upside, Base and Downside. The MLR table is the model's
+          raw score; the Forecasted PDs table turns that score into a percentage.
         </>
       }
       legend={[
         {
           direction: "higher",
           tone: "bad",
-          label: "Higher forecast rate",
-          text: "A larger share of the balance is expected to be lost in that scenario.",
+          label: "Higher MLR (closer to 0)",
+          text: "A higher forecast loss rate. MLR and the rate always move together.",
+        },
+        {
+          direction: "lower",
+          tone: "good",
+          label: "Lower MLR (more negative)",
+          text: "A lower forecast loss rate.",
+        },
+        {
+          direction: "higher",
+          tone: "bad",
+          label: "Higher Forecasted PD",
+          text: "A larger share of the balance is expected to be lost in that month and scenario.",
+        },
+        {
+          direction: "lower",
+          tone: "good",
+          label: "Lower Forecasted PD",
+          text: "A smaller share of the balance is expected to be lost.",
+        },
+        {
+          direction: "note",
+          tone: "neutral",
+          label: "MLR is not a percentage",
+          text: "Read it through the Forecasted PDs table: 0 means 50%, and negative numbers mean below 50%.",
         },
         {
           direction: "note",
@@ -306,12 +499,31 @@ export function OeForecastedLossRateAbout({
         </>
       }
     >
+      <InfoCard title="Reading the Forecasted PDs">
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            Each value is the share of the balance expected to be lost (the forecast loss or
+            default rate) in that month, under that scenario.
+          </li>
+          <li>
+            Compare them with the latest observed loss rate. Higher than today means the model
+            expects losses to rise; lower means it expects them to fall.
+          </li>
+          <li>
+            The last month (12 months ahead) is the one the Overlay Multiplier step uses. If it is
+            above the latest observed loss rate, the multiplier is above 1, which raises ECL.
+          </li>
+        </ul>
+      </InfoCard>
       <InfoCard title="Column definitions">
         <ColumnDefinitions
           items={[
-            { name: "Final Overlay Model", text: "The intercept and coefficient of each model variable." },
-            { name: "Multiple Linear Regression (MLR)", text: "The model's result for each month and scenario, on the log-odds scale." },
-            { name: "Forecasted PDs (%)", text: "The MLR value converted back to a rate." },
+            {
+              name: "Final Overlay Model",
+              text: "The intercept and each variable's coefficient. A positive coefficient means the forecast rate rises when that variable rises; a negative one means it falls.",
+            },
+            { name: "Multiple Linear Regression (MLR)", text: "The model's score for each month and scenario, on the log-odds scale." },
+            { name: "Forecasted PDs (%)", text: "The MLR score converted to a percentage: the forecast loss rate." },
           ]}
         />
       </InfoCard>
@@ -327,6 +539,7 @@ export function OeForecastedLossRateAbout({
           </code>
         </p>
         <p className="mt-2">Scenario values come from MEVs Forecast Transformation; a missing value counts as 0.</p>
+        {mlrExample && <CalcExample {...mlrExample} />}
         {example && <CalcExample {...example} />}
       </InfoCard>
     </AboutTablePanel>
@@ -335,7 +548,37 @@ export function OeForecastedLossRateAbout({
 
 /* ---------------- Step 7 – Overlay Multiplier ---------------- */
 
-export function OeOverlayMultiplierAbout() {
+type MultiplierRow = {
+  reportDate: string;
+  base: number;
+  observedRate?: number;
+  forecastUpside?: number;
+  forecastBase?: number;
+  forecastDownside?: number;
+};
+
+export function OeOverlayMultiplierAbout({ rows = [] }: { rows?: MultiplierRow[] }) {
+  // Worked example: Base multiplier = Base forecast rate (last forecast month) ÷ latest observed rate
+  const example = useMemo(() => {
+    const row = rows[0];
+    const obs = row?.observedRate;
+    if (!row || !obs || row.forecastBase === undefined) return null;
+    const result = (row.forecastBase / obs).toFixed(2);
+    const shown = row.base.toFixed(2);
+    const other = (label: string, f?: number) =>
+      f === undefined ? "" : `${label}: ${fmtPct(f)} ÷ ${fmtPct(obs)} = ${(f / obs).toFixed(2)}. `;
+    return {
+      heading: `Base overlay multiplier (report date ${row.reportDate})`,
+      steps: [
+        "Base forecast rate in the last forecast month ÷ latest observed rate",
+        `${fmtPct(row.forecastBase)} ÷ ${fmtPct(obs)}`,
+      ],
+      result,
+      tableValue: shown === result ? result : shown,
+      footnote: `${other("Upside", row.forecastUpside)}${other("Downside", row.forecastDownside)}Same formula with each scenario's own forecast rate.`.trim(),
+    };
+  }, [rows]);
+
   return (
     <AboutTablePanel
       description={
@@ -397,6 +640,7 @@ export function OeOverlayMultiplierAbout() {
           </li>
           <li>The scenarios aren't weighted here; the probability weights are applied in ECL.</li>
         </ul>
+        {example && <CalcExample {...example} />}
       </InfoCard>
     </AboutTablePanel>
   );

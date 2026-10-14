@@ -292,6 +292,15 @@ export async function getMigrationMatrixAverage(
   return fetchWithAuth(url, token);
 }
 
+/** Saved Step 8 percentage matrices (one per month pair). Posting no rows returns the cached result without recalculating. */
+export async function getSavedMigrationMatrixPercentage(
+  workflowPath: string,
+  token: string
+) {
+  const url = "http://localhost:8000/documents/migration-matrix-percentage";
+  return postData(url, { workflow_path: workflowPath, row: [] }, token);
+}
+
 export async function getMigrationMatrix12Months(
   workflowPath: string,
   row: any,

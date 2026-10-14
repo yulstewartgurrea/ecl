@@ -197,11 +197,50 @@ export function CalcExample({
   );
 }
 
-export function InfoCard({ title, children }: { title: string; children: ReactNode }) {
+export function InfoCard({
+  title,
+  wide = false,
+  children,
+}: {
+  title: string;
+  /** Span the full width of the "Learn more" grid (e.g. for tables) */
+  wide?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3">
+    <div className={`rounded-lg border border-gray-200 bg-white p-3 ${wide ? "lg:col-span-2" : ""}`}>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</h3>
       <div className="mt-2 text-sm text-gray-700">{children}</div>
+    </div>
+  );
+}
+
+/** Small reference table, e.g. definitions of the columns an upload needs. */
+export function DefinitionTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
+  return (
+    <div className="overflow-x-auto rounded-md border border-gray-200">
+      <table className="min-w-full text-left text-xs">
+        <thead className="bg-gray-50 text-gray-600">
+          <tr>
+            {headers.map((h) => (
+              <th key={h} className="px-3 py-2 font-semibold">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {rows.map((cells, i) => (
+            <tr key={i} className="align-top">
+              {cells.map((cell, j) => (
+                <td key={j} className={`px-3 py-2 ${j === 0 ? "whitespace-nowrap font-mono text-gray-900" : "text-gray-700"}`}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
