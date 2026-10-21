@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, Union
 from datetime import datetime
+from helpers.safe_path import check_name
 # User Schemas
 class UserBase(BaseModel):
     username: str
@@ -28,7 +29,11 @@ class WorkflowBase(BaseModel):
     loan_product: Optional[str] = None
 
 class WorkflowCreate(WorkflowBase):
-    pass
+    # these become folder names under server/files
+    @field_validator("entity", "workflow_name", "reporting_period", "loan_product")
+    @classmethod
+    def _check_folder_name(cls, v):
+        return check_name(v)
 
 class WorkflowResponse(WorkflowBase):
     id: int
@@ -75,10 +80,18 @@ class EntityBase(BaseModel):
     name: str
 
 class EntityCreate(EntityBase):
-    pass
+    @field_validator("name")
+    @classmethod
+    def _check_folder_name(cls, v):
+        return check_name(v)
 
 class EntityUpdate(BaseModel):
     name: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def _check_folder_name(cls, v):
+        return check_name(v)
 
 class EntityResponse(EntityBase):
     id: int
@@ -94,11 +107,19 @@ class LoanProductBase(BaseModel):
     entity_id: int
 
 class LoanProductCreate(LoanProductBase):
-    pass
+    @field_validator("name")
+    @classmethod
+    def _check_folder_name(cls, v):
+        return check_name(v)
 
 class LoanProductUpdate(BaseModel):
     name: Optional[str] = None
     entity_id: Optional[int] = None
+
+    @field_validator("name")
+    @classmethod
+    def _check_folder_name(cls, v):
+        return check_name(v)
 
 class LoanProductResponse(LoanProductBase):
     id: int

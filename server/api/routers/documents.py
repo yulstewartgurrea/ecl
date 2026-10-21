@@ -12,6 +12,7 @@ from schemas.schemas import DocumentResponse, DocumentCreate , JsonCreate
 from models.models import User
 from database import get_db
 from helpers.document import get_documents, create_document, delete_document
+from helpers.safe_path import resolve_in_files
 from core.security import get_current_user
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Body, Query, Response
 from sqlalchemy.orm import Session
@@ -246,9 +247,11 @@ def read_single_excel(
     workflow_path: str = Query(..., description="Subdirectory under server/files containing Excel files"),
     db: Session = Depends(get_db),
 ):
-    base_dir = Path(__file__).parents[2] / "files"
     cleaned_path = workflow_path.strip('"/')
-    excel_dir = base_dir / cleaned_path
+    try:
+        excel_dir = resolve_in_files(cleaned_path)
+    except ValueError:
+        return JSONResponse(status_code=400, content={"detail": "Invalid workflow_path"})
 
     records = db.query(Document).filter(Document.workflow_path == workflow_path).all()
     if not records:

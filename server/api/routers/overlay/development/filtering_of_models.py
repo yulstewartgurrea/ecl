@@ -614,7 +614,7 @@ async def get_mfa_file_headers(
             file_path = mfa_folder / filename
             
             # Security: ensure filename doesn't contain path traversal
-            if not file_path.exists() or not str(file_path).startswith(str(mfa_folder)):
+            if not file_path.exists() or not file_path.resolve().is_relative_to(mfa_folder.resolve()):
                 return JSONResponse(
                     status_code=404,
                     content={

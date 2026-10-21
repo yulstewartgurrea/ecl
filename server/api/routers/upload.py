@@ -17,6 +17,7 @@ import numpy as np
 from helpers.make_json_serializable import make_json_serializable
 from helpers.clean_up.clean_up import clean_document
 from helpers.get_time_date import get_time_date
+from helpers.safe_path import resolve_in_files
 
 router = APIRouter(
     prefix="/api/document",
@@ -145,6 +146,9 @@ async def validate_file(
     """
     temp_path = None
     try:
+        # drop any folder parts the client put in the filename
+        file.filename = os.path.basename(file.filename or "")
+
         if not file.filename.lower().endswith(('.csv', '.xlsx', '.xls')):
             return JSONResponse(
                 status_code=400,
@@ -271,11 +275,23 @@ async def upload_file(
         return status == "passed"
 
     try:
+        # drop any folder parts the client put in the filename
+        file.filename = os.path.basename(file.filename or "")
+
         # extension guard
         if not file.filename.lower().endswith(('.csv', '.xlsx', '.xls')):
             return JSONResponse(
                 status_code=400,
                 content={"code": -1, "success": False, "msg": "File must be CSV or Excel format", "data": None}
+            )
+
+        # workflow_path must stay inside server/files
+        try:
+            resolve_in_files(workflow_path)
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={"code": -1, "success": False, "msg": "Invalid workflow_path", "data": None}
             )
 
         # write temp file
