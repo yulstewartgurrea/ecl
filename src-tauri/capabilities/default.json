@@ -8,6 +8,7 @@
   "permissions": [
     "core:default",
     "dialog:allow-save",
+    "dialog:allow-message",
     {
       "identifier": "http:default",
       "allow": [

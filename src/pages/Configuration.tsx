@@ -1,16 +1,22 @@
 ﻿// pages/Configuration.tsx
 // Redesigned ECL Configuration (Tabbed UI, consistent cards, inline-create rows, subtle animations)
 import { useMemo, useState, type FormEvent } from "react";
-import { useAppDispatch, useAppSelector } from "../redux_toolkit/hooks";
-
-/* =============================== Redux slices =============================== */
+// window.confirm() is a silent "Cancel" in the macOS webview, so ask through the dialog plugin
+import { ask } from "@tauri-apps/plugin-dialog";
+import { useAppSelector } from "../redux_toolkit/hooks";
+import { useEntities, useLoanProducts } from "../hooks/useEclConfig";
 import {
-  addEntity,
+  createEntity,
   updateEntity,
   deleteEntity,
-  type EclEntity,
-} from "../redux_toolkit/features/ecl/eclConfigSlice";
+  createLoanProduct,
+  updateLoanProduct,
+  deleteLoanProduct,
+  type Entity,
+  type LoanProduct,
+} from "../services/eclConfig";
 
+/* =============================== Redux slices =============================== */
 // import {
 //   addBaseline,
 //   updateBaseline,
@@ -28,14 +34,6 @@ import {
 //   type DpdBucket,
 // } from "../redux_toolkit/features/ecl/eclDpdBucketsSlice";
 
-import {
-  addLoanProduct,
-  updateLoanProduct,
-  deleteLoanProduct,
-  resetLoanProducts,
-  type EclLoanProduct,
-} from "../redux_toolkit/features/ecl/eclLoanProductsSlice";
-
 // import {
 //   addReportingPeriod,
 //   updateReportingPeriod,
@@ -51,7 +49,6 @@ import {
   TrashIcon,
   CheckIcon,
   XMarkIcon,
-  ArrowPathIcon,
   FunnelIcon,
 } from "@heroicons/react/24/outline";
 
@@ -137,6 +134,20 @@ function InlineTextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
         "w-full rounded-lg border border-gray-300 bg-white",
         "focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500",
         "px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400",
+        props.className || "",
+      ].join(" ")}
+    />
+  );
+}
+
+function InlineSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      {...props}
+      className={[
+        "w-full rounded-lg border border-gray-300 bg-white",
+        "focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500",
+        "px-3 py-2 text-sm text-gray-900",
         props.className || "",
       ].join(" ")}
     />
@@ -272,13 +283,49 @@ export default function EclConfigurationPage() {
 
 /* ================================ ENTITIES ================================ */
 
+/**
+ * Runs a create/update/delete call, then reloads the list. Failures go into `actionError`
+ * and are shown on the page (alert() boxes don't reliably appear in the app window).
+ */
+function useSaveAction(reload: () => Promise<unknown>) {
+  const token = useAppSelector((s) => s.auth.token);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const run = async (action: (token: string) => Promise<unknown>) => {
+    if (!token) {
+      setActionError("Your session has expired. Please log in again.");
+      return false;
+    }
+    setBusy(true);
+    setActionError(null);
+    try {
+      await action(token);
+      await reload();
+      return true;
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return { busy, run, actionError, setActionError };
+}
+
+function ActionError({ message }: { message: string | null }) {
+  if (!message) return null;
+  return <p className="text-sm text-red-600 mb-4">{message}</p>;
+}
+
 function EntitiesSection() {
-  const dispatch = useAppDispatch();
-  const items = useAppSelector((s) => s.eclEntitiesReducer.items);
+  const { entities: items, error, isLoading, reload } = useEntities();
+  const { busy, run, actionError, setActionError } = useSaveAction(reload);
 
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
 
   const filtered = useMemo(() => {
@@ -287,32 +334,40 @@ function EntitiesSection() {
     return items.filter((i) => i.name.toLowerCase().includes(q));
   }, [items, query]);
 
-  const onAdd = (e: FormEvent) => {
+  const onAdd = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return alert("Entity name is required.");
-    dispatch(
-      addEntity({ name: name.trim(), code: undefined, description: undefined })
-    );
-    setName("");
+    if (!name.trim()) return setActionError("Entity name is required.");
+    if (await run((token) => createEntity(token, name.trim()))) setName("");
   };
 
-  const beginEdit = (row: EclEntity) => {
+  const beginEdit = (row: Entity) => {
     setEditingId(row.id);
     setEditName(row.name);
   };
 
-  const saveEdit = () => {
-    if (!editingId) return;
-    if (!editName.trim()) return alert("Entity name is required.");
-    dispatch(updateEntity({ id: editingId, name: editName.trim() }));
-    setEditingId(null);
+  const saveEdit = async () => {
+    if (editingId === null) return;
+    if (!editName.trim()) return setActionError("Entity name is required.");
+    if (await run((token) => updateEntity(token, editingId, editName.trim()))) {
+      setEditingId(null);
+    }
   };
 
   const cancelEdit = () => setEditingId(null);
 
-  const remove = (id: string) => {
-    if (confirm("Delete this entity?")) dispatch(deleteEntity(id));
+  const remove = async (id: number) => {
+    if (await ask("Delete this entity?", { title: "Delete entity", kind: "warning" })) {
+      await run((token) => deleteEntity(token, id));
+    }
   };
+
+  const emptyMessage = isLoading
+    ? "Loading entities..."
+    : error
+      ? `Couldn't load entities: ${error.message}`
+      : items.length === 0
+        ? "No entities yet."
+        : "No results match your filter.";
 
   return (
     <SectionCard
@@ -335,7 +390,7 @@ function EntitiesSection() {
               placeholder="Add new entity (e.g., Corporate Loans)"
             />
           </div>
-          <PrimaryBtn type="submit">
+          <PrimaryBtn type="submit" disabled={busy}>
             <PlusIcon className="w-5 h-5" />
             Add
           </PrimaryBtn>
@@ -350,6 +405,8 @@ function EntitiesSection() {
         </div>
       </Toolbar>
 
+      <ActionError message={actionError} />
+
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50/80">
@@ -362,9 +419,7 @@ function EntitiesSection() {
             {filtered.length === 0 && (
               <tr>
                 <td className="px-4 py-6 text-gray-500" colSpan={2}>
-                  {items.length === 0
-                    ? "No entities yet."
-                    : "No results match your filter."}
+                  {emptyMessage}
                 </td>
               </tr>
             )}
@@ -627,18 +682,22 @@ function EntitiesSection() {
 /* ============================= LOAN PRODUCTS ============================== */
 
 function LoanProductsSection() {
-  const dispatch = useAppDispatch();
-  const items = useAppSelector((s) => s.eclLoanProductsReducer.items);
+  const { loanProducts: items, error, isLoading, reload } = useLoanProducts();
+  const { entities } = useEntities();
+  const { busy, run, actionError, setActionError } = useSaveAction(reload);
 
+  const entityNames = useMemo(
+    () => new Map(entities.map((e) => [e.id, e.name])),
+    [entities]
+  );
+
+  const [entityId, setEntityId] = useState("");
   const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [description, setDescription] = useState("");
   const [query, setQuery] = useState("");
 
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
-  const [editCode, setEditCode] = useState("");
-  const [editDescription, setEditDescription] = useState("");
+  const [editEntityId, setEditEntityId] = useState("");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -646,63 +705,69 @@ function LoanProductsSection() {
     return items.filter(
       (i) =>
         i.name.toLowerCase().includes(q) ||
-        (i.code ?? "").toLowerCase().includes(q) ||
-        (i.description ?? "").toLowerCase().includes(q)
+        (entityNames.get(i.entity_id) ?? "").toLowerCase().includes(q)
     );
-  }, [items, query]);
+  }, [items, query, entityNames]);
 
-  const onAdd: React.FormEventHandler = (e) => {
+  const onAdd = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return alert("Loan product name is required.");
-    dispatch(
-      addLoanProduct({
-        name: name.trim(),
-        code: code.trim() || undefined,
-        description: description.trim() || undefined,
-      })
+    if (!entityId) return setActionError("Choose the entity this loan product belongs to.");
+    if (!name.trim()) return setActionError("Loan product name is required.");
+    const created = await run((token) =>
+      createLoanProduct(token, { name: name.trim(), entity_id: Number(entityId) })
     );
-    setName("");
-    setCode("");
-    setDescription("");
+    // keep the entity selected so several products can be added in a row
+    if (created) setName("");
   };
 
-  const beginEdit = (row: EclLoanProduct) => {
+  const beginEdit = (row: LoanProduct) => {
     setEditingId(row.id);
     setEditName(row.name);
-    setEditCode(row.code ?? "");
-    setEditDescription(row.description ?? "");
+    setEditEntityId(String(row.entity_id));
   };
 
-  const saveEdit = () => {
-    if (!editingId) return;
-    if (!editName.trim()) return alert("Loan product name is required.");
-    dispatch(
-      updateLoanProduct({
-        id: editingId,
-        patch: {
-          name: editName.trim(),
-          code: editCode.trim() || null,
-          description: editDescription.trim() || null,
-        },
+  const saveEdit = async () => {
+    if (editingId === null) return;
+    if (!editName.trim()) return setActionError("Loan product name is required.");
+    const saved = await run((token) =>
+      updateLoanProduct(token, editingId, {
+        name: editName.trim(),
+        entity_id: Number(editEntityId),
       })
     );
-    setEditingId(null);
+    if (saved) setEditingId(null);
   };
 
   const cancelEdit = () => setEditingId(null);
 
-  const remove = (id: string) => {
-    if (confirm("Delete this loan product?")) dispatch(deleteLoanProduct(id));
+  const remove = async (id: number) => {
+    if (await ask("Delete this loan product?", { title: "Delete loan product", kind: "warning" })) {
+      await run((token) => deleteLoanProduct(token, id));
+    }
   };
+
+  const emptyMessage = isLoading
+    ? "Loading loan products..."
+    : error
+      ? `Couldn't load loan products: ${error.message}`
+      : items.length === 0
+        ? "No loan products yet."
+        : "No results match your filter.";
+
+  const entityOptions = entities.map((e) => (
+    <option key={e.id} value={e.id}>
+      {e.name}
+    </option>
+  ));
 
   return (
     <SectionCard
       title="Loan Products"
-      subtitle="Manage the list of loan products selectable in workflows."
+      subtitle="Each loan product belongs to an entity. New workflows list the products of the entity you pick."
       right={
-        <QuietBtn onClick={() => dispatch(resetLoanProducts())}>
-          <ArrowPathIcon className="w-4 h-4" />
-          Reset defaults
+        <QuietBtn onClick={() => setQuery("")}>
+          <FunnelIcon className="w-4 h-4" />
+          Clear filter
         </QuietBtn>
       }
     >
@@ -712,28 +777,23 @@ function LoanProductsSection() {
           className="grid grid-cols-1 sm:grid-cols-6 gap-3 flex-1"
         >
           <div className="sm:col-span-2">
+            <InlineSelect
+              value={entityId}
+              onChange={(e) => setEntityId(e.target.value)}
+            >
+              <option value="">Select entity</option>
+              {entityOptions}
+            </InlineSelect>
+          </div>
+          <div className="sm:col-span-3">
             <InlineTextInput
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Name (e.g., Auto)"
             />
           </div>
-          <div>
-            <InlineTextInput
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="Code (e.g., AUTO)"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <InlineTextInput
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Description (optional)"
-            />
-          </div>
           <div className="sm:col-span-1 flex">
-            <PrimaryBtn type="submit" className="w-full">
+            <PrimaryBtn type="submit" className="w-full" disabled={busy}>
               <PlusIcon className="w-5 h-5" />
               Add
             </PrimaryBtn>
@@ -749,23 +809,28 @@ function LoanProductsSection() {
         </div>
       </Toolbar>
 
+      <ActionError message={actionError} />
+
+      {entities.length === 0 && !isLoading && (
+        <p className="text-xs text-amber-600 mb-4">
+          Add an entity first under the <b>Entities</b> tab.
+        </p>
+      )}
+
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50/80">
             <tr className="text-left text-gray-700">
               <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Code</th>
-              <th className="px-4 py-3 font-medium">Description</th>
+              <th className="px-4 py-3 font-medium">Entity</th>
               <th className="px-4 py-3 font-medium w-32">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td className="px-4 py-6 text-gray-500" colSpan={4}>
-                  {items.length === 0
-                    ? "No loan products yet."
-                    : "No results match your filter."}
+                <td className="px-4 py-6 text-gray-500" colSpan={3}>
+                  {emptyMessage}
                 </td>
               </tr>
             )}
@@ -787,26 +852,15 @@ function LoanProductsSection() {
 
                   <td className="px-4 py-3">
                     {isEditing ? (
-                      <InlineTextInput
-                        value={editCode}
-                        onChange={(e) => setEditCode(e.target.value)}
-                      />
+                      <InlineSelect
+                        value={editEntityId}
+                        onChange={(e) => setEditEntityId(e.target.value)}
+                      >
+                        {entityOptions}
+                      </InlineSelect>
                     ) : (
                       <span className="text-gray-900">
-                        {row.code ?? ""}
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="px-4 py-3">
-                    {isEditing ? (
-                      <InlineTextInput
-                        value={editDescription}
-                        onChange={(e) => setEditDescription(e.target.value)}
-                      />
-                    ) : (
-                      <span className="text-gray-900">
-                        {row.description ?? ""}
+                        {entityNames.get(row.entity_id) ?? ""}
                       </span>
                     )}
                   </td>

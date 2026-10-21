@@ -12,6 +12,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { searchWorkflows, type Workflow } from "../../services/workflow";
 import { useAppSelector } from "../../redux_toolkit/hooks";
+import { useEntities, useLoanProducts } from "../../hooks/useEclConfig";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
@@ -42,13 +43,11 @@ const Workflows = () => {
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState(false);
 
-  // Redux selectors for entities and loan products
-  const entities = useAppSelector(
-    (state: any) => state.eclEntitiesReducer?.items || []
-  );
-  const loanProducts = useAppSelector(
-    (state: any) => state.eclLoanProductsReducer?.items || []
-  );
+  // Entities and loan products come from the database; only the chosen entity's products are offered
+  const { entities } = useEntities();
+  const { loanProducts: allLoanProducts } = useLoanProducts();
+  const selectedEntityId = entities.find((e) => e.name === entity)?.id;
+  const loanProducts = allLoanProducts.filter((lp) => lp.entity_id === selectedEntityId);
 
   // Load workflows with search and pagination
   const loadWorkflows = useCallback(async () => {
@@ -488,21 +487,22 @@ const Workflows = () => {
                   <select
                     id="entity"
                     value={entity}
-                    onChange={(e) => setEntity(e.target.value)}
+                    onChange={(e) => {
+                      setEntity(e.target.value);
+                      setLoanProduct("");
+                    }}
                     className="flex-1 text-gray-800 py-2.5 pl-2 pr-3 focus:outline-none bg-white rounded-r-lg"
                     required
                   >
                     <option value="">Select An Entity</option>
-                    {Array.isArray(entities) &&
-                      entities.map((row: any) => (
-                        <option key={row.id} value={row.name}>
-                          {row.name}
-                          {row.code ? ` (${row.code})` : ""}
-                        </option>
-                      ))}
+                    {entities.map((row) => (
+                      <option key={row.id} value={row.name}>
+                        {row.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
-                {(!entities || entities.length === 0) && (
+                {entities.length === 0 && (
                   <p className="text-xs text-amber-600 mt-2">
                     No entities found. Go to <b>Configuration {"->"} Entities</b> to add one.
                   </p>
@@ -524,20 +524,21 @@ const Workflows = () => {
                     onChange={(e) => setLoanProduct(e.target.value)}
                     className="flex-1 text-gray-800 py-2.5 pl-2 pr-3 focus:outline-none bg-white rounded-r-lg"
                     required
+                    disabled={!entity}
                   >
-                    <option value="">Select Loan Product</option>
-                    {Array.isArray(loanProducts) &&
-                      loanProducts.map((lp: any) => (
-                        <option key={lp.id} value={lp.name}>
-                          {lp.name}
-                          {lp.code ? ` (${lp.code})` : ""}
-                        </option>
-                      ))}
+                    <option value="">
+                      {entity ? "Select Loan Product" : "Select an entity first"}
+                    </option>
+                    {loanProducts.map((lp) => (
+                      <option key={lp.id} value={lp.name}>
+                        {lp.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
-                {(!loanProducts || loanProducts.length === 0) && (
+                {entity && loanProducts.length === 0 && (
                   <p className="text-xs text-amber-600 mt-2">
-                    No loan products found. Go to <b>Configuration {"->"} Loan Products</b> to add one.
+                    No loan products for this entity. Go to <b>Configuration {"->"} Loan Products</b> to add one.
                   </p>
                 )}
               </div>
