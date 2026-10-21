@@ -3,11 +3,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
+from core.security import get_current_user
 from models.models import Entity
 from schemas.schemas import EntityCreate, EntityUpdate, EntityResponse
 from datetime import datetime
 
-router = APIRouter(prefix="/api/entities", tags=["entities"])
+router = APIRouter(prefix="/api/entities", tags=["entities"], dependencies=[Depends(get_current_user)])
 
 @router.get("/")
 def get_entities(db: Session = Depends(get_db)):

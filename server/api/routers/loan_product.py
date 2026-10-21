@@ -3,11 +3,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
+from core.security import get_current_user
 from models.models import LoanProduct, Entity
 from schemas.schemas import LoanProductCreate, LoanProductUpdate, LoanProductResponse
 from datetime import datetime
 
-router = APIRouter(prefix="/api/loan-products", tags=["loan-products"])
+router = APIRouter(prefix="/api/loan-products", tags=["loan-products"], dependencies=[Depends(get_current_user)])
 
 @router.get("/")
 def get_loan_products(db: Session = Depends(get_db)):
