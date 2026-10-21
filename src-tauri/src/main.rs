@@ -312,74 +312,10 @@ fn setup_python_env(server_dir: &PathBuf) -> Result<PathBuf, String> {
         }
     }
 
-    // Ensure requirements.txt exists
+    // server/requirements.txt ships with the app and is the only list of Python dependencies
     let req_file = server_dir.join("requirements.txt");
     if !req_file.exists() {
-        fs::write(
-            &req_file,
-            "
-            annotated-types==0.7.0
-            anyio==4.9.0
-            bcrypt==3.2.2
-            certifi==2025.7.14
-            cffi==1.17.1
-            click==8.2.1
-            colorama==0.4.6
-            cryptography==45.0.5
-            dnspython==2.7.0
-            ecdsa==0.19.1
-            email_validator==2.2.0
-            et_xmlfile==2.0.0
-            fastapi==0.109.0
-            greenlet==3.2.3
-            h11==0.16.0
-            httpcore==1.0.9
-            httptools==0.6.4
-            httpx==0.28.1
-            idna==3.10
-            itsdangerous==2.2.0
-            Jinja2==3.1.6
-            MarkupSafe==3.0.2
-            numpy==2.3.2
-            openpyxl==3.1.5
-            orjson==3.11.1
-            pandas==2.3.1
-            passlib==1.7.4
-            pyasn1==0.6.1
-            pycparser==2.22
-            pydantic==2.5.3
-            pydantic-extra-types==2.10.5
-            pydantic-settings==2.2.1
-            pydantic_core==2.14.6
-            python-dateutil==2.9.0.post0
-            python-dotenv==1.0.0
-            python-jose==3.3.0
-            python-multipart==0.0.6
-            pytz==2025.2
-            PyYAML==6.0.2
-            rsa==4.9.1
-            six==1.17.0
-            sniffio==1.3.1
-            SQLAlchemy==2.0.25
-            starlette==0.35.1
-            typing_extensions==4.14.1
-            tzdata==2025.2
-            ujson==5.10.0
-            uvicorn==0.27.0
-            watchfiles==0.20.0
-            websockets==15.0.1
-            xlsxwriter==3.2.5
-            alembic==1.16.5
-
-            # R CODES
-            scipy>=1.16.2
-            statsmodels>=0.14.5
-            scikit-learn>=1.7.2
-            matplotlib>=3.10.6
-            seaborn>=0.13.2
-            ",
-        )
-        .map_err(|e| format!("Failed to write requirements.txt: {e}"))?;
+        return Err(format!("requirements.txt not found at {:?}", req_file));
     }
 
     // Pick the venv python executable

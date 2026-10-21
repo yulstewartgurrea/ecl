@@ -1,8 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Form, Query
 from fastapi.responses import JSONResponse, FileResponse
-from starlette.responses import StreamingResponse
-from io import BytesIO
-import zipfile
 
 import pandas as pd
 import numpy as np
@@ -383,93 +380,6 @@ async def export_transform_forecasted_mevs(
                 "code": -1,
                 "success": False,
                 "msg": f"Error exporting transform forecasted MEVs: {str(e)}",
-                "data": None
-            }
-        )
-
-
-@router.get("/data_transformation_results/export")
-async def export_data_transformation_results(
-    workflow_id: int = Query(...),
-    file_type: str = Query("both", description="independent | dependent | both"),
-    current_user: User = Depends(get_current_user)
-):
-    """Export latest transformed data as CSV or ZIP (based on get endpoint logic)."""
-    try:
-        root_folder = get_root_folder()
-        db = SessionLocal()
-        try:
-            workflow = db.query(Workflow).filter(
-                Workflow.id == workflow_id,
-                Workflow.user_id == current_user.id
-            ).first()
-
-            if not workflow:
-                return JSONResponse(status_code=404, content={"detail": f"Workflow with ID {workflow_id} not found"})
-
-            portfolio = workflow.loan_product or "Housing"
-            server_files_path = f"{root_folder}/server/files/{workflow.entity}/{workflow.reporting_period}/{workflow.workflow_name}/output/overlay/development/{portfolio}/data_transformation"
-
-            if not os.path.exists(server_files_path):
-                return JSONResponse(status_code=404, content={"detail": f"Data transformation directory not found: {server_files_path}"})
-
-            files = os.listdir(server_files_path)
-
-            independent_files = [f for f in files if f.startswith(f"{portfolio}_Independent - Transformed with Time") and f.endswith('.csv')]
-            dependent_files = [f for f in files if f.startswith(f"{portfolio}_Dependent - Transformed with Time") and f.endswith('.csv')]
-
-            if not independent_files and not dependent_files:
-                return JSONResponse(status_code=404, content={"detail": "No transformed data files found"})
-
-            independent_path = None
-            dependent_path = None
-            if independent_files:
-                independent_path = os.path.join(server_files_path, sorted(independent_files)[-1])
-            if dependent_files:
-                dependent_path = os.path.join(server_files_path, sorted(dependent_files)[-1])
-
-            # Normalize file_type
-            ft = (file_type or "both").lower()
-            if ft not in ("independent", "dependent", "both"):
-                return JSONResponse(status_code=400, content={"detail": "Invalid file_type. Use independent | dependent | both"})
-
-            # Single file export as direct CSV
-            if ft == "independent":
-                if not independent_path:
-                    return JSONResponse(status_code=404, content={"detail": "Independent file not found"})
-                filename = os.path.basename(independent_path)
-                return FileResponse(independent_path, media_type="text/csv", filename=filename)
-
-            if ft == "dependent":
-                if not dependent_path:
-                    return JSONResponse(status_code=404, content={"detail": "Dependent file not found"})
-                filename = os.path.basename(dependent_path)
-                return FileResponse(dependent_path, media_type="text/csv", filename=filename)
-
-            # Both: stream a zip containing both files
-            mem_file = BytesIO()
-            with zipfile.ZipFile(mem_file, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-                if independent_path:
-                    zf.write(independent_path, arcname=os.path.basename(independent_path))
-                if dependent_path:
-                    zf.write(dependent_path, arcname=os.path.basename(dependent_path))
-            mem_file.seek(0)
-
-            zip_name = f"{portfolio}_Transformed_Data_{get_time_date()}.zip"
-            return StreamingResponse(
-                mem_file,
-                media_type="application/zip",
-                headers={"Content-Disposition": f"attachment; filename={zip_name}"}
-            )
-        finally:
-            db.close()
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "code": -1,
-                "success": False,
-                "msg": f"Error exporting data transformation results: {str(e)}",
                 "data": None
             }
         )
