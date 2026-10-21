@@ -1,4 +1,4 @@
-from .models import User, Workflow, Document, JsonData
+from .models import User, Workflow, Document, JsonData, TermsAcceptance
 from .flowrate_approach import (
     FlowRateApproachLogs,
     FlowRateApproachWriteOffAccounts,
@@ -28,6 +28,7 @@ __all__ = ["User",
             "Workflow",
             "Document",
             "JsonData",
+            "TermsAcceptance",
 
              # FLOWRATE APPROACH MODELS
             "FlowRateApproachLogs",

@@ -11,6 +11,7 @@ import FlowrateApproachPage from "./pages/flowrate_approach/FlowrateApproach";
 import WorkflowFolderList from "./pages/flowrate_approach/WorkflowFolderList";
 import EclUpload from "./pages/ecl/EclUpload";
 import BackendLoader from "./components/BackendLoader";
+import TermsGate from "./components/terms/TermsGate";
 import Workflows from "./pages/workflows/Workflows";
 import Chatbot from "./pages/chatbot/ChatbotPage";
 import PdLandingPage from "./pages/transition_matrix/Workflow";
@@ -90,7 +91,15 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route
         path="/"
-        element={isLoggedIn ? <Sidebar /> : <Navigate to="/login" />}
+        element={
+          isLoggedIn ? (
+            <TermsGate>
+              <Sidebar />
+            </TermsGate>
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
       >
         <Route index element={<WorkflowLists />} />
         <Route path="workflows" element={<Workflows />} />

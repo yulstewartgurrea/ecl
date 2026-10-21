@@ -143,3 +143,22 @@ class JsonData(Base):
 
     def __repr__(self):
         return f"<JsonData id={self.id} name={self.name!r}>"
+
+class TermsAcceptance(Base):
+    """One row each time a user accepts the platform terms. Rows are never updated or deleted."""
+    __tablename__ = "terms_acceptances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # kept as text so the record still reads correctly if the user is renamed or removed
+    username = Column(String, nullable=False)
+    app_version = Column(String, nullable=False)
+    terms_version = Column(String, nullable=False)
+    # SHA-256 of the terms content the user was shown
+    terms_hash = Column(String(64), nullable=False)
+    accepted_at = Column(
+        DateTime, nullable=False, server_default=sql_text("CURRENT_TIMESTAMP")
+    )
+
+    def __repr__(self):
+        return f"<TermsAcceptance id={self.id} user_id={self.user_id} app_version={self.app_version!r}>"

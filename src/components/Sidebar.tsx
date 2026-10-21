@@ -22,10 +22,8 @@ import {
   toggleSidebar,
   setActiveTab,
   setActiveSubTab,
-  resetStateNavUIState,
 } from "../redux_toolkit/features/general/navUIState";
-import { resetStateAuth } from "../redux_toolkit/features/general/auth";
-import { resetPdTransitionMatrixWfHelperData } from "../redux_toolkit/features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
+import { useLogout } from "../hooks/useLogout";
 
 // ----- Sidebar items (unchanged except for added tabs) -----
 const sidebarOptions: any[] = [
@@ -67,6 +65,7 @@ const ROUTE_TO_TAB: Record<string, string> = Object.fromEntries(
 const Sidebar = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const handleLogout = useLogout();
   const location = useLocation();
 
   const { isSidebarOpen, activeTab, activeSubTab } = useAppSelector(
@@ -83,19 +82,6 @@ const Sidebar = () => {
 
   // --- Actions ---
   const handleToggleSidebar = () => dispatch(toggleSidebar());
-
-  const handleLogout = () => {
-    dispatch(resetStateAuth());
-    dispatch(resetPdTransitionMatrixWfHelperData());
-    dispatch(resetStateNavUIState());
-    navigate("/");
-    // Clear persisted auth and in-memory uploader caches to avoid stale sessions
-    localStorage.removeItem("persist:root");
-    const g: any = window as any;
-    if (g.__MCU_CACHE__ && typeof g.__MCU_CACHE__.clear === "function") {
-      g.__MCU_CACHE__.clear();
-    }
-  };
 
   const handleTabClick = async (tabName: string) => {
     // AI Mode opens Wash login in a new tab (credential: same as app login, see Login.tsx)

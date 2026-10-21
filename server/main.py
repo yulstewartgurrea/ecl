@@ -16,7 +16,8 @@ from api.routers import (workflows,
                         login,
                         entity,
                         loan_product,
-                        upload)
+                        upload,
+                        terms)
 from api.routers.overlay.development import (
     data_interpolation, 
     data_transformation, 
@@ -134,6 +135,7 @@ app.include_router(login.router)
 app.include_router(entity.router)
 app.include_router(loan_product.router)
 app.include_router(upload.router)
+app.include_router(terms.router)
 
 # FLOWRATE
 app.include_router(flowrate_approach.router)
