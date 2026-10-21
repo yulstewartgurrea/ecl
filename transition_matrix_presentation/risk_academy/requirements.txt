@@ -1,9 +1,0 @@
-# Transition Matrix — risk academy notebooks
-# Install with:  python -m pip install -r requirements.txt
-#
-# The teaching code uses ONE analysis library: pandas. (pandas pulls in numpy
-# itself; we never import numpy or matplotlib directly, and there are no charts.)
-pandas>=2.0
-openpyxl>=3.1        # lets pandas read the .xlsx extracts
-ipykernel>=6.0       # run the notebook in VS Code / Jupyter
-jinja2>=3.0          # needed by pandas .style tables
