@@ -115,7 +115,7 @@ const Step5 = () => {
     try {
       setStatus("loading");
       setStatusMessage("Downloading bucketing file...");
-      await downloadValidRowsExcel(data, "bucketing");
+      await downloadValidRowsExcel(data, "bucketing", authToken);
       setStatus("success");
       setStatusMessage("Download complete.");
     } catch (err) {

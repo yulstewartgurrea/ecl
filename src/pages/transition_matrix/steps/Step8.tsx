@@ -59,7 +59,7 @@ const Step8: React.FC = () => {
     try {
       setStatus("loading");
       setStatusMessage("Downloading data...");
-      await downloadValidRowsExcelv2(data, "matrix_construction");
+      await downloadValidRowsExcelv2(data, "matrix_construction", authToken);
       setStatus("success");
       setStatusMessage("Download complete.");
     } catch (err) {

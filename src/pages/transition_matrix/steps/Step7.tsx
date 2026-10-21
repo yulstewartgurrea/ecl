@@ -79,7 +79,7 @@ const Step7 = () => {
     try {
       setStatus("loading");
       setStatusMessage("Downloading file...");
-      await downloadValidRowsExcel(safeData, "default_rate"); // ✅ filtered
+      await downloadValidRowsExcel(safeData, "default_rate", authToken); // ✅ filtered
       setStatus("success");
       setStatusMessage("Download complete.");
     } catch {

@@ -84,7 +84,7 @@ const Step9: React.FC = () => {
     try {
       setStatus("loading");
       setStatusMessage("Downloading data...");
-      await downloadValidRowsExcel(data, "markov_chain");
+      await downloadValidRowsExcel(data, "markov_chain", authToken);
       setStatus("success");
       setStatusMessage("Download complete.");
     } catch (err) {

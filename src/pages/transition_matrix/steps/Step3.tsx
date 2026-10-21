@@ -30,6 +30,7 @@ const Step3 = () => {
     selectedPdTransitionMatrixReportingPeriod: period,
     pdTransitionMatrixWfName: workflowName,
   } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
+  const authToken = useSelector((state: RootState) => state.auth.token);
 
   const directoryPath = `/${entity}/${period}/${workflowName}`;
   const { data, isLoading,  error } = useValidRows(directoryPath);
@@ -57,7 +58,7 @@ const Step3 = () => {
     try {
       setStatus("loading");
       setStatusMessage("Downloading file...");
-      await downloadValidRowsExcel(data, "valid_file");
+      await downloadValidRowsExcel(data, "valid_file", authToken);
       setStatus("success");
       setStatusMessage("Download complete.");
     } catch {

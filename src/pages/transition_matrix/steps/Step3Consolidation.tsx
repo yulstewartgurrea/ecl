@@ -69,7 +69,7 @@ const Step3Consolidation = () => {
     try {
       setStatus("loading");
       setStatusMessage("Downloading file...");
-      await downloadValidRowsExcel(data, "consolidate_file");
+      await downloadValidRowsExcel(data, "consolidate_file", authToken);
       setStatus("success");
       setStatusMessage("Download complete.");
     } catch (err) {

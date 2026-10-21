@@ -1,8 +1,14 @@
 import { fetch } from "@tauri-apps/plugin-http";
 
-export const getValidRows = async (workflowPath: string) => {
+export const getValidRows = async (workflowPath: string, token: string) => {
   const res = await fetch(
-    `http://localhost:8000/documents/valid-rows?workflow_path=${workflowPath}`
+    `http://localhost:8000/documents/valid-rows?workflow_path=${workflowPath}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
   );
 
   if (!res.ok) {
@@ -314,7 +320,11 @@ export async function getMigrationMatrix12Months(
 
 // services/downloadService.ts
 
-export const downloadValidRowsExcel = async (data: any, filename: any) => {
+export const downloadValidRowsExcel = async (
+  data: any,
+  filename: any,
+  token: string | null
+) => {
   try {
     const response = await fetch(
       "http://127.0.0.1:8000/documents/download-excel",
@@ -322,6 +332,7 @@ export const downloadValidRowsExcel = async (data: any, filename: any) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ data }),
       }
@@ -348,7 +359,11 @@ export const downloadValidRowsExcel = async (data: any, filename: any) => {
   }
 };
 
-export const downloadValidRowsExcelv2 = async (data: any, filename: any) => {
+export const downloadValidRowsExcelv2 = async (
+  data: any,
+  filename: any,
+  token: string | null
+) => {
   try {
     const response = await fetch(
       "http://127.0.0.1:8000/documents/download-excel-v2",
@@ -356,6 +371,7 @@ export const downloadValidRowsExcelv2 = async (data: any, filename: any) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ data }),
       }

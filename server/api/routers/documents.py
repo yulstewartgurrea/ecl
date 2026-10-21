@@ -246,6 +246,7 @@ def try_parse_date(v) -> Tuple[pd.Timestamp | None, str | None]:
 def read_single_excel(
     workflow_path: str = Query(..., description="Subdirectory under server/files containing Excel files"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     cleaned_path = workflow_path.strip('"/')
     try:
@@ -573,6 +574,7 @@ def insert_new_document(
 def get_valid_rows_only(
     workflow_path: str = Query(..., description="Subdirectory under server/files containing Excel files"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     cleaned_dir = workflow_path.strip('"/')
 
@@ -1838,7 +1840,8 @@ def calculate_bucket_matrix_average(
 
 @router.get("/get-migration-matrix-average")
 def get_migration_matrix_average(workflow_path: str = Query(..., description="Subdirectory under server/files containing Excel files"),
-    db: Session = Depends(get_db)):
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)):
     # Step 1: Check if workflow_path already exists in D
     name = "migration_matrix_average"
     print(workflow_path)
@@ -1946,7 +1949,7 @@ def flatten_dict(d):
     return d
 
 @router.post("/download-excel")
-def download_excel(payload: dict = Body(...)):
+def download_excel(payload: dict = Body(...), current_user: User = Depends(get_current_user)):
     data = payload.get("data", None)
     if data is None:
         return {"error": "Missing 'data' in payload."}
@@ -2005,7 +2008,7 @@ def reorder_columns(df, cols_order):
     return df[cols_order]
 
 @router.post("/download-excel-v2")
-def download_excel(payload: dict = Body(...)):
+def download_excel(payload: dict = Body(...), current_user: User = Depends(get_current_user)):
     data = payload.get("data")
     if data is None:
         return {"error": "Missing 'data' in payload."}

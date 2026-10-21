@@ -93,7 +93,7 @@ const Step6 = () => {
     try {
       setStatus("loading");
       setStatusMessage("Downloading everbad file...");
-      await downloadValidRowsExcel(data, "everbad");
+      await downloadValidRowsExcel(data, "everbad", authToken);
       setStatus("success");
       setStatusMessage("Download complete.");
     } catch {

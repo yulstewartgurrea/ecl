@@ -125,7 +125,7 @@ const Step4 = () => {
     try {
       setStatus("loading");
       setStatusMessage("Downloading pivoted file...");
-      await downloadValidRowsExcel(data, "pivoting_file");
+      await downloadValidRowsExcel(data, "pivoting_file", authToken);
       setStatus("success");
       setStatusMessage("Download complete.");
     } catch (err) {
