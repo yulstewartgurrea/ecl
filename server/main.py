@@ -10,8 +10,7 @@ from models import User, Workflow, Document, JsonData
 from models.overlay import development  # noqa: F401
 
 # Routers and helpers
-from api.routers import (users, 
-                        workflows, 
+from api.routers import (workflows, 
                         documents,
                         auth,
                         login,
@@ -129,7 +128,6 @@ def health_check():
 
 # Include routers (make sure each router is defined correctly)
 app.include_router(auth.router)
-app.include_router(users.router)
 app.include_router(workflows.router)
 app.include_router(documents.router)
 app.include_router(login.router)
