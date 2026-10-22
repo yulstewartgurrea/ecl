@@ -19,5 +19,11 @@ export const getTermsAcceptance = (token: string, appVersion: string, termsHash:
 
 export const acceptTerms = (
   token: string,
-  data: { app_version: string; terms_version: string; terms_hash: string }
+  data: {
+    app_version: string;
+    terms_version: string;
+    terms_hash: string;
+    // the exact text that was hashed; the backend checks the hash and keeps the text
+    terms_content: string;
+  }
 ) => request<TermsAcceptance>("/api/terms/acceptance", token, { method: "POST", body: data });

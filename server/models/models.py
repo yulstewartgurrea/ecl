@@ -162,3 +162,20 @@ class TermsAcceptance(Base):
 
     def __repr__(self):
         return f"<TermsAcceptance id={self.id} user_id={self.user_id} app_version={self.app_version!r}>"
+
+
+class TermsDocument(Base):
+    """The exact terms content behind each terms_hash, kept once so any acceptance can be shown later."""
+    __tablename__ = "terms_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    terms_hash = Column(String(64), nullable=False, unique=True, index=True)
+    terms_version = Column(String, nullable=False)
+    # the JSON text the frontend hashed, byte for byte
+    content = Column(Text, nullable=False)
+    created_at = Column(
+        DateTime, nullable=False, server_default=sql_text("CURRENT_TIMESTAMP")
+    )
+
+    def __repr__(self):
+        return f"<TermsDocument id={self.id} terms_version={self.terms_version!r}>"

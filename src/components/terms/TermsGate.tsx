@@ -16,12 +16,10 @@ async function sha256Hex(text: string) {
 
 // The user must accept again when the app version or any word of the terms changes
 async function loadTermsStatus(token: string) {
-  const [appVersion, termsHash] = await Promise.all([
-    getVersion(),
-    sha256Hex(JSON.stringify(TERMS_CONTENT)),
-  ]);
+  const termsContent = JSON.stringify(TERMS_CONTENT);
+  const [appVersion, termsHash] = await Promise.all([getVersion(), sha256Hex(termsContent)]);
   const { accepted } = await getTermsAcceptance(token, appVersion, termsHash);
-  return { appVersion, termsHash, accepted };
+  return { appVersion, termsHash, termsContent, accepted };
 }
 
 // Shows the platform terms after login and keeps the app closed until the user accepts them
@@ -42,6 +40,7 @@ const TermsGate = ({ children }: { children: ReactNode }) => {
       <TermsAcceptance
         appVersion={data.appVersion}
         termsHash={data.termsHash}
+        termsContent={data.termsContent}
         onCancel={logout}
         onFinish={() => mutate({ ...data, accepted: true }, { revalidate: false })}
       />

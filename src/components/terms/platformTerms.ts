@@ -2,8 +2,8 @@
 // so any change here asks every user to accept again.
 // Each statement about the calculation was checked against the code; keep them in step with it.
 
-export const TERMS_VERSION = "1.0";
-export const TERMS_EFFECTIVE_DATE = "October 21, 2026";
+export const TERMS_VERSION = "1.1";
+export const TERMS_EFFECTIVE_DATE = "October 22, 2026";
 
 export type TermsIcon =
   | "document"
@@ -278,9 +278,10 @@ export const ASSUMPTION_GROUPS: { title: string; rows: Assumption[] }[] = [
     rows: [
       {
         item: "Baseline year",
-        value: "Every new workflow is created with a baseline year of 2023.",
-        source: "PLT",
-        canChange: "No",
+        value:
+          "The year of the reporting date you enter when you create a workflow. The full reporting date is not stored.",
+        source: "USR",
+        canChange: "When you create the workflow",
       },
       {
         item: "Input file used by each step",

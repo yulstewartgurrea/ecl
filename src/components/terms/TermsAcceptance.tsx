@@ -308,11 +308,12 @@ const RecordedStep = ({ acceptance }: { acceptance: AcceptanceRecord }) => (
 type Props = {
   appVersion: string;
   termsHash: string;
+  termsContent: string;
   onCancel: () => void;
   onFinish: () => void;
 };
 
-const TermsAcceptance = ({ appVersion, termsHash, onCancel, onFinish }: Props) => {
+const TermsAcceptance = ({ appVersion, termsHash, termsContent, onCancel, onFinish }: Props) => {
   const { token, username } = useAppSelector((state) => state.auth);
   const [step, setStep] = useState(0);
   const [termsRead, setTermsRead] = useState(false);
@@ -335,6 +336,7 @@ const TermsAcceptance = ({ appVersion, termsHash, onCancel, onFinish }: Props) =
         app_version: appVersion,
         terms_version: TERMS_VERSION,
         terms_hash: termsHash,
+        terms_content: termsContent,
       });
       setAcceptance(record);
       setStep(3);
