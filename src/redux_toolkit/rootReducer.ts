@@ -5,9 +5,6 @@ import auth from "./features/general/auth";
 import navUIState from "./features/general/navUIState";
 import pdTransitionMatrixWfHelper from "./features/probability_of_default/transition_matrix/pdTransitionMatrixWfHelper";
 import pdMatrixWfHelper from "./features/probability_of_default/transition_matrix/pdMatrixWfHelper";
-import eclBaselinesReducer from "./features/ecl/eclBaselinesSlice";
-import eclDpdBucketsSlice from "./features/ecl/eclDpdBucketsSlice";
-import eclReportingPeriodsReducer from "./features/ecl/eclReportingPeriodsSlice";
 import executionInputFileReducer from "./features/overlay/executionInputFileSlice";
 import finalModelExecutionFileReducer from "./features/overlay/finalModelExecutionFileSlice";
 import historicalWeightedCreditLossRateFileReducer from "./features/overlay/historicalWeightedCreditLossRateFileSlice";
@@ -19,9 +16,6 @@ export const rootReducer = combineReducers({
   navUIState,
   pdTransitionMatrixWfHelper,
   pdMatrixWfHelper,
-  eclBaselinesReducer,
-  eclDpdBucketsSlice,
-  eclReportingPeriodsReducer,
   workflow,
   executionInputFile: executionInputFileReducer,
   finalModelExecutionFile: finalModelExecutionFileReducer,
