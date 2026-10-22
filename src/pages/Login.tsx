@@ -69,8 +69,8 @@ const Login = () => {
                 width={80}
                 className="rounded-[3px]"
               />
-              <h3 className="text-2xl text-black mt-2">ECL Automation</h3>
-              <p className="text-lg text-black mt-2">
+              <h3 className="text-2xl text-[#24242E] mt-2">ECL Automation</h3>
+              <p className="text-lg text-[#24242E]/80 mt-2">
                 Streamlining Expected Credit Loss calculations for smarter,
                 data-driven risk management
               </p>
@@ -91,7 +91,7 @@ const Login = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoFocus
-                className="mt-1 block w-full rounded-md border-2 border-[#EA8024]/30 focus:border-[#EA8024] focus:ring-[#EA8024]/20 px-3 py-4 transition-colors duration-200"
+                className="mt-1 block w-full rounded-md border-2 border-[#FFE08A] focus:border-[#FFBC19] focus:ring-[#FFE600]/30 px-3 py-4 transition-colors duration-200"
               />
             </div>
             <div className="mt-6">
@@ -104,7 +104,7 @@ const Login = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full rounded-md border-2 border-[#EA8024]/30 focus:border-[#EA8024] focus:ring-[#EA8024]/20 px-3 py-4 transition-colors duration-200"
+                className="mt-1 block w-full rounded-md border-2 border-[#FFE08A] focus:border-[#FFBC19] focus:ring-[#FFE600]/30 px-3 py-4 transition-colors duration-200"
               />
             </div>
             <div className="my-10">
@@ -113,7 +113,7 @@ const Login = () => {
               )}
               <button
                 type="submit"
-                className="bg-gradient-to-r from-[#EA8024] to-[#FFBB00] hover:from-[#FFBB00] hover:to-[#EA8024] text-lg text-white font-bold py-6 w-full rounded-2xl flex items-center justify-center cursor-pointer gap-2 transition-all duration-300 shadow-lg hover:shadow-xl"
+                className="bg-gradient-to-r from-[#FFBC19] to-[#FFE600] hover:from-[#FFE600] hover:to-[#FFBC19] text-lg text-[#24242E] font-bold py-6 w-full rounded-2xl flex items-center justify-center cursor-pointer gap-2 transition-all duration-300 shadow-lg hover:shadow-xl"
               >
                 {status !== "idle" ? "Logging in..." : "Log In"}
                 <ArrowRightStartOnRectangleIcon className="h-6 w-6" />

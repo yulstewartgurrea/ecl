@@ -10,8 +10,15 @@ const BGContainer: React.FC = () => {
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
         >
+          <defs>
+            {/* golden at the bottom left to EY yellow at the top right */}
+            <linearGradient id="login-bg-gradient" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0%" stopColor="#FFBC19" />
+              <stop offset="100%" stopColor="#FFE600" />
+            </linearGradient>
+          </defs>
           <path
-            fill="#EA8024"
+            fill="url(#login-bg-gradient)"
             d="M44.5,-33.2C56.8,-23.7,65.2,-11.9,65.2,0.5C65.3,12.9,56.9,25.8,44.6,35.5C32.2,45.2,16.1,51.8,1.9,50.5C-12.2,49.2,-24.5,40,-35.4,29.4C-46.3,18.8,-55.9,6.8,-54.5,-4C-53.2,-14.9,-40.8,-24.8,-28.7,-34.3C-16.6,-43.9,-8.3,-53.2,2.5,-56.2C13.3,-59.2,26.7,-55.6,44.5,-33.2Z"
             transform="translate(70 50)"
           />
