@@ -92,7 +92,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
     title: "Data Privacy and AI Mode",
     body: "Client data can include personal information protected by the Data Privacy Act of 2012 (RA 10173). Handle it in line with the engagement terms and SGV's data privacy policies.",
     points: [
-      "AI Mode sends your questions and any files you attach to an external server (brain-sam.sgvnexus.uk). Do not use AI Mode with client data unless its use has been approved.",
+      "AI Mode sends your questions and any files you attach to an external server (<server_name>). Do not use AI Mode with client data unless its use has been approved.",
     ],
   },
   {
