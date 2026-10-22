@@ -61,10 +61,12 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
         # Normalize column names for comparison (lowercase, strip spaces)
         df_columns_normalized = [col.strip().lower() for col in df.columns]
         
-        # Required columns - validation fails if missing
-        required_columns = ["time", "odr"]
-        
-        missing_required = [col for col in required_columns if col not in df_columns_normalized]
+        # Required: time, plus the dependent variable named odr (observed default rate)
+        # or clr (credit loss rate, the reference method's choice)
+        dependent_names = [c for c in ("odr", "clr") if c in df_columns_normalized]
+        missing_required = [] if "time" in df_columns_normalized else ["time"]
+        if not dependent_names:
+            missing_required.append("odr or clr")
         if missing_required:
             validation_results["validation_status"] = "failed"
             validation_results["issues"].append({
@@ -73,6 +75,14 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
                 "message": f"Missing required columns: {', '.join(missing_required)}"
             })
         
+        if len(dependent_names) > 1:
+            validation_results["validation_status"] = "failed"
+            validation_results["issues"].append({
+                "type": "ambiguous_dependent_column",
+                "columns": dependent_names,
+                "message": "The file has both an odr and a clr column. Keep only the one this model uses."
+            })
+
         # Check for duplicate columns
         duplicate_columns = df.columns[df.columns.duplicated()].tolist()
         if duplicate_columns:
@@ -230,12 +240,13 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
                         "message": f"Error validating time column '{time_col}': {str(e)}. Expected MM/DD/YYYY format."
                     })
 
-        # Validate ODR column (must be percentage: 0-100)
-        if "odr" in df_columns_normalized:
+        # Validate the dependent column (must be percentage: 0-100)
+        if len(dependent_names) == 1:
+            dep_label = dependent_names[0].upper()
             # Find the actual column name (case-insensitive)
             odr_col = None
             for col in df.columns:
-                if col.strip().lower() == "odr":
+                if col.strip().lower() == dependent_names[0]:
                     odr_col = col
                     break
             
@@ -257,7 +268,7 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
                             "type": "odr_validation",
                             "column": odr_col,
                             "invalid_count": int(actual_non_numeric),
-                            "message": f"ODR column '{odr_col}' has {actual_non_numeric} non-numeric values. ODR column must contain only percentage values (0-100) with optional % symbol."
+                            "message": f"{dep_label} column '{odr_col}' has {actual_non_numeric} non-numeric values. {dep_label} column must contain only percentage values (0-100) with optional % symbol."
                         })
                     
                     # Check if values are in valid percentage range (0-100)
@@ -270,7 +281,7 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
                                 "type": "odr_validation",
                                 "column": odr_col,
                                 "invalid_count": int(invalid_percentage),
-                                "message": f"ODR column '{odr_col}' has {invalid_percentage} values outside valid percentage range (0-100). ODR must be a percentage between 0 and 100."
+                                "message": f"{dep_label} column '{odr_col}' has {invalid_percentage} values outside valid percentage range (0-100). {dep_label} must be a percentage between 0 and 100."
                             })
                         
                         # Check for negative values specifically
@@ -281,7 +292,7 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
                                 "type": "odr_validation",
                                 "column": odr_col,
                                 "invalid_count": int(negative_count),
-                                "message": f"ODR column '{odr_col}' has {negative_count} negative values. ODR percentage cannot be negative."
+                                "message": f"{dep_label} column '{odr_col}' has {negative_count} negative values. {dep_label} percentage cannot be negative."
                             })
                         
                         # Check for values greater than 100
@@ -292,7 +303,7 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
                                 "type": "odr_validation",
                                 "column": odr_col,
                                 "invalid_count": int(over_100_count),
-                                "message": f"ODR column '{odr_col}' has {over_100_count} values greater than 100. ODR percentage must be between 0 and 100."
+                                "message": f"{dep_label} column '{odr_col}' has {over_100_count} values greater than 100. {dep_label} percentage must be between 0 and 100."
                             })
                     
                 except Exception as e:
@@ -300,7 +311,7 @@ def validate_monthly_historical_credit_loss_rates(df: pd.DataFrame, document_typ
                     validation_results["issues"].append({
                         "type": "odr_validation",
                         "column": odr_col,
-                        "message": f"Error validating ODR column '{odr_col}': {str(e)}. ODR column must be a percentage (0-100)."
+                        "message": f"Error validating {dep_label} column '{odr_col}': {str(e)}. {dep_label} column must be a percentage (0-100)."
                     })
 
         return validation_results
