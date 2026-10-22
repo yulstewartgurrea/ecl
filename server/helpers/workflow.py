@@ -9,8 +9,8 @@ def get_workflows(db: Session, user_id: int, skip: int = 0, limit: int = 100):
     return db.query(Workflow).filter(Workflow.user_id == user_id).offset(skip).limit(limit).all()
 
 def create_workflow(db: Session, wf_in: WorkflowCreate, user_id: int) -> Workflow:
-    # Coerced already by Pydantic: wf_in.baseline_year is int here
-    db_workflow = Workflow(**wf_in.model_dump(), user_id=user_id)
+    # report_date_start only feeds baseline_year; the table has no column for it
+    db_workflow = Workflow(**wf_in.model_dump(exclude={"report_date_start"}), user_id=user_id)
     db.add(db_workflow)
     db.commit()
     db.refresh(db_workflow)
@@ -39,7 +39,7 @@ def update_workflow(db: Session, workflow_id: int, workflow_update: WorkflowCrea
         return None
     
     # Update the workflow fields
-    update_data = workflow_update.model_dump(exclude_unset=True)
+    update_data = workflow_update.model_dump(exclude_unset=True, exclude={"report_date_start"})
     for field, value in update_data.items():
         setattr(db_workflow, field, value)
     

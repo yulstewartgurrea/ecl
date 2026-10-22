@@ -1,6 +1,6 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from typing import Optional, Union
-from datetime import datetime
+from datetime import date, datetime
 from helpers.safe_path import check_name
 # User Schemas
 class UserBase(BaseModel):
@@ -29,11 +29,24 @@ class WorkflowBase(BaseModel):
     loan_product: Optional[str] = None
 
 class WorkflowCreate(WorkflowBase):
+    # Reporting date (month-end) picked in the workflow form; baseline_year is its year.
+    # Not stored itself yet: the workflows table has no column for it until migrations exist.
+    report_date_start: Optional[date] = None
+
     # these become folder names under server/files
     @field_validator("entity", "workflow_name", "reporting_period", "loan_product")
     @classmethod
     def _check_folder_name(cls, v):
         return check_name(v)
+
+    @model_validator(mode="after")
+    def _baseline_year_from_report_date(self):
+        if self.report_date_start is not None:
+            self.baseline_year = self.report_date_start.year
+        elif self.baseline_year in (None, ""):
+            # workflows.baseline_year is NOT NULL; updates resend the stored value
+            raise ValueError("report_date_start is required")
+        return self
 
 class WorkflowResponse(WorkflowBase):
     id: int

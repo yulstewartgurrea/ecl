@@ -119,7 +119,7 @@ const Workflows = () => {
   const handleSubmitCreateWorkflow = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!workflowName.trim() || !entity || !reportingPeriod || !loanProduct) {
+    if (!workflowName.trim() || !entity || !reportingPeriod || !loanProduct || !reportDateStart) {
       setCreateError("Please fill in all required fields.");
       return;
     }
@@ -133,9 +133,9 @@ const Workflows = () => {
         entity: entity,
         workflow_name: workflowName.trim(),
         reporting_period: reportingPeriod,
-        baseline_year: "2023",
         loan_product: loanProduct || undefined,
-        report_date_start: reportDateStart || undefined,
+        // the backend sets baseline_year from this date's year
+        report_date_start: reportDateStart,
         workflow_type: "asa",
       };
 
@@ -338,7 +338,6 @@ const Workflows = () => {
                     <th className="px-4 py-3 font-medium">Entity</th>
                     <th className="px-4 py-3 font-medium">Reporting Period</th>
                     <th className="px-4 py-3 font-medium">Baseline Year</th>
-                    <th className="px-4 py-3 font-medium w-32">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -369,7 +368,6 @@ const Workflows = () => {
                     <th className="px-4 py-3 font-medium">Entity</th>
                     <th className="px-4 py-3 font-medium">Reporting Period</th>
                     <th className="px-4 py-3 font-medium">Baseline Year</th>
-                    <th className="px-4 py-3 font-medium w-32">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -564,7 +562,7 @@ const Workflows = () => {
               {/* Report Date Start */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Reporting Date (Month-end)
+                  Reporting Date (Month-end) <span className="text-red-500">*</span>
                 </label>
                 <div className="flex flex-row border border-gray-300 rounded-lg bg-white focus-within:ring-2 focus-within:ring-amber-500">
                   <div className="h-11 w-12 border-r border-gray-200 flex items-center justify-center">
@@ -575,6 +573,7 @@ const Workflows = () => {
                     type="date"
                     value={reportDateStart}
                     onChange={(e) => setReportDateStart(e.target.value)}
+                    required
                     className="flex-1 text-gray-800 py-2.5 pl-2 pr-3 focus:outline-none bg-white rounded-r-lg"
                   />
                 </div>

@@ -385,10 +385,9 @@ useEffect(() => {
           entity: selectedPdTransitionMatrixEntity,
           workflow_name: pdTransitionMatrixWfName,
           reporting_period: selectedPdTransitionMatrixReportingPeriod,
-          baseline_year: "2023",
           loan_product: selectedPdTransitionMatrixLoanProduct || undefined,
-          report_date_start:
-            selectedPdTransitionMatrixReportDateStart || undefined,
+          // the backend sets baseline_year from this date's year
+          report_date_start: selectedPdTransitionMatrixReportDateStart,
           workflow_type: "asa",
         };
 
@@ -513,7 +512,8 @@ useEffect(() => {
     selectedPdTransitionMatrixEntity &&
     pdTransitionMatrixWfName &&
     selectedPdTransitionMatrixReportingPeriod &&
-    selectedPdTransitionMatrixLoanProduct;
+    selectedPdTransitionMatrixLoanProduct &&
+    selectedPdTransitionMatrixReportDateStart;
 
   return (
     <>
