@@ -73,11 +73,11 @@ async def get_summary_data(
         client_loan_balances_file = get_latest_file(client_loan_balances_path)
         if not client_loan_balances_file:
             return JSONResponse(
-                status_code=200,
+                status_code=404,
                 content={
-                    "code": 1,
-                    "success": True,
-                    "msg": "Client loan balances file not found",
+                    "code": -1,
+                    "success": False,
+                    "msg": "Client loan balances not found. Upload them in ECL > Inputs.",
                     "data": None
                 }
             )
@@ -129,11 +129,11 @@ async def get_summary_data(
 
         if not aging_report_file:
             return JSONResponse(
-                status_code=200,
+                status_code=404,
                 content={
-                    "code": 1,
-                    "success": True,
-                    "msg": "Aging report file not found",
+                    "code": -1,
+                    "success": False,
+                    "msg": "Aging report not found. Upload it in Flowrate Approach > Inputs.",
                     "data": None
                 }
             )
@@ -154,11 +154,11 @@ async def get_summary_data(
 
         if not credit_loss_rates_file:
             return JSONResponse(
-                status_code=200,
+                status_code=404,
                 content={
-                    "code": 1,
-                    "success": True,
-                    "msg": "Credit loss rates file not found",
+                    "code": -1,
+                    "success": False,
+                    "msg": "Credit loss rates not found. Run ECL > Credit Loss Rate first.",
                     "data": None
                 }
             )
@@ -179,11 +179,11 @@ async def get_summary_data(
 
         if not ecl_file:
             return JSONResponse(
-                status_code=200,
+                status_code=404,
                 content={
-                    "code": 1,
-                    "success": True,
-                    "msg": "ECL file not found",
+                    "code": -1,
+                    "success": False,
+                    "msg": "ECL results not found. Run ECL > ECL Calculations first.",
                     "data": None
                 }
             )
@@ -204,11 +204,11 @@ async def get_summary_data(
 
         if not client_loan_balances_file:
             return JSONResponse(
-                status_code=200,
+                status_code=404,
                 content={
-                    "code": 1,
-                    "success": True,
-                    "msg": "Client loan balances file not found",
+                    "code": -1,
+                    "success": False,
+                    "msg": "Client loan balances not found. Upload them in ECL > Inputs.",
                     "data": None
                 }
             )

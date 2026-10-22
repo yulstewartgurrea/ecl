@@ -235,11 +235,11 @@ async def get_ecl_data(
 
         if not client_loan_balances_file:
             return JSONResponse(
-                status_code=200,
+                status_code=404,
                 content={
-                    "code": 1,
-                    "success": True,
-                    "msg": "Client loan balances file not found",
+                    "code": -1,
+                    "success": False,
+                    "msg": "Client loan balances not found. Upload them in ECL > Inputs.",
                     "data": None
                 }
             )

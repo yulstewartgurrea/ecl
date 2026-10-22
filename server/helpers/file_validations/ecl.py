@@ -192,6 +192,8 @@ def validate_client_loan_balances(df: pd.DataFrame, document_type: str, file_nam
             actual_date_col = column_mapping[date_col_key.lower()]
             if actual_date_col and actual_date_col in data_df.columns:
                 try:
+                    # stays None when some values already failed MM/DD/YYYY parsing (reported below)
+                    date_strings = None
                     # Check if column is already datetime type
                     if pd.api.types.is_datetime64_any_dtype(data_df[actual_date_col]):
                         # Convert datetime to MM/DD/YYYY string format
@@ -223,7 +225,7 @@ def validate_client_loan_balances(df: pd.DataFrame, document_type: str, file_nam
                     date_pattern = r'^\d{2}/\d{2}/\d{4}$'
                     invalid_format_count = 0
                     
-                    for idx, value in date_strings.items():
+                    for idx, value in (date_strings.items() if date_strings is not None else []):
                         if pd.notna(value) and not re.match(date_pattern, str(value)):
                             invalid_format_count += 1
                     
