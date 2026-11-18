@@ -23,14 +23,19 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { IS_DESKTOP, WEB_HOME } from "./lib/runtime";
 
 function App() {
-  const { isLoggedIn } = useAppSelector((state) => state.auth);
+  const { isLoggedIn: loggedInDesktop } = useAppSelector((state) => state.auth);
+  // The web build has no backend or login: treat the visitor as signed in
+  const isLoggedIn = IS_DESKTOP ? loggedInDesktop : true;
 
-  const [backendReady, setBackendReady] = useState(false);
+  // Only the desktop app waits for its local backend to start
+  const [backendReady, setBackendReady] = useState(!IS_DESKTOP);
 
   // Listen for backend-ready from Tauri (event-based)
   useEffect(() => {
+    if (!IS_DESKTOP) return;
     const unlistenPromise = listen("backend-ready", () => {
       console.log("[App] Received backend-ready event");
       setBackendReady(true);
@@ -52,8 +57,8 @@ function App() {
 
   // Poll backend_is_ready as a fallback — stops automatically once true
   useEffect(() => {
-    // if already ready, don't start polling
-    if (backendReady) return;
+    // if already ready (or not the desktop app), don't start polling
+    if (!IS_DESKTOP || backendReady) return;
 
     let cancelled = false;
 
@@ -84,6 +89,29 @@ function App() {
   // Block the whole app until FastAPI/backend is ready
   if (!backendReady) {
     return <BackendLoader />;
+  }
+
+  // Web build: no login or terms gate, every route opens inside the dashboard
+  if (!IS_DESKTOP) {
+    return (
+      <Routes>
+        <Route path="/" element={<Sidebar />}>
+          <Route index element={<Navigate to={WEB_HOME} replace />} />
+          <Route path="workflows" element={<Workflows />} />
+          <Route path="flowrate" element={<FlowrateApproachPage />} />
+          <Route path="WorkflowFolderList" element={<WorkflowFolderList />} />
+          <Route path="pd_landing" element={<PdLandingPage />} />
+          <Route path="overlay" element={<OverlayLandingPage />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="ecl_configuration" element={<Configuration />} />
+          <Route path="page/flowrate" element={<FlowrateApproachPage />} />
+          <Route path="page/upload" element={<EclUpload />} />
+          <Route path="ecl" element={<EclUpload />} />
+          <Route path="chatbot" element={<Chatbot />} />
+        </Route>
+        <Route path="*" element={<Navigate to={WEB_HOME} replace />} />
+      </Routes>
+    );
   }
 
   return (

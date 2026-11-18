@@ -22,6 +22,7 @@ import {
   setActiveSubTab,
 } from "../redux_toolkit/features/general/navUIState";
 import { useLogout } from "../hooks/useLogout";
+import { IS_DESKTOP } from "../lib/runtime";
 
 // ----- Sidebar items (unchanged except for added tabs) -----
 const sidebarOptions: any[] = [
@@ -253,7 +254,8 @@ const Sidebar = () => {
           </nav>
         </div>
 
-        {isSidebarOpen && (
+        {/* Logout only exists in the desktop app; the web build has no login */}
+        {isSidebarOpen && IS_DESKTOP && (
           <div className="flex min-h-[50px] bg-gradient-to-r from-[#EA8024] to-[#FFBB00]">
             <button
               type="button"
