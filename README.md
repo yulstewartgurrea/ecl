@@ -61,26 +61,27 @@ cd <your-repo>
 
 ## Environment variables
 
-Create `.env` (or `.env.local` for the frontend) files as needed.
+Two `.env` files are required. Both are gitignored; copy the `.env.example` next to each and fill in real values.
 
-Example backend `.env` (at repository root or `backend/` depending on structure):
-
-```env
-# Backend
-DATABASE_URL=sqlite:///./db.sqlite3
-FASTAPI_ENV=development
-SECRET_KEY=change-me
-PORT=8000
-```
-
-Example frontend `.env` (React/Vite/CRA) — optional:
+**Frontend — `.env` (repo root)**, read by Vite at build time:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000
-# if Tauri uses the bundled backend or IPC, adjust accordingly
+VITE_AI_API_BASE=https://ai-api.example.com   # AI backend (login, chatbot)
+VITE_AI_PASSWORD=change-me                    # shared password for the AI token
 ```
 
-> Note: Adjust the paths if your project has `backend/` and `frontend/` folders.
+**Backend — `server/.env`**, read by FastAPI (`server/core/config.py`):
+
+```env
+SEED_ADMIN_PASSWORD=change-me   # password for the default "admin" account
+SEED_USER_PASSWORD=change-me    # password for the default "user1"/"user2" accounts
+# SECRET_KEY=...                # optional overrides
+# DATABASE_URL=...
+```
+
+Default accounts are only created on first run, when the database has no user with that name. If a seed password is empty, that account is skipped.
+
+`server/.env` is bundled into the installer with the `server/` folder. The CI build (`.github/workflows/build.yml`) writes both files from repository secrets of the same names.
 
 ---
 

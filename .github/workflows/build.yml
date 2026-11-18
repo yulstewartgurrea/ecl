@@ -31,6 +31,26 @@ jobs:
         
     - name: Install frontend dependencies
       run: npm ci
+
+    - name: Write env files from repository secrets
+      shell: bash
+      env:
+        VITE_AI_API_BASE: ${{ secrets.VITE_AI_API_BASE }}
+        VITE_AI_PASSWORD: ${{ secrets.VITE_AI_PASSWORD }}
+        SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+        SEED_USER_PASSWORD: ${{ secrets.SEED_USER_PASSWORD }}
+      run: |
+        for v in VITE_AI_API_BASE VITE_AI_PASSWORD SEED_ADMIN_PASSWORD SEED_USER_PASSWORD; do
+          if [ -z "${!v}" ]; then echo "::error::Missing repository secret $v"; exit 1; fi
+        done
+        {
+          echo "VITE_AI_API_BASE=$VITE_AI_API_BASE"
+          echo "VITE_AI_PASSWORD=$VITE_AI_PASSWORD"
+        } > .env
+        {
+          echo "SEED_ADMIN_PASSWORD=$SEED_ADMIN_PASSWORD"
+          echo "SEED_USER_PASSWORD=$SEED_USER_PASSWORD"
+        } > server/.env
       
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable

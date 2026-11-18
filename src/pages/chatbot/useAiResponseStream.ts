@@ -6,10 +6,10 @@ import type {
   AssistantAction,
   BuildOpts,
 } from "./chatbot.types";
+import { AI_API_BASE as API_BASE } from "../../lib/aiConfig";
 
 type StepStatus = "pending" | "running" | "done" | "error";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "brain-sam.sgvnexus.uk";
 
 const STEP_ORDER: { id: string; label: string }[] = [
   { id: "read_validate", label: "Reading & Validation" },

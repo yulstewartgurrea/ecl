@@ -8,9 +8,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "your-secret-key-here"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    # Passwords for the default accounts created on first run (set in server/.env)
+    SEED_ADMIN_PASSWORD: str = ""
+    SEED_USER_PASSWORD: str = ""
 
     class Config:
-        env_file = ".env"
+        env_file = SERVER_DIR / ".env"
         extra = "ignore"
 
 settings = Settings()

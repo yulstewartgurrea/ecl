@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
+import logging
 
 # Import DB and session factory
 from database import engine, Base, SessionLocal
+from core.config import settings
 
 import models  # noqa: F401
 from models import User, Workflow, Document, JsonData
@@ -85,14 +87,20 @@ def insert_initial_users():
     Uses ORM-style session and hashed passwords.
     """
     initial_users = [
-        {"username": "admin", "password": "sgvadmin0987", "role": "admin"},
-        {"username": "user1", "password": "sgvuser0987", "role": "user"},
-        {"username": "user2", "password": "sgvuser0987", "role": "user"},
+        {"username": "admin", "password": settings.SEED_ADMIN_PASSWORD, "role": "admin"},
+        {"username": "user1", "password": settings.SEED_USER_PASSWORD, "role": "user"},
+        {"username": "user2", "password": settings.SEED_USER_PASSWORD, "role": "user"},
     ]
 
     db = SessionLocal()
     try:
         for u in initial_users:
+            if not u["password"]:
+                logging.warning(
+                    "Skipping default user %r: set SEED_ADMIN_PASSWORD / SEED_USER_PASSWORD in server/.env",
+                    u["username"],
+                )
+                continue
             exists = db.query(User).filter_by(username=u["username"]).first()
             if not exists:
                 user = User(

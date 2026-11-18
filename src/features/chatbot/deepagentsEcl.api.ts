@@ -1,4 +1,6 @@
 // # file: src/features/chatbot/deepagentsEcl.api.ts
+import { AI_API_BASE as API_BASE } from "../../lib/aiConfig";
+
 export type UploadResponse = {
   type?: string;
   workflow_state?: string;
@@ -18,7 +20,6 @@ export type StreamRequest = {
   stream?: boolean;
 };
 
-const API_BASE = "https://brain-sam.sgvnexus.uk";
 
 const getAuthHeaders = (tokenai?: string | null): Record<string, string> => {
   const headers: Record<string, string> = {};

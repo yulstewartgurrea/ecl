@@ -33,3 +33,6 @@ server/venv/
 src-tauri/resource
 
 ~/*
+
+# Environment files (keep .env.example)
+.env

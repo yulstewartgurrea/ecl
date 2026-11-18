@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "sgv-ecl-automation-tool",
+  "productName": "ECL Automation Tool",
   "version": "0.1.0",
-  "identifier": "com.sgv-ecl-automation-tool",
+  "identifier": "com.ecl-automation-tool",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "sgv-ecl",
+        "title": "ECL Automation Tool",
         "width": 1600,
         "height": 900,
         "resizable": true,

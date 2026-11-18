@@ -99,14 +99,6 @@ const FlowrateApproachPage = () => {
     return status ?? "empty";
   }, [progressEntry]);
   const canProceedFromUpload = step1Status === "success";
-  const [step1GateMsg, setStep1GateMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (canProceedFromUpload || step1Status === "empty" || step1Status === "uploading") {
-      setStep1GateMsg(null);
-    }
-  }, [canProceedFromUpload, step1Status]);
-
   const initialStepForPath =
     (persistedStep !== undefined
       ? persistedStep
@@ -120,12 +112,6 @@ const FlowrateApproachPage = () => {
     setActiveSubStep(initialStepForPath);
   }, [initialStepForPath]);
 
-  useEffect(() => {
-    if (step1Status === "success" && step1GateMsg) {
-      setStep1GateMsg(null);
-    }
-  }, [step1Status, step1GateMsg]);
-
   const developmentSteps = [
     { label: "Inputs", completed: false },
     { label: "Flowrate Approach", completed: false },
@@ -134,19 +120,7 @@ const FlowrateApproachPage = () => {
   ];
 
   const commitStepChange = (targetIndex: number) => {
-    if (activeSubStep === 0 && targetIndex > 0 && !canProceedFromUpload) {
-      if (step1Status === "error") {
-        setStep1GateMsg(
-          "You cannot proceed to the next step because there is an error in your upload."
-        );
-      } else {
-        setStep1GateMsg("Please upload a valid file before proceeding.");
-      }
-      return;
-    }
-
     setActiveSubStep(targetIndex);
-    if (step1GateMsg) setStep1GateMsg(null);
 
     dispatch(
       setPdTransitionMatrixCurrentStep({
@@ -258,14 +232,6 @@ const FlowrateApproachPage = () => {
           canContinue={activeSubStep === 0 ? canProceedFromUpload : true}
         />
       </div>
-
-      {activeSubStep === 0 && step1GateMsg && (
-        <div className="mx-auto px-4 pt-2">
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            {step1GateMsg}
-          </div>
-        </div>
-      )}
 
       <div className="mx-auto lg:px-4">{renderSubStepContent()}</div>
     </div>

@@ -3,7 +3,7 @@
 This folder contains the React + Redux frontend UI that users see and interact with in the app.
 
 Project directory:
-- `C:\Users\KC Trinidad\Desktop\SGV\ecl\src`
+- `src/`
 
 ## Structure (high level)
 - `components/` reusable UI building blocks (tables, modals, buttons)

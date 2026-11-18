@@ -1,11 +1,8 @@
 "use client";
 import clsx from "clsx";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { ChevronLeftIcon } from "@heroicons/react/24/outline";
-import Stepper, {
-  type Step,
-  type StepperHandle,
-} from "../../components/stepper/Stepper";
+import Stepper, { type Step } from "../../components/stepper/Stepper";
 import Step1 from "./steps/Step1";
 import Step2 from "./steps/Step2";
 import Step3Consolidation from "./steps/Step3Consolidation";
@@ -19,7 +16,7 @@ import Step10 from "./steps/Step10";
 import Step11 from "./steps/Step11";
 
 // redux toolkit
-import { useAppDispatch, useAppSelector } from "../../redux_toolkit/hooks";
+import { useAppDispatch } from "../../redux_toolkit/hooks";
 import { resetStateNavUIState } from "../../redux_toolkit/features/general/navUIState";
 import { resetPdMatrixWfHelperData } from "../../redux_toolkit/features/probability_of_default/transition_matrix/pdMatrixWfHelper";
 import { useSelector } from "react-redux";
@@ -43,14 +40,6 @@ const stepLabels = [
 const PdTransitionMatrixWorkflow = () => {
   const dispatch = useAppDispatch();
 
-  const {
-    selectedPdTransitionMatrixEntity: entity,
-    selectedPdTransitionMatrixReportingPeriod: period,
-    pdTransitionMatrixWfName: workflowName,
-  } = useSelector((state: RootState) => state.pdTransitionMatrixWfHelper);
-
-  const directoryPath = `/${entity}/${period}/${workflowName}`;
-
   // Redux current step (0-based)
   const currentStep = useSelector(
     (state: RootState) => state.workflow.modules.transitionMatrix.currentStep,
@@ -64,14 +53,6 @@ const PdTransitionMatrixWorkflow = () => {
     Step[] | null
   >(null);
 
-  const workflowMetrics = useAppSelector(
-    (state: RootState) =>
-      state.pdMatrixWfHelper.workflowMetrics[directoryPath] || {},
-  );
-
-  // For two screens inside Step 3 (Data Consolidation)
-  const [consolidationSubStep, setConsolidationSubStep] = useState<0 | 1>(0);
-
   useEffect(() => {
     if (!stepsCompletionStatus) {
       setStepsCompletionStatus(
@@ -83,53 +64,15 @@ const PdTransitionMatrixWorkflow = () => {
     }
   }, [stepsCompletionStatus]);
 
-  const stepperRef = useRef<StepperHandle>(null);
-
-  // NEW: central rule — allow back to any previous step, or forward only to the immediate next step
-  const isAllowedTarget = (from: number, to: number) => {
-    if (to <= from) return true; // can go back
-    if (to === from + 1) return true; // can go forward only to the very next step
-    return false; // no skipping forward
-  };
-
-  /** What actually happens when a step change is approved (user confirmed or not gated) */
+  /** Go to the selected step and mark the current one as completed */
   const commitStepChange = (targetIndex: number) => {
-    // NEW: hard guard (covers clicks, keyboard, programmatic calls)
-    if (!isAllowedTarget(currentStep, targetIndex)) {
-      // Optional: replace with your toast system
-      console.warn("Cannot skip steps. Please proceed in sequence.");
-      return;
-    }
-
-    // NEW: Step 3 two-screen behavior — if still on sub-step 0 and user tries to go "next",
-    // show the consolidation sub-screen instead of jumping to Step 4.
-    if (
-      currentStep === 2 &&
-      consolidationSubStep === 0 &&
-      targetIndex === currentStep + 1
-    ) {
-      setConsolidationSubStep(1);
-      return;
-    }
-
     setStepsCompletionStatus(
       (prev) =>
         prev?.map((s, idx) =>
           idx === currentStep ? { ...s, completed: true } : s,
         ) ?? prev,
     );
-    setConsolidationSubStep(0);
     setCurrentStepRedux(targetIndex);
-  };
-
-  // NEW: intercept clicks on the stepper so users can’t click far future steps
-  const handleStepClick = (targetIndex: number) => {
-    if (!isAllowedTarget(currentStep, targetIndex)) {
-      console.warn("Cannot skip steps. Please proceed in sequence.");
-      return; // just ignore the click
-    }
-    // Let the Stepper run its own guards/modals and call onApprovedStepChange if OK
-    stepperRef.current?.attemptStepChange(targetIndex);
   };
 
   const renderStepComponent = () => {
@@ -182,15 +125,10 @@ const PdTransitionMatrixWorkflow = () => {
 
         {stepsCompletionStatus && stepsCompletionStatus.length > 0 && (
           <Stepper
-            ref={stepperRef}
             steps={stepsCompletionStatus}
             activeStep={currentStep}
-            workflowMetrics={workflowMetrics}
             canContinue={currentStep === 1} // your existing visual cue for Step 2
-            gateFromIndex={1} // keep your Step 2 forward gating/modal
-            onlyWhenIssues={true}
             onApprovedStepChange={commitStepChange}
-            onStepClickVisualOnly={handleStepClick} // NEW: enforce no-skip on clicks
           />
         )}
       </div>

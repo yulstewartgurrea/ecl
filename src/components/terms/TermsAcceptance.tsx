@@ -359,7 +359,7 @@ const TermsAcceptance = ({ appVersion, termsHash, termsContent, onCancel, onFini
       <div className="relative z-10 flex h-[min(92vh,900px)] w-[min(94vw,1240px)] overflow-hidden rounded-2xl bg-white shadow-2xl">
         {/* Steps */}
         <aside className="flex w-72 shrink-0 flex-col border-r border-slate-100 bg-slate-50 px-8 py-10">
-          <img src="/SGVLogoLight.png" alt="SGV" className="w-24" />
+          <img src="/logo.svg" alt="ECL Automation Tool" className="w-24" />
 
           <ol className="mt-14">
             {STEPS.map((s, i) => {

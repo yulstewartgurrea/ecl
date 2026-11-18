@@ -2,7 +2,7 @@
 // so any change here asks every user to accept again.
 // Each statement about the calculation was checked against the code; keep them in step with it.
 
-export const TERMS_VERSION = "1.1";
+export const TERMS_VERSION = "1.2";
 export const TERMS_EFFECTIVE_DATE = "October 22, 2026";
 
 export type TermsIcon =
@@ -35,7 +35,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
     id: "methodology",
     icon: "cog",
     title: "Methodology and Assumptions",
-    body: "The application uses predefined calculation methodologies, default parameter values, and assumptions. Some assumptions are fixed in the system and cannot be modified by users. Others come from SGV's reference method, from the values you enter, or from the files you upload. These assumptions may affect the ECL results. The key platform assumptions are listed in the next step, Platform Assumptions.",
+    body: "The application uses predefined calculation methodologies, default parameter values, and assumptions. Some assumptions are fixed in the system and cannot be modified by users. Others come from the reference method, from the values you enter, or from the files you upload. These assumptions may affect the ECL results. The key platform assumptions are listed in the next step, Platform Assumptions.",
   },
   {
     id: "limitations",
@@ -90,7 +90,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
     id: "privacy",
     icon: "shield",
     title: "Data Privacy and AI Mode",
-    body: "Client data can include personal information protected by the Data Privacy Act of 2012 (RA 10173). Handle it in line with the engagement terms and SGV's data privacy policies.",
+    body: "Client data can include personal information protected by the Data Privacy Act of 2012 (RA 10173). Handle it in line with the engagement terms and your organization's data privacy policies.",
     points: [
       "AI Mode sends your questions and any files you attach to an external server (<server_name>). Do not use AI Mode with client data unless its use has been approved.",
     ],
@@ -106,7 +106,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
 export const TERMS_STATEMENT =
   "I have read, understood, and accept the above terms and acknowledge the application's methodology, assumptions, limitations, and my responsibilities as a user.";
 
-// Who sets an assumption: the platform code, SGV's reference method, the analyst, or an uploaded file
+// Who sets an assumption: the platform code, the reference method, the analyst, or an uploaded file
 export type AssumptionSource = "PLT" | "REF" | "USR" | "DAT";
 
 export const ASSUMPTION_SOURCES: Record<
@@ -120,7 +120,7 @@ export const ASSUMPTION_SOURCES: Record<
   },
   REF: {
     label: "Reference method",
-    setBy: "Taken from SGV's reference method, as a default value or as part of the design.",
+    setBy: "Taken from the reference method, as a default value or as part of the design.",
     canChange: "Defaults can be changed; the design cannot.",
   },
   USR: {
@@ -223,7 +223,7 @@ export const ASSUMPTION_GROUPS: { title: string; rows: Assumption[] }[] = [
       {
         item: "Scenario weights",
         value:
-          "You enter them. The screen starts at 30% / 50% / 20% (Upside / Base / Downside); SGV's reference method uses 25% / 50% / 25%. Weights are not rescaled when they do not total 100%.",
+          "You enter them. The screen starts at 30% / 50% / 20% (Upside / Base / Downside); the reference method uses 25% / 50% / 25%. Weights are not rescaled when they do not total 100%.",
         source: "USR",
         canChange: "Yes",
       },
@@ -254,13 +254,13 @@ export const ASSUMPTION_GROUPS: { title: string; rows: Assumption[] }[] = [
     rows: [
       {
         item: "Variables per model",
-        value: "You enter the number in Multi-Factor Analysis. SGV's reference method uses 3.",
+        value: "You enter the number in Multi-Factor Analysis. The reference method uses 3.",
         source: "USR",
         canChange: "Yes",
       },
       {
         item: "Model filter thresholds",
-        value: "No default; you enter them. SGV's reference method gives recommended values.",
+        value: "No default; you enter them. The reference method gives recommended values.",
         source: "USR",
         canChange: "Yes",
       },
@@ -302,7 +302,7 @@ export const ASSUMPTION_GROUPS: { title: string; rows: Assumption[] }[] = [
 
 export const KEY_DEFAULTS_NOTE = {
   title: "Defaults can change the ECL without a record",
-  body: "The scenario weights screen starts at 30/50/20, while SGV's reference method uses 25/50/25. In SGV's tests, keeping 30/50/20 lowered the ECL by about 4%, and weights totalling 80% lowered it by about 23%. The application does not record which weights you used or why. Check every default against the client's approved policy and record the reason for any change.",
+  body: "The scenario weights screen starts at 30/50/20, while the reference method uses 25/50/25. In testing, keeping 30/50/20 lowered the ECL by about 4%, and weights totalling 80% lowered it by about 23%. The application does not record which weights you used or why. Check every default against the client's approved policy and record the reason for any change.",
 };
 
 export const ASSUMPTIONS_STATEMENT =

@@ -6,6 +6,7 @@ import { setTokenAi } from "../redux_toolkit/features/general/auth";
 import ApiStatusIndicator from "../components/ApiStatusIndicators";
 import BackgroundComponent from "../components/BGComponent";
 import { ArrowRightStartOnRectangleIcon } from "@heroicons/react/24/outline";
+import { AI_API_BASE, AI_PASSWORD } from "../lib/aiConfig";
 const APP_VERSION = "v2.0.0";
 const Login = () => {
   const [username, setUsername] = useState<string>("");
@@ -19,11 +20,12 @@ const Login = () => {
   const { trigger } = useLogin();
 
   const fetchAiToken = async () => {
+    if (!AI_API_BASE || !AI_PASSWORD) return;
     try {
-      const response = await fetch("https://brain-sam.sgvnexus.uk/auth/login", {
+      const response = await fetch(`${AI_API_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: "sgvai0987" }),
+        body: JSON.stringify({ password: AI_PASSWORD }),
       });
 
       if (response.ok) {
@@ -63,8 +65,8 @@ const Login = () => {
           <div className="bg-white flex flex-row items-center justify-center px-2 py-4 pt-6 text-center sm:px-16 text-black relative">
             <div className="flex flex-col items-center mr-8">
               <img
-                src="/SGVLogoLight.png"
-                alt="Logo"
+                src="/logo.svg"
+                alt="ECL Automation Tool"
                 height={80}
                 width={80}
                 className="rounded-[3px]"

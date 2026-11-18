@@ -3,7 +3,7 @@
 This folder contains the Tauri backend and native integrations that connect the UI to the desktop OS.
 
 Project directory:
-- `C:\Users\KC Trinidad\Desktop\SGV\ecl\src-tauri`
+- `src-tauri/`
 
 ## Structure (high level)
 - `src/` Rust backend code (commands, filesystem access)

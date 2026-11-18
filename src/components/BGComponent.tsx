@@ -11,7 +11,7 @@ const BGContainer: React.FC = () => {
           preserveAspectRatio="none"
         >
           <defs>
-            {/* golden at the bottom left to EY yellow at the top right */}
+            {/* golden at the bottom left to bright yellow at the top right */}
             <linearGradient id="login-bg-gradient" x1="0" y1="1" x2="1" y2="0">
               <stop offset="0%" stopColor="#FFBC19" />
               <stop offset="100%" stopColor="#FFE600" />

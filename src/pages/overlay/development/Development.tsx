@@ -50,9 +50,6 @@ const OverlayDevelopmentStep1 = () => {
   ];
 
   const handleSubStepChange = (targetIndex: number) => {
-    if (activeSubStep === 0 && targetIndex > 0 && !step1Valid) {
-      return;
-    }
     setActiveSubStep(targetIndex);
     dispatch(
       setModuleProgress({

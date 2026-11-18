@@ -12,9 +12,7 @@ import {
   AdjustmentsHorizontalIcon,
   FolderIcon,
   PercentBadgeIcon,
-  ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
-import { openUrl } from "@tauri-apps/plugin-opener";
 
 // redux toolkit
 import { useAppDispatch, useAppSelector } from "../redux_toolkit/hooks";
@@ -36,14 +34,9 @@ const sidebarOptions: any[] = [
   { tabName: "Flowrate Approach", icon: ChartBarIcon, subTabs: [] },
   { tabName: "Overlay", icon: Square3Stack3DIcon, subTabs: [] },
   { tabName: "Expected Credit Loss (ECL)", icon: ChartBarIcon, subTabs: [] },
-  { tabName: "AI Mode", icon: ChatBubbleLeftRightIcon, subTabs: [] },
   { tabName: "Configuration", icon: AdjustmentsHorizontalIcon, subTabs: [] },
   // { tabName: "General Settings", icon: Cog6ToothIcon, subTabs: [] },
 ];
-
-// ----- External link for AI Mode (Wash login; use same credential as app: password "sgvai0987") -----
-const AI_MODE_EXTERNAL_URL = "https://wash.sgvnexus.uk/login";
-const AI_MODE_TOKEN_SYNC_URL = "https://wash.sgvnexus.uk/api/auth/token";
 
 // ----- Route maps (tab -> route, subtab -> route) -----
 const TAB_TO_ROUTE: Record<string, string> = {
@@ -52,7 +45,6 @@ const TAB_TO_ROUTE: Record<string, string> = {
   Overlay: "/overlay",
   "Flowrate Approach": "/flowrate",
   "Expected Credit Loss (ECL)": "/ecl",
-  "AI Mode": "/chatbot", // used only for ROUTE_TO_TAB / sync; click opens external URL
   Configuration: "/ecl_configuration",
   // "General Settings": "/settings",
 };
@@ -71,7 +63,6 @@ const Sidebar = () => {
   const { isSidebarOpen, activeTab, activeSubTab } = useAppSelector(
     (state) => state.navUIState,
   );
-  const tokenai = useAppSelector((state) => state.auth.tokenai);
 
   const [expandedTabs, setExpandedTabs] = useState<Set<string>>(new Set());
 
@@ -84,30 +75,6 @@ const Sidebar = () => {
   const handleToggleSidebar = () => dispatch(toggleSidebar());
 
   const handleTabClick = async (tabName: string) => {
-    // AI Mode opens Wash login in a new tab (credential: same as app login, see Login.tsx)
-    if (tabName === "AI Mode") {
-      const aiToken = tokenai || localStorage.getItem("tokenai");
-      if (aiToken) {
-        try {
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), 3000);
-          await fetch(
-            `${AI_MODE_TOKEN_SYNC_URL}?token=${encodeURIComponent(aiToken)}`,
-            { method: "GET", credentials: "include", signal: ctrl.signal },
-          );
-          clearTimeout(timer);
-        } catch (err) {
-          console.error("Failed to sync AI token:", err);
-        }
-      }
-      try {
-        await openUrl(AI_MODE_EXTERNAL_URL);
-      } catch (err) {
-        console.error("Failed to open AI Mode URL:", err);
-      }
-      return;
-    }
-
     // 1) mark active in Redux
     dispatch(setActiveTab(tabName));
     dispatch(setActiveSubTab("")); // clear any previous subtab
@@ -200,8 +167,8 @@ const Sidebar = () => {
         >
           <div className="w-full flex justify-center px-4 mb-12">
             <img
-              src="/SGVLogoLight.png"
-              alt="Logo"
+              src="/logo.svg"
+              alt="ECL Automation Tool"
               className="h-16 object-contain"
             />
           </div>
