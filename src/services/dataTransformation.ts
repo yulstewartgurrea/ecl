@@ -175,12 +175,20 @@ export async function getDataTransformationResults(opts: {
   return json;
 }
 
+function parseContentDispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const match = header.match(/filename\s*=\s*"?([^";\n]+)"?/i);
+  return match ? match[1].trim() : null;
+}
+
+export type ExportDataTransformationResult = { blob: Blob; filename: string };
+
 export async function exportDataTransformation(opts: {
   apiBase: string;
   token?: string | null;
   workflowId: number;
   fileType?: string;
-}): Promise<Blob> {
+}): Promise<ExportDataTransformationResult> {
   const { apiBase, token, workflowId, fileType = "both" } = opts;
 
   if (!Number.isFinite(workflowId)) {
@@ -203,7 +211,12 @@ export async function exportDataTransformation(opts: {
     throw new Error(`HTTP ${res.status}: ${text}`);
   }
 
-  return await res.blob();
+  const blob = await res.blob();
+  // "both" returns a zip; "independent" / "dependent" return a single CSV
+  const fallback = fileType === "both" ? "transformed_data.zip" : "transformed_data.csv";
+  const filename =
+    parseContentDispositionFilename(res.headers.get("Content-Disposition")) ?? fallback;
+  return { blob, filename };
 }
 
 type ShapeOpts = {
